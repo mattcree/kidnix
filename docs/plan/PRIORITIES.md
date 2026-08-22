@@ -66,6 +66,7 @@ afterwards; the loop is the hard part.
 ## P2 — differentiators and polish (M5+)
 
 22. "Listen" mode — screen-off stories/audiobooks; family-recorded content.
+22b. **Waydroid spike** — curated, no-network Android apps (ScratchJr, Khan Kids); see ACTIVITY-IDEAS.md
 23. Flip-to-see-how-it-works (Endless Hack idea) for one activity.
 24. Anaconda ISO + first-run parent wizard; hardware shortlist validated on
     a refurbished ThinkPad; docs for other families.
