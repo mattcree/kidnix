@@ -28,10 +28,10 @@ jobs:
     name: lint
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: just --fmt --check
         run: just --unstable --fmt --check
@@ -75,10 +75,10 @@ jobs:
           sudo docker image prune --all --force || true
           echo "after:"; df -h / | tail -1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: Image metadata
         id: meta
@@ -113,7 +113,7 @@ jobs:
       # can never write to the registry.
       - name: Log in to ghcr.io
         if: github.event_name != 'pull_request'
-        uses: redhat-actions/podman-login@v1
+        uses: redhat-actions/podman-login@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -122,7 +122,7 @@ jobs:
       - name: Push to ghcr.io
         id: push
         if: github.event_name != 'pull_request'
-        uses: redhat-actions/push-to-registry@v2
+        uses: redhat-actions/push-to-registry@v3
         with:
           image: ${{ env.IMAGE_NAME }}
           tags: latest ${{ steps.meta.outputs.date_tag }} ${{ steps.meta.outputs.sha_tag }}
@@ -135,7 +135,7 @@ jobs:
       #     --certificate-oidc-issuer=https://token.actions.githubusercontent.com
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4
 
       - name: Sign image (keyless)
         if: github.event_name != 'pull_request'
