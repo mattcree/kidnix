@@ -197,3 +197,28 @@ on schema errors so CI can run it.)
   gnome-kiosk `window-config.ini` to give activities a fixed region below a
   96 px shell strip; or the shell becomes a tiny compositor later. Spike.
 - Ask-a-grown-up, multi-child, printing, sending, calm mode.
+
+## 7b. Rulings from checkpoint 1 (2026-08-22; see SYNTHESIS §4b, 09 §10)
+
+- **S1b "What's next after?"** — a new screen between Who's here and Home:
+  6–9 picture options (parent-configurable; defaults: go outside, a book,
+  building, drawing on paper, snack, bath, help cook, play with someone) —
+  the child picks one; Goodbye shows it back: "Ready to [thing]?" Replaces
+  the generated suggestion line (keep it only as a fallback when nothing was
+  chosen). Coco's Videos (CHI 2018).
+- **The sun depletes by shrinking/sinking, not by travelling.** Redraw: a
+  sun whose *height above the horizon and size* fall with remaining time;
+  horizontal position fixed at centre. Tapping it speaks a child-terms
+  estimate (no digits). The sun is state, not a warning.
+- **Hover dwell 450 ms + settle gate** (speak only once pointer velocity has
+  dropped below a threshold for the dwell); instrument every hover-speech
+  (dwell ms, followed-by-selection?) in the local log for protocol P5.
+- **Progressive disclosure**: first-run Home shows the first 5–6 tiles by
+  `order`; one more tile appears after each N sessions (N = 2) up to the
+  allow-list; parent can set "show everything" in parent.toml.
+- **Earcons**: prefer representational auditory icons where a referent
+  exists (paper rustle for "keep", soft door for "back", yawn/owl for
+  "sleep"); generated tones only where no referent; licence any samples.
+- **Gate**: not voiced; silent failure; attempts logged for the parent.
+- **Exit friction**: none — "All done" and Back are never delayed except the
+  3 s accidental-tap guard on Put away.

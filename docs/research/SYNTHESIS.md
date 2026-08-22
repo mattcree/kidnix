@@ -96,13 +96,13 @@ cites its evidence; AGENTS.md §3 is the short form.
 - A4. **No free scrolling in the shell**; paginate with big page dots/arrows.
 - A5. Drags short, with pick-up/drop state cues and a click-move-click fallback.
 - A6. Keyboard never required to reach/leave any shell surface.
-- A7. OS pointer settings for the kid session: double-click 700 ms, drag-threshold 16 px, flat accel, cursor-size 48, no natural-scroll surprises (06 §3).
+- A7. OS pointer settings for the kid session: double-click 700 ms, drag-threshold 16 px, flat accel, cursor-size 48, no natural-scroll surprises (06 §3); **trackpad hardening**: tap-to-click off, gestures and two-finger scroll off at the libinput/mutter level, palm rejection max, disable-while-typing on; tent mode is the recommended touch-first posture for 4–6 (*09 Q7/Q8*).
 
 ### B. Navigation, layout, text (01 #11–21, 08 §3–5)
 - B1. **Flat, one level deep, spatially stable**; no menus, no hamburgers, no folders, no search box.
-- B2. **≤ 5 primary choices** per screen for 4–6; Home tiles ≤ 12 on one page, progressive disclosure (first session simpler than tenth).
+- B2. Home grid **ceiling 12 tiles** on one page (justified by geometry and visual search, not working memory — WM limits bind on *held* option sets, not a visible, labelled, spatially stable grid; Pailian 2016, Schneider 2021 inverted-U with ~4 optimal mediated by *affective* load); **first-run default 5–6 tiles**, growing toward 12 as the child uses the system (progressive disclosure). Dialogs/choice screens: ≤ 5 choices. (Revised at checkpoint 1; *09 Q3*.)
 - B3. Fixed **band** at the top (Back · Undo · My Things · sun/timer · Ear · Ask · Grown-up) on every surface; never hides.
-- B4. **Icon + label + audio, always** — representational icons (a paintbrush, not a glyph), label ≥ 18 pt, tap/hover reads aloud; "Ear" repeats the last utterance.
+- B4. **Icon + label + audio, always** — representational icons (a paintbrush, not a glyph), label ≥ 18 pt, tap/hover reads aloud; "Ear" repeats the last utterance. Hover dwell **450 ms with a pointer-velocity settle gate** (no child evidence exists for hover read-aloud; Paulus & Remijn 2021 extrapolated; instrumented for P5). Earcons: prefer representational auditory icons where a referent exists (Jacko 1997 — recognition driven by everyday-sound exposure); the soundscape is extrapolation and says so.
 - B5. Instructions audio-first, ≤ 2 sentences, ≤ 12 words, imperative; **demonstrate with a looping animation** rather than describe; every spoken thing paired with a visual highlight.
 - B6. Type: **Andika** (child-facing) / **Atkinson Hyperlegible**; no dyslexia fonts. Colour never the sole carrier of meaning (≈8% of boys colour-blind, mostly undiagnosed). **Colour = whose (child identity), shape = what.**
 - B7. Visual quiet: one focal region, ≤ 2 animated elements, no ambient loops, no music under speech (EYSTAG slow-content rules applied to the chrome).
@@ -117,10 +117,10 @@ cites its evidence; AGENTS.md §3 is the short form.
 ### D. Sessions & endings (02 #1–10, 17–18; 01 #27–32; 08 §4.6–4.7)
 - D1. Default session **20–30 min** (parent-configurable 10–45); soft ceiling ~1 h/day; bedtime lockout; schedule windows that match household boundaries. State honestly that no number is evidenced.
 - D2. **The machine ends the session**, never the parent; consistent character/ritual; never "your mum said stop."
-- D3. Ending is **predictable and in-experience**: continuous analogue depletion (sun crossing the sky) glanceable throughout — **not** a digital countdown, **not** a modal "2 minutes left".
-- D4. Session end **rounds to a natural boundary**: T−6 min *Ending offer* ("finish this one / one last little thing / ask for more time"), T−2 min *Put away* (work animates into Journal), *Goodbye* (what you made today; show a grown-up; one concrete offline continuation).
+- D3. Ending is **predictable and in-experience**: a glanceable ambient state, **not** a digital countdown, **not** a modal "2 minutes left". The sun is *state*, not a warning and not the mechanism that buys calm (four JABA single-case experiments: advance notice/visual schedules are inert on their own; Castillo 2018: the aversive event is the drop in reinforcement density at the destination). Encode depletion as **shrinking area / falling height**, not left-to-right travel (the directional mental timeline isn't reliable before ~6; Tillman 2018). (*09 Q1*.)
+- D4. Session end **rounds to a natural boundary**: T−6 min *Ending offer* ("finish this one / one last little thing / ask for more time"), T−2 min *Put away* (work animates into Journal), *Goodbye* (what you made today; show a grown-up; **the offline continuation the child chose at session start** — Coco's Videos (Hiniker et al. CHI 2018, 24 families, 3–5 yr, randomised order): a pre-chosen next activity made endings work; the shell shows it back: "Ready to [thing]?"). A *What's next after?* picture choice (6–9 parent-configurable options) sits between Who's here and Home. (*09 Q6*.)
 - D5. **Child-initiated ending is first-class** ("I'm finished" runs the same dignified ritual; never "are you sure?", never a bribe to stay).
-- D6. **No autoplay, no up-next, no notifications, no streaks, no daily rewards, no parasocial pleading, no fabricated time pressure.** The system has no interest in whether the child comes back.
+- D6. **No autoplay, no up-next, no notifications, no streaks, no daily rewards, no parasocial pleading, no fabricated time pressure, and no exit friction of any kind** ("the easy way out", Kuo, Zhao & Scott 2026). Coco's: post-play/autoplay is unambiguously harmful (p<.001; 71% of parents against, 0% for); children ended early 31% of the time (D5 is normal, not exceptional); a hard lock-out was **no better** for the child than a plain home button — Sleeping is parent-side enforcement, not child-side kindness. The system has no interest in whether the child comes back.
 - D7. Grants: parent-side +5/+15/+30 (Nintendo pattern) via the Ask flow; soft stop, not hard cut.
 
 ### E. Reward, motivation, content (02 #8–9, 14–16, 19; 05)
@@ -138,7 +138,7 @@ cites its evidence; AGENTS.md §3 is the short form.
 
 ### G. Parent side (04, 02 #20, 03 checklist)
 - G1. Controls set the **shape** of the sandbox (children, time, activities, requests, their things, family recipients, calm mode) and get out of the way; **no engagement metrics, no surveillance**.
-- G2. Parent gate = 3-second hold on a plain corner tile + PIN; adult typography.
+- G2. Parent gate = 3-second hold on a plain corner tile + PIN; adult typography; **never an arithmetic gate; silent, free, un-penalised failure; attempts logged for the parent only; the gate is not voiced** (RCT n=554, mean age 4.3: locks deter above chance but a majority still try to bypass — so the gate is a speed bump, the lockdown below the session is the wall; *09 Q8*).
 - G3. **Ask a grown-up** replaces every silent denial: three picture-button taps (+ optional voice note), non-blocking, answered asynchronously (incl. by the parent's recorded voice); outline-only tiles for not-allowed activities open the Ask flow.
 - G4. Parent can **see, export and delete everything**; nothing leaves the device; the parent's own stock GNOME session is on the same login screen.
 - G5. Parent drives updates (`bootc upgrade` from the panel); never a surprise reboot mid-activity; auto-rollback on failed health checks.
@@ -229,6 +229,17 @@ Per-activity rules (05 §3):
   — scaffold heavily, fade deliberately, don't design for struggle; no
   over-engineered adaptivity; no background music under narration; never
   position kidnix as a way to occupy or calm a child (DfE guidance forbids).
+
+## 4b. Checkpoint 1 (2026-08-22)
+
+Adherence audit: `docs/design/cci-compliance-audit-2026-08-22.md`. Gap sweep:
+`docs/research/09-gap-sweep-checkpoint-1.md` (its §10 edits are applied above;
+its §11 child-test protocols P1–P6 are adopted in `docs/plan/CHILD-TEST-PROTOCOL.md`).
+Settled enough to stop re-litigating: no autoplay/up-next; no scrolling/paginate.
+Still genuinely unknown (test with children): visible sun help/hurt; hover dwell;
+Journal comprehension/resume; pointer device on the real hardware; ending ritual
+as an anticipated object. No IDC/CHI/IJCCI paper 2024–26 describes a kids' OS,
+launcher or kiosk shell — the field is still empty.
 
 ## 5. Decisions taken (ADRs) and pending
 
