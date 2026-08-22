@@ -31,7 +31,22 @@ printer, or understand the machine), or admin from another device only.
 
 ## Consequences
 
-- Image grows (estimate +400–700 MB); acceptable for v0.1, measured in CI.
+- Measured (spike, 2026-08-22): `gdm` already hard-requires `gnome-shell`,
+  `gnome-session-wayland-session` and `gnome-control-center`, so the parent
+  desktop costs only **+63 MiB** (nautilus, ptyxis, malcontent-tools,
+  gnome-backgrounds, fonts) — not the estimated +400–700 MB.
+- Follow-ups accepted as decisions: **remove Firefox** from the image (the
+  base ships it; "no web browser" applies to the whole machine — the parent
+  has other devices; a browser in the image is the residual hole if the kid
+  ever reaches the parent session); **remove or mask `gnome-remote-desktop`
+  and `rygel`** (network-facing weak deps); replace `gnome-backgrounds` with
+  one kidnix wallpaper. Tracked in the hardening pass.
+- GDM cannot restrict sessions per user (AccountsService sets a default, not
+  a restriction); the kiosk lockdown is what keeps `kid` away from the
+  greeter. Residual risk, documented.
+- GNOME 50's Settings "Wellbeing" panel is *self*-imposed screen time;
+  parental policy is malcontent (+ AccountsService), whose allow-list mode is
+  D-Bus-only — the parent panel will use libmalcontent directly.
 - The parent experience is familiar, documented, and maintained upstream.
 - The kid session must still be unable to reach the parent session: GDM
   user-switch/greeter access is gated by the kiosk (no VT switch, no
