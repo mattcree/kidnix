@@ -103,6 +103,10 @@ jobs:
             --build-arg KIDNIX_PRETTY_VERSION="${{ steps.meta.outputs.date_tag }}.${{ steps.meta.outputs.sha_tag }}" \
             --tag "localhost/${IMAGE_NAME}:latest" \
             -f Containerfile .
+          # push-to-registry looks every tag up in local storage by name.
+          podman tag "localhost/${IMAGE_NAME}:latest" \
+            "localhost/${IMAGE_NAME}:${{ steps.meta.outputs.date_tag }}" \
+            "localhost/${IMAGE_NAME}:${{ steps.meta.outputs.sha_tag }}"
           podman image inspect "localhost/${IMAGE_NAME}:latest" \
             --format '{{ .Size }}' | numfmt --to=iec | sed 's/^/image size: /'
 
