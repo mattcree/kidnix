@@ -23,7 +23,8 @@
       `ghcr.io/mattcree/kidnix`, cosign, bcvk boot test
 - [x] `docs/BUILDING.md`
 - [x] Research docs 01–08 + `SYNTHESIS.md` + `PRIORITIES.md`
-- [ ] CI green on main (push step fixed; awaiting run)
+- [x] CI build green on main (image pushed to ghcr + signed)
+- [ ] CI boot-test green on GitHub runners (bcvk ssh timeout — in progress)
 
 Exit reached locally: `just test-boot` boots the image into the kiosk
 session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
@@ -36,10 +37,11 @@ session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
       child input settings; Flatpak `--unshare=network`; greenboot checks;
       auto-update timer masked; ALSA cap + soft-mixer
 - [ ] `parent`: stock GNOME session (ADR-0005) — in progress
-- [ ] Portals in the kid session: route through gnome-session so
-      `graphical-session.target` is reached (blocks Flatpak activities)
-- [ ] Boot test asserts: no egress from kid (`curl` fails) while parent
-      succeeds; keybinding mash test; shell restart after kill
+- [x] Portals in the kid session via gnome-session (`kidnix.session`);
+      shell as a Restart=always user service (back in ~1 s after SIGKILL)
+- [x] Boot test asserts: no egress from kid (`curl` exits 7) while root
+      succeeds; shell restart after kill
+- [ ] Keybinding mash test on real hardware
 - [ ] First-boot idempotency and `bootc upgrade`/rollback tested in a VM
 
 ## M2 — Shell vertical slice ("one activity, end-to-end")

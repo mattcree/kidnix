@@ -5,8 +5,11 @@ Immutable, bootc-based Linux · full-screen activity shell · a Journal instead
 of files · bounded sessions · read-aloud everything · zero telemetry · no
 browser, no store, no feeds.
 
-> Status: day one (2026-08-22). Research and build infrastructure in progress.
-> Nothing here is usable by a child yet.
+> Status: day one (2026-08-22). The image builds, boots into the kiosk shell
+> in a VM, and the child session is locked down at the image level. Nothing
+> here has been tested with a child yet.
+
+![kidnix shell: Who's here?](docs/design/screenshots/boot-home.png)
 
 ## Why
 
