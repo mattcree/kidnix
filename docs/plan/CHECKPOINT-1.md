@@ -56,14 +56,14 @@ parsed-but-unused manifest fields (Library opens nothing; age bands ignored);
 | 4 | `.not-allowed` contrast ≥ 3:1; Atkinson Next font name | shell | done |
 | 5 | No spoken digits (Journal titles) | shell | done |
 | 6 | Tappable sun + phase earcon | shell | done |
-| 7 | Egress proven by packet capture in the boot test; licence + package-lock CI gates | image/CI | in progress |
+| 7 | Egress proven by packet capture in the boot test (found + closed a DNS side-channel via resolved/nss-resolve); licence + package-lock CI gates | image/CI | done |
 | 8 | Trackpad hardening in kid dconf (+ orientation lock) | image | done |
 | 9 | Piper cori default voice | image | done (verified in image) |
-| 10 | S1b "What's next after?"; sun shape; dwell 450 + instrumentation; progressive disclosure; representational earcons; gate not voiced | shell | in progress |
+| 10 | S1b "What's next after?"; sun shape; dwell 450 + instrumentation; progressive disclosure; representational earcons; gate not voiced | shell | done |
 | 11 | Tux Paint quit dialog: accepted for v0.1 (ADR-0010 #5); band-over-activity spike is the real fix | — | ruled |
 | 12 | Child test #1 (baseline), then P1–P6 | Matt + thinker | when hardware arrives |
-| 13 | GCompris curation (12–20 activities) | activities | in progress |
-| 14 | Band-over-activity feasibility spike | session | in progress |
+| 13 | GCompris curation: 18 activities in six groups via --launch; config section bug fixed | activities | done |
+| 14 | Band-over-activity: feasible via gnome-kiosk window-config.ini (spike); band as second toplevel | shell | in progress (wave 5) |
 | 15 | 24 vs 18 mm floor: keep 18 mm floor / 24 preferred (06) | — | ruled |
 
 ## Still genuinely unknown
