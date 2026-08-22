@@ -61,9 +61,12 @@ the guest that reports a `key=value` block back. Assertions:
 - `gnome-kiosk` running, owned by `kid`
 - no failed units beyond an explicit allow-list
 
-The allow-list currently holds exactly one entry, `bootloader-update.service`,
-with the reason recorded in the source: there is no ESP in an ephemeral VM.
-Every other failed unit fails the test.
+The allow-list holds four entries, each with its reason recorded in the source:
+`bootloader-update.service` (no ESP in an ephemeral VM), the two `greenboot-*`
+units (no `/boot` mount — bcvk roots on virtiofs), and `mcelog.service`, which
+refuses to run on AMD CPUs and so fails on a GitHub runner while passing
+silently on an Intel laptop. Masking mcelog in the image would be tidier than
+allow-listing it. Every other failed unit fails the test.
 
 Artifacts, written pass or fail:
 

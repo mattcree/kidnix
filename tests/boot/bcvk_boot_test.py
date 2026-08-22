@@ -64,6 +64,13 @@ EXPECTED_FAILED_UNITS = {
     # (`just test-boot-qcow2`) is where greenboot can actually be judged.
     "greenboot-healthcheck.service": "no /boot mount: bcvk ephemeral roots on virtiofs",
     "greenboot-set-rollback-trigger.service": "no /boot mount: bcvk ephemeral roots on virtiofs",
+    # Hardware, not us. mcelog refuses to run on AMD ("Please use the
+    # edac_mce_amd module instead") and exits non-zero, so this unit fails on
+    # any AMD host and is invisible on an Intel one -- which is exactly the
+    # difference between a GitHub runner (EPYC) and the developer's machine.
+    # Masking it in the image would be tidier; that is system_files/, not the
+    # test harness's to change.
+    "mcelog.service": "mcelog does not support AMD CPUs; fails on AMD hosts only",
 }
 
 # `bcvk ephemeral ssh` does NOT return an error while the guest is still
@@ -123,6 +130,20 @@ tries=0
 while [ "$tries" -lt 60 ]; do
     scan_kid_session
     [ "$kid_type" = "wayland" ] && [ "$kid_active" = "yes" ] && break
+    sleep 1
+    tries=$(( tries + 1 ))
+done
+
+# The portals are D-Bus activated and are the LAST thing in the session to
+# settle -- xdg-desktop-portal sits in 'activating' until
+# xdg-desktop-portal-gnome has claimed its name. On a 2-core CI runner that is
+# still happening when everything else is up, so sample them only once they
+# have stopped moving. Waiting here is not weakening the assertion: 'active' is
+# still required, this only stops us photographing the race.
+tries=0
+while [ "$tries" -lt 90 ]; do
+    [ "$(uctl is-active xdg-desktop-portal.service)" = "active" ] \
+        && [ "$(uctl is-active xdg-desktop-portal-gnome.service)" = "active" ] && break
     sleep 1
     tries=$(( tries + 1 ))
 done
@@ -911,7 +932,7 @@ def run_boot_test(args: argparse.Namespace) -> int:
             # gets a floor rather than whatever scraps of --timeout a slow boot
             # left behind. Cutting the probe off mid-flight reports "no result
             # block" -- a sentence that tells you nothing about the machine.
-            remaining = max(240.0, deadline - time.monotonic())
+            remaining = max(300.0, deadline - time.monotonic())
             result = vm.ssh(GUEST_PROBE, timeout=remaining)
             if args.verbose:
                 print(clean(result.stdout))
