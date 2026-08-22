@@ -1,0 +1,32 @@
+#!/usr/bin/bash
+# kidnix parent panel -- PLACEHOLDER (M1).
+#
+# The real panel is a libadwaita application (ADR-0005): children and their
+# allow-lists, time budgets, the "ask a grown-up" queue, the Journal, and
+# updates. It defers to GNOME Settings -> Wellbeing and to malcontent-control
+# for the things GNOME already does well, and records its own policy in
+# malcontent so GNOME's tooling agrees with ours.
+#
+# This stub exists so that the launcher, its desktop entry and its place in the
+# parent's app grid are real and testable before the panel is written. It is
+# deliberately loud rather than silent: a parent who clicks it must not think
+# the machine is broken.
+set -euo pipefail
+
+VERSION_FILE=/usr/share/kidnix/VERSION
+version="$(cat "${VERSION_FILE}" 2>/dev/null || echo unknown)"
+
+cat <<MESSAGE
+kidnix parent panel (version ${version})
+
+  Not built yet.
+
+  This is a placeholder. Until the real panel lands, use:
+
+    malcontent-control          app filter and screen-time limits for 'kid'
+    gnome-control-center        wifi, printers, users, Wellbeing
+    journalctl -u 'kidnix-*'    what kidnix did at boot
+    bootc upgrade --check       whether an update is waiting
+
+  Roadmap: docs/plan/ROADMAP.md    Design: ADR-0005
+MESSAGE

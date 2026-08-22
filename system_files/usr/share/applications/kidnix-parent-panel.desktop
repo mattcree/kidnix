@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Parent Panel
+GenericName=kidnix parental controls
+Comment=Allow-lists, time budgets and the Journal for your child's computer
+Exec=/usr/bin/kidnix-parent-panel
+TryExec=/usr/bin/kidnix-parent-panel
+Icon=preferences-system-parental-controls
+Terminal=true
+Categories=System;Settings;
+Keywords=kidnix;parental;child;kid;controls;
+StartupNotify=false
