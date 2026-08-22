@@ -187,9 +187,12 @@ for schema in "${keybinding_schemas[@]}"; do
     printf '[%s]\n' "${path#/}" >>"${keyfile}"
     while read -r key; do
         [[ -n "${key}" ]] || continue
-        # Only blank keys that really are string arrays.
-        if [[ "$(gsettings range "${schema}" "${key}" 2>/dev/null | head -1)" != "type as" ]]; then
-            log "skipping non-list key ${schema} ${key}"
+        # Only blank keys that really are string arrays. `gsettings range`
+        # prints "type as" for those; anything else (an enum, an int) must not
+        # be handed "@as []" or dconf compile refuses the whole database.
+        range="$(gsettings range "${schema}" "${key}" 2>/dev/null || true)"
+        if [[ "${range%%$'\n'*}" != "type as" ]]; then
+            log "skipping non-list key ${schema} ${key} (${range%%$'\n'*})"
             continue
         fi
         printf '%s=@as []\n' "${key}" >>"${keyfile}"
@@ -213,28 +216,41 @@ grep -q '^close=@as \[\]$' "${keyfile}" || die "Alt+F4 (close) was not blanked"
 # Every key we set by hand must exist in a schema, or dconf silently stores a
 # value nothing reads and the lockdown is decorative.
 log "verifying every key in ${DCONF_SRC} exists in an installed schema"
+# The key list is cached per schema in a plain newline-delimited string, not
+# re-queried per key. Partly for speed (~110 keys), but mainly because
+# `gsettings list-keys ... | grep -q ...` is a trap under `set -o pipefail`:
+# grep -q exits the instant it matches, gsettings takes SIGPIPE, and the
+# pipeline reports failure *because the key was found*. That produced a
+# beautifully confusing one-key-at-random "does not exist" error.
 unknown=0
 current_schema=""
+current_keys=""
 for f in "${DCONF_SRC}"/*; do
     [[ -f "${f}" ]] || continue
+    # Resolved before the loop: calling basename inside a body that redirects
+    # from the same file makes shellcheck (reasonably) suspicious (SC2094).
+    fname="$(basename "${f}")"
     while IFS= read -r line; do
         case "${line}" in
             \[*\])
                 current_schema="${line#[}"
                 current_schema="${current_schema%]}"
                 current_schema="${current_schema//\//.}"
-                if ! gsettings list-keys "${current_schema}" >/dev/null 2>&1; then
-                    echo "  unknown schema: ${current_schema} (in $(basename "${f}"))" >&2
+                if current_keys="$(gsettings list-keys "${current_schema}" 2>/dev/null)"; then
+                    :
+                else
+                    echo "  unknown schema: ${current_schema} (in ${fname})" >&2
                     unknown=$(( unknown + 1 ))
                     current_schema=""
+                    current_keys=""
                 fi
                 ;;
             \#*|"") ;;
             *=*)
                 [[ -n "${current_schema}" ]] || continue
                 key="${line%%=*}"
-                if ! gsettings list-keys "${current_schema}" 2>/dev/null | grep -qx "${key}"; then
-                    echo "  unknown key: ${current_schema} ${key} (in $(basename "${f}"))" >&2
+                if ! grep -qxF -- "${key}" <<<"${current_keys}"; then
+                    echo "  unknown key: ${current_schema} ${key} (in ${fname})" >&2
                     unknown=$(( unknown + 1 ))
                 fi
                 ;;
@@ -253,8 +269,10 @@ test -s "${DCONF_DB}" || die "${DCONF_DB} was not produced"
 
 # Prove the compiled database actually answers, and that the locks bite.
 log "verifying the compiled profile"
+# dconf wants somewhere to look for the user database even though we only read
+# the file-db half of the profile.
 export HOME="${HOME:-/root}"
-mkdir -p "${HOME}"
+mkdir -p "${HOME}" 2>/dev/null || true
 check_setting() {
     local schema="$1" key="$2" want="$3" got
     got="$(DCONF_PROFILE=kid gsettings get "${schema}" "${key}" 2>/dev/null || echo '<error>')"
@@ -267,6 +285,50 @@ check_locked() {
     [[ "${writable}" == "false" ]] \
         || die "kid profile: ${schema} ${key} is writable (${writable}); the lock did not take"
 }
+
+# EVERY key we set must actually read back as what we wrote. This is not
+# belt-and-braces, it is the check that matters: `dconf compile` happily accepts
+# a value whose GVariant type does not match the schema, stores it, and
+# gsettings then silently ignores it and returns the stock default. That is how
+# `disable-while-typing-timeout=1000` (int32) sat in the database looking
+# correct while the touchpad kept GNOME's 500 ms, because the schema wants
+# uint32. A lockdown that compiles but does not apply is the worst outcome
+# available, so it is a build failure.
+log "verifying every key reads back as written"
+readback_mismatches=0
+current_schema=""
+current_path=""
+for f in "${DCONF_SRC}"/*; do
+    [[ -f "${f}" ]] || continue
+    while IFS= read -r line; do
+        case "${line}" in
+            \[*\])
+                current_path="${line#[}"
+                current_path="${current_path%]}"
+                current_schema="${current_path//\//.}"
+                ;;
+            \#*|"") ;;
+            *=*)
+                [[ -n "${current_schema}" ]] || continue
+                key="${line%%=*}"
+                want="${line#*=}"
+                got="$(DCONF_PROFILE=kid gsettings get "${current_schema}" "${key}" 2>/dev/null || echo '<error>')"
+                [[ "${got}" == "${want}" ]] && continue
+                # GVariant prints doubles with whatever precision round-trips,
+                # so 1.2 can come back as 1.2000000000000002. Compare
+                # numerically when both sides are plain numbers.
+                if [[ "${want}" =~ ^-?[0-9.]+$ && "${got}" =~ ^-?[0-9.]+$ ]] \
+                   && awk -v a="${want}" -v b="${got}" 'BEGIN { exit !(a - b < 1e-9 && b - a < 1e-9) }'; then
+                    continue
+                fi
+                echo "  ${current_schema} ${key}: wrote '${want}', reads back '${got}'" >&2
+                readback_mismatches=$(( readback_mismatches + 1 ))
+                ;;
+        esac
+    done <"${f}"
+done
+(( readback_mismatches == 0 )) \
+    || die "${readback_mismatches} dconf key(s) do not read back as written (usually a GVariant type mismatch -- check whether the schema wants uint32)"
 
 check_setting org.gnome.desktop.lockdown          disable-command-line true
 check_setting org.gnome.desktop.lockdown          disable-lock-screen  true

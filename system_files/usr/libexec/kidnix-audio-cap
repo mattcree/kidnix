@@ -75,9 +75,11 @@ fi
 # the alsa-state service on some configurations) restores the capped value
 # rather than a stale 100%.
 if command -v alsactl >/dev/null 2>&1; then
-    alsactl store >/dev/null 2>&1 \
-        && log "mixer state stored" \
-        || log "alsactl store failed (harmless; cap is applied in-memory)"
+    if alsactl store >/dev/null 2>&1; then
+        log "mixer state stored"
+    else
+        log "alsactl store failed (harmless; the cap is already applied in-memory)"
+    fi
 fi
 
 mkdir -p "${STATE_DIR}" 2>/dev/null || true

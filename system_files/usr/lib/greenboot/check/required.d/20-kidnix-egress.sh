@@ -28,20 +28,24 @@ if ! nft -c -f "${RULESET}" >/dev/null 2>&1; then
     exit 1
 fi
 
-# ...and it must be LOADED, not merely valid.
-# shellcheck disable=SC2086  # $TABLE is two words on purpose (family + name).
-if ! nft list table ${TABLE} >/dev/null 2>&1; then
+# ...and it must be LOADED, not merely valid. Captured rather than piped into
+# `grep -q`: with `set -o pipefail`, grep -q exits on its first match, nft takes
+# SIGPIPE, and the pipeline reports failure precisely when the rule was found.
+# TABLE is deliberately two words (address family + table name), so it must
+# stay unquoted here.
+# shellcheck disable=SC2086
+loaded="$(nft list table ${TABLE} 2>/dev/null || true)"
+
+if [[ -z "${loaded}" ]]; then
     echo "kidnix: table ${TABLE} is not loaded -- the child has network egress" >&2
     systemctl status kidnix-egress.service --no-pager --lines=20 >&2 2>/dev/null || true
     exit 1
 fi
 
 # ...and it must still contain a rule that stops uid 1000.
-# shellcheck disable=SC2086
-if ! nft list table ${TABLE} 2>/dev/null | grep -Eq 'skuid 1000 .*(reject|drop)'; then
+if ! grep -Eq 'skuid 1000 .*(reject|drop)' <<<"${loaded}"; then
     echo "kidnix: table ${TABLE} is loaded but has no reject rule for uid 1000" >&2
-    # shellcheck disable=SC2086
-    nft list table ${TABLE} >&2 2>/dev/null || true
+    printf '%s\n' "${loaded}" >&2
     exit 1
 fi
 

@@ -36,7 +36,7 @@ tap-to-click=true
 # Spec 6: 500 -> 1000 ms, so a slow typist's hand resting on the pad does not
 # start clicking.
 disable-while-typing=true
-disable-while-typing-timeout=1000
+disable-while-typing-timeout=uint32 1000
 accel-profile='flat'
 speed=-0.4
 

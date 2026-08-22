@@ -31,8 +31,14 @@ if [[ "${kid_uid}" != "1000" ]]; then
 fi
 
 # kid must not have gained admin rights.
-if id -nG kid 2>/dev/null | tr ' ' '\n' | grep -qxE 'wheel|sudo|root'; then
-    echo "kidnix: kid is in an administrative group" >&2
+#
+# The group list is captured first rather than piped into `grep -q`: under
+# `set -o pipefail`, grep -q exits on the first match, the upstream command
+# takes SIGPIPE, and the pipeline reports failure *because the match
+# succeeded*. Capturing sidesteps it.
+kid_groups="$(id -nG kid 2>/dev/null || true)"
+if grep -qwE 'wheel|sudo|root' <<<"${kid_groups}"; then
+    echo "kidnix: kid is in an administrative group (${kid_groups})" >&2
     fail=1
 fi
 

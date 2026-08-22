@@ -27,7 +27,10 @@ fi
 
 # A wayland session for the child. Absent this early in boot is common and
 # harmless; that is the whole reason this file is in wanted.d.
-if ! loginctl list-sessions --no-legend 2>/dev/null | awk '{print $3}' | grep -qx kid; then
+# Captured, not piped into `grep -q` -- see the note in 20-kidnix-egress.sh.
+sessions="$(loginctl list-sessions --no-legend 2>/dev/null || true)"
+session_users="$(awk '{print $3}' <<<"${sessions}")"
+if ! grep -qx kid <<<"${session_users}"; then
     echo "kidnix: no login session for user 'kid' yet" >&2
     fail=1
 fi
