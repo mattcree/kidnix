@@ -27,6 +27,7 @@ runner and on a dev laptop with nothing installed.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -64,6 +65,16 @@ EXPECTED_FAILED_UNITS = {
     "greenboot-healthcheck.service": "no /boot mount: bcvk ephemeral roots on virtiofs",
     "greenboot-set-rollback-trigger.service": "no /boot mount: bcvk ephemeral roots on virtiofs",
 }
+
+# `bcvk ephemeral ssh` does NOT return an error while the guest is still
+# booting -- it blocks inside bcvk until sshd answers. So each poll attempt can
+# legitimately outlive the whole boot, and a fixed per-attempt timeout is a lie
+# about what we are measuring. This is only how often we come up for air to
+# re-check that the VM container is still alive and to print progress; the real
+# ceiling is --timeout. (A fixed 30 s slice here, with TimeoutExpired escaping
+# the retry loop, is exactly what made this test fail on GitHub Actions in 31 s
+# while claiming a 360 s budget. See tests/README.md, "In CI".)
+SSH_POLL_SECONDS = 60
 
 # How long the shell gets to come back after we kill it. kidnix-shell.service
 # is Restart=always / RestartSec=1, so this is generous by an order of
@@ -282,6 +293,21 @@ def clean(text: str) -> str:
     return ANSI.sub("", text)
 
 
+def elide(text: str, max_line: int = 400, max_lines: int = 120) -> str:
+    """Keep a diagnostic readable in a CI job log.
+
+    A dump nobody scrolls through is worth nothing, and one base64 blob on a
+    single line will hide everything above it.
+    """
+    lines = [
+        ln if len(ln) <= max_line else ln[:max_line] + " ...[truncated]" for ln in text.splitlines()
+    ]
+    if len(lines) > max_lines:
+        dropped = len(lines) - max_lines
+        lines = [*lines[:max_lines], f"...[{dropped} more lines truncated]"]
+    return "\n".join(lines)
+
+
 def run(cmd: list[str], timeout: float, check: bool = False) -> subprocess.CompletedProcess:
     proc = subprocess.run(
         cmd,
@@ -344,8 +370,12 @@ class EphemeralVM:
             self.args.memory,
             "--vcpus",
             str(self.args.cpus),
+            # `journal` as well as `console`: the guest streams its journal out
+            # over vsock as it boots, so journal.json exists even when sshd
+            # never answers -- which is the only case where you actually need
+            # it. console.txt alone stops at the SeaBIOS banner.
             "--log-dir",
-            f"console={self.args.output_dir}",
+            f"journal,console={self.args.output_dir}",
             self.image,
         ]
         print(f"==> {' '.join(cmd)}", flush=True)
@@ -376,29 +406,132 @@ class EphemeralVM:
         )
 
     def wait_for_ssh(self, deadline: float) -> float:
-        """Poll until sshd answers. Returns seconds waited."""
+        """Poll until sshd answers. Returns seconds waited.
+
+        `bcvk ephemeral ssh` blocks until the guest answers rather than failing
+        fast, so a "poll" here is really "block for a while, then come up for
+        air". Coming up for air matters: it is the only place we notice the VM
+        container died, and the only place we can print progress. What must NOT
+        happen is a `subprocess.TimeoutExpired` escaping this loop -- that turns
+        "the guest is still booting" into "the test crashed".
+        """
         start = time.monotonic()
-        last = ""
-        while time.monotonic() < deadline:
+        last = "none"
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             if not self.is_running():
                 raise BootTestError(
                     f"the VM container '{self.name}' exited before ssh came up. "
                     f"See {self.args.output_dir}/console.txt"
                 )
-            proc = self.ssh("echo ready", timeout=30)
+            try:
+                proc = self.ssh("echo ready", timeout=min(remaining, SSH_POLL_SECONDS))
+            except subprocess.TimeoutExpired:
+                waited = time.monotonic() - start
+                last = f"still no answer after {waited:.0f}s"
+                print(
+                    f"    ... still waiting for sshd ({waited:.0f}s of {self.args.timeout}s used)",
+                    flush=True,
+                )
+                continue
             if proc.returncode == 0 and "ready" in clean(proc.stdout):
                 return time.monotonic() - start
-            last = clean(proc.stderr).strip().splitlines()[-1:] or [""]
+            lines = clean(proc.stderr).strip().splitlines()
+            last = lines[-1] if lines else f"exit {proc.returncode} with no stderr"
             time.sleep(2)
         raise BootTestError(
-            f"the VM never became reachable over ssh within the timeout. "
-            f"Last error: {last[0] if last else 'none'}\n"
-            f"See {self.args.output_dir}/console.txt"
+            f"the VM never became reachable over ssh within {self.args.timeout}s. "
+            f"Last error: {last}\n"
+            f"See {self.args.output_dir}/console.txt and journal.json"
         )
 
     def is_running(self) -> bool:
         proc = run(["podman", "container", "exists", self.name], timeout=30)
         return proc.returncode == 0
+
+    def diagnostics(self) -> str:
+        """Everything worth knowing when the VM never answered.
+
+        Written to output/diagnostics.txt *before* the container is removed --
+        after `podman rm -f` there is nothing left to ask. `podman logs` is the
+        one that matters: bcvk's entrypoint (virtiofsd, then QEMU) writes its
+        failures there, and a QEMU that never started is invisible everywhere
+        else, including in console.txt, which QEMU itself would have created.
+        """
+        probes: list[tuple[str, list[str]]] = [
+            ("bcvk --version", [self.bcvk, "--version"]),
+            ("bcvk ephemeral ps", [self.bcvk, "ephemeral", "ps"]),
+            ("podman ps -a", ["podman", "ps", "-a"]),
+            (
+                f"podman logs {self.name} (last 200 lines)",
+                ["podman", "logs", "--tail", "200", self.name],
+            ),
+            (
+                f"podman inspect {self.name} (state)",
+                [
+                    "podman",
+                    "inspect",
+                    self.name,
+                    "--format",
+                    "status={{.State.Status}} exit={{.State.ExitCode}} "
+                    "oom={{.State.OOMKilled}} error={{.State.Error}}",
+                ],
+            ),
+            (
+                "processes inside the VM container",
+                ["podman", "exec", self.name, "ps", "-eo", "pid,etime,comm"],
+            ),
+            (
+                # One argument per line, and drop -smbios: bcvk passes the ssh
+                # key and three systemd units through it as base64, which is
+                # kilobytes of noise that answers no question anyone has.
+                "qemu command line inside the VM container (-smbios elided)",
+                [
+                    "podman",
+                    "exec",
+                    self.name,
+                    "sh",
+                    "-c",
+                    "tr '\\0' '\\n' < /proc/$(pgrep -f qemu-system | head -1)/cmdline"
+                    " | grep -v '^type=11'",
+                ],
+            ),
+            (
+                "ls -l /dev/kvm /dev/vhost-vsock (host)",
+                ["ls", "-l", "/dev/kvm", "/dev/vhost-vsock"],
+            ),
+            (
+                "ls -l /dev/kvm /dev/vhost-vsock (in the VM container)",
+                ["podman", "exec", self.name, "ls", "-l", "/dev/kvm", "/dev/vhost-vsock"],
+            ),
+            ("id", ["id"]),
+            (
+                "podman info (host)",
+                [
+                    "podman",
+                    "info",
+                    "--format",
+                    "rootless={{.Host.Security.Rootless}} runtime={{.Host.OCIRuntime.Name}} "
+                    "cgroups={{.Host.CgroupVersion}}/{{.Host.CgroupManager}} "
+                    "net={{.Host.NetworkBackend}}/{{.Host.RootlessNetworkCmd}} "
+                    "cpus={{.Host.CPUs}} kernel={{.Host.Kernel}}",
+                ],
+            ),
+            ("free -m", ["free", "-m"]),
+            ("df -h .", ["df", "-h", "."]),
+        ]
+
+        chunks = []
+        for label, cmd in probes:
+            try:
+                proc = run(cmd, timeout=60)
+                body = (clean(proc.stdout) + clean(proc.stderr)).strip() or "(no output)"
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                body = f"(could not run: {exc})"
+            chunks.append(f"$ {' '.join(cmd)}\n# {label}\n{elide(body)}\n")
+        return ("\n" + "-" * 72 + "\n").join(chunks)
 
     def qemu_used_kvm(self) -> bool | None:
         """Read the QEMU command line inside the VM container. None = unknown."""
@@ -616,6 +749,75 @@ def capture_journal(vm: EphemeralVM, output_dir: Path) -> Path | None:
     return path
 
 
+def render_journal_stream(output_dir: Path) -> Path | None:
+    """Turn bcvk's journal.json stream into something a human reads in CI.
+
+    `--log-dir journal=...` writes one JSON object per journal entry, streamed
+    out of the guest as it boots. That is the only record of a boot that never
+    reached sshd, and nobody is going to read 1.7 MB of JSON in an artifact
+    viewer, so flatten it to `boot-journal-stream.txt`.
+    """
+    entries = []
+    for name in ("journal-initrd.json", "journal.json"):
+        source = output_dir / name
+        if not source.is_file():
+            continue
+        entries.append(f"===== {name} =====")
+        for line in source.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except ValueError:
+                entries.append(line[:500])
+                continue
+            message = record.get("MESSAGE")
+            if isinstance(message, list):  # binary payloads arrive as byte arrays
+                message = bytes(message).decode("utf-8", "replace")
+            who = record.get("SYSLOG_IDENTIFIER") or record.get("_COMM") or "?"
+            entries.append(f"{who}: {message}")
+
+    if not entries:
+        return None
+    path = output_dir / "boot-journal-stream.txt"
+    path.write_text("\n".join(entries) + "\n")
+    return path
+
+
+def print_tail(path: Path, lines: int, why: str) -> None:
+    """Print the end of a log file to the job log, so failures are readable
+    without downloading an artifact."""
+    if not path.is_file():
+        print(f"\n--- {path} does not exist ({why}) ---", file=sys.stderr)
+        return
+    body = path.read_text(errors="replace").splitlines()
+    print(f"\n--- last {min(lines, len(body))} lines of {path} ({why}) ---", file=sys.stderr)
+    print("\n".join(body[-lines:]), file=sys.stderr)
+
+
+def dump_failure_artifacts(vm: EphemeralVM, output_dir: Path) -> None:
+    """Called while the VM is still alive; everything here dies with it."""
+    path = output_dir / "diagnostics.txt"
+    try:
+        path.write_text(vm.diagnostics())
+        print(f"\n==> wrote {path}", file=sys.stderr)
+    except OSError as exc:  # pragma: no cover - best effort by definition
+        print(f"warning: could not write {path}: {exc}", file=sys.stderr)
+
+    stream = render_journal_stream(output_dir)
+    print_tail(output_dir / "console.txt", 100, "serial console")
+    if stream:
+        print_tail(stream, 100, "guest journal, streamed live over vsock")
+    else:
+        print(
+            "\n--- no journal.json: the guest never streamed a journal, so it "
+            "probably never booted ---",
+            file=sys.stderr,
+        )
+    print_tail(path, 120, "host-side diagnostics")
+
+
 def note_no_screenshot() -> None:
     """Say plainly why there is no screenshot, so nobody re-investigates."""
     print(
@@ -651,20 +853,28 @@ def run_boot_test(args: argparse.Namespace) -> int:
     started = time.monotonic()
 
     with EphemeralVM(bcvk, args.image, name, args) as vm:
-        waited = vm.wait_for_ssh(deadline)
-        print(f"==> ssh reachable after {waited:.1f}s")
+        # Any failure from here to the end of the block is a failure we cannot
+        # investigate after the fact: `--rm` takes the container, and with it
+        # `podman logs`, the QEMU process and the guest, on the way out.
+        try:
+            waited = vm.wait_for_ssh(deadline)
+            print(f"==> ssh reachable after {waited:.1f}s")
 
-        used_kvm = vm.qemu_used_kvm()
+            used_kvm = vm.qemu_used_kvm()
 
-        remaining = max(30.0, deadline - time.monotonic())
-        result = vm.ssh(GUEST_PROBE, timeout=remaining)
-        if args.verbose:
-            print(clean(result.stdout))
+            remaining = max(30.0, deadline - time.monotonic())
+            result = vm.ssh(GUEST_PROBE, timeout=remaining)
+            if args.verbose:
+                print(clean(result.stdout))
 
-        probe = parse_probe(result.stdout)
-        journal = capture_journal(vm, output_dir)
+            probe = parse_probe(result.stdout)
+            journal = capture_journal(vm, output_dir)
+        except (BootTestError, subprocess.TimeoutExpired):
+            dump_failure_artifacts(vm, output_dir)
+            raise
 
     elapsed = time.monotonic() - started
+    stream = render_journal_stream(output_dir)
 
     print("\n" + "=" * 72)
     print(f"image      : {args.image}")
@@ -692,6 +902,8 @@ def run_boot_test(args: argparse.Namespace) -> int:
     print(f"console log: {output_dir / 'console.txt'}")
     if journal:
         print(f"journal    : {journal}")
+    if stream:
+        print(f"boot stream: {stream}")
     print(f"wall clock : {elapsed:.1f}s")
     print("=" * 72)
 

@@ -65,9 +65,20 @@ The allow-list currently holds exactly one entry, `bootloader-update.service`,
 with the reason recorded in the source: there is no ESP in an ephemeral VM.
 Every other failed unit fails the test.
 
-Artifacts, written pass or fail: `output/boot-journal.txt`
-(`journalctl -b -p warning`) and `output/console.txt` (the serial console). The
-summary also prints boot timings, memory use and whether KVM was really used.
+Artifacts, written pass or fail:
+
+| file | what it is | survives a boot that never reaches sshd |
+|---|---|---|
+| `output/console.txt` | the serial console | yes — but it stops at the SeaBIOS banner |
+| `output/journal.json`, `journal-initrd.json` | the guest journal, streamed live out of the VM over virtio-serial by bcvk `--log-dir journal` | **yes** |
+| `output/boot-journal-stream.txt` | the above, flattened to `identifier: message` lines for humans | yes |
+| `output/boot-journal.txt` | `journalctl -b -p warning`, fetched over ssh | no |
+| `output/diagnostics.txt` | host side: `podman logs` of the VM container, the QEMU command line, `/dev/kvm` and `/dev/vhost-vsock` permissions, podman's runtime config | yes |
+
+`diagnostics.txt` is written *while the VM is still alive* — `--rm` takes the
+container, and with it `podman logs` and the QEMU process, the moment the test
+gives up. The summary also prints boot timings, memory use and whether KVM was
+really used.
 
 **It cannot screenshot.** bcvk runs QEMU with `-nographic -display none
 -monitor none`, so there is no QMP socket or VNC. `gnome-kiosk` does own
@@ -80,6 +91,46 @@ is not a wrong-user problem. Use `just test-boot-qcow2` or
 just test-boot              # ~30s
 just test-boot --verbose    # dump the raw guest probe
 just test-boot --keep       # leave the VM up to poke at
+just test-boot --timeout 600  # a slow host (see "In CI" below)
+```
+
+### In CI
+
+`.github/workflows/boot-test.yml` runs this job on `ubuntu-24.04`. Four things
+about a GitHub runner differ from a developer's machine, and each one has cost
+us a red build:
+
+1. **It is nested virtualisation on shared hardware.** `/dev/kvm` exists and
+   bcvk really does use it, but the same boot that takes 20 s locally takes
+   minutes there. The job passes `--timeout 600`; that is a ceiling for a
+   broken boot, not a target.
+2. **`bcvk ephemeral ssh` blocks; it does not fail fast.** It waits inside
+   bcvk until the guest answers. So the harness's "poll for ssh" loop must
+   treat a `subprocess.TimeoutExpired` as *keep waiting*, not as an error. It
+   did not, and a fixed 30 s per-attempt timeout escaped the loop and killed
+   the whole run in 31 s — while the log claimed a 360 s budget. If you ever
+   shorten `SSH_POLL_SECONDS`, keep the `except TimeoutExpired: continue`.
+3. **QEMU and virtiofsd come from the *host*, not the image.** bcvk runs QEMU
+   inside a podman container but bind-mounts the host's `/usr` in to find it,
+   so the runner must `apt-get install qemu-system-x86 virtiofsd`. A missing
+   virtiofsd is a container that starts and then does nothing.
+4. **`/dev/kvm` and `vhost_vsock` need a nudge.** `sudo chmod 0666 /dev/kvm`,
+   because `usermod -aG kvm` does not affect the already-running shell and bcvk
+   passes the host device straight into an unprivileged rootless container.
+   `sudo modprobe vhost_vsock`, because the module is not loaded on a stock
+   runner and it is what carries the guest's journal stream — the only
+   diagnostic you get from a boot that never reaches sshd.
+
+The job uploads the whole of `output/` on success *and* failure, and prints the
+tail of the console and the guest journal into the job log, so a red build is
+readable without downloading anything.
+
+To iterate on the CI plumbing without paying for a ~10 minute image build,
+dispatch the workflow against an image that already exists:
+
+```sh
+gh workflow run boot-test.yml --ref ci/boot-test \
+  -f image_ref=ghcr.io/mattcree/kidnix:latest
 ```
 
 ## `tests/boot/boot_test.py` — `just test-boot-qcow2`

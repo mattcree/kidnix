@@ -7,11 +7,13 @@ name: boot-test
 #
 # The boot test runs under bcvk ("bootc virtualization kit"), which boots the
 # *container image* as a VM directly -- no disk image, no privileged podman,
-# no sudo. A cold run is well under a minute, so this is cheap enough to gate
-# every push to main.
+# no sudo. A cold run is well under a minute locally; on a GitHub runner the
+# same boot is nested virtualisation on shared Azure hardware and takes several
+# times longer, which is why the ssh budget here is generous. See tests/README.md.
 on:
   push:
-    branches: [main]
+    # 'ci/**' so a CI change can be proven on its own branch before it lands.
+    branches: [main, 'ci/**']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -32,6 +34,9 @@ env:
   IMAGE_NAME: kidnix
   # Keep in step with `bcvk_version` in the Justfile.
   BCVK_VERSION: "0.18.0"
+  # Ceiling, not a target: a healthy nested boot on a runner is ~2-4 minutes.
+  # Anything approaching this is a real failure and the artifacts will say so.
+  BOOT_TIMEOUT_SECONDS: "600"
 
 jobs:
   # Cheap on every event: byte-compile both harnesses and check their
@@ -63,7 +68,7 @@ jobs:
   boot-test:
     name: boot a real VM
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Check for KVM
         id: kvm
@@ -101,8 +106,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          # bcvk drives QEMU itself and exports the container root over
-          # virtiofs, so virtiofsd is not optional here.
+          # bcvk runs QEMU inside a podman container but takes both QEMU and
+          # virtiofsd from the *host* /usr, which it bind-mounts in. So these
+          # are host packages, not image packages, and both are mandatory.
           sudo apt-get install -y --no-install-recommends \
             podman qemu-system-x86 qemu-utils virtiofsd
 
@@ -114,17 +120,43 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           "$HOME/.local/bin/bcvk" --version
 
-      - name: Grant access to /dev/kvm
+      # Everything bcvk needs from the host, made explicit and printed. When
+      # this job breaks again, the first question is "did the runner change?"
+      # and this step is the answer.
+      - name: Prepare and report the virtualisation host
         if: steps.kvm.outputs.available == 'true'
         run: |
           set -euo pipefail
-          sudo usermod -aG kvm "$USER" || true
+          # 0666 rather than group membership: `usermod -aG kvm` does not apply
+          # to the already-running shell, and bcvk passes the host's /dev/kvm
+          # straight into the (rootless, unprivileged) VM container.
           sudo chmod 0666 /dev/kvm
-          ls -l /dev/kvm
+          # bcvk gives the guest a vsock so it can stream its journal out while
+          # it boots -- the only diagnostic available when sshd never answers.
+          # The module is not loaded on a stock runner.
+          sudo modprobe vhost_vsock || echo "::warning::no vhost_vsock; the guest journal stream will be missing"
+          ls -l /dev/kvm /dev/vhost-vsock /dev/vhost-net 2>&1 || true
+          echo "--- qemu ---";      qemu-system-x86_64 --version | head -1
+          echo "--- virtiofsd ---"; ls -l /usr/libexec/virtiofsd /usr/lib/virtiofsd 2>&1 || true
+          echo "--- podman ---";    podman version
+          echo "--- cpu ---";       nproc; grep -c '^processor' /proc/cpuinfo
+          grep -Eo 'vmx|svm|hypervisor' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
+          echo "--- session ---";   id; echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}"
+          free -m
 
       - name: Build image
         if: steps.kvm.outputs.available == 'true' && inputs.image_ref == ''
         run: just build
+
+      # The fast iteration path: `workflow_dispatch` with an image_ref skips the
+      # ~10 minute build and boots something already in the registry.
+      - name: Log in to ghcr.io
+        if: steps.kvm.outputs.available == 'true' && inputs.image_ref != ''
+        uses: redhat-actions/podman-login@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull image
         if: steps.kvm.outputs.available == 'true' && inputs.image_ref != ''
@@ -133,22 +165,47 @@ jobs:
           podman pull "${{ inputs.image_ref }}"
           podman tag "${{ inputs.image_ref }}" "localhost/${IMAGE_NAME}:latest"
 
-      # The whole test: rootless, no disk image, ~1 minute once the image is
-      # built. Nothing here needs the runner's sudo.
+      # The whole test: rootless, no disk image. Nothing here needs sudo.
       - name: Boot test
         if: steps.kvm.outputs.available == 'true'
-        run: just test-boot --verbose
+        run: just test-boot --timeout "${BOOT_TIMEOUT_SECONDS}" --verbose
+
+      # The harness already writes output/diagnostics.txt and prints the tail of
+      # the console and the guest journal before the VM is torn down. This adds
+      # the things only the runner knows, and only when we need them.
+      - name: Host diagnostics
+        if: failure() && steps.kvm.outputs.available == 'true'
+        run: |
+          set -uo pipefail
+          mkdir -p output
+          {
+            echo "===== podman ps -a ====="; podman ps -a
+            echo "===== bcvk ephemeral ps ====="; bcvk ephemeral ps
+            echo "===== dmesg (tail) ====="; sudo dmesg | tail -60
+            echo "===== kvm ====="; ls -l /dev/kvm /dev/vhost-vsock 2>&1
+            lsmod | grep -E 'kvm|vhost' || echo "(no kvm/vhost modules listed)"
+            echo "===== output/ ====="; ls -la output
+            echo "===== df ====="; df -h /
+          } > output/runner-diagnostics.txt 2>&1
+          cat output/runner-diagnostics.txt
+          for f in output/console.txt output/boot-journal-stream.txt; do
+            if [[ -s "$f" ]]; then
+              echo "::group::last 100 lines of $f"; tail -100 "$f"; echo "::endgroup::"
+            else
+              echo "::warning::$f is missing or empty"
+            fi
+          done
 
       - name: Upload boot artifacts
-        # Upload on failure too -- the journal and console log are the whole
-        # point of this job when something breaks.
+        # Everything, always. The console log, the streamed guest journal and
+        # the host-side diagnostics are the entire value of this job when it
+        # breaks, and naming individual files is how we ended up with a failing
+        # run and no artifact at all.
         if: always() && steps.kvm.outputs.available == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: boot-test-artifacts
-          path: |
-            output/boot-journal.txt
-            output/console.txt
+          path: output/
           if-no-files-found: warn
           retention-days: 14
 
