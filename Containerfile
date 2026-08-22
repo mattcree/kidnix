@@ -1,0 +1,43 @@
+# kidnix -- an immutable Linux for 4-8 year olds, built bootc/Universal Blue style.
+#
+# base-main is Universal Blue's *headless* Fedora Atomic base (no GNOME, no GDM).
+# We add the GNOME kiosk plumbing ourselves rather than starting from
+# silverblue-main, because a child never sees a full desktop and every package
+# in the image is attack surface a parent has to trust. See docs/BUILDING.md.
+#
+# The tag is pinned to the Fedora major (44) rather than `latest`, so a new
+# Fedora release is an explicit, reviewed bump instead of a surprise at 3am.
+ARG BASE_IMAGE="ghcr.io/ublue-os/base-main"
+ARG BASE_TAG="44"
+
+FROM ${BASE_IMAGE}:${BASE_TAG}
+
+ARG KIDNIX_VERSION="0.1.0"
+ARG KIDNIX_PRETTY_VERSION="0.1.0"
+
+# The overlay is copied to / verbatim; see system_files/ for the layout.
+COPY system_files/ /
+
+COPY build_files/ /tmp/build_files/
+
+RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
+    KIDNIX_VERSION="${KIDNIX_VERSION}" \
+    KIDNIX_PRETTY_VERSION="${KIDNIX_PRETTY_VERSION}" \
+    /tmp/build_files/build.sh && \
+    rm -rf /tmp/build_files && \
+    ostree container commit
+
+# The cache mount above keeps /var/cache/libdnf5 busy for the whole of that
+# RUN, so it cannot delete itself. Sweep it in a layer that has no mount.
+RUN rm -rf /var/cache/* /var/tmp/* && rmdir /var/cache || true
+
+# Fails the build on bootc/OCI layout problems (writable /var content, missing
+# kernel, bad /etc symlinks) that would otherwise only show up at install time.
+RUN bootc container lint
+
+LABEL org.opencontainers.image.title="kidnix"
+LABEL org.opencontainers.image.description="An immutable, kid-safe Linux for 4-8 year olds"
+LABEL org.opencontainers.image.source="https://github.com/mattcree/kidnix"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.version="${KIDNIX_VERSION}"
+LABEL containers.bootc="1"

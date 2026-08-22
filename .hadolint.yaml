@@ -1,0 +1,19 @@
+---
+failure-threshold: warning
+
+ignored:
+  # DL3041: pinning every dnf package version would make the image
+  # unmaintainable and unpatchable; we pin the BASE IMAGE tag instead, which is
+  # the unit of reproducibility for a bootc image.
+  - DL3041
+  # DL3040: `dnf clean all` happens in build_files/90-cleanup.sh, which
+  # hadolint cannot see through.
+  - DL3040
+  # DL3059: consecutive LABEL instructions are fine; they do not create layers
+  # in the OCI sense that matters here, and separate lines are readable.
+  - DL3059
+
+trustedRegistries:
+  - ghcr.io
+  - quay.io
+  - docker.io

@@ -1,0 +1,5 @@
+[User]
+Session=kidnix-shell
+SessionType=wayland
+XSession=kidnix-shell
+SystemAccount=false

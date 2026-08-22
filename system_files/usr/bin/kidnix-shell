@@ -1,0 +1,26 @@
+#!/usr/bin/bash
+# kidnix kiosk session (v0.1 PLACEHOLDER).
+#
+# This is what GDM execs for the `kid` user. Today it starts gnome-kiosk as a
+# full Wayland display server with one fullscreen application on top, which is
+# enough for the boot test to prove the whole chain works: GDM -> autologin ->
+# wayland session -> compositor -> app.
+#
+# The real kidnix shell replaces KIDNIX_KIOSK_APP. Nothing else here should
+# need to change.
+set -euo pipefail
+
+KIDNIX_KIOSK_APP="${KIDNIX_KIOSK_APP:-/usr/bin/gnome-text-editor}"
+
+if [[ ! -x "${KIDNIX_KIOSK_APP}" ]]; then
+    echo "kidnix-shell: kiosk app '${KIDNIX_KIOSK_APP}' is missing or not executable" >&2
+    exit 1
+fi
+
+# Skip GNOME's first-run wizard; a 4-year-old cannot complete it.
+mkdir -p "${HOME}/.config"
+: >"${HOME}/.config/gnome-initial-setup-done"
+
+# --display-server: we ARE the session's compositor (GDM is not running one
+# for us). --wayland without it would try to nest inside a parent compositor.
+exec /usr/bin/gnome-kiosk --wayland --display-server -- "${KIDNIX_KIOSK_APP}"

@@ -1,0 +1,53 @@
+#!/usr/bin/bash
+# Emits a single machine-readable verdict on the serial console once the kiosk
+# is up (or has failed to come up). tests/boot/boot_test.py waits for exactly
+# one of these lines, which is far more reliable than screen-scraping "login:".
+#
+# Runs as a oneshot unit after graphical.target; see kidnix-boot-report.service.
+set -euo pipefail
+
+readonly MARKER_OK="KIDNIX_BOOT_OK"
+readonly MARKER_FAIL="KIDNIX_BOOT_FAIL"
+readonly TIMEOUT_SECONDS="${KIDNIX_BOOT_REPORT_TIMEOUT:-120}"
+readonly KIOSK_USER="${KIDNIX_KIOSK_USER:-kid}"
+
+report() {
+    # StandardOutput=journal+console on the unit puts this on the serial line.
+    printf '%s %s\n' "$1" "$2"
+}
+
+kid_session_id() {
+    # A graphical session for the kid user, whatever its seat.
+    loginctl list-sessions --no-legend 2>/dev/null \
+        | awk -v u="${KIOSK_USER}" '$3 == u { print $1; exit }'
+}
+
+deadline=$(( SECONDS + TIMEOUT_SECONDS ))
+session=""
+while (( SECONDS < deadline )); do
+    session="$(kid_session_id)"
+    if [[ -n "${session}" ]]; then
+        session_type="$(loginctl show-session "${session}" -p Type --value 2>/dev/null || true)"
+        if [[ "${session_type}" == "wayland" ]]; then
+            break
+        fi
+    fi
+    session=""
+    sleep 2
+done
+
+if [[ -z "${session}" ]]; then
+    report "${MARKER_FAIL}" "no wayland session for user '${KIOSK_USER}' after ${TIMEOUT_SECONDS}s"
+    exit 1
+fi
+
+# The compositor itself must be running, not merely a registered session.
+if ! pgrep -u "${KIOSK_USER}" -x gnome-kiosk >/dev/null 2>&1; then
+    report "${MARKER_FAIL}" "session ${session} exists but gnome-kiosk is not running"
+    exit 1
+fi
+
+system_state="$(systemctl is-system-running 2>/dev/null || true)"
+version="$(cat /usr/share/kidnix/VERSION 2>/dev/null || echo unknown)"
+
+report "${MARKER_OK}" "version=${version} session=${session} system=${system_state}"

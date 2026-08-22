@@ -1,0 +1,20 @@
+[Unit]
+Description=Report kidnix kiosk readiness on the console
+Documentation=https://github.com/mattcree/kidnix
+After=graphical.target systemd-user-sessions.service gdm.service
+Wants=graphical.target
+# Diagnostic only: never let a failed probe block or degrade a real boot.
+ConditionPathExists=/usr/libexec/kidnix-boot-report
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/kidnix-boot-report
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=180
+# A child's machine should boot even if the probe is unhappy.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=graphical.target

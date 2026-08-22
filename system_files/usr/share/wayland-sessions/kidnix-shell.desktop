@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=kidnix
+Comment=The kidnix kiosk session for children
+Exec=/usr/bin/kidnix-shell
+TryExec=/usr/bin/kidnix-shell
+Type=Application
+DesktopNames=GNOME-Kiosk;GNOME;
+X-GDM-SessionRegisters=false
+X-GDM-CanRunHeadless=true

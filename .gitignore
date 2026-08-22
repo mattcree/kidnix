@@ -1,0 +1,23 @@
+# Build output (disk images, logs, screenshots, rendered configs)
+/output/
+*.qcow2
+*.iso
+*.raw
+*.ppm
+
+# The rendered bootc-image-builder config embeds an SSH public key and a
+# dev password; only config.toml.example is committed.
+disk_config/config.toml
+config.toml
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

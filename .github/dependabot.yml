@@ -1,0 +1,17 @@
+---
+version: 2
+updates:
+  # Keep the pinned action majors current. Container base images are pinned
+  # deliberately in the Containerfile and bumped by hand (a Fedora major bump
+  # is a decision, not a patch).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "ci"

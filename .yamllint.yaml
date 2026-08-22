@@ -1,0 +1,17 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  # GitHub Actions requires the `on:` key, which YAML 1.1 parses as boolean.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  document-start: disable
+  indentation:
+    spaces: 2
+    indent-sequences: consistent

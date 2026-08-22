@@ -1,0 +1,25 @@
+# kidnix has no Python package to build -- this file exists so `uvx ruff`
+# and any future tooling share one config. The test scripts are stdlib-only
+# and are run with the system python3, not from a virtualenv.
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # import sorting
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "SIM",  # simplify
+    "RUF",
+]
+ignore = [
+    "E501",  # line length is handled by the formatter
+]
+
+[tool.ruff.format]
+quote-style = "double"

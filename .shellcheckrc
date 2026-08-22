@@ -1,0 +1,7 @@
+# kidnix shell conventions.
+enable=quote-safe-variables,require-variable-braces,check-unassigned-uppercase
+shell=bash
+
+# SC2312: "consider invoking this command separately" -- too noisy for the
+# command-substitution-in-string style used throughout the build scripts.
+disable=SC2312

@@ -1,0 +1,48 @@
+# bootc-image-builder configuration -- DEVELOPMENT VMs ONLY.
+#
+# `just disk-config` renders this to output/config.toml, substituting the
+# KIDNIX_SSH_KEY placeholder below with the contents of ~/.ssh/id_ed25519.pub.
+# The rendered file contains your public key and is gitignored; only this
+# template is committed.
+#
+# ============================ DO NOT SHIP THIS =============================
+# The `parent` password below is a well-known literal. It exists so a dev VM
+# is reachable, nothing more. Real installs must set a password at install
+# time (Anaconda) or via a first-boot flow -- see docs/BUILDING.md.
+# ===========================================================================
+
+[[customizations.user]]
+name = "parent"
+# Dev-only password: "kidnix".
+password = "kidnix"
+key = "$KIDNIX_SSH_KEY"
+groups = ["wheel"]
+# Must match /usr/lib/sysusers.d/kidnix.conf, or sysusers will allocate a
+# second UID for the same name on first boot.
+uid = 1001
+gid = 1001
+home = "/var/home/parent"
+shell = "/bin/bash"
+
+# The child account. No password and no SSH key: the only way in is the GDM
+# autologin that drops straight into the kiosk, which is the entire point.
+[[customizations.user]]
+name = "kid"
+uid = 1000
+gid = 1000
+home = "/var/home/kid"
+shell = "/bin/bash"
+
+[customizations]
+hostname = "kidnix"
+
+[customizations.kernel]
+# console=ttyS0 is what makes tests/boot/boot_test.py able to read the boot.
+# Keep it for dev images; drop it for real hardware builds.
+append = "console=tty0 console=ttyS0,115200n8"
+
+# A single btrfs root keeps `bootc upgrade` rollbacks cheap and lets us add
+# snapshots later without repartitioning.
+[[customizations.filesystem]]
+mountpoint = "/"
+minsize = "12 GiB"
