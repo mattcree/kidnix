@@ -444,6 +444,10 @@ runuser -u kid -- getent hosts example.com >/dev/null 2>&1
 egress_resolved_real_rc=$?
 stop_capture
 egress_dns_packets=$(count_capture /tmp/kid-dns.pcap)
+# Other things on the box may legitimately resolve names during this window
+# (the Flatpak first-boot timer, resolved's own refreshes), so the proof is
+# whether KID'S label appears on the wire, not the raw port-53 count.
+egress_dns_label_hits=$(tcpdump -r /tmp/kid-dns.pcap -A -n 2>/dev/null | grep -c "kidnix-egress-probe" || true)
 egress_resolved_active=$(systemctl is-active systemd-resolved 2>/dev/null)
 
 # --- does the rule survive firewalld reloading its own ruleset? -------------
@@ -556,6 +560,7 @@ echo "egress_control_rc=${egress_control_rc}"
 echo "egress_resolved_active=${egress_resolved_active}"
 echo "egress_resolved_rc=${egress_resolved_real_rc}"
 echo "egress_dns_packets=${egress_dns_packets}"
+echo "egress_dns_label_hits=${egress_dns_label_hits}"
 echo "egress_flatpak_app=${egress_flatpak_app}"
 echo "egress_flatpak_rc=${egress_flatpak_rc}"
 echo "egress_firewalld=${egress_firewalld}"
@@ -1188,7 +1193,10 @@ def assert_egress_proof(probe: dict[str, str], checks: Checks) -> None:
     # depends on what is upstream of the VM, but the query leaving the machine
     # does not. On a network with no resolver the answer never comes back and
     # `getent` still exits non-zero -- and the label has still left.
-    dns_escapes = (dns_packets or 0) > 0
+    label_hits = _as_int(probe.get("egress_dns_label_hits", ""))
+    # Kid's unique label on the uplink is the escape; unrelated port-53 traffic
+    # in the same window (flatpak timer, resolved refreshes) is not.
+    dns_escapes = (label_hits or 0) > 0
     if EGRESS_RESOLVED_DNS_STILL_ESCAPES:
         checks.check(
             dns_escapes,
@@ -1207,7 +1215,8 @@ def assert_egress_proof(probe: dict[str, str], checks: Checks) -> None:
         checks.check(
             not dns_escapes,
             "kid's DNS no longer escapes via systemd-resolved "
-            f"({dns_packets if dns_packets is not None else '?'} port-53 packets, "
+            f"({label_hits if label_hits is not None else '?'} packets carrying kid's label, "
+            f"{dns_packets if dns_packets is not None else '?'} port-53 packets in the window, "
             f"getent exited {dns_rc or '?'})",
         )
 
