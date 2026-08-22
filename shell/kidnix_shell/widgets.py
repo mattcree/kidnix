@@ -78,6 +78,12 @@ def next_key(prefix: str) -> str:
     return f"{prefix}-{_KEY_COUNTER[0]}"
 
 
+def _log_id_from(key: str) -> str:
+    """``tile-tuxpaint-17`` -> ``tile-tuxpaint``: the stable half of a key."""
+    stem, _, tail = key.rpartition("-")
+    return stem if stem and tail.isdigit() else key
+
+
 # --- labels that are never cut (see kidnix_shell.labels) -------------------
 
 
@@ -313,6 +319,7 @@ class ChildButton(Gtk.Button):
         width: int | None = None,
         height: int | None = None,
         debounce_ms: int = DEBOUNCE_MS,
+        log_id: str | None = None,
     ) -> None:
         super().__init__()
         self.speak_text = speak_text
@@ -321,6 +328,11 @@ class ChildButton(Gtk.Button):
         self._debounce = debounce_ms / 1000.0
         self._last_fire = 0.0
         self.key = key or next_key("btn")
+        #: What protocol P5's hover log calls this control. The key carries a
+        #: run-unique counter, which is noise in a log meant to be counted by
+        #: control; the stem is the stable name (and an ActivityTile overrides
+        #: it with the activity's own id).
+        self.log_id = log_id or _log_id_from(self.key)
 
         for css in css_classes:
             self.add_css_class(css)
@@ -351,6 +363,7 @@ class ChildButton(Gtk.Button):
             speech_ui.register(self.key, self)
             motion = Gtk.EventControllerMotion.new()
             motion.connect("enter", self._on_enter)
+            motion.connect("motion", self._on_motion)
             motion.connect("leave", self._on_leave)
             self.add_controller(motion)
             focus = Gtk.EventControllerFocus.new()
@@ -383,9 +396,15 @@ class ChildButton(Gtk.Button):
 
     # -- speech --
 
-    def _on_enter(self, _c: Gtk.EventControllerMotion, _x: float, _y: float) -> None:
+    def _on_enter(self, _c: Gtk.EventControllerMotion, x: float, y: float) -> None:
         if self._speech_ui is not None:
-            self._speech_ui.speech.hover_enter(self.key, self.speak_text)
+            self._speech_ui.speech.hover_enter(self.key, self.speak_text, self.log_id)
+            self._speech_ui.speech.hover_motion(self.key, x, y)
+
+    def _on_motion(self, _c: Gtk.EventControllerMotion, x: float, y: float) -> None:
+        """Spec 7b's settle gate: the dwell clock only runs on a still hand."""
+        if self._speech_ui is not None:
+            self._speech_ui.speech.hover_motion(self.key, x, y)
 
     def _on_leave(self, _c: Gtk.EventControllerMotion) -> None:
         if self._speech_ui is not None:
@@ -473,6 +492,9 @@ class ActivityTile(ChildButton):
             css_classes=("tile",) + (() if allowed else ("not-allowed",)) + extra_css,
             size=metrics.tile_size,
             key=next_key(f"tile-{getattr(activity, 'id', 'x')}"),
+            # P5 counts hover utterances per *activity*, so the log carries the
+            # manifest id rather than the widget's run-unique key.
+            log_id=str(getattr(activity, "id", "") or "tile"),
         )
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=TILE_SPACING_PX)

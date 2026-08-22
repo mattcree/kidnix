@@ -26,13 +26,15 @@ from .context import ShellContext  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
 from .launcher import AUTOSAVE_GRACE_SECONDS, Launcher, RunningActivity  # noqa: E402
 from .metrics import Metrics, ScreenOverride, detect_metrics  # noqa: E402
-from .ritual import RitualAction, next_action  # noqa: E402
+from .next_after import NextAfter  # noqa: E402
+from .ritual import RitualAction, back_delay_seconds, next_action  # noqa: E402
 from .screens import Screen  # noqa: E402
 from .screens.ending import EndingOfferScreen, PutAwayScreen  # noqa: E402
 from .screens.goodbye import GoodbyeScreen  # noqa: E402
 from .screens.grownup import GrownupSheet  # noqa: E402
 from .screens.home import HomeScreen  # noqa: E402
 from .screens.journal import JournalScreen  # noqa: E402
+from .screens.next_after import NextAfterScreen  # noqa: E402
 from .screens.sleeping import SleepingScreen  # noqa: E402
 from .screens.whos_here import WhosHereScreen  # noqa: E402
 from .session import (  # noqa: E402
@@ -44,7 +46,7 @@ from .session import (  # noqa: E402
     budget_day,
     time_left_words,
 )
-from .settings import ParentConfig, Paths, Profile  # noqa: E402
+from .settings import KidState, ParentConfig, Paths, Profile  # noqa: E402
 from .sound import BACK, KEEP, PHASE, SLEEP, TAP, Earcons  # noqa: E402
 from .speech import GLibScheduler, SpeechManager, select_backend  # noqa: E402
 from .state import Event, State, StateMachine  # noqa: E402
@@ -59,8 +61,9 @@ TICK_MS = 500
 SHOWING_SECONDS = 120
 #: Spec 7a: Back on Put away is dead for three seconds, so a child cannot
 #: undo the ritual by drumming on the band -- and then it works, so an
-#: accidental "All done" is recoverable.
-PUT_AWAY_BACK_LOCK_SECONDS = 3.0
+#: accidental "All done" is recoverable. The number lives in
+#: :mod:`kidnix_shell.ritual` now, with the rule that it is the *only* one.
+PUT_AWAY_BACK_LOCK_SECONDS = back_delay_seconds(State.PUT_AWAY)
 #: How long "Let's keep that" is on screen when the *child* ended the session
 #: (the clock-driven path is timed by the session itself). Long enough to see
 #: the work fly into My Things, and to cover the SIGTERM grace.
@@ -88,6 +91,7 @@ def _signature(metrics: Metrics) -> tuple[int, int, int, int]:
 
 STATE_TO_SCREEN = {
     State.CHOOSING: "choosing",
+    State.NEXT_CHOICE: "next_after",
     State.HOME: "home",
     State.JOURNAL: "journal",
     State.SHOWING: "journal",
@@ -129,10 +133,18 @@ class ShellWindow(Adw.ApplicationWindow):
         log.info("display metrics: %s", self.metrics.describe())
 
         # -- services --
+        # Spec 7b: the hover dwell is a parent-tunable number, because it is
+        # the first thing the child test (P5) will move.
         self.speech = SpeechManager(
-            backend=select_backend(speech_backend), scheduler=GLibScheduler()
+            backend=select_backend(speech_backend),
+            scheduler=GLibScheduler(),
+            dwell_ms=config.hover_dwell_ms,
         )
-        log.info("read-aloud backend: %s", self.speech.backend.name)
+        log.info(
+            "read-aloud backend: %s (hover dwell %d ms, settle-gated)",
+            self.speech.backend.name,
+            self.speech.dwell_ms,
+        )
         self.speech_ui = SpeechUI(self.speech)
         # /usr is read-only on the image, so the generated earcons land in the
         # child's cache when the package directory cannot be written.
@@ -159,6 +171,9 @@ class ShellWindow(Adw.ApplicationWindow):
         self._ticks = 0
         self._last_phase: Phase | None = None
 
+        self.kid_state = KidState.load(paths.progress_state)
+        log.info("%d session(s) completed on this machine", self.kid_state.sessions_completed)
+
         profile = config.profiles[0]
         self.ctx = ShellContext(
             metrics=self.metrics,
@@ -172,6 +187,7 @@ class ShellWindow(Adw.ApplicationWindow):
             host=self,
             activities=activities,
             profile=profile,
+            kid_state=self.kid_state,
             demo=demo,
         )
 
@@ -259,6 +275,7 @@ class ShellWindow(Adw.ApplicationWindow):
         self.stack.set_vexpand(True)
         self.screens: dict[str, Screen] = {
             "choosing": WhosHereScreen(self.ctx),
+            "next_after": NextAfterScreen(self.ctx),
             "home": HomeScreen(self.ctx),
             "journal": JournalScreen(self.ctx),
             "ending": EndingOfferScreen(self.ctx),
@@ -341,6 +358,12 @@ class ShellWindow(Adw.ApplicationWindow):
             self._slept_at = datetime.now()
         elif previous is State.SLEEPING:
             self._slept_at = None
+        if current is State.GOODBYE and previous is not State.SHOWING:
+            # Reaching Goodbye is what "a completed session" means, and it is
+            # the only clock progressive disclosure runs on (spec 7b). Not a
+            # streak: nothing shows it to the child and nothing resets it.
+            total = self.kid_state.complete_session()
+            log.info("session %d completed; Home may have grown", total)
         self._show_state()
 
     def _show_state(self) -> None:
@@ -502,7 +525,23 @@ class ShellWindow(Adw.ApplicationWindow):
             self._refuse(refusal)
             return
         self.session.start(now)
+        # A new sitting: last time's answer to "what's next after?" is not this
+        # time's, and Goodbye must not show a picture nobody chose today.
+        self.ctx.next_after = None
+        if profile.skip_next_choice:
+            log.info("%s skips S1b (skip_next_choice)", profile.id)
+            self.machine.try_fire(Event.SKIP_NEXT_CHOICE)
+            return
         self.machine.try_fire(Event.CHOOSE_PROFILE)
+
+    def choose_next_after(self, option: NextAfter) -> None:
+        """S1b: the child said what happens after. Spec 7b / SYNTHESIS D4."""
+        if not self.machine.can(Event.CHOOSE_NEXT_AFTER):
+            return
+        self.ctx.next_after = option
+        log.info("next after this session: %s", option.id)
+        self.earcons.play(TAP, speaking=True)
+        self.machine.try_fire(Event.CHOOSE_NEXT_AFTER)
 
     def _refuse(self, refusal: StartRefusal) -> None:
         """No silent denials, and no adult error messages (SYNTHESIS C3)."""
@@ -665,13 +704,29 @@ class ShellWindow(Adw.ApplicationWindow):
     # -- band actions --------------------------------------------------
 
     def on_back(self) -> None:
+        """Back. Immediate, everywhere, with exactly one documented exception.
+
+        Spec 7b: **no exit friction of any kind.** The one delay in the shell
+        is ``ritual.BACK_DELAY_SECONDS``, which has one row in it -- the three
+        seconds on Put away that keep a child drumming on the band from undoing
+        the ritual. Asking the table rather than writing a second ``if`` here
+        is what lets ``tests/test_ritual.py`` assert there is no second row.
+        """
         if self.machine.state is State.HOME:
             self.speech.speak("You're home.")
             return
-        if self.machine.state is State.PUT_AWAY and time.monotonic() < self._back_locked_until:
-            # Three seconds of nothing (spec 7a). Not greyed out, not moved,
-            # not hidden: the band never changes shape under a child.
+        if (
+            back_delay_seconds(self.machine.state) > 0
+            and time.monotonic() < self._back_locked_until
+        ):
+            # Not greyed out, not moved, not hidden: the band never changes
+            # shape under a child.
             return
+        if self.machine.state is State.NEXT_CHOICE:
+            # Back out of S1b: the sitting has not really started, so stop the
+            # clock and hand them back the question they were answering.
+            self.session.end(datetime.now())
+            self.ctx.next_after = None
         self.earcons.play(BACK)
         self.machine.try_fire(Event.BACK)
 
@@ -826,12 +881,12 @@ class ShellApplication(Adw.Application):
                 speech_backend=self._speech_backend,
                 screen=self._screen,
             )
-            if self._start_on == "home" and self._config.profiles:
-                # Development only (--start-on home): a --screenshot run should
-                # photograph the grid, and the chooser is what a six-second run
-                # would otherwise catch. After the first frame, so the window
-                # has a renderer by the time anything asks it to paint.
-                GLib.timeout_add(500, self._choose_first_profile)
+            if self._start_on != "choosing" and self._config.profiles:
+                # Development only (--start-on): a --screenshot run should
+                # photograph the surface asked for, and the chooser is what a
+                # six-second run would otherwise catch. After the first frame,
+                # so the window has a renderer by the time anything paints.
+                GLib.timeout_add(500, self._drive_to_start_surface)
             if self._screenshot is not None:
                 delay = max(1.0, (self._run_seconds or 3.0) - 0.5)
                 GLib.timeout_add(int(delay * 1000), self._capture)
@@ -839,15 +894,26 @@ class ShellApplication(Adw.Application):
                 GLib.timeout_add_seconds(int(self._run_seconds), self._auto_quit)
         self.window.present()
 
-    def _choose_first_profile(self) -> bool:
-        if self.window is not None and self._config.profiles:
-            # No slide. A --screenshot run is often not being composited by
-            # anything, so the frame clock does not tick, so a 400 ms stack
-            # transition never advances and the window keeps painting the
-            # surface it was already showing. Zero duration settles the tree
-            # in one layout pass. Development only.
-            self.window.stack.set_transition_duration(0)
-            self.window.choose_profile(self._config.profiles[0])
+    def _drive_to_start_surface(self) -> bool:
+        """Development only: walk the shell to ``--start-on`` in one pass."""
+        window = self.window
+        if window is None or not self._config.profiles:
+            return False
+        # No slide. A --screenshot run is often not being composited by
+        # anything, so the frame clock does not tick, so a 400 ms stack
+        # transition never advances and the window keeps painting the
+        # surface it was already showing. Zero duration settles the tree
+        # in one layout pass.
+        window.stack.set_transition_duration(0)
+        window.choose_profile(self._config.profiles[0])
+        if self._start_on == "next-after":
+            return False
+        if self._config.next_after:
+            window.choose_next_after(self._config.next_after[0])
+        if self._start_on == "goodbye":
+            window.machine.try_fire(Event.IM_FINISHED)
+            window.session.end(datetime.now())
+            window.machine.try_fire(Event.GOODBYE_DUE)
         return False
 
     def _capture(self) -> bool:

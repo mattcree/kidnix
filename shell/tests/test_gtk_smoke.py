@@ -7,6 +7,7 @@ logic tests are the ones that must always run (spec section 7).
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import replace
@@ -46,7 +47,7 @@ from kidnix_shell.screens.journal import JournalScreen  # noqa: E402
 from kidnix_shell.screens.sleeping import SleepingScreen  # noqa: E402
 from kidnix_shell.screens.whos_here import WhosHereScreen  # noqa: E402
 from kidnix_shell.session import DailyUsage, Session, SessionPolicy  # noqa: E402
-from kidnix_shell.settings import ParentConfig, Paths  # noqa: E402
+from kidnix_shell.settings import HomeConfig, KidState, ParentConfig, Paths  # noqa: E402
 from kidnix_shell.sound import Earcons  # noqa: E402
 from kidnix_shell.speech import FakeBackend, FakeScheduler, SpeechManager  # noqa: E402
 from kidnix_shell.widgets import ActivityTile, ChildButton, Pager, SpeechUI  # noqa: E402
@@ -95,6 +96,10 @@ def ctx(tmp_path: Path) -> ShellContext:
         host=RecordingHost(),
         activities=activities,
         profile=config.profiles[0],
+        # Spec 7b: an old machine, so progressive disclosure is not the thing
+        # under test in every other case here. `home_first_run` is the fixture
+        # that puts it back to zero.
+        kid_state=KidState(sessions_completed=100),
         demo=True,
     )
 
@@ -412,6 +417,9 @@ def test_all_done_runs_the_ritual_and_back_recovers_an_accident(tmp_path: Path) 
 
     try:
         window.choose_profile(window.ctx.profile)
+        # Spec 7b: S1b sits between Who's here and Home now.
+        assert state() is State.NEXT_CHOICE
+        window.choose_next_after(window.ctx.config.next_after[0])
         assert state() is State.HOME
 
         window.finish_now()
@@ -748,7 +756,9 @@ def test_the_shell_still_fits_with_the_names_the_image_actually_ships(
         cache_home=tmp_path / "cache",
         state_home=tmp_path / "state",
     )
-    config = ParentConfig()
+    # This test is about layout, not about spec 7b's progressive disclosure:
+    # it wants every shipped name on the screen at once so it can measure them.
+    config = ParentConfig(home=HomeConfig(show_everything=True))
     activities = [
         make_activity(f"a{index}", name=name) for index, name in enumerate(shipped_names())
     ]
@@ -903,3 +913,330 @@ def test_the_sun_never_speaks_a_digit(ctx: ShellContext) -> None:
     for step in range(21):
         band.set_progress(step / 20, warm=False, words=time_left_words(1 - step / 20))
         assert not any(c.isdigit() for c in band.sun_button.speak_text)
+
+
+# --- S1b "What's next after?" (spec 7b) ----------------------------------
+
+
+def test_s1b_offers_every_configured_picture(ctx: ShellContext) -> None:
+    from kidnix_shell.screens.next_after import NextAfterScreen
+
+    screen = NextAfterScreen(ctx)
+    screen.on_enter()
+    labels = [label.get_label() for label in tile_labels(screen)]
+    assert labels == [option.label for option in ctx.config.next_after]
+
+
+def test_every_s1b_tile_is_a_home_sized_target(ctx: ShellContext) -> None:
+    """Same tile, same size, same gesture: the child learns one thing."""
+    from kidnix_shell.screens.next_after import NextAfterScreen
+
+    screen = NextAfterScreen(ctx)
+    for tile in _tiles(screen):
+        assert tile.get_size_request()[0] == ctx.metrics.tile_size
+
+
+def test_s1b_speaks_the_audio_label_not_the_tile_label(ctx: ShellContext) -> None:
+    """The label box is two lines; the voice has no box (SYNTHESIS B4)."""
+    from kidnix_shell.screens.next_after import NextAfterScreen
+
+    screen = NextAfterScreen(ctx)
+    spoken = {tile.speak_text for tile in _tiles(screen)}
+    assert spoken == {option.speak_text for option in ctx.config.next_after}
+
+
+def test_tapping_an_s1b_tile_chooses_it(ctx: ShellContext) -> None:
+    from kidnix_shell.screens.next_after import NextAfterScreen
+
+    screen = NextAfterScreen(ctx)
+    _tiles(screen)[0].fire()
+    calls = ctx.host.calls  # type: ignore[attr-defined]
+    assert [name for name, _ in calls] == ["choose_next_after"]
+    assert calls[0][1][0] is ctx.config.next_after[0]
+
+
+def test_s1b_says_something_on_arrival(ctx: ShellContext) -> None:
+    from kidnix_shell.screens.next_after import NextAfterScreen
+
+    screen = NextAfterScreen(ctx)
+    screen.on_enter()
+    assert "next" in ctx.speech.last_utterance.lower()
+
+
+def test_s1b_sits_between_whos_here_and_home_in_the_real_window(tmp_path: Path) -> None:
+    from kidnix_shell.state import State
+
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        assert window.machine.state.value == State.NEXT_CHOICE.value
+        assert window.stack.get_visible_child_name() == "next_after"
+        window.choose_next_after(window.ctx.config.next_after[1])
+        assert window.machine.state.value == State.HOME.value
+        assert window.ctx.next_after is window.ctx.config.next_after[1]
+    finally:
+        window.shutdown()
+
+
+def test_back_on_s1b_returns_to_whos_here_and_stops_the_clock(tmp_path: Path) -> None:
+    from kidnix_shell.state import State
+
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        assert window.session.running
+        window.on_back()
+        assert window.machine.state is State.CHOOSING
+        assert not window.session.running
+        assert window.ctx.next_after is None
+    finally:
+        window.shutdown()
+
+
+def test_a_profile_that_skips_s1b_goes_straight_home(tmp_path: Path) -> None:
+    from kidnix_shell.state import State
+
+    window = build_window(tmp_path)
+    try:
+        window.ctx.profile = replace(window.ctx.profile, skip_next_choice=True)
+        window.choose_profile(window.ctx.profile)
+        assert window.machine.state is State.HOME
+        assert window.ctx.next_after is None
+    finally:
+        window.shutdown()
+
+
+def test_a_new_session_forgets_last_time_s_answer(tmp_path: Path) -> None:
+    """Goodbye must never show a picture nobody chose *today*."""
+    from kidnix_shell.state import Event, State
+
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        assert window.ctx.next_after is not None
+        window.finish_now()
+        window._goodbye_now()
+        window.goodnight()
+        assert window.machine.state.value == State.SLEEPING.value
+        window.machine.try_fire(Event.WAKE)
+        assert window.machine.state.value == State.CHOOSING.value
+        window.choose_profile(window.ctx.profile)
+        assert window.ctx.next_after is None
+    finally:
+        window.shutdown()
+
+
+# --- S7 shows the choice back (spec 7b, Coco's Videos) -------------------
+
+
+def test_goodbye_shows_the_childs_own_choice(ctx: ShellContext) -> None:
+    ctx.next_after = ctx.config.next_after[0]
+    screen = GoodbyeScreen(ctx)
+    screen.on_enter()
+    assert screen.suggestion.get_label() == "Ready to go outside?"
+    assert screen.next_after_box.get_visible()
+    assert "Ready to go outside?" in ctx.speech.last_utterance
+
+
+def test_goodbye_falls_back_to_the_generated_line_when_nothing_was_chosen(
+    ctx: ShellContext,
+) -> None:
+    """The suggestion list is the fallback now, not the mechanism."""
+    ctx.next_after = None
+    screen = GoodbyeScreen(ctx)
+    screen.on_enter()
+    assert not screen.next_after_box.get_visible()
+    assert screen.suggestion.get_label()
+    assert not screen.suggestion.get_label().startswith("Ready to")
+
+
+def test_goodbye_asks_rather_than_instructs(ctx: ShellContext) -> None:
+    """Coco's failure mode: "Coco will make you do it". Nothing here commands."""
+    for option in ctx.config.next_after:
+        ctx.next_after = option
+        screen = GoodbyeScreen(ctx)
+        screen.on_enter()
+        line = screen.suggestion.get_label()
+        assert line.endswith("?")
+        assert "must" not in line.lower() and "now it's time" not in line.lower()
+
+
+# --- progressive disclosure (spec 7b, SYNTHESIS B2) ----------------------
+
+
+def test_a_first_run_home_shows_six_tiles_including_all_done(tmp_path: Path) -> None:
+    ctx = _disclosure_ctx(tmp_path, sessions=0, activities=10)
+    names = _home_names(ctx)
+    assert len(names) == 6
+    assert names[-1] == ALL_DONE_NAME
+
+
+def test_home_grows_by_one_tile_every_two_sessions(tmp_path: Path) -> None:
+    for sessions, expected in ((0, 6), (1, 6), (2, 7), (4, 8), (10, 11)):
+        ctx = _disclosure_ctx(tmp_path, sessions=sessions, activities=10)
+        assert len(_home_names(ctx)) == expected, sessions
+
+
+def test_all_done_is_on_home_from_the_very_first_run(tmp_path: Path) -> None:
+    """SYNTHESIS D5: a child who has had enough must always be able to say so."""
+    for sessions in (0, 1, 2, 50):
+        ctx = _disclosure_ctx(tmp_path, sessions=sessions, activities=10)
+        assert ALL_DONE_NAME in _home_names(ctx)
+
+
+def test_home_never_outgrows_the_allow_list(tmp_path: Path) -> None:
+    ctx = _disclosure_ctx(tmp_path, sessions=500, activities=3)
+    assert len(_home_names(ctx)) == 4  # three activities plus All done
+
+
+def test_show_everything_hands_over_the_whole_grid_at_once(tmp_path: Path) -> None:
+    ctx = _disclosure_ctx(tmp_path, sessions=0, activities=10, show_everything=True)
+    assert len(_home_names(ctx)) == 11
+
+
+def test_the_revealed_tiles_are_the_first_ones_by_order(tmp_path: Path) -> None:
+    """The parent's `order` decides what a child meets first, not chance."""
+    ctx = _disclosure_ctx(tmp_path, sessions=0, activities=10)
+    assert _home_names(ctx)[:-1] == [f"A{index}" for index in range(5)]
+
+
+def _disclosure_ctx(
+    tmp_path: Path, *, sessions: int, activities: int, show_everything: bool = False
+) -> ShellContext:
+    from kidnix_shell.journal import Journal
+
+    paths = Paths(
+        home=tmp_path,
+        data_home=tmp_path / "data",
+        config_home=tmp_path / "config",
+        cache_home=tmp_path / "cache",
+        state_home=tmp_path / "state",
+    )
+    journal = Journal(paths.journal_root)
+    journal.load()
+    speech = SpeechManager(backend=FakeBackend(), scheduler=FakeScheduler())
+    config = ParentConfig(home=HomeConfig(show_everything=show_everything))
+    return ShellContext(
+        metrics=Metrics(),
+        speech=speech,
+        speech_ui=SpeechUI(speech),
+        journal=journal,
+        session=Session(policy=SessionPolicy.demo(), usage=DailyUsage(day=date.today())),
+        config=config,
+        paths=paths,
+        earcons=Earcons(enabled=False),
+        host=RecordingHost(),
+        activities=[
+            make_activity(f"a{index}", name=f"A{index}", order=index) for index in range(activities)
+        ],
+        profile=config.profiles[0],
+        kid_state=KidState(sessions_completed=sessions),
+        demo=True,
+    )
+
+
+# --- the sun shrinks and sinks, and does not travel (spec 7b) ------------
+
+
+def test_the_bands_sun_keeps_its_x_through_a_whole_session(ctx: ShellContext) -> None:
+    from kidnix_shell.band import Sun
+
+    sun = Sun(ctx.metrics)
+    xs = set()
+    for step in range(21):
+        sun.set_progress(step / 20, warm=step > 14)
+        xs.add(sun.geometry(320, 96).centre_x)
+    assert len(xs) == 1
+
+
+def test_the_bands_sun_gets_smaller_and_lower(ctx: ShellContext) -> None:
+    from kidnix_shell.band import Sun
+
+    sun = Sun(ctx.metrics)
+    sun.set_progress(0.0, warm=False)
+    start = sun.geometry(320, 96)
+    sun.set_progress(0.9, warm=True)
+    late = sun.geometry(320, 96)
+    assert late.radius < start.radius
+    assert late.centre_y > start.centre_y
+    assert late.centre_x == start.centre_x
+
+
+# --- the gate is not voiced (spec 7b, SYNTHESIS G2) ----------------------
+
+
+def test_the_grown_up_gate_says_nothing_on_hover_or_focus(ctx: ShellContext) -> None:
+    band = make_band(ctx.metrics, ctx.speech_ui)
+    gate = band.grownup
+    ctx.speech.backend.spoken.clear()  # type: ignore[attr-defined]
+    for controller in gate.observe_controllers():
+        assert not isinstance(controller, Gtk.EventControllerFocus)
+    # Nothing registered it with the speech layer either, so the manager has
+    # no key to speak or to ring.
+    assert gate.key not in ctx.speech_ui._widgets
+
+
+def test_the_grown_up_gate_still_has_an_accessible_name(ctx: ShellContext) -> None:
+    """Unvoiced by us is not invisible to an assistive technology."""
+    band = make_band(ctx.metrics, ctx.speech_ui)
+    assert "Grown-up" in band.grownup.speak_text
+
+
+def test_the_whos_here_grown_up_tile_is_not_voiced_either(ctx: ShellContext) -> None:
+    screen = WhosHereScreen(ctx)
+    ctx.speech.backend.spoken.clear()  # type: ignore[attr-defined]
+    for button in _buttons(screen):
+        if button.speak_text == "Grown-up":
+            button.fire()
+    assert ctx.speech.backend.spoken == []  # type: ignore[attr-defined]
+    assert ctx.host.calls == [("open_grownup", ())]  # type: ignore[attr-defined]
+
+
+def test_a_childs_own_tile_is_still_voiced(ctx: ShellContext) -> None:
+    """The gate is the exception, not a new rule for the screen."""
+    screen = WhosHereScreen(ctx)
+    ctx.speech.backend.spoken.clear()  # type: ignore[attr-defined]
+    for button in _buttons(screen):
+        if button.speak_text != "Grown-up":
+            button.fire()
+    assert ctx.speech.backend.spoken  # type: ignore[attr-defined]
+
+
+def test_the_pin_pad_is_not_voiced(ctx: ShellContext) -> None:
+    from kidnix_shell.screens.grownup import GrownupSheet
+    from kidnix_shell.widgets import ChildButton as VoicedButton
+
+    sheet = GrownupSheet(ctx)
+    assert not any(isinstance(widget, VoicedButton) for widget in walk(sheet))
+
+
+def test_a_wrong_pin_is_free_silent_and_logged_without_the_digits(
+    ctx: ShellContext, caplog: pytest.LogCaptureFixture
+) -> None:
+    """SYNTHESIS G2: no lockout, no delay, no counter, no voice -- one log line."""
+    from kidnix_shell.screens.grownup import GrownupSheet
+
+    sheet = GrownupSheet(ctx)
+    ctx.speech.backend.spoken.clear()  # type: ignore[attr-defined]
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.screens.grownup"):
+        for digit in "9999":
+            sheet._push(digit)
+        for digit in "1234":
+            sheet._push(digit)
+    assert ctx.speech.backend.spoken == []  # type: ignore[attr-defined]
+    lines = [m for m in caplog.messages if m.startswith("grown-up gate")]
+    assert len(lines) == 2
+    assert "rejected" in lines[0] and "accepted" in lines[1]
+    for line in lines:
+        assert "9999" not in line and "1234" not in line
+    # And a rejected attempt costs the grown-up nothing: the pad is still live.
+    assert sheet._stack.get_visible_child_name() == "actions"
+
+
+def _tiles(widget: Gtk.Widget) -> list[ActivityTile]:
+    return [node for node in walk(widget) if isinstance(node, ActivityTile)]
+
+
+def _buttons(widget: Gtk.Widget) -> list[ChildButton]:
+    return [node for node in walk(widget) if isinstance(node, ChildButton)]

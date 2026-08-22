@@ -1,6 +1,6 @@
-"""The shell state machine (spec section 2).
+"""The shell state machine (spec section 2 and 7b).
 
-``CHOOSING -> HOME <-> IN_ACTIVITY``, ``HOME <-> JOURNAL``,
+``CHOOSING -> NEXT_CHOICE -> HOME <-> IN_ACTIVITY``, ``HOME <-> JOURNAL``,
 ``{HOME, IN_ACTIVITY, JOURNAL} -> ENDING_OFFER -> PUT_AWAY -> GOODBYE ->
 SLEEPING -> CHOOSING``, plus ``GROWNUP`` as a modal sheet reachable from
 anywhere.
@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 
 class State(Enum):
     CHOOSING = "choosing"  # S1 Who's here?
+    NEXT_CHOICE = "next_choice"  # S1b What's next after? (spec 7b)
     HOME = "home"  # S2
     IN_ACTIVITY = "in_activity"  # S3
     JOURNAL = "journal"  # S4 My Things
@@ -37,6 +38,12 @@ class State(Enum):
 
 class Event(Enum):
     CHOOSE_PROFILE = "choose_profile"
+    #: S1b: the child picked what happens after (spec 7b, Coco's Videos).
+    CHOOSE_NEXT_AFTER = "choose_next_after"
+    #: The profile asked not to be asked (``skip_next_choice``), so the shell
+    #: goes straight to Home. A separate event rather than a conditional edge:
+    #: the graph has to say out loud that the screen can be skipped.
+    SKIP_NEXT_CHOICE = "skip_next_choice"
     LAUNCH_ACTIVITY = "launch_activity"
     ACTIVITY_EXITED = "activity_exited"
     OPEN_JOURNAL = "open_journal"
@@ -65,7 +72,23 @@ class InvalidTransition(Exception):
 #: ``None`` marks a dynamic target resolved from the machine's memory.
 TRANSITIONS: dict[State, dict[Event, State | None]] = {
     State.CHOOSING: {
-        Event.CHOOSE_PROFILE: State.HOME,
+        Event.CHOOSE_PROFILE: State.NEXT_CHOICE,
+        Event.SKIP_NEXT_CHOICE: State.HOME,
+        Event.OPEN_GROWNUP: State.GROWNUP,
+        Event.GOODNIGHT: State.SLEEPING,
+    },
+    # S1b. The clock is already running by the time the child is here (the
+    # session starts when they say who they are), so the hard stop still
+    # reaches them -- but the *offer* deliberately does not: an ending offer
+    # on top of the opening question would be absurd, and `ritual.INTERRUPTIBLE`
+    # leaves this state out for that reason.
+    State.NEXT_CHOICE: {
+        Event.CHOOSE_NEXT_AFTER: State.HOME,
+        # Spec 7b: no exit friction. Back here is the way out of a screen the
+        # child did not want, and it goes where they came from.
+        Event.BACK: State.CHOOSING,
+        Event.PUT_AWAY_DUE: State.PUT_AWAY,
+        Event.IM_FINISHED: State.PUT_AWAY,
         Event.OPEN_GROWNUP: State.GROWNUP,
         Event.GOODNIGHT: State.SLEEPING,
     },
@@ -138,6 +161,7 @@ TRANSITIONS: dict[State, dict[Event, State | None]] = {
 RETURNABLE = frozenset(
     {
         State.CHOOSING,
+        State.NEXT_CHOICE,
         State.HOME,
         State.IN_ACTIVITY,
         State.JOURNAL,

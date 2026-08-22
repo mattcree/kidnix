@@ -1,10 +1,21 @@
-"""Read-aloud: queue policy, hover dwell, the Ear (spec section 3)."""
+"""Read-aloud: queue policy, hover dwell, the settle gate, the Ear.
+
+Spec section 3, as revised by 7b.
+"""
 
 from __future__ import annotations
 
+import logging
+
+import pytest
+
 from kidnix_shell.speech import (
     HOVER_DWELL_MS,
+    HOVER_LOG_PREFIX,
+    HOVER_SELECTION_WINDOW_MS,
     RECONNECT_SECONDS,
+    SETTLE_VELOCITY_PX_S,
+    VELOCITY_WINDOW_MS,
     FakeBackend,
     FakeScheduler,
     NullBackend,
@@ -18,6 +29,41 @@ def make() -> tuple[SpeechManager, FakeBackend, FakeScheduler]:
     backend = FakeBackend()
     scheduler = FakeScheduler()
     return SpeechManager(backend=backend, scheduler=scheduler), backend, scheduler
+
+
+class Pointer:
+    """A fake clock and a fake pointer, moved together.
+
+    ``FakeScheduler`` already fires timers on demand; this keeps the manager's
+    own clock in step with it so a test can say "the hand moved 200 px in
+    50 ms" and mean it.
+    """
+
+    def __init__(self) -> None:
+        self.backend = FakeBackend()
+        self.scheduler = FakeScheduler()
+        self.seconds = 0.0
+        self.speech = SpeechManager(
+            backend=self.backend, scheduler=self.scheduler, clock=lambda: self.seconds
+        )
+        self.x = 0.0
+        self.y = 0.0
+
+    def advance(self, ms: float) -> None:
+        self.seconds += ms / 1000.0
+        self.scheduler.advance(int(ms))
+
+    def enter(self, key: str, text: str, log_id: str | None = None) -> None:
+        self.speech.hover_enter(key, text, log_id)
+        self.speech.hover_motion(key, self.x, self.y)
+
+    def glide(self, key: str, px_per_second: float, ms: float, step_ms: float = 10.0) -> None:
+        """Move at a steady speed, sampling like a real motion controller."""
+        steps = max(1, int(ms / step_ms))
+        for _ in range(steps):
+            self.advance(step_ms)
+            self.x += px_per_second * step_ms / 1000.0
+            self.speech.hover_motion(key, self.x, self.y)
 
 
 def test_speaking_says_the_thing() -> None:
@@ -308,3 +354,169 @@ def test_closing_lets_go_of_the_client() -> None:
 def test_a_backend_given_a_client_is_already_connected() -> None:
     backend = SpeechdBackend(FakeClient())
     assert backend.connected
+
+
+# --- the settle gate and the dwell (spec 7b, 09 section 2) ----------------
+
+
+def test_the_dwell_is_450_ms_not_300() -> None:
+    """09 section 2: 300 ms is the bottom of the range adults rate usable."""
+    assert HOVER_DWELL_MS == 450
+
+
+def test_a_still_pointer_is_spoken_after_the_dwell() -> None:
+    pointer = Pointer()
+    pointer.enter("tile", "Draw")
+    pointer.advance(HOVER_DWELL_MS - 50)
+    assert pointer.backend.spoken == []
+    pointer.advance(60)
+    assert pointer.backend.spoken == ["Draw"]
+
+
+def test_a_pointer_sweeping_across_a_tile_says_nothing() -> None:
+    """The failure mode this gate exists for: half a grid of half-utterances.
+
+    A child overshooting a target crosses several tiles at speed. None of them
+    may speak, however long the crossing takes.
+    """
+    pointer = Pointer()
+    pointer.enter("tile", "Draw")
+    pointer.glide("tile", px_per_second=600.0, ms=HOVER_DWELL_MS * 3)
+    assert pointer.backend.spoken == []
+
+
+def test_a_pointer_that_arrives_and_stops_speaks_a_dwell_after_it_stopped() -> None:
+    """The clock starts when the hand stops, not when it crossed the border."""
+    pointer = Pointer()
+    pointer.enter("tile", "Draw")
+    pointer.glide("tile", px_per_second=600.0, ms=200.0)  # still travelling
+    pointer.advance(HOVER_DWELL_MS - 50)  # settled, but not for long enough
+    assert pointer.backend.spoken == []
+    pointer.advance(60)
+    assert pointer.backend.spoken == ["Draw"]
+
+
+def test_a_slow_drift_still_counts_as_settled() -> None:
+    """A five-year-old's hand is never perfectly still; the gate knows that."""
+    pointer = Pointer()
+    pointer.enter("tile", "Draw")
+    pointer.glide("tile", px_per_second=SETTLE_VELOCITY_PX_S / 4, ms=HOVER_DWELL_MS + 60)
+    assert pointer.backend.spoken == ["Draw"]
+
+
+def test_velocity_is_measured_over_a_window_not_over_one_sample() -> None:
+    pointer = Pointer()
+    pointer.enter("tile", "Draw")
+    pointer.glide("tile", px_per_second=200.0, ms=VELOCITY_WINDOW_MS)
+    assert pointer.speech.pointer_velocity() == pytest.approx(200.0, rel=0.2)
+    # And a pointer that never moved has no velocity at all, rather than a
+    # division by zero.
+    fresh = Pointer()
+    fresh.enter("other", "Music")
+    assert fresh.speech.pointer_velocity() == 0.0
+
+
+def test_leaving_mid_settle_says_nothing_and_re_arms() -> None:
+    pointer = Pointer()
+    pointer.enter("tile", "Draw")
+    pointer.advance(200)
+    pointer.speech.hover_leave("tile")
+    pointer.advance(2000)
+    assert pointer.backend.spoken == []
+    pointer.enter("tile", "Draw")
+    pointer.advance(HOVER_DWELL_MS + 10)
+    assert pointer.backend.spoken == ["Draw"]
+
+
+def test_keyboard_focus_is_not_gated_at_all() -> None:
+    """09 section 2: focus is deliberate in a way hover is not. No delay."""
+    pointer = Pointer()
+    pointer.speech.speak_focus("Draw", key="tile")
+    assert pointer.backend.spoken == ["Draw"]
+
+
+def test_a_configured_dwell_is_honoured() -> None:
+    speech = SpeechManager(
+        backend=FakeBackend(), scheduler=(scheduler := FakeScheduler()), dwell_ms=900
+    )
+    speech.hover_enter("tile", "Draw")
+    scheduler.advance(500)
+    assert speech.backend.spoken == []  # type: ignore[attr-defined]
+    scheduler.advance(450)
+    assert speech.backend.spoken == ["Draw"]  # type: ignore[attr-defined]
+
+
+# --- protocol P5's instrumentation ---------------------------------------
+
+
+def test_every_hover_utterance_is_logged_with_its_dwell(caplog: pytest.LogCaptureFixture) -> None:
+    pointer = Pointer()
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.speech"):
+        pointer.enter("tile-7", "Draw", log_id="tuxpaint")
+        pointer.advance(HOVER_DWELL_MS)
+        assert pointer.backend.spoken == ["Draw"]
+        # The line waits three seconds to find out whether it was wanted.
+        assert HOVER_LOG_PREFIX not in caplog.text
+        pointer.advance(HOVER_SELECTION_WINDOW_MS + 10)
+    lines = [line for line in caplog.messages if line.startswith(HOVER_LOG_PREFIX)]
+    assert lines == [f"{HOVER_LOG_PREFIX}: id=tuxpaint dwell_ms={HOVER_DWELL_MS} selected=False"]
+
+
+def test_a_hover_followed_by_a_tap_is_logged_as_selected(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    pointer = Pointer()
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.speech"):
+        pointer.enter("tile-7", "Draw", log_id="tuxpaint")
+        pointer.advance(HOVER_DWELL_MS)
+        pointer.advance(500)
+        pointer.speech.speak_activation("Draw", key="tile-7")
+    lines = [line for line in caplog.messages if line.startswith(HOVER_LOG_PREFIX)]
+    assert lines == [f"{HOVER_LOG_PREFIX}: id=tuxpaint dwell_ms={HOVER_DWELL_MS} selected=True"]
+
+
+def test_tapping_a_different_control_does_not_count_as_a_follow_through(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """P5's metric is "was *that* speech wanted", not "did anything happen"."""
+    pointer = Pointer()
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.speech"):
+        pointer.enter("tile-7", "Draw", log_id="tuxpaint")
+        pointer.advance(HOVER_DWELL_MS)
+        pointer.speech.speak_activation("Music", key="tile-9")
+        pointer.advance(HOVER_SELECTION_WINDOW_MS + 10)
+    lines = [line for line in caplog.messages if line.startswith(HOVER_LOG_PREFIX)]
+    assert lines == [f"{HOVER_LOG_PREFIX}: id=tuxpaint dwell_ms={HOVER_DWELL_MS} selected=False"]
+
+
+def test_a_tap_after_the_window_is_too_late(caplog: pytest.LogCaptureFixture) -> None:
+    pointer = Pointer()
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.speech"):
+        pointer.enter("tile-7", "Draw", log_id="tuxpaint")
+        pointer.advance(HOVER_DWELL_MS + 10)
+        pointer.advance(HOVER_SELECTION_WINDOW_MS + 100)
+        pointer.speech.speak_activation("Draw", key="tile-7")
+    assert "selected=False" in caplog.text
+    assert "selected=True" not in caplog.text
+
+
+def test_the_log_never_carries_anything_but_the_control_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No utterance text, no child's work, no times of day. An id and a number."""
+    pointer = Pointer()
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.speech"):
+        pointer.enter("tile-7", "My drawing of a dinosaur", log_id="tuxpaint")
+        pointer.advance(HOVER_DWELL_MS + 10)
+        pointer.advance(HOVER_SELECTION_WINDOW_MS + 10)
+    line = next(m for m in caplog.messages if m.startswith(HOVER_LOG_PREFIX))
+    assert "dinosaur" not in line
+
+
+def test_closing_flushes_the_last_hover(caplog: pytest.LogCaptureFixture) -> None:
+    pointer = Pointer()
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.speech"):
+        pointer.enter("tile-7", "Draw", log_id="tuxpaint")
+        pointer.advance(HOVER_DWELL_MS + 10)
+        pointer.speech.close()
+    assert HOVER_LOG_PREFIX in caplog.text

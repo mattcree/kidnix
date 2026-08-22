@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from kidnix_shell.ritual import RitualAction, next_action
+from kidnix_shell.session import Phase
 from kidnix_shell.state import (
     TRANSITIONS,
     Event,
@@ -21,7 +23,8 @@ def test_the_shell_starts_by_asking_who_is_here() -> None:
 def test_the_happy_path_through_a_session() -> None:
     machine = StateMachine()
     for event, expected in (
-        (Event.CHOOSE_PROFILE, State.HOME),
+        (Event.CHOOSE_PROFILE, State.NEXT_CHOICE),
+        (Event.CHOOSE_NEXT_AFTER, State.HOME),
         (Event.LAUNCH_ACTIVITY, State.IN_ACTIVITY),
         (Event.ACTIVITY_EXITED, State.HOME),
         (Event.OPEN_JOURNAL, State.JOURNAL),
@@ -57,6 +60,7 @@ def test_the_ending_offer_can_arrive_from_the_journal() -> None:
     "state",
     [
         State.CHOOSING,
+        State.NEXT_CHOICE,
         State.HOME,
         State.IN_ACTIVITY,
         State.JOURNAL,
@@ -131,11 +135,59 @@ def test_on_change_fires_only_on_a_real_move() -> None:
 def test_history_records_every_transition() -> None:
     machine = StateMachine()
     machine.fire(Event.CHOOSE_PROFILE)
+    machine.fire(Event.CHOOSE_NEXT_AFTER)
     machine.fire(Event.OPEN_JOURNAL)
     assert [event for _, event, _ in machine.history] == [
         Event.CHOOSE_PROFILE,
+        Event.CHOOSE_NEXT_AFTER,
         Event.OPEN_JOURNAL,
     ]
+
+
+# --- S1b "What's next after?" (spec 7b) ----------------------------------
+
+
+def test_saying_who_you_are_asks_what_is_next_before_home() -> None:
+    """SYNTHESIS D4 / Coco's Videos: the plan is made *before* the session."""
+    machine = StateMachine()
+    assert machine.fire(Event.CHOOSE_PROFILE) is State.NEXT_CHOICE
+    assert machine.fire(Event.CHOOSE_NEXT_AFTER) is State.HOME
+
+
+def test_a_profile_can_skip_the_question() -> None:
+    """``skip_next_choice``: the evidence is good, the screen is still a step."""
+    machine = StateMachine()
+    assert machine.fire(Event.SKIP_NEXT_CHOICE) is State.HOME
+
+
+def test_back_on_s1b_returns_to_whos_here() -> None:
+    machine = StateMachine()
+    machine.fire(Event.CHOOSE_PROFILE)
+    assert machine.fire(Event.BACK) is State.CHOOSING
+    # And the child can go round again rather than being stuck outside Home.
+    assert machine.fire(Event.CHOOSE_PROFILE) is State.NEXT_CHOICE
+
+
+def test_the_hard_stop_reaches_a_child_still_choosing() -> None:
+    """The clock is running from "Who's here?", so Put away has to arrive."""
+    machine = StateMachine(State.NEXT_CHOICE)
+    assert machine.fire(Event.PUT_AWAY_DUE) is State.PUT_AWAY
+
+
+def test_the_ending_offer_never_lands_on_s1b() -> None:
+    """An ending offer on top of the opening question would be absurd."""
+    machine = StateMachine(State.NEXT_CHOICE)
+    assert not machine.can(Event.ENDING_OFFER_DUE)
+    assert next_action(Phase.ENDING_OFFER, State.NEXT_CHOICE, offer_answered=False) is (
+        RitualAction.NOTHING
+    )
+
+
+def test_s1b_never_launches_an_activity() -> None:
+    """Home is the only place an activity starts from."""
+    machine = StateMachine(State.NEXT_CHOICE)
+    assert not machine.can(Event.LAUNCH_ACTIVITY)
+    assert not machine.can(Event.OPEN_JOURNAL)
 
 
 def test_every_state_has_a_way_out() -> None:

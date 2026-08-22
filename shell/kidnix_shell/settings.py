@@ -37,9 +37,18 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from .next_after import DEFAULT_NEXT_AFTER, NextAfter, parse_next_after
+
 log = logging.getLogger(__name__)
 
 DEFAULT_PIN = "1234"  # spec S9: dev default, replaced by the parent
+#: Spec 7b / 09 section 2: 450 ms, up from v0.1.3's 300 ms, and gated on the
+#: pointer having settled. See :mod:`kidnix_shell.speech`.
+DEFAULT_HOVER_DWELL_MS = 450
+#: Bounds a hand edit. Below the floor the shell chatters at a child sweeping a
+#: grid; above the ceiling hover-to-speak has stopped being ambient.
+MIN_HOVER_DWELL_MS = 150
+MAX_HOVER_DWELL_MS = 3000
 PBKDF2_ROUNDS = 200_000
 SYSTEM_CONFIG_DIR = Path("/etc/kidnix")
 #: The image's shipped defaults, used when /etc has nothing (bootc's 3-way
@@ -143,6 +152,17 @@ class Paths:
         """Kid-owned: how much of today's budget has been spent."""
         return self.state_home / "kidnix" / "usage.toml"
 
+    @property
+    def progress_state(self) -> Path:
+        """Kid-owned: how many sessions have been completed, ever.
+
+        Deliberately *not* in ``usage.toml``: that file resets every day at
+        04:00, and progressive disclosure (spec 7b, SYNTHESIS B2) counts across
+        the whole life of the machine. Nothing in here can widen what the child
+        is allowed to do -- the ceiling is still the allow-list.
+        """
+        return self.state_home / "kidnix" / "progress.toml"
+
 
 # --- PIN -----------------------------------------------------------------
 
@@ -183,6 +203,11 @@ class Profile:
     #: of it. An empty string means "the parent has not said", and nothing is
     #: filtered -- we do not guess a child's age.
     age_band: str = "4-5"
+    #: Spec 7b: skip S1b "What's next after?" for this child and go straight
+    #: Home. The screen is a good idea with evidence behind it (Coco's Videos)
+    #: and it is still one more thing between a child and the thing they came
+    #: to do, so a parent may turn it off per child.
+    skip_next_choice: bool = False
 
     @property
     def speak_text(self) -> str:
@@ -197,6 +222,94 @@ class Profile:
 
 
 DEFAULT_PROFILE = Profile(id="child", name="Me")
+
+
+# --- progressive disclosure (spec 7b, SYNTHESIS B2) ----------------------
+
+#: How many tiles a brand-new machine shows, **including "All done"**. 09
+#: section 3 splits the ceiling from the default: twelve is a geometry-and-
+#: visual-search limit, not a working-memory one, but a first run should still
+#: be a small screen. Six is the top of 09's "first-run default 5-6".
+DEFAULT_INITIAL_TILES = 6
+#: One more tile after every N completed sessions.
+DEFAULT_REVEAL_EVERY_SESSIONS = 2
+#: A tile is never *taken away*: the count only ever goes up, and the ceiling
+#: is whatever the allow-list and availability already left on Home.
+MIN_INITIAL_TILES = 2
+
+
+@dataclass(frozen=True)
+class HomeConfig:
+    """``[home]`` in ``parent.toml``: how fast Home grows.
+
+    Working-memory limits bind on *held* option sets, not on a visible,
+    labelled, spatially stable grid (Pailian 2016; Schneider 2021), so the
+    reason to start small is not capacity -- it is that a child meeting a
+    computer for the first time should meet five things, learn them, and be
+    handed a sixth once they are theirs. ``show_everything`` is the parent's
+    override for a child who has been using it for a year.
+    """
+
+    initial_tiles: int = DEFAULT_INITIAL_TILES
+    reveal_every_sessions: int = DEFAULT_REVEAL_EVERY_SESSIONS
+    show_everything: bool = False
+
+    def tiles_visible(self, total: int, sessions_completed: int) -> int:
+        """How many of ``total`` Home cells this child has earned.
+
+        Total and floor are both honoured: a machine can never show more than
+        Home actually has, and never fewer than "one activity plus All done".
+        """
+        if self.show_everything:
+            return total
+        every = max(1, self.reveal_every_sessions)
+        start = max(MIN_INITIAL_TILES, self.initial_tiles)
+        return max(0, min(total, start + max(0, sessions_completed) // every))
+
+
+@dataclass
+class KidState:
+    """Kid-owned counters that outlive a day (``progress.toml``).
+
+    One number today: how many sessions have been *completed* -- i.e. reached
+    Goodbye. It is the clock for progressive disclosure and nothing else. It is
+    not a streak, it is never shown to the child, and losing the file costs a
+    child a couple of tiles, not their work.
+    """
+
+    sessions_completed: int = 0
+    path: Path | None = None
+
+    @classmethod
+    def load(cls, path: Path) -> KidState:
+        if not path.is_file():
+            return cls(path=path)
+        try:
+            with path.open("rb") as handle:
+                data = tomllib.load(handle)
+            completed = int(data.get("sessions_completed", 0))
+        except (OSError, ValueError, TypeError, tomllib.TOMLDecodeError) as exc:
+            log.warning("kid state %s unreadable (%s); starting fresh", path, exc)
+            return cls(path=path)
+        return cls(sessions_completed=max(0, completed), path=path)
+
+    def save(self, path: Path | None = None) -> None:
+        target = path or self.path
+        if target is None:
+            return
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(f"sessions_completed = {self.sessions_completed}\n", encoding="utf-8")
+        except OSError as exc:  # a full disk must never end a child's session
+            log.warning("could not save kid state to %s (%s)", target, exc)
+            return
+        self.path = target
+
+    def complete_session(self) -> int:
+        """One more session reached Goodbye. Returns the new total."""
+        self.sessions_completed += 1
+        self.save()
+        return self.sessions_completed
 
 
 # --- parent config -------------------------------------------------------
@@ -219,6 +332,16 @@ class ParentConfig:
     #: done". Denying everything is not a setting anyone wants by accident.
     allowed_activity_ids: list[str] | None = None
     profiles: list[Profile] = field(default_factory=lambda: [DEFAULT_PROFILE])
+    #: Spec 7b / SYNTHESIS B4: how long the pointer has to have *settled* on a
+    #: control before read-aloud speaks it. 450 ms is extrapolated from adult
+    #: gaze-dwell work (Paulus & Remijn 2021); there is no child evidence, and
+    #: it is the first parameter to tune in child testing (protocol P5), which
+    #: is exactly why it is a config key and not a constant.
+    hover_dwell_ms: int = DEFAULT_HOVER_DWELL_MS
+    #: ``[home]``: progressive disclosure.
+    home: HomeConfig = field(default_factory=HomeConfig)
+    #: ``[[next_after]]``: S1b's picture options.
+    next_after: tuple[NextAfter, ...] = DEFAULT_NEXT_AFTER
     path: Path | None = None
     #: True when this came from a root-owned file (or from nowhere): the shell
     #: running as the child must not try to write it back.
@@ -289,6 +412,7 @@ class ParentConfig:
                     colour_secondary=str(raw.get("colour_secondary", base.colour_secondary)),
                     avatar=str(raw.get("avatar", base.avatar)),
                     age_band=str(raw.get("age_band", base.age_band)),
+                    skip_next_choice=bool(raw.get("skip_next_choice", base.skip_next_choice)),
                 )
             )
 
@@ -307,6 +431,9 @@ class ParentConfig:
             default_session_minutes=length,
             allowed_activity_ids=allowed_list,
             profiles=profiles,
+            hover_dwell_ms=_hover_dwell_ms(data.get("hover_dwell_ms"), path),
+            home=_home_config(data.get("home"), path),
+            next_after=parse_next_after(data.get("next_after"), str(path)),
             path=path,
             read_only=read_only,
         )
@@ -335,12 +462,20 @@ class ParentConfig:
             f"pin_salt = {_toml_str(self.pin_salt)}",
             f"pin_hash = {_toml_str(self.pin_hash)}",
             f"default_session_minutes = {self.default_session_minutes}",
+            f"hover_dwell_ms = {self.hover_dwell_ms}",
         ]
         if self.allowed_activity_ids is None:
             lines.append("# allowed_activity_ids omitted = every activity is allowed")
         else:  # an empty list round-trips, and still means "all"
             allowed = ", ".join(_toml_str(a) for a in self.allowed_activity_ids)
             lines.append(f"allowed_activity_ids = [{allowed}]")
+        lines += [
+            "",
+            "[home]",
+            f"initial_tiles = {self.home.initial_tiles}",
+            f"reveal_every_sessions = {self.home.reveal_every_sessions}",
+            f"show_everything = {str(self.home.show_everything).lower()}",
+        ]
         for profile in self.profiles:
             lines += [
                 "",
@@ -351,8 +486,88 @@ class ParentConfig:
                 f"colour_secondary = {_toml_str(profile.colour_secondary)}",
                 f"avatar = {_toml_str(profile.avatar)}",
                 f"age_band = {_toml_str(profile.age_band)}",
+                f"skip_next_choice = {str(profile.skip_next_choice).lower()}",
+            ]
+        for option in self.next_after:
+            lines += [
+                "",
+                "[[next_after]]",
+                f"id = {_toml_str(option.id)}",
+                f"label = {_toml_str(option.label)}",
+                f"audio_label = {_toml_str(option.speak_text)}",
+                f"icon = {_toml_str(option.icon)}",
             ]
         return "\n".join(lines) + "\n"
+
+
+def _int_key(value: Any, fallback: int, low: int, high: int, key: str, path: Path) -> int:
+    """A whole number out of TOML, clamped, with a log line on nonsense."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        if value is not None:
+            log.warning(
+                "parent config %s: %s=%r is not a whole number; using %d",
+                path,
+                key,
+                value,
+                fallback,
+            )
+        return fallback
+    if not low <= value <= high:
+        clamped = max(low, min(high, value))
+        log.warning(
+            "parent config %s: %s=%d is outside %d-%d; using %d",
+            path,
+            key,
+            value,
+            low,
+            high,
+            clamped,
+        )
+        return clamped
+    return value
+
+
+def _hover_dwell_ms(value: Any, path: Path) -> int:
+    return _int_key(
+        value,
+        DEFAULT_HOVER_DWELL_MS,
+        MIN_HOVER_DWELL_MS,
+        MAX_HOVER_DWELL_MS,
+        "hover_dwell_ms",
+        path,
+    )
+
+
+def _home_config(raw: Any, path: Path) -> HomeConfig:
+    """``[home]``: progressive disclosure, or the defaults if it is missing."""
+    if raw is None:
+        return HomeConfig()
+    if not isinstance(raw, dict):
+        log.warning("parent config %s: [home] must be a table; using the defaults", path)
+        return HomeConfig()
+    show_everything = raw.get("show_everything", False)
+    if not isinstance(show_everything, bool):
+        log.warning("parent config %s: home.show_everything must be true or false", path)
+        show_everything = False
+    return HomeConfig(
+        initial_tiles=_int_key(
+            raw.get("initial_tiles"),
+            DEFAULT_INITIAL_TILES,
+            MIN_INITIAL_TILES,
+            64,
+            "home.initial_tiles",
+            path,
+        ),
+        reveal_every_sessions=_int_key(
+            raw.get("reveal_every_sessions"),
+            DEFAULT_REVEAL_EVERY_SESSIONS,
+            1,
+            1000,
+            "home.reveal_every_sessions",
+            path,
+        ),
+        show_everything=show_everything,
+    )
 
 
 def warn_no_parent_config(stream: Any = None) -> None:

@@ -1,4 +1,9 @@
-"""Earcons: four generated tones, one per 250 ms, and never over speech."""
+"""Earcons: five generated sounds, one per 250 ms, and never over speech.
+
+Spec 7a as revised by 7b: four of the five are now **auditory icons** -- they
+imitate an everyday sound rather than encoding a musical interval -- and all
+five are <= 400 ms and normalised.
+"""
 
 from __future__ import annotations
 
@@ -12,78 +17,177 @@ import pytest
 from kidnix_shell.sound import (
     BACK,
     EARCONS,
+    GLIDE,
     KEEP,
+    MAX_EARCON_MS,
     MIN_GAP_SECONDS,
     NAMES,
+    NOISE,
+    PEAK,
     PHASE,
     SAMPLE_RATE,
     SLEEP,
     TAP,
+    TONE,
+    Earcon,
     Earcons,
+    Layer,
     NullPlayer,
-    Tone,
     generate,
+    mix,
     render,
 )
+
+
+def samples(name: str) -> list[float]:
+    return mix(EARCONS[name])
 
 
 def test_there_are_exactly_five_sounds() -> None:
     """Spec 7a ruled four; the CCI audit restored 08 section 3.6b's fifth.
 
-    The sixth, *ask sent*, still waits for the Ask queue -- but the
-    session-phase motif never had anything to do with Ask, and it is the audio
-    half of a sun that is invisible for most of a session.
+    The sixth, *ask sent*, still waits for the Ask queue.
     """
     assert set(EARCONS) == {KEEP, TAP, BACK, PHASE, SLEEP} == set(NAMES)
 
 
-def test_the_phase_motif_is_tellable_from_the_others() -> None:
-    """A child has to know it with their eyes shut, which is the whole spec.
+# --- the representational turn (spec 7b, 09 section 10 #7) ----------------
 
-    It falls (so it is not KEEP), it starts a fourth above BACK's first note
-    and lands where BACK has already gone past, and it is an octave above
-    SLEEP. It is also the quietest of the five, because "the light changed" is
-    news about the room, not about the child.
+
+@pytest.mark.parametrize("name", [KEEP, TAP, BACK, SLEEP])
+def test_the_four_with_referents_say_what_they_imitate(name: str) -> None:
+    """Jacko 1997: recognition rides on everyday-sound exposure, not intervals.
+
+    The referent is data, not a comment, so the honesty note in the module
+    docstring cannot drift away from the sound it describes.
     """
-    first, second = EARCONS[PHASE]
-    assert second.frequency < first.frequency, "it falls"
-    assert first.frequency > EARCONS[BACK][0].frequency
-    assert second.frequency > EARCONS[SLEEP][0].frequency
-    peak = max(tone.level for tone in EARCONS[PHASE])
+    referent = EARCONS[name].referent
+    assert referent and "none" not in referent
+
+
+def test_the_one_without_a_referent_says_so() -> None:
+    """ "The session moved on" is not a thing that makes a noise."""
+    assert EARCONS[PHASE].referent.startswith("none")
+    assert all(layer.kind == TONE for layer in EARCONS[PHASE].layers)
+
+
+def test_keep_is_noise_not_a_chord() -> None:
+    """Paper rustling: several bursts of filtered noise, none of them a note."""
+    layers = EARCONS[KEEP].layers
+    assert len(layers) >= 4
+    assert all(layer.kind == NOISE for layer in layers)
+    assert all(layer.highpass_hz > 0 and layer.shimmer_hz > 0 for layer in layers)
+    # Staggered, not simultaneous: a rustle is a sequence of small events.
+    starts = [layer.start_ms for layer in layers]
+    assert starts == sorted(starts)
+    assert len(set(starts)) == len(starts)
+
+
+def test_back_is_two_knocks() -> None:
+    """A soft door. Two transients, each a click over a low resonance."""
+    layers = EARCONS[BACK].layers
+    knock_starts = sorted({layer.start_ms for layer in layers})
+    assert len(knock_starts) == 2
+    lows = [layer for layer in layers if layer.kind == TONE and layer.frequency < 250]
+    assert len(lows) == 2
+    assert any(layer.kind == NOISE for layer in layers)
+    # The second knock is the quieter one: a knock is not an alarm.
+    first, second = knock_starts
+    quiet = max(layer.level for layer in layers if layer.start_ms == second)
+    loud = max(layer.level for layer in layers if layer.start_ms == first)
+    assert quiet < loud
+
+
+def test_sleep_is_a_yawn_shaped_downward_glide() -> None:
+    layers = EARCONS[SLEEP].layers
+    glides = [layer for layer in layers if layer.kind == GLIDE]
+    assert glides, "a yawn is a glide, not a pair of notes"
+    for glide in glides:
+        assert glide.frequency_end is not None
+        assert glide.frequency_end < glide.frequency, "it falls"
+        assert glide.attack_ms >= 60, "a yawn opens slowly"
+    assert any(layer.kind == NOISE for layer in layers), "and it is breathy"
+
+
+def test_tap_is_the_shortest_thing_in_the_shell() -> None:
+    assert EARCONS[TAP].milliseconds <= 100
+    assert any(layer.kind == NOISE for layer in EARCONS[TAP].layers)
+
+
+def test_the_phase_motif_is_still_the_quietest_of_the_five() -> None:
+    """ "The light changed" is news about the room, not about the child."""
     for name in (KEEP, TAP, BACK, SLEEP):
-        assert peak < max(tone.level for tone in EARCONS[name]), name
+        assert EARCONS[PHASE].level < EARCONS[name].level, name
 
 
-def test_rendering_gives_the_right_number_of_frames() -> None:
-    frames = render((Tone(440.0, 100),))
-    assert len(frames) == 2 * int(SAMPLE_RATE * 0.1)  # 16-bit mono
+# --- rendering ------------------------------------------------------------
 
 
-def test_a_tone_starts_and_ends_at_silence() -> None:
+@pytest.mark.parametrize("name", list(EARCONS))
+def test_every_earcon_renders(name: str) -> None:
+    frames = render(EARCONS[name])
+    assert frames
+    assert len(frames) % 2 == 0
+    expected = int(SAMPLE_RATE * EARCONS[name].milliseconds / 1000.0)
+    assert len(frames) // 2 == pytest.approx(expected, abs=2)
+
+
+@pytest.mark.parametrize("name", list(EARCONS))
+def test_every_earcon_is_at_most_400_ms(name: str) -> None:
+    """08 section 3.6, and now without v0.1.3's exception for ``sleep``."""
+    assert EARCONS[name].milliseconds <= MAX_EARCON_MS
+
+
+@pytest.mark.parametrize("name", list(EARCONS))
+def test_every_earcon_is_normalised(name: str) -> None:
+    """A noise burst and a sine have nothing in common until this makes them.
+
+    The peak lands exactly on ``PEAK * level``, so the five sit at a designed
+    loudness relative to each other rather than at an arithmetic accident.
+    """
+    peak = max(abs(value) for value in samples(name))
+    assert peak == pytest.approx(PEAK * EARCONS[name].level, rel=1e-6)
+
+
+@pytest.mark.parametrize("name", list(EARCONS))
+def test_nothing_clips(name: str) -> None:
+    raw = render(EARCONS[name])
+    values = struct.unpack(f"<{len(raw) // 2}h", raw)
+    assert max(abs(value) for value in values) < 32767
+
+
+@pytest.mark.parametrize("name", list(EARCONS))
+def test_every_earcon_starts_and_ends_at_silence(name: str) -> None:
     """A click at the edge of a 90 ms sound *is* the sound. Fades, always."""
-    frames = render((Tone(440.0, 100),))
-    first = struct.unpack("<h", frames[:2])[0]
-    last = struct.unpack("<h", frames[-2:])[0]
+    raw = render(EARCONS[name])
+    first = struct.unpack("<h", raw[:2])[0]
+    last = struct.unpack("<h", raw[-2:])[0]
     assert abs(first) < 400
     assert abs(last) < 400
 
 
-def test_nothing_clips() -> None:
-    for tones in EARCONS.values():
-        samples = struct.unpack(f"<{len(render(tones)) // 2}h", render(tones))
-        assert max(abs(s) for s in samples) < 32767
-
-
 def test_the_level_is_in_the_quiet_half_of_the_scale() -> None:
-    """-14 LUFS by construction: a peak of 0.45 with a decay envelope."""
-    for tones in EARCONS.values():
-        raw = render(tones)
-        samples = struct.unpack(f"<{len(raw) // 2}h", raw)
-        peak = max(abs(s) for s in samples) / 32767
+    """-14 LUFS by construction. Nothing here was measured with a meter."""
+    for name in NAMES:
+        peak = max(abs(value) for value in samples(name))
         assert 0.2 < peak <= 0.5
 
 
-def test_generating_writes_four_playable_wav_files(tmp_path: Path) -> None:
+def test_synthesis_is_deterministic() -> None:
+    """Noise with a fixed seed: the same source always makes the same WAV."""
+    for name in NAMES:
+        assert render(EARCONS[name]) == render(EARCONS[name])
+
+
+def test_a_silent_earcon_does_not_divide_by_zero() -> None:
+    quiet = Earcon(name="quiet", layers=(Layer(kind=TONE, milliseconds=10.0, level=0.0),))
+    assert set(mix(quiet)) == {0.0}
+
+
+# --- files ----------------------------------------------------------------
+
+
+def test_generating_writes_five_playable_wav_files(tmp_path: Path) -> None:
     written = generate(tmp_path)
     assert len(written) == len(EARCONS)
     for name in NAMES:
@@ -182,11 +286,3 @@ def test_a_completely_unwritable_world_runs_silent(tmp_path: Path) -> None:
         assert not earcons.play(KEEP)
     finally:
         locked.chmod(0o700)
-
-
-@pytest.mark.parametrize("name", list(EARCONS))
-def test_every_earcon_is_short(name: str) -> None:
-    """08 section 3.6: <= 400 ms, except the one that says the day is over."""
-    milliseconds = sum(tone.milliseconds for tone in EARCONS[name])
-    limit = 800 if name == SLEEP else 400
-    assert milliseconds <= limit

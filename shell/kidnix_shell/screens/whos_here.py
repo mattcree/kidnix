@@ -47,7 +47,10 @@ class WhosHereScreen(Screen):
         self.append(row)
 
         # The grown-up tile is plain on purpose: it must not look like a
-        # tempting choice next to a child's own face.
+        # tempting choice next to a child's own face -- and it is **not
+        # voiced** (spec 7b, SYNTHESIS G2). No ``speech_ui``, so it says
+        # nothing on hover, on focus or on activation; ``ChildButton`` still
+        # sets the accessible name, so an assistive technology can find it.
         corner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         corner.set_halign(Gtk.Align.END)
         corner.set_valign(Gtk.Align.END)
@@ -56,7 +59,6 @@ class WhosHereScreen(Screen):
         grownup = ChildButton(
             speak_text="Grown-up",
             on_activate=self.ctx.host.open_grownup,
-            speech_ui=self.ctx.speech_ui,
             width=metrics.target_mm(40),
             height=metrics.min_target,
         )

@@ -47,7 +47,8 @@ CLI, and without that it degrades silently and logs once (spec §3).
 ```
 kidnix-shell [--demo] [--config PATH] [--session-config PATH]
              [--activities DIR] [--windowed] [--screen WxH[@DPI]]
-             [--run-seconds N] [--screenshot PATH] [--start-on {choosing,home}]
+             [--run-seconds N] [--screenshot PATH]
+             [--start-on {choosing,next-after,home,goodbye}]
              [--speech {auto,speechd,spd-say,null}] [-v]
 kidnix-shell --validate-manifests [DIR]
 kidnix-shell --generate-earcons [DIR]
@@ -73,11 +74,13 @@ kidnix-shell --generate-earcons [DIR]
 - `--screenshot PATH` — write a PNG of the shell's own window before quitting.
   GNOME 45+ lets no external tool photograph the kiosk, so the shell renders
   its own widget tree (`just demo-small --run-seconds 7 --screenshot x.png`).
-- `--start-on home` — development only: choose the first profile immediately so
-  a `--screenshot` run photographs the grid rather than the "Who's here?"
-  chooser it would otherwise still be on. The child always starts on S1.
-- `--generate-earcons [DIR]` — write the five generated tones and exit; run at
-  image build time so `/usr` has them and the child's cache does not need to.
+- `--start-on {next-after,home,goodbye}` — development only: drive the shell
+  forward immediately so a `--screenshot` run photographs the surface you asked
+  for rather than the "Who's here?" chooser it would otherwise still be on.
+  `goodbye` also picks a next-after, so the ending shows the child's own
+  choice. The child always starts on S1.
+- `--generate-earcons [DIR]` — write the five generated earcons and exit; run
+  at image build time so `/usr` has them and the child's cache does not need to.
 
 Logging goes to stderr, which is the systemd journal in the real session.
 There is no telemetry and no network access.
@@ -92,8 +95,9 @@ kidnix_shell/
   context.py      what screens are handed (ShellContext, ShellHost)
   band.py         the persistent 96 px band and the sun
   widgets.py      ChildButton and friends: where the input rules live
-  screens/        S1 who's here, S2 home, S4 my things, S5/S6 ending,
-                  S7 goodbye, S8 sleeping, S9 grown-up sheet
+  screens/        S1 who's here, S1b what's next after, S2 home,
+                  S4 my things, S5/S6 ending, S7 goodbye, S8 sleeping,
+                  S9 grown-up sheet
   theme.css       the reserved highlight colour, flat-with-depth, tints
   data/icons/     representational fallback icons (SVG)
   data/sounds/    the five earcons (generated, never committed)
@@ -107,7 +111,9 @@ kidnix_shell/
   journal.py      the Journal storage contract (spec section 5)
   session.py      session timing and policy (spec section 6)
   state.py        the navigation graph (spec section 2)
-  speech.py       read-aloud queue, dwell, backends (spec section 3)
+  sun.py          the sun's geometry: it shrinks and sinks, it never travels
+  next_after.py   S1b's picture options and their parent config
+  speech.py       read-aloud queue, the 450 ms settle-gated dwell, backends
   launcher.py     activity subprocess lifecycle
   settings.py     XDG paths, parent config, PIN hashing, profiles
   suggestions.py  the Goodbye screen's offline continuation lines
@@ -191,9 +197,10 @@ what lets `just test-headless` prove the ten shipped names fit at 1280x800 at
 
 | File | Owner | What |
 |---|---|---|
-| `/etc/kidnix/parent.toml`, then `/usr/share/kidnix/parent.toml` | **root** | PIN hash, default session length, activity allow-list (empty = all), child profiles with their `age_band` |
+| `/etc/kidnix/parent.toml`, then `/usr/share/kidnix/parent.toml` | **root** | PIN hash, default session length, activity allow-list (empty = all), child profiles (`age_band`, `skip_next_choice`), `hover_dwell_ms`, `[home]` (progressive disclosure), `[[next_after]]` (S1b's options) |
 | `/etc/kidnix/session.toml`, then `/usr/share/kidnix/session.toml` | **root** | session length, daily budget, ending offer / put away offsets, bedtime window |
 | `<state>/kidnix/usage.toml` | child | seconds used today (budget day rolls at 04:00) |
+| `<state>/kidnix/progress.toml` | child | sessions completed, ever — the clock progressive disclosure runs on. Not a streak: nothing shows it to the child |
 | `<data>/kidnix/journal/` | child | the Journal: `YYYY/MM/DD/<entry>/entry.json` + versions + `thumb.png` |
 | `<cache>/kidnix/sounds/` | child | generated earcons, when `/usr` is read-only |
 

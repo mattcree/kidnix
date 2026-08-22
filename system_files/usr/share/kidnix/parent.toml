@@ -39,6 +39,20 @@ pin_hash = "3d6495d0f726f531cef756cad4ee152a662ac68a68782658c75494d91c267f4d"
 # casually.
 default_session_minutes = 25
 
+# How long the pointer has to have **settled** on a control before the shell
+# reads it aloud, in milliseconds (docs/design/shell-v0.1.md 7b, SYNTHESIS B4).
+# It is not a plain delay: the clock only runs while the pointer is moving
+# slower than ~40 px/s, so a child sweeping across a grid on the way to a
+# target hears nothing, and a hand that comes to rest hears one thing.
+#
+# 450 is **extrapolated from adult eye-gaze research** (Paulus & Remijn 2021).
+# There is no study anywhere of read-aloud-on-hover with children, which is
+# why this is a key you can turn and why every hover utterance is logged
+# ("hover-speech: id=... dwell_ms=... selected=...") for the child test in
+# docs/research/09-gap-sweep-checkpoint-1.md 11 (protocol P5). Clamped to
+# 150-3000; anything unparseable falls back to 450 with a warning.
+hover_dwell_ms = 450
+
 # Which activities Home lets the child open. **An empty list means "all of
 # them"** -- not "none of them" (kidnix_shell.settings.ParentConfig.is_allowed).
 # That is deliberate: a parent panel that empties this list must not leave a
@@ -71,3 +85,124 @@ avatar = "face-smile"
 # number recognition. Widen it to "6-8" as the child grows. An empty string
 # means "not set", and nothing is filtered: we do not guess a child's age.
 age_band = "4-5"
+# Whether this child is asked "What's next after?" before Home. False (the
+# default) means they are.
+skip_next_choice = false
+
+# --- HOW FAST HOME GROWS (progressive disclosure) --------------------------
+#
+# docs/design/shell-v0.1.md 7b / SYNTHESIS B2. A brand-new machine shows the
+# first `initial_tiles` tiles by the manifests' `order` -- **counting the
+# "All done" tile**, which is always on Home and is never the one left out --
+# and reveals one more after every `reveal_every_sessions` completed sessions,
+# up to whatever the allow-list and the age band have already left.
+#
+# The reason is not working memory: limits bind on *held* option sets, not on
+# a visible, labelled, spatially stable grid (Pailian 2016; Schneider 2021).
+# It is that a child meeting a computer should meet five things, learn them,
+# and be handed a sixth once those five are theirs. The count of completed
+# sessions is kid-owned state in ~/.local/state/kidnix/progress.toml; it is
+# not a streak, nothing shows it to the child, and nothing resets it.
+#
+# Set show_everything = true for a child who has been using the machine for a
+# year, or for a demo.
+[home]
+initial_tiles = 6
+reveal_every_sessions = 2
+show_everything = false
+
+# --- "WHAT'S NEXT AFTER?" (the S1b picture choice) -------------------------
+#
+# Between "Who's here?" and Home the child picks what happens *after* the
+# computer, and the Goodbye screen shows it back: "Ready to go outside?".
+#
+# This is the highest-value change in docs/research/09-gap-sweep-checkpoint-1.md
+# and it comes from one paper: Hiniker et al., *Coco's Videos* (CHI 2018), 24
+# families, three weeks, randomised condition order. Children who had chosen
+# the next thing *before* they started answered the ending out loud, pre-empted
+# it, and announced it to their families. What makes an ending hurt is the
+# destination thinning out, not the warning (Castillo et al. 2018).
+#
+# **These eight are somebody else's household.** Coco's nine categories were
+# derived by clustering 381 diary entries of what those children actually did
+# next. Replace them with what *your* child actually does; six to nine options
+# is the range the research supports. Coco's also included a "something else"
+# option, which is one more [[next_after]] block away:
+#
+#   [[next_after]]
+#   id = "else"
+#   label = "Something"
+#   audio_label = "Something else"
+#   phrase = "do something else"
+#   icon = "kidnix-play"
+#
+# Fields:
+#   id           stable identifier, used in the log line and nowhere a child sees
+#   label        what the tile reads. **Short** -- one or two words, at most
+#                eight letters each: it lives in Home's two-line label box at
+#                the 18 pt floor and a third line makes the tile too tall
+#   audio_label  what hover, focus and a tap read aloud. May be longer
+#   phrase       how it reads inside "Ready to ...?" at Goodbye. Without this
+#                the label is lower-cased, which is right for a verb phrase
+#                and wrong for a noun ("Ready to a book?")
+#   icon         a bundled picture (kidnix-next-*.svg) or an icon-theme name
+#
+# A malformed option is skipped with a warning; an empty or entirely unusable
+# list falls back to these defaults, because an empty S1b is a screen a child
+# cannot get off.
+
+[[next_after]]
+id = "outside"
+label = "Outside"
+audio_label = "Going outside"
+phrase = "go outside"
+icon = "kidnix-next-outside"
+
+[[next_after]]
+id = "book"
+label = "A book"
+audio_label = "Reading a book"
+phrase = "read a book"
+icon = "kidnix-next-book"
+
+[[next_after]]
+id = "build"
+label = "Building"
+audio_label = "Building with blocks"
+phrase = "build something"
+icon = "kidnix-next-build"
+
+[[next_after]]
+id = "draw"
+label = "Drawing"
+audio_label = "Drawing on paper"
+phrase = "draw on paper"
+icon = "kidnix-next-draw"
+
+[[next_after]]
+id = "snack"
+label = "A snack"
+audio_label = "Having a snack"
+phrase = "have a snack"
+icon = "kidnix-next-snack"
+
+[[next_after]]
+id = "bath"
+label = "Bath time"
+audio_label = "Bath time"
+phrase = "have a bath"
+icon = "kidnix-next-bath"
+
+[[next_after]]
+id = "cook"
+label = "Help cook"
+audio_label = "Helping cook"
+phrase = "help cook"
+icon = "kidnix-next-cook"
+
+[[next_after]]
+id = "someone"
+label = "With someone"
+audio_label = "Playing with someone"
+phrase = "play with someone"
+icon = "kidnix-next-someone"

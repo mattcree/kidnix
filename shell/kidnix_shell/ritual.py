@@ -48,8 +48,48 @@ class RitualAction(Enum):
 INTERRUPTIBLE = frozenset({State.HOME, State.IN_ACTIVITY, State.JOURNAL})
 
 #: Put away also reaches the child who is still looking at the offer, because
-#: not answering it is a legitimate answer.
-PUT_AWAY_FROM = INTERRUPTIBLE | {State.ENDING_OFFER}
+#: not answering it is a legitimate answer -- and the child still sitting on
+#: S1b, because the hard stop is the hard stop wherever they are.
+PUT_AWAY_FROM = INTERRUPTIBLE | {State.ENDING_OFFER, State.NEXT_CHOICE}
+
+
+# --- exit friction: there is none (spec 7b, SYNTHESIS D6) ----------------
+#
+# Kuo, Zhao & Scott (IDC 2026) name the harm: exit friction stabilises
+# engagement while the educational meaning drains out of it, and the fix they
+# argue for is "an easy way out". kidnix's rule is therefore absolute -- **no
+# surface anywhere delays Back or "All done"** -- with exactly one exception,
+# and the exception exists to protect the child from their own hand rather
+# than to keep them on the machine.
+#
+# Stating it as data rather than as an `if` inside `app.on_back` is what makes
+# it testable: `tests/test_ritual.py` asserts that this table has one row in
+# it, and that "All done" has none at all. Adding a second row should mean
+# arguing with that test, in public, in a diff.
+
+#: The one delay in the shell. Spec 7a: Back is inert for three seconds on the
+#: Put-away screen so a child drumming on the band cannot undo the ritual --
+#: and then it works, so an accidental "All done" is recoverable.
+PUT_AWAY_BACK_LOCK_SECONDS = 3.0
+
+#: State -> seconds Back is ignored for on arrival. One row, forever.
+BACK_DELAY_SECONDS: dict[State, float] = {State.PUT_AWAY: PUT_AWAY_BACK_LOCK_SECONDS}
+
+
+def back_delay_seconds(state: State) -> float:
+    """How long Back is inert for on arriving at ``state``. Almost always 0."""
+    return BACK_DELAY_SECONDS.get(state, 0.0)
+
+
+def all_done_delay_seconds(state: State) -> float:
+    """How long "All done" is inert for in ``state``. Always 0, everywhere.
+
+    A child who has had enough says so and it happens: no confirmation, no
+    hold, no countdown, no "are you sure?". There is no state in which the
+    answer is different, which is why this function takes an argument it does
+    not use -- so that adding one has to be a deliberate edit here.
+    """
+    return 0.0
 
 
 def next_action(phase: Phase, state: State, *, offer_answered: bool) -> RitualAction:

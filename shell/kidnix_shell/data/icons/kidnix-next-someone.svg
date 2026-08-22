@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Play with someone</title>
+  <circle cx="21" cy="20" r="11" fill="#f6c9a8" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M4 56 A17 15 0 0 1 38 56 Z" fill="#0f8a8a" stroke="#16181d" stroke-width="3.5"
+        stroke-linejoin="round"/>
+  <circle cx="45" cy="26" r="9" fill="#f6c9a8" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M31 56 A14 12 0 0 1 59 56 Z" fill="#f06292" stroke="#16181d" stroke-width="3.5"
+        stroke-linejoin="round"/>
+</svg>

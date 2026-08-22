@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Build something</title>
+  <rect x="8" y="38" width="20" height="18" rx="3" fill="#f06292" stroke="#16181d"
+        stroke-width="3.5"/>
+  <rect x="32" y="38" width="24" height="18" rx="3" fill="#0f8a8a" stroke="#16181d"
+        stroke-width="3.5"/>
+  <rect x="18" y="20" width="24" height="18" rx="3" fill="#f9a825" stroke="#16181d"
+        stroke-width="3.5"/>
+  <rect x="24" y="8" width="14" height="12" rx="3" fill="#2e7d32" stroke="#16181d"
+        stroke-width="3.5"/>
+</svg>

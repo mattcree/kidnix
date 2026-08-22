@@ -1,10 +1,28 @@
-"""Read-aloud (spec section 3).
+"""Read-aloud (spec section 3, revised by 7b).
 
 Every focusable thing in the shell carries a ``speak_text``. It is spoken on
-keyboard focus, on pointer hover after a 300 ms dwell (once per enter), and on
-activation. The Ear button repeats the last utterance. A new utterance always
-cancels the previous one -- a pre-reader exploring a screen must never build up
-a backlog they have to wait out.
+keyboard focus (immediately -- focus is deliberate in a way hover is not, and
+no delay is what every screen reader does), on pointer hover once the pointer
+has **settled**, and on activation. The Ear button repeats the last utterance.
+A new utterance always cancels the previous one -- a pre-reader exploring a
+screen must never build up a backlog they have to wait out.
+
+**The hover gate (spec 7b, 09 section 2).** v0.1.3 spoke after a flat 300 ms
+inside the widget, which is the bottom of the range adults rate usable and
+leaves no headroom for a five-year-old's overshoot-and-correct trajectory: a
+pointer crossing half a grid on the way to a target set off every tile it
+touched. So there are two conditions now, and both must hold:
+
+1. **450 ms** of dwell (:data:`HOVER_DWELL_MS`, configurable as
+   ``hover_dwell_ms`` in ``parent.toml``), and
+2. the pointer's speed has been under :data:`SETTLE_VELOCITY_PX_S` for all of
+   it, measured over the last :data:`VELOCITY_WINDOW_MS`. A sweep *across* a
+   tile restarts the clock rather than starting it.
+
+Both numbers are extrapolated from adult gaze-dwell research (Paulus & Remijn
+2021); there is no child evidence for read-aloud-on-hover anywhere, which is
+the honest reason every hover utterance is instrumented -- see
+:data:`HOVER_LOG_PREFIX` and child-test protocol P5.
 
 Backends, in order of preference:
 
@@ -21,6 +39,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import math
 import shutil
 import subprocess
 import time
@@ -30,9 +49,29 @@ from typing import Any, Protocol
 
 log = logging.getLogger(__name__)
 
-#: 08 section 3.6 wants ~600 ms; the spec pins it at 300 ms so exploration is
-#: quick enough that a child sweeping the pointer hears the grid.
-HOVER_DWELL_MS = 300
+#: Spec 7b / 09 section 2: 450 ms, up from v0.1.3's 300 ms. Extrapolated from
+#: adult gaze-dwell work; the first parameter to tune with a real child (P5).
+HOVER_DWELL_MS = 450
+
+#: The settle gate. While the pointer is moving faster than this it is *going
+#: somewhere*, not looking at anything, and the dwell clock is held at zero.
+#: 40 px/s is about a millimetre a second on the panel we test on -- a hand at
+#: rest, not a hand travelling.
+SETTLE_VELOCITY_PX_S = 40.0
+#: Velocity is measured over the last motion events inside this window, so one
+#: jittery sample from a trackpad cannot cancel a deliberate hover.
+VELOCITY_WINDOW_MS = 150
+
+#: How long after a hover utterance an activation of the *same* control still
+#: counts as "the speech was wanted" (protocol P5's follow-through proxy).
+HOVER_SELECTION_WINDOW_MS = 3000
+
+#: Every hover utterance emits exactly one line with this prefix, at INFO, in
+#: the systemd journal on the family's own machine and nowhere else. P5's whole
+#: metric is the proportion of these with ``selected=True``: if utterances per
+#: minute climb while that proportion falls, the threshold is too low.
+#: The id is the control's, never anything the child typed or made.
+HOVER_LOG_PREFIX = "hover-speech"
 
 #: How long to wait before trying speech-dispatcher again after a failure.
 #: Long enough that a dead daemon costs nothing, short enough that a restart of
@@ -336,6 +375,15 @@ class FakeScheduler:
 # --- the manager ---------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class _PendingHoverLog:
+    """One hover utterance, waiting to find out whether it was wanted (P5)."""
+
+    log_id: str
+    dwell_ms: int
+    key: str
+
+
 class SpeechManager:
     """One voice for the whole shell (08 section 3.6: "One voice").
 
@@ -349,19 +397,30 @@ class SpeechManager:
         scheduler: Scheduler | None = None,
         dwell_ms: int = HOVER_DWELL_MS,
         enabled: bool = True,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.backend: SpeechBackend = backend or NullBackend()
         self.scheduler: Scheduler = scheduler or GLibScheduler()
         self.dwell_ms = dwell_ms
         self.enabled = enabled
+        self._clock = clock
         self.last_utterance: str = ""
         self.speaking_key: str | None = None
         self.on_highlight: Callable[[str, bool], None] | None = None
         self._dwell_handle: int | None = None
         self._dwell_key: str | None = None
+        self._dwell_started: float = 0.0
+        #: ``(key, text, log_id)`` for the widget the pointer is settling on.
+        self._armed: tuple[str, str, str] | None = None
+        #: (time, x, y) samples inside the widget the pointer is currently on.
+        self._track: list[tuple[float, float, float]] = []
         self._highlight_handle: int | None = None
         #: hover keys already spoken since the pointer entered them
         self._spoken_since_enter: set[str] = set()
+        #: The one hover utterance still waiting to find out whether it was
+        #: followed by a selection (protocol P5).
+        self._pending_log: _PendingHoverLog | None = None
+        self._pending_log_handle: int | None = None
 
     # -- speaking --
 
@@ -398,36 +457,132 @@ class SpeechManager:
         return self.speak(text, key)
 
     def speak_activation(self, text: str, key: str | None = None) -> bool:
+        """A control fired. Also closes P5's loop if hover just spoke it."""
+        if key is not None:
+            self._note_selection(key)
         return self.speak(text, key)
 
-    # -- hover dwell --
+    # -- hover dwell + settle gate (spec 7b) --
 
-    def hover_enter(self, key: str, text: str) -> None:
-        """Pointer entered a widget: speak it after the dwell, once."""
+    def hover_enter(self, key: str, text: str, log_id: str | None = None) -> None:
+        """Pointer entered a widget: arm the dwell, and start watching it move.
+
+        The clock starts here on the assumption that the pointer has *arrived*.
+        :meth:`hover_motion` is what discovers otherwise: any sample above the
+        velocity threshold pushes the whole dwell back, so a sweep across a
+        grid says nothing at all and a hand that comes to rest says one thing.
+        """
         self._cancel_dwell()
+        self._track = []
         if key in self._spoken_since_enter:
             return
-        self._dwell_key = key
+        self._arm_dwell(key, text, log_id or key)
 
-        def fire() -> None:
-            self._dwell_handle = None
-            self._dwell_key = None
-            self._spoken_since_enter.add(key)
-            self.speak(text, key)
+    def hover_motion(self, key: str, x: float, y: float) -> None:
+        """A pointer sample inside the widget ``key``. Cheap; called often."""
+        if self._dwell_key != key:
+            return
+        now = self._clock()
+        self._track.append((now, x, y))
+        cutoff = now - VELOCITY_WINDOW_MS / 1000.0
+        # Keep one sample from before the window so a slow drift still has a
+        # baseline to be measured against.
+        while len(self._track) > 2 and self._track[1][0] < cutoff:
+            self._track.pop(0)
+        if self.pointer_velocity() >= SETTLE_VELOCITY_PX_S and self._armed is not None:
+            # Still travelling: the dwell has not begun.
+            self._restart_dwell(*self._armed)
 
-        self._dwell_handle = self.scheduler.schedule(self.dwell_ms, fire)
+    def pointer_velocity(self) -> float:
+        """Pointer speed in px/s over the last :data:`VELOCITY_WINDOW_MS`.
+
+        Zero when there is nothing to measure -- a pointer that entered and
+        never moved again is the definition of settled.
+        """
+        if len(self._track) < 2:
+            return 0.0
+        first, last = self._track[0], self._track[-1]
+        seconds = last[0] - first[0]
+        if seconds <= 0:
+            return 0.0
+        distance = math.hypot(last[1] - first[1], last[2] - first[2])
+        return distance / seconds
 
     def hover_leave(self, key: str) -> None:
         """Pointer left: drop any pending dwell and re-arm this widget."""
         if self._dwell_key == key:
             self._cancel_dwell()
+            self._track = []
         self._spoken_since_enter.discard(key)
+
+    # -- the dwell timer itself --
+
+    def _arm_dwell(self, key: str, text: str, log_id: str) -> None:
+        self._armed = (key, text, log_id)
+        self._dwell_key = key
+        self._restart_dwell(key, text, log_id)
+
+    def _restart_dwell(self, key: str, text: str, log_id: str) -> None:
+        if self._dwell_handle is not None:
+            self.scheduler.cancel(self._dwell_handle)
+        self._dwell_started = self._clock()
+
+        def fire() -> None:
+            dwell_ms = round((self._clock() - self._dwell_started) * 1000) or self.dwell_ms
+            self._dwell_handle = None
+            self._dwell_key = None
+            self._armed = None
+            self._spoken_since_enter.add(key)
+            self._log_hover(log_id, dwell_ms, key)
+            self.speak(text, key)
+
+        self._dwell_handle = self.scheduler.schedule(self.dwell_ms, fire)
 
     def _cancel_dwell(self) -> None:
         if self._dwell_handle is not None:
             self.scheduler.cancel(self._dwell_handle)
         self._dwell_handle = None
         self._dwell_key = None
+        self._armed = None
+
+    # -- protocol P5 instrumentation --
+
+    def _log_hover(self, log_id: str, dwell_ms: int, key: str) -> None:
+        """Hold the line back until we know whether a selection followed.
+
+        One line per utterance, with a real boolean in it rather than a
+        placeholder somebody would have to join up later. If the child picks
+        the same control inside :data:`HOVER_SELECTION_WINDOW_MS`, the line is
+        emitted at once with ``selected=True``; otherwise the timer emits it
+        with ``selected=False``.
+        """
+        self._flush_hover_log()
+        self._pending_log = _PendingHoverLog(log_id=log_id, dwell_ms=dwell_ms, key=key)
+        self._pending_log_handle = self.scheduler.schedule(
+            HOVER_SELECTION_WINDOW_MS, self._flush_hover_log
+        )
+
+    def _note_selection(self, key: str) -> None:
+        """``selected=True`` only for the control hover actually spoke."""
+        pending = self._pending_log
+        if pending is None or pending.key != key:
+            return
+        self._flush_hover_log(selected=True)
+
+    def _flush_hover_log(self, selected: bool = False) -> None:
+        pending, self._pending_log = self._pending_log, None
+        if self._pending_log_handle is not None:
+            self.scheduler.cancel(self._pending_log_handle)
+            self._pending_log_handle = None
+        if pending is None:
+            return
+        log.info(
+            "%s: id=%s dwell_ms=%d selected=%s",
+            HOVER_LOG_PREFIX,
+            pending.log_id,
+            pending.dwell_ms,
+            selected,
+        )
 
     # -- highlight ring --
 
@@ -461,4 +616,6 @@ class SpeechManager:
     def close(self) -> None:
         self._cancel_dwell()
         self._stop_highlight()
+        # Do not lose the last hover of the session: P5 wants every one.
+        self._flush_hover_log()
         self.backend.close()

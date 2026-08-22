@@ -27,3 +27,9 @@ put_away_minutes = 2
 # Set both to the same value to switch bedtime off entirely.
 bedtime_start = "19:00"
 bedtime_end = "07:00"
+
+# NOT HERE: the read-aloud hover dwell (`hover_dwell_ms`), how fast Home grows
+# (`[home]`) and the "What's next after?" options (`[[next_after]]`) live in
+# parent.toml, next to the allow-list and the profiles. This file is the
+# *session policy* -- how long a sitting is and how it ends -- and nothing
+# else. See /etc/kidnix/parent.toml.

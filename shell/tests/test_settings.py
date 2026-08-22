@@ -9,9 +9,15 @@ from pathlib import Path
 import pytest
 
 from kidnix_shell import settings
+from kidnix_shell.next_after import DEFAULT_NEXT_AFTER
 from kidnix_shell.settings import (
+    DEFAULT_HOVER_DWELL_MS,
     DEFAULT_PIN,
     DEFAULT_PROFILE,
+    MAX_HOVER_DWELL_MS,
+    MIN_HOVER_DWELL_MS,
+    HomeConfig,
+    KidState,
     ParentConfig,
     Paths,
     Profile,
@@ -363,3 +369,173 @@ def test_a_band_round_trips_through_toml(tmp_path: Path) -> None:
     path = tmp_path / "parent.toml"
     ParentConfig(profiles=[replace(DEFAULT_PROFILE, age_band="6-8")]).save(path)
     assert ParentConfig.load(path).profiles[0].age_range == (6, 8)
+
+
+# --- spec 7b: hover dwell, progressive disclosure, S1b's options ----------
+
+
+def test_the_hover_dwell_defaults_to_450_ms() -> None:
+    """09 section 2. It is a key, not a constant, because P5 will move it."""
+    assert ParentConfig().hover_dwell_ms == DEFAULT_HOVER_DWELL_MS == 450
+
+
+def test_a_parent_can_set_the_hover_dwell(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text("hover_dwell_ms = 350\n", encoding="utf-8")
+    assert ParentConfig.load(path).hover_dwell_ms == 350
+
+
+def test_a_nonsense_hover_dwell_falls_back_rather_than_muting_the_shell(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text('hover_dwell_ms = "soon"\n', encoding="utf-8")
+    assert ParentConfig.load(path).hover_dwell_ms == DEFAULT_HOVER_DWELL_MS
+
+
+def test_an_absurd_hover_dwell_is_clamped(tmp_path: Path) -> None:
+    """A hand edit of 0 would make the shell chatter at every tile crossed."""
+    path = tmp_path / "parent.toml"
+    path.write_text("hover_dwell_ms = 0\n", encoding="utf-8")
+    assert ParentConfig.load(path).hover_dwell_ms == MIN_HOVER_DWELL_MS
+    path.write_text("hover_dwell_ms = 99999\n", encoding="utf-8")
+    assert ParentConfig.load(path).hover_dwell_ms == MAX_HOVER_DWELL_MS
+
+
+def test_home_starts_at_six_tiles_and_grows_every_two_sessions() -> None:
+    """SYNTHESIS B2: first-run default 5-6, growing toward the allow-list."""
+    home = HomeConfig()
+    assert home.initial_tiles == 6
+    assert home.reveal_every_sessions == 2
+    assert home.tiles_visible(total=12, sessions_completed=0) == 6
+    assert home.tiles_visible(total=12, sessions_completed=1) == 6
+    assert home.tiles_visible(total=12, sessions_completed=2) == 7
+    assert home.tiles_visible(total=12, sessions_completed=3) == 7
+    assert home.tiles_visible(total=12, sessions_completed=4) == 8
+
+
+def test_home_never_shows_more_than_there_is() -> None:
+    """The ceiling is the allow-list and availability, not the counter."""
+    assert HomeConfig().tiles_visible(total=4, sessions_completed=500) == 4
+
+
+def test_a_tile_once_revealed_never_goes_away() -> None:
+    home = HomeConfig()
+    counts = [home.tiles_visible(12, sessions) for sessions in range(20)]
+    assert counts == sorted(counts)
+
+
+def test_show_everything_overrides_the_whole_mechanism() -> None:
+    home = HomeConfig(show_everything=True)
+    assert home.tiles_visible(total=12, sessions_completed=0) == 12
+
+
+def test_the_home_table_is_read_from_the_parent_config(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text(
+        "[home]\ninitial_tiles = 4\nreveal_every_sessions = 5\nshow_everything = true\n",
+        encoding="utf-8",
+    )
+    home = ParentConfig.load(path).home
+    assert (home.initial_tiles, home.reveal_every_sessions, home.show_everything) == (4, 5, True)
+
+
+def test_a_missing_home_table_is_the_defaults(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text("default_session_minutes = 25\n", encoding="utf-8")
+    assert ParentConfig.load(path).home == HomeConfig()
+
+
+def test_a_zero_reveal_interval_does_not_divide_by_zero(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text("[home]\nreveal_every_sessions = 0\n", encoding="utf-8")
+    home = ParentConfig.load(path).home
+    assert home.tiles_visible(12, 3) >= home.initial_tiles
+
+
+def test_the_next_after_options_come_from_the_parent_config(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text(
+        '[[next_after]]\nid = "swing"\nlabel = "Go on the swing"\n',
+        encoding="utf-8",
+    )
+    options = ParentConfig.load(path).next_after
+    assert [option.id for option in options] == ["swing"]
+
+
+def test_a_config_with_no_next_after_gets_the_shipped_set(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text("default_session_minutes = 25\n", encoding="utf-8")
+    assert ParentConfig.load(path).next_after == DEFAULT_NEXT_AFTER
+
+
+def test_a_profile_can_skip_s1b(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text(
+        '[[profiles]]\nid = "kid"\nname = "Sam"\nskip_next_choice = true\n',
+        encoding="utf-8",
+    )
+    assert ParentConfig.load(path).profiles[0].skip_next_choice is True
+
+
+def test_a_profile_is_asked_by_default() -> None:
+    assert DEFAULT_PROFILE.skip_next_choice is False
+
+
+def test_the_new_keys_round_trip_through_toml(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    original = ParentConfig(
+        hover_dwell_ms=350,
+        home=HomeConfig(initial_tiles=5, reveal_every_sessions=3, show_everything=True),
+        profiles=[replace(DEFAULT_PROFILE, skip_next_choice=True)],
+    )
+    original.save(path)
+    reloaded = ParentConfig.load(path)
+    assert reloaded.hover_dwell_ms == 350
+    assert reloaded.home == original.home
+    assert reloaded.profiles[0].skip_next_choice is True
+    assert [o.id for o in reloaded.next_after] == [o.id for o in DEFAULT_NEXT_AFTER]
+
+
+# --- kid state (progress.toml) -------------------------------------------
+
+
+def test_a_fresh_machine_has_completed_no_sessions(tmp_path: Path) -> None:
+    assert KidState.load(tmp_path / "progress.toml").sessions_completed == 0
+
+
+def test_completing_a_session_counts_and_persists(tmp_path: Path) -> None:
+    path = tmp_path / "progress.toml"
+    state = KidState.load(path)
+    assert state.complete_session() == 1
+    assert state.complete_session() == 2
+    assert KidState.load(path).sessions_completed == 2
+
+
+def test_a_corrupt_progress_file_starts_fresh_rather_than_crashing(tmp_path: Path) -> None:
+    path = tmp_path / "progress.toml"
+    path.write_text("this is not toml at all {{{", encoding="utf-8")
+    assert KidState.load(path).sessions_completed == 0
+
+
+def test_a_negative_count_is_not_believed(tmp_path: Path) -> None:
+    path = tmp_path / "progress.toml"
+    path.write_text("sessions_completed = -4\n", encoding="utf-8")
+    assert KidState.load(path).sessions_completed == 0
+
+
+def test_the_progress_file_is_kid_owned_and_separate_from_the_daily_usage(
+    paths: Paths,
+) -> None:
+    """It counts across the life of the machine; usage.toml resets at 04:00."""
+    assert paths.progress_state != paths.usage_state
+    assert paths.state_home in paths.progress_state.parents
+
+
+def test_saving_progress_to_an_unwritable_place_is_not_fatal(tmp_path: Path) -> None:
+    """A full disk must never be the thing that ends a child's session."""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("I am a file, not a directory", encoding="utf-8")
+    state = KidState.load(blocked / "progress.toml")
+    state.complete_session()  # must not raise
+    assert state.sessions_completed == 1

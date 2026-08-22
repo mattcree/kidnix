@@ -12,6 +12,7 @@ log out to GDM.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 import gi
 
@@ -166,15 +167,35 @@ class GrownupSheet(Adw.Dialog):
         self._display.set_label("_ _ _ _")
 
     def _check(self) -> None:
-        if self.ctx.config.check_pin(self._pin):
+        """One attempt. Free, un-penalised, unvoiced, and logged (G2).
+
+        **No penalty of any kind**: no lockout, no growing delay, no attempt
+        counter, no sound. A five-year-old poking at a keypad is expected
+        behaviour, not an intrusion, and punishing it would teach them that the
+        machine is angry with them. The RCT (n=554, mean age 4.3) says a lock
+        is a speed bump either way; the wall is the lockdown under the session,
+        not this pad.
+
+        **Logged for the parent, never the digits.** The line names the time
+        and the outcome so a grown-up who wants to know how often the gate is
+        being tried can read it in their own journal -- and a PIN that appeared
+        in a log would be a PIN stored in plaintext by another route.
+        """
+        accepted = self.ctx.config.check_pin(self._pin)
+        self._reset_pin()
+        log.info(
+            "grown-up gate: PIN attempt %s at %s",
+            "accepted" if accepted else "rejected",
+            datetime.now().isoformat(timespec="seconds"),
+        )
+        if accepted:
             self._error.set_label("")
-            self._reset_pin()
             self._refresh_actions()
             self._stack.set_visible_child_name("actions")
         else:
+            # Adult typography, adult surface: the grown-up who mistyped is
+            # told so in writing. Nothing is spoken -- the gate is not voiced.
             self._error.set_label("That PIN is not right.")
-            self._reset_pin()
-            log.info("grown-up PIN rejected")
 
     # -- actions --
 
@@ -269,8 +290,6 @@ class GrownupSheet(Adw.Dialog):
     def _refresh_actions(self) -> None:
         session = self.ctx.session
         if session.running:
-            from datetime import datetime
-
             left = session.remaining(datetime.now()) // 60
             self._status.set_subtitle(f"Running, about {left} minutes left")
         else:

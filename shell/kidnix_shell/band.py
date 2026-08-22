@@ -14,10 +14,18 @@ ask-a-grown-up flow exists. :data:`SHOW_ASK` is the one-line switch back.
 nothing -- a fixed position the child can rely on beats a control that comes
 and goes.
 
-The sun is the timer. It travels left to right and sinks as the session
-depletes, warming in the last six minutes. There are no digits: 08 section 4.6
-is explicit that a countdown is an anxiety animation, and a continuous analogue
-depletion is not.
+The sun is the timer. **It shrinks and sinks in place** as the session depletes
+(spec 7b), warming in the last six minutes; it does not travel, because the
+left-to-right mental timeline is not reliably available at five. There are no
+digits: 08 section 4.6 is explicit that a countdown is an anxiety animation,
+and a continuous analogue depletion is not.
+
+**The grown-up gate is not voiced** (spec 7b, SYNTHESIS G2). It keeps its
+accessible name -- an assistive technology must still be able to find it -- but
+it does not speak on hover, on focus or on the hold, and nothing about it
+invites a child in. Apple's pre-literate advice says to read a gate aloud;
+inverting it here is deliberate, and it is the one control in the shell that a
+child is not being taught to use.
 
 **The sun answers when you ask it.** 08 section 4.6 also asks for a timer a
 child can *tap* to hear how much is left, and v0.1.2's was an image with no
@@ -41,6 +49,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from .metrics import BAND_CHROME_PX, Metrics  # noqa: E402
 from .session import NOT_RUNNING  # noqa: E402
+from .sun import SunGeometry, sun_geometry  # noqa: E402
 from .widgets import ChildButton, SpeechUI, icon_image, next_key  # noqa: E402
 
 #: Spec section 2 / SYNTHESIS G2: the grown-up gate is a three-second hold.
@@ -72,7 +81,19 @@ class BandActions:
 
 
 class Sun(Gtk.DrawingArea):
-    """The session, drawn as a sun crossing the sky."""
+    """The session, drawn as a sun that shrinks and sinks (spec 7b).
+
+    It does **not** travel. v0.1.3's sun crossed the sky left to right, which
+    asks a five-year-old to read a directional mental timeline they mostly do
+    not have yet (Tillman et al. 2018); what they can read is a quantity that
+    visibly gets smaller. The geometry is
+    :func:`kidnix_shell.sun.sun_geometry`, which is pure and tested headless --
+    this class only paints it.
+
+    The faint outline is the sun at the start of the session, left where it
+    was. It is what makes the shrinking legible as a *loss of quantity* rather
+    than as a picture that happens to be small today.
+    """
 
     def __init__(self, metrics: Metrics) -> None:
         super().__init__()
@@ -93,58 +114,62 @@ class Sun(Gtk.DrawingArea):
         if changed:
             self.queue_draw()
 
+    def geometry(self, width: int, height: int) -> SunGeometry:
+        """Where the sun is right now, at this size. Also the test hook."""
+        return sun_geometry(self.fraction, width, height)
+
     def _draw(self, _area: Gtk.DrawingArea, cr: object, width: int, height: int) -> None:
         ctx = cr  # cairo.Context
-        margin = self._metrics.design(24)
-        span = max(1, width - 2 * margin)
-        radius = max(8, height * 0.28)
-        horizon = height - radius * 0.6
+        geometry = self.geometry(width, height)
+        margin = self._metrics.design(12)
 
-        # The path the sun takes, drawn faintly so the journey is visible even
-        # at the start: the child can see where it is going.
-        ctx.set_line_width(3)  # type: ignore[attr-defined]
-        ctx.set_source_rgba(1, 1, 1, 0.35)  # type: ignore[attr-defined]
-        steps = 48
-        for step in range(steps + 1):
-            t = step / steps
-            x = margin + t * span
-            y = horizon - math.sin(math.pi * t) * (horizon - radius - 2)
-            if step == 0:
-                ctx.move_to(x, y)  # type: ignore[attr-defined]
-            else:
-                ctx.line_to(x, y)  # type: ignore[attr-defined]
+        # Where the sun started, and how big it was: the part that has gone.
+        ctx.set_line_width(2.5)  # type: ignore[attr-defined]
+        ctx.set_source_rgba(1, 1, 1, 0.30)  # type: ignore[attr-defined]
+        ctx.arc(  # type: ignore[attr-defined]
+            geometry.centre_x, geometry.start_centre_y, geometry.start_radius, 0, 2 * math.pi
+        )
         ctx.stroke()  # type: ignore[attr-defined]
 
-        # The horizon the sun sinks behind.
-        ctx.set_source_rgba(1, 1, 1, 0.55)  # type: ignore[attr-defined]
-        ctx.set_line_width(4)  # type: ignore[attr-defined]
-        ctx.move_to(margin - 8, horizon + radius * 0.55)  # type: ignore[attr-defined]
-        ctx.line_to(width - margin + 8, horizon + radius * 0.55)  # type: ignore[attr-defined]
-        ctx.stroke()  # type: ignore[attr-defined]
-
-        t = self.fraction
-        x = margin + t * span
-        y = horizon - math.sin(math.pi * t) * (horizon - radius - 2)
-
+        # The sun itself, clipped at the horizon so "sinking" is sinking and
+        # not a disc sliding over a line.
+        ctx.save()  # type: ignore[attr-defined]
+        ctx.rectangle(0, 0, width, geometry.horizon_y)  # type: ignore[attr-defined]
+        ctx.clip()  # type: ignore[attr-defined]
         # Warm, never red, never pulsing (08 section 4.6).
         if self.warm:
             ctx.set_source_rgb(0.98, 0.62, 0.19)  # type: ignore[attr-defined]
         else:
             ctx.set_source_rgb(1.0, 0.84, 0.31)  # type: ignore[attr-defined]
-        ctx.arc(x, y, radius, 0, 2 * math.pi)  # type: ignore[attr-defined]
+        ctx.arc(  # type: ignore[attr-defined]
+            geometry.centre_x, geometry.centre_y, geometry.radius, 0, 2 * math.pi
+        )
         ctx.fill()  # type: ignore[attr-defined]
         ctx.set_source_rgba(0, 0, 0, 0.25)  # type: ignore[attr-defined]
         ctx.set_line_width(2.5)  # type: ignore[attr-defined]
-        ctx.arc(x, y, radius, 0, 2 * math.pi)  # type: ignore[attr-defined]
+        ctx.arc(  # type: ignore[attr-defined]
+            geometry.centre_x, geometry.centre_y, geometry.radius, 0, 2 * math.pi
+        )
+        ctx.stroke()  # type: ignore[attr-defined]
+        ctx.restore()  # type: ignore[attr-defined]
+
+        # The horizon it sinks behind, drawn last so it sits on top.
+        ctx.set_source_rgba(1, 1, 1, 0.55)  # type: ignore[attr-defined]
+        ctx.set_line_width(4)  # type: ignore[attr-defined]
+        ctx.move_to(margin, geometry.horizon_y)  # type: ignore[attr-defined]
+        ctx.line_to(width - margin, geometry.horizon_y)  # type: ignore[attr-defined]
         ctx.stroke()  # type: ignore[attr-defined]
 
 
 class HoldButton(Gtk.Button):
     """Press and hold for three seconds. The parent gate, and nothing else.
 
-    Deliberately not a :class:`ChildButton`: this one must *not* fire on press.
-    It still speaks on hover and focus so a child who finds it is told, kindly,
-    what it is.
+    Deliberately not a :class:`ChildButton` on two counts: this one must *not*
+    fire on press, and **it does not speak**. SYNTHESIS G2, as revised at
+    checkpoint 1: the gate is not voiced. A shell that reads "Grown-up. Hold
+    this for three seconds" aloud to a pre-reader has just taught them how to
+    open it -- and the accessible name is still there for anything that needs
+    to find the control without being invited to press it.
     """
 
     def __init__(
@@ -152,16 +177,15 @@ class HoldButton(Gtk.Button):
         *,
         speak_text: str,
         on_hold: Callable[[], None],
-        speech_ui: SpeechUI,
         progress: Gtk.ProgressBar,
         css_classes: tuple[str, ...] = (),
         size: int = 64,
         hold_seconds: float = HOLD_SECONDS,
     ) -> None:
         super().__init__()
+        #: The accessible name. Not spoken by us -- see the class docstring.
         self.speak_text = speak_text
         self._on_hold = on_hold
-        self._speech_ui = speech_ui
         self._progress = progress
         self._hold_seconds = hold_seconds
         self._elapsed = 0.0
@@ -181,14 +205,9 @@ class HoldButton(Gtk.Button):
         click.connect("cancel", lambda g, s: self._stop())
         self.add_controller(click)
 
-        speech_ui.register(self.key, self)
         motion = Gtk.EventControllerMotion.new()
-        motion.connect("enter", lambda c, x, y: speech_ui.speech.hover_enter(self.key, speak_text))
         motion.connect("leave", self._on_pointer_left)
         self.add_controller(motion)
-        focus = Gtk.EventControllerFocus.new()
-        focus.connect("enter", lambda c: speech_ui.speech.speak_focus(speak_text, self.key))
-        self.add_controller(focus)
 
         # Keyboard route to the same gate: an adult should not have to hold a
         # mouse button to reach it, but a child pressing Enter should not open
@@ -197,7 +216,6 @@ class HoldButton(Gtk.Button):
 
     def _on_pointer_left(self, _c: Gtk.EventControllerMotion) -> None:
         # Sliding off the gate mid-hold cancels it: a hold has to be deliberate.
-        self._speech_ui.speech.hover_leave(self.key)
         self._stop()
 
     def _start(self, gesture: Gtk.GestureClick) -> None:
@@ -294,7 +312,6 @@ class Band(Gtk.Box):
         self.grownup = HoldButton(
             speak_text="Grown-up. Hold this for three seconds.",
             on_hold=actions.on_grownup,
-            speech_ui=speech_ui,
             progress=self.hold_progress,
             css_classes=("grownup-gate",),
             size=small,

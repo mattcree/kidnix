@@ -936,3 +936,298 @@ Up from 370 / 437. Where the 180 new ones went:
    unadjudicated — audit §4 item 11. Raising `MIN_TARGET_MM` to 24 is now a
    one-line change with tests that will tell you exactly what it costs; at a
    guess it takes 1280×800 to a 3×2 grid.
+
+## 17. v0.1.4 — the checkpoint-1 rulings (shell side, 2026-08-22)
+
+> Implementer's third report. Everything here answers a ruling in
+> `docs/design/shell-v0.1.md` §7b, which is `docs/research/SYNTHESIS.md` §4b
+> and `09-gap-sweep-checkpoint-1.md` §10's nine edits. §§1–16 are unchanged;
+> this section is additive.
+
+### 17.1 S1b "What's next after?" (09 §10 #1, §6; SYNTHESIS D4; spec 7b)
+
+The highest-value change in the gap sweep, and the one with the best evidence
+behind it: in *Coco's Videos* (Hiniker, Heung, Hong & Kientz, CHI 2018 — 24
+families, three weeks, randomised condition order) the child chose the offline
+activity **before** they began, from nine picture options, and the ending
+showed it back. Castillo et al. (2018) says why that works: what makes a
+transition hurt is the destination thinning out, not the announcement.
+
+**A new state, a new screen, four new config keys.**
+
+* `state.State.NEXT_CHOICE` sits between `CHOOSING` and `HOME`.
+  `CHOOSE_PROFILE` now lands on it; `CHOOSE_NEXT_AFTER` goes on to Home;
+  `SKIP_NEXT_CHOICE` is the profile-level bypass, a separate event rather than
+  a conditional edge so the graph says out loud that the screen can be skipped.
+  `BACK` returns to "Who's here?" **and stops the clock** (`app.on_back`), since
+  the session started when the child said who they were.
+* The **hard stop reaches** a child still sitting on S1b (`PUT_AWAY_DUE`,
+  `IM_FINISHED` are both valid there, and `ritual.PUT_AWAY_FROM` includes it),
+  but the **ending offer never does** — `ritual.INTERRUPTIBLE` deliberately
+  leaves `NEXT_CHOICE` out. An ending offer on top of the opening question
+  would be absurd. Nothing launches from S1b either.
+* `next_after.py` is pure: `NextAfter(id, label, audio_label, icon,
+  phrase_override)` plus `parse_next_after()`. It quacks like an `Activity`
+  (`name`, `icon_kind`, `category`, `speak_text`) so S1b reuses `ActivityTile`
+  at Home's metrics unchanged — one target size, one label size, one gesture.
+* `parent.toml` gains `[[next_after]]` (both TOML array spellings parse, since
+  a parent should not have to know which one we meant) and each profile gains
+  `skip_next_choice`. A malformed option costs one tile and a log line; an
+  empty or entirely unusable list falls back to the shipped eight, because an
+  empty S1b is a screen a child cannot get off. More than nine is truncated;
+  fewer than six is allowed with an INFO line, because a household may honestly
+  have four answers.
+* The choice lives on `ShellContext.next_after` — **this sitting's state, not
+  the config's**. It is cleared when a new session starts, so Goodbye can never
+  show a picture nobody chose today. It is deliberately *not* on `Session`,
+  because `Session.end()` runs before `GOODBYE_DUE` fires and would wipe it.
+* S7 shows the picture beside "Ready to go outside?" and speaks it.
+  `suggestions.offline_suggestion()` is now the **fallback** — used when the
+  child skipped S1b, when the profile turns it off, or when a grown-up started
+  the session from the gate.
+
+**Two things about the wording.** First, the tile label and the sentence are
+different strings. "Ready to a book?" is what a single string gets you, so
+`NextAfter.phrase` composes the sentence and the label stays short. Second,
+labels are short because they have to be: S1b uses Home's two-line label box at
+the 18 pt floor, and a third line makes the tile taller than the grid budgeted
+for (`test_no_default_label_is_longer_than_a_tile_can_hold` pins it at ≤ 12
+characters and ≤ 8 per word). The *audio* label carries the longer wording, so
+what the child hears is never the abbreviation of what they see.
+
+| id | tile | spoken | at Goodbye |
+|---|---|---|---|
+| `outside` | Outside | Going outside | Ready to go outside? |
+| `book` | A book | Reading a book | Ready to read a book? |
+| `build` | Building | Building with blocks | Ready to build something? |
+| `draw` | Drawing | Drawing on paper | Ready to draw on paper? |
+| `snack` | A snack | Having a snack | Ready to have a snack? |
+| `bath` | Bath time | Bath time | Ready to have a bath? |
+| `cook` | Help cook | Helping cook | Ready to help cook? |
+| `someone` | With someone | Playing with someone | Ready to play with someone? |
+
+Eight new SVGs in `data/icons/kidnix-next-*.svg`, in the existing style (64×64,
+flat fills, 3.5 px ink outlines, the four profile colours). The bath is a tub
+**with a duck in it** and the pan has a spoon and a long handle, because the
+first drafts of those two were the same teal oval.
+
+**Coco's ninth option, "something else", is not shipped** — the thinker's list
+named eight — but `parent.toml` carries a commented-out block for it so adding
+it is one paste. Nothing else in the shipped set is a promise: no line anywhere
+obliges the child or the family, which is Coco's own failure mode ("Coco will
+make you do it").
+
+### 17.2 The sun shrinks and sinks (09 §10 #2, §1; SYNTHESIS D3)
+
+`sun.py` is new and pure; `band.Sun` only paints it. `sun_geometry(fraction,
+width, height)` returns `centre_x` (**always `width / 2`**), `centre_y`,
+`radius`, `horizon_y`, and where the sun *started*.
+
+* Radius falls from 30% to 13% of the widget's height, monotonically.
+* The centre falls from `top_pad + max_radius` to exactly the horizon (80% of
+  the height), where a cairo clip cuts it — so the last minute of a session is
+  a small half-disc sitting on a line, not a disc sliding over one.
+* A faint outline is left where the sun began, at its starting size. That is
+  what makes the shrinking legible as a *loss of quantity* rather than as a
+  picture that happens to be small today.
+* Warm colour in the last six minutes is unchanged (`Session.is_warm`), and it
+  is still a `ChildButton` speaking `time_left_words` (§16.9).
+
+The reason is Tillman, Tulagan, Fukuda & Barner (2018): most preschoolers do
+not represent time as a directional spatial line, so left-to-right travel was a
+weak carrier. `tests/test_sun.py` pins the whole mapping headless — x constant
+across every fraction and every width, radius strictly decreasing, centre
+strictly increasing, out-of-range floats clamped rather than thrown.
+
+**And the sun is state, not a warning.** Four JABA single-case experiments say
+an antecedent cue is inert on its own. The docstring says so, so nobody tunes
+these numbers expecting them to buy a calm ending.
+
+### 17.3 Hover: 450 ms with a settle gate, instrumented (09 §10 #6, §2; B4)
+
+`speech.HOVER_DWELL_MS` is 450, up from 300, and the dwell clock only runs
+while the pointer is **slower than 40 px/s measured over the last 150 ms**.
+Any sample above the threshold restarts the whole dwell, so a child sweeping
+across half a grid on the way to a target says nothing, and a hand that comes
+to rest says one thing. `ChildButton` now connects `motion` as well as `enter`
+and `leave`; `SpeechManager` takes an injectable `clock`, so
+`tests/test_speech.py` drives a fake pointer at a fake speed.
+
+Keyboard focus is unchanged and ungated — focus is deliberate in a way hover is
+not, and no delay is what every screen reader does.
+
+**Protocol P5's instrumentation.** Every hover utterance emits exactly one INFO
+line:
+
+```
+hover-speech: id=tuxpaint dwell_ms=450 selected=True
+```
+
+The line is *held back* for three seconds so `selected` is a real boolean
+rather than a placeholder somebody would have to join up later: if the same
+control is activated inside the window it is emitted at once as `True`,
+otherwise the timer emits it as `False`. `id` is the activity's manifest id
+(`ActivityTile` passes it; other controls fall back to the stem of their widget
+key). It never carries utterance text, so nothing a child made can reach a log.
+
+`hover_dwell_ms` is a `parent.toml` key (default 450, clamped 150–3000). It is
+in `parent.toml` and not `session.toml` on purpose — it sits with the
+allow-list and the profiles, not with "how long is a sitting"; `session.toml`
+now carries a comment saying where it went.
+
+### 17.4 Progressive disclosure (09 §10 #4; SYNTHESIS B2)
+
+`settings.HomeConfig` (`[home]` in `parent.toml`): `initial_tiles = 6`,
+`reveal_every_sessions = 2`, `show_everything = false`.
+`HomeConfig.tiles_visible(total, sessions_completed)` is the whole rule, and
+`HomeScreen._revealed()` applies it to the cells left after the age band and
+availability filters.
+
+* The budget **counts** "All done" (it takes a tile's room) but "All done" is
+  never the tile that gets cut. A first run is five activities plus it.
+* The order is the manifests' `order`, so the tiles a child meets first are the
+  ones the parent put first — not chance.
+* A tile once revealed never goes away: the count only rises and the ceiling is
+  whatever the allow-list already left.
+* The counter is `KidState.sessions_completed` in
+  `$XDG_STATE_HOME/kidnix/progress.toml`, incremented in
+  `ShellWindow._on_state_change` on the step into `GOODBYE` (and not on the
+  return from "Show a grown-up"). **Not** in `usage.toml`, which resets at
+  04:00. It is not a streak: nothing shows it to the child, nothing resets it,
+  and a corrupt or unwritable file costs a couple of tiles rather than a
+  session.
+
+09 §3's justification is the part worth keeping: this is *not* a working-memory
+limit. Limits bind on held option sets, not on a visible, labelled, spatially
+stable grid (Pailian 2016; Schneider 2021). The reason to start at six is that
+a child meeting a computer should meet five things, learn them, and be handed a
+sixth once those five are theirs.
+
+### 17.5 Earcons became auditory icons (09 §10 #7; spec 7b)
+
+`sound.py` grew a small synthesis engine — `Layer` (tone / glide / noise, with
+attack, exponential decay, one-pole low- and high-pass, and held-random
+"shimmer" amplitude modulation) and `Earcon` (layers, relative level, a
+`referent` string, a fixed noise seed). `mix()` sums the layers onto one
+timeline and **normalises** the peak to `PEAK × level`, which is what lets a
+noise burst and a sine sit at a designed loudness relative to each other
+instead of at an arithmetic accident.
+
+| earcon | shape | referent | ms |
+|---|---|---|---|
+| `keep` | five staggered bursts of high, crackly, fast-decaying noise | paper being gathered up | 250 |
+| `back` | two soft knocks: a click over a low resonance that stops quickly | knuckles on a door | 210 |
+| `sleep` | a 90 ms-attack glide falling 430 → 175 Hz, an octave above it, a breath under it | a yawn | 360 |
+| `tap` | an 8 ms transient on a short 1.5 kHz resonance | a fingertip on a surface | 70 |
+| `phase` | two sine tones, a falling fourth, quietest of the five | **none** | 370 |
+
+Every one is now **≤ 400 ms**, including `sleep`, which was 740 and had a
+carve-out in the old test. Synthesis is deterministic (a fixed seed per
+earcon), so the same source always makes the same WAV and nothing binary enters
+git.
+
+**The honesty note is in the module docstring, not only here**, because that is
+where the next person to touch it will be: nothing in this soundscape has been
+tested with a child or with any listener; the mapping from "shrinking noise
+burst" to "paper" is our extrapolation from one 1997 study (Jacko, n=24) of a
+different interface; the levels are aimed at −14 LUFS by construction rather
+than measured with a meter; and **no kidnix earcon has ever been heard on real
+speakers by anyone** (§14.3, §16.12 item 5, still open). The `referent` field
+is data rather than a comment so the note cannot drift away from the sound.
+
+### 17.6 The gate is not voiced (09 §10 #9; SYNTHESIS G2)
+
+* `band.HoldButton` no longer takes a `SpeechUI` at all: no hover, no focus,
+  no activation utterance, and it is not registered with the speech manager so
+  there is no key to ring either. It keeps `Gtk.AccessibleProperty.LABEL` —
+  unvoiced *by us* is not invisible to an assistive technology.
+* The "Who's here?" grown-up tile is a `ChildButton` built without a
+  `speech_ui`, which is the same thing for the same reason.
+* The PIN pad was already plain `Gtk.Button`s and stays that way.
+* **Failure is free.** No lockout, no growing delay, no attempt counter, no
+  sound. A five-year-old poking at a keypad is expected behaviour, and
+  punishing it teaches them the machine is cross with them. The adult still
+  gets "That PIN is not right." in writing, on an adult surface.
+* **Attempts are logged for the parent, never the digits:**
+  `grown-up gate: PIN attempt rejected at 2026-08-22T18:04:11`. Accepted
+  attempts log too, so the line is a record of the gate rather than a record of
+  failure. `test_a_wrong_pin_is_free_silent_and_logged_without_the_digits`
+  asserts the digits are absent and that the pad still works afterwards.
+
+This inverts Apple's pre-literate advice deliberately: reading "Grown-up. Hold
+this for three seconds" aloud to a pre-reader is teaching them how to open it.
+
+### 17.7 No exit friction, as a testable fact (09 §10 #3; SYNTHESIS D6)
+
+Kuo, Zhao & Scott (IDC 2026) name the harm. kidnix's answer is now data rather
+than an `if`: `ritual.BACK_DELAY_SECONDS` is a `dict[State, float]` with
+**exactly one row** (`PUT_AWAY: 3.0`, spec 7a's accidental-tap guard) and
+`ritual.all_done_delay_seconds()` returns 0.0 for every state that exists.
+`app.on_back` asks the table. `tests/test_ritual.py` asserts the table has one
+row, that every other state is 0.0, and that "All done" reaches Put away in one
+event from Home, an activity, My Things **and** S1b — because an extra tap is
+friction too.
+
+The audit found nothing else: `finish_now`, `on_back`, the All-done tile and
+the grown-up sheet's "End now" all act on the same tick they are called.
+
+### 17.8 Screenshots, tests, and what did not change
+
+`docs/design/screenshots/`:
+
+* `demo-next-choice.png` — S1b at 1280×800 @102: eight Home-sized tiles, one
+  page, the title, the band above.
+* `demo-home-firstrun.png` — a first-run Home: **six** tiles (five activities
+  by `order` plus "All done"), where the same demo world would otherwise show
+  nine.
+* `demo-goodbye-choice.png` — Goodbye with the child's own picture and "Ready
+  to go outside?".
+
+```
+just lint            ruff check + ruff format --check + mypy   clean
+just test-headless   654 tests, no display          (was 540)
+just test            757 tests with a display        (was 617)
+just validate-manifests   10 valid, 0 invalid — unchanged
+```
+
+| File | before | after | what was added |
+|---|---|---|---|
+| `test_sun.py` | — | 11 | the geometry mapping; x constant; clamping |
+| `test_next_after.py` | — | 26 | the option set, both TOML spellings, the fallbacks |
+| `test_sound.py` | 22 | 50 | the four referents' shapes, ≤ 400 ms, normalisation, determinism |
+| `test_speech.py` | 30 | 42 | the settle gate with a fake pointer; P5's log line |
+| `test_settings.py` | 38 | 60 | `hover_dwell_ms`, `[home]`, `KidState`, `skip_next_choice` |
+| `test_gtk_smoke.py` | 77 | 103 | S1b, Goodbye's choice, disclosure, the unvoiced gate |
+| `test_ritual.py` | 26 | 34 | the one-row delay table |
+| `test_state.py` | 22 | 34 | S1b's edges, the offer that never lands there |
+
+**Manifests gained nothing**, so `--validate-manifests` is untouched: S1b's
+options are `parent.toml`'s business, not an activity's.
+
+**Outside `shell/`:** both copies of `parent.toml` (still byte-identical) gained
+`hover_dwell_ms`, `[home]`, `[[next_after]]` and the profile's
+`skip_next_choice`, all commented with the evidence and the units;
+`session.toml` gained a pointer saying those keys are not there; and
+`system_files/usr/lib/tmpfiles.d/kidnix-library.conf` is new — it creates
+`/var/lib/kidnix/library`, which closes §16.12 item 2 (the Library's
+`content_required` had nowhere for a parent to put a ZIM).
+
+### 17.9 Still open after this pass
+
+1. **Everything in §17.5's honesty note.** The soundscape is a designed guess
+   and has still never been heard on speakers.
+2. **450 ms and 40 px/s are extrapolated from adult gaze research.** P5 now has
+   its instrument; it needs a child and four weeks.
+3. **Goodbye's line wraps to two lines** beside the picture on a 1280×800
+   panel. It fits and it is legible; whether the picture should be above the
+   line instead is a look-at-it-on-the-real-screen call.
+4. **`initial_tiles = 6` counts "All done"**, so a first run is five
+   *activities*. That matches 01 #12's five choices, but it is a reading of
+   09 §3 rather than something it says, and the thinker may want six activities
+   plus All done.
+5. **S1b costs a tap at the start of every session.** Coco's evidence is about
+   choosing *at all*, not about choosing daily; a child who picks "Outside"
+   every day for a month may find it friction rather than a plan. Watch for it
+   in P2 — `skip_next_choice` is the escape hatch if so.
+6. **The demo's three-minute session now has one more screen in it.** Nothing
+   broke, but a `--demo` run reaches Home a few seconds later than it did.

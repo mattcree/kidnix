@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Bath time</title>
+  <circle cx="16" cy="14" r="5" fill="#fbf7ef" stroke="#16181d" stroke-width="2.5"/>
+  <circle cx="29" cy="8" r="3.5" fill="#fbf7ef" stroke="#16181d" stroke-width="2.5"/>
+  <!-- a rubber duck, which is what a bath looks like to a five-year-old -->
+  <path d="M44 22 A7 7 0 1 1 44 21.9 Z" fill="#f9a825" stroke="#16181d" stroke-width="2.5"/>
+  <path d="M50 21 L57 23 L50 25 Z" fill="#e64a19" stroke="#16181d" stroke-width="2"
+        stroke-linejoin="round"/>
+  <circle cx="42" cy="19" r="1.6" fill="#16181d"/>
+  <path d="M36 28 C40 33 50 33 54 28" fill="#f9a825" stroke="#16181d" stroke-width="2.5"
+        stroke-linejoin="round"/>
+  <!-- the tub -->
+  <path d="M6 32 H58 V40 A12 12 0 0 1 46 52 H18 A12 12 0 0 1 6 40 Z" fill="#0f8a8a"
+        stroke="#16181d" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M14 52 L11 60 M50 52 L53 60" stroke="#16181d" stroke-width="4"
+        stroke-linecap="round"/>
+</svg>

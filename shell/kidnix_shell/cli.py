@@ -85,12 +85,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--start-on",
-        choices=("choosing", "home"),
+        choices=("choosing", "next-after", "home", "goodbye"),
         default="choosing",
         help=(
             "which surface to open on (development). The child always starts on "
-            "Who's here?; 'home' chooses the first profile immediately so a "
-            "--screenshot run photographs the grid rather than the chooser."
+            "Who's here?; the others drive the shell forward immediately so a "
+            "--screenshot run photographs the surface you asked for rather than "
+            "the chooser. 'goodbye' also picks a next-after so the ending shows "
+            "the child's own choice."
         ),
     )
     parser.add_argument(

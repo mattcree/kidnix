@@ -15,7 +15,14 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
-from kidnix_shell.ritual import RitualAction, next_action
+from kidnix_shell.ritual import (
+    BACK_DELAY_SECONDS,
+    PUT_AWAY_BACK_LOCK_SECONDS,
+    RitualAction,
+    all_done_delay_seconds,
+    back_delay_seconds,
+    next_action,
+)
 from kidnix_shell.session import DailyUsage, Phase, Session, SessionPolicy
 from kidnix_shell.state import Event, State, StateMachine
 
@@ -254,3 +261,43 @@ def test_a_grant_gives_the_child_one_more_warning_and_only_one(live: Session) ->
     shell.dismiss_offer()
     shell.run(29.2, 32.9)
     assert shell.offers_presented == 2
+
+
+# --- exit friction: there is none (spec 7b, SYNTHESIS D6) ----------------
+#
+# Kuo, Zhao & Scott (IDC 2026) name the harm and argue for "an easy way out".
+# kidnix's answer is that the delay table has exactly one row in it. These
+# tests are the mechanism that keeps it that way: adding a second row means
+# arguing with them, in a diff, in public.
+
+
+def test_only_put_away_ever_delays_back() -> None:
+    assert set(BACK_DELAY_SECONDS) == {State.PUT_AWAY}
+
+
+def test_back_is_immediate_in_every_other_state() -> None:
+    for state in State:
+        if state is State.PUT_AWAY:
+            continue
+        assert back_delay_seconds(state) == 0.0, f"{state.value} delays Back"
+
+
+def test_the_one_delay_is_the_accidental_tap_guard_and_nothing_longer() -> None:
+    """Spec 7a's three seconds. Long enough to survive a drumming hand, short
+    enough that a child who meant it is not being kept."""
+    assert back_delay_seconds(State.PUT_AWAY) == PUT_AWAY_BACK_LOCK_SECONDS
+    assert PUT_AWAY_BACK_LOCK_SECONDS == 3.0
+
+
+def test_all_done_is_never_delayed_anywhere() -> None:
+    """No confirmation, no hold, no countdown, in any state, ever."""
+    for state in State:
+        assert all_done_delay_seconds(state) == 0.0, f"{state.value} delays All done"
+
+
+def test_all_done_reaches_put_away_in_one_event_from_every_child_surface() -> None:
+    """ "Friction" is also an extra tap. One press, one transition, no screen
+    in between."""
+    for start in (State.HOME, State.IN_ACTIVITY, State.JOURNAL, State.NEXT_CHOICE):
+        machine = StateMachine(start)
+        assert machine.fire(Event.IM_FINISHED) is State.PUT_AWAY

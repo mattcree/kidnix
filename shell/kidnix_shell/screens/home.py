@@ -116,12 +116,33 @@ class HomeScreen(Screen):
         * **Allow-list** and **unusable** leave the tile and outline it, because
           a child who has seen Draw every day and finds it dashed today needs
           to be told why (SYNTHESIS G3: never a silent denial).
+
+        Then **progressive disclosure** (spec 7b, SYNTHESIS B2). A first run
+        shows ``[home] initial_tiles`` of them and one more appears after every
+        ``reveal_every_sessions`` completed sessions. It is not a
+        working-memory limit -- limits bind on *held* option sets, not on a
+        labelled, spatially stable grid -- it is that a child meeting a
+        computer should meet five things and be handed a sixth once those five
+        are theirs. The order is the manifest's, so the tiles that arrive are
+        the ones the parent put first, and a tile once revealed never goes
+        away again.
         """
         band = self.ctx.profile.age_range
         shown = [
             a for a in self.ctx.activities if getattr(a, "on_home", True) and in_age_band(a, band)
         ]
-        return [*shown, ALL_DONE]
+        return [*self._revealed(shown), ALL_DONE]
+
+    def _revealed(self, activities: list[Activity]) -> list[Activity]:
+        """The prefix of ``activities`` this child has met. "All done" is free.
+
+        The budget counts "All done" (it is a tile on the grid and it takes a
+        tile's room), but "All done" is never the thing that gets cut: a child
+        who has had enough must always be able to say so.
+        """
+        home = self.ctx.config.home
+        budget = home.tiles_visible(len(activities) + 1, self.ctx.kid_state.sessions_completed)
+        return activities[: max(0, budget - 1)]
 
     def refresh(self) -> None:
         """Rebuild the grid. Cheap enough to do on every arrival at Home."""
