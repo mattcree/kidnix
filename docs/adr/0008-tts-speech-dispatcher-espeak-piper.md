@@ -28,5 +28,8 @@ speech-dispatcher 0.12.1 + espeak-ng are packaged and work today.
 ## Consequences
 
 - A kid session is never mute even if Piper is missing.
-- The Piper spike (resident server, speech-dispatcher module config, memory
-  on 4 GB machines) is a tracked task before M2 exit.
+- Spike done 2026-08-22 (`docs/spikes/tts.md`): vendored MIT piper binary +
+  `en_GB-cori-high` (default) and `cori-medium` (switch in /etc/kidnix/tts.env),
+  resident per-user server behind sd_generic as DefaultModule; 96–260 ms warm
+  latency, ~165 MB RSS, +192 MiB image. Open: a human must listen and choose
+  high vs medium; real-hardware audio unverified.
