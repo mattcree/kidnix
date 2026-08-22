@@ -347,26 +347,20 @@ getent passwd kid parent             # did sysusers run?
 From the host, without any of that, `just vm-exec 'any shell script'` runs the
 lot inside a fresh VM and gives you the output.
 
-### Known: no portals in the kid session
+### Portals in the kid session — solved
 
-`output/boot-journal.txt` is full of *"Dependency failed for
-xdg-desktop-portal.service"*. It is real, it is not a VM artefact, and it will
-matter as soon as an activity wants a file chooser or a Flatpak needs a portal.
+This section used to describe a boot journal full of *"Dependency failed for
+xdg-desktop-portal.service"*. It is fixed: the kid session is now a real
+`gnome-session --session=kidnix`, so `graphical-session.target` becomes active
+and all three portals start normally. `journalctl -b _UID=1000 | grep -c
+"Dependency failed for xdg-desktop-portal"` is `0`, and `just test-boot`
+asserts `xdg-desktop-portal.service` and `xdg-desktop-portal-gnome.service` are
+active in kid's own user manager.
 
-`xdg-desktop-portal.service` (and the `-gnome` and `-gtk` backends, all three
-installed) carry `Requisite=graphical-session.target`. `Requisite=` fails
-immediately unless the target is *already active* — and in kid's session it
-never becomes active, because `/usr/bin/kidnix-shell` `exec`s `gnome-kiosk`
-directly. `graphical-session.target` is normally pulled up by `gnome-session`,
-which the kiosk session does not run.
-
-gnome-kiosk ships `/usr/lib/systemd/user/org.gnome.Kiosk.target` and
-`org.gnome.Kiosk@wayland.service` for exactly this, but both are
-`Requisite=gnome-session-initialized.target`, so they only work under
-`gnome-session` — and the Fedora `gnome-kiosk` package ships no `.session` file
-to feed it. So the fix is a decision, not a one-liner: either run the session
-through `gnome-session` with a kidnix `.session` file, or have `kidnix-shell`
-raise `graphical-session.target` itself after the compositor is up.
+How and why, including the two upstream constraints that made it a decision
+rather than a one-liner (`Requisite=graphical-session.target` on the portals,
+`Requisite=gnome-session-initialized.target` on gnome-kiosk's own units):
+**`docs/spikes/session-integration.md`**.
 
 ## How the image is put together
 
@@ -377,6 +371,12 @@ build_files/build.sh   runs the NN-*.sh stages in order
   10-branding.sh       rewrites /usr/lib/os-release, writes VERSION + image-info
   20-users.sh          validates the declarative account config
   30-kiosk.sh          graphical.target, enables gdm + the boot probe
+  35-parent-desktop.sh the parent's stock GNOME session (ADR-0005)
+  36-fonts.sh          Andika + Atkinson Hyperlegible, system font cache
+  40-lockdown.sh       no egress for uid 1000, dconf locks, polkit, greenboot
+  50-activities.sh     the activity payload and its manifests
+  60-shell.sh          installs shell/ into site-packages, wires gnome-session
+  70-hardening.sh      removes firefox & co, masks noisy units, one wallpaper
   90-cleanup.sh        dnf clean, empties /var (bootc requires this)
 system_files/          copied verbatim to /
 ```

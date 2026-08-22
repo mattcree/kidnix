@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  kidnix default wallpaper: editable source.
+
+  The file GNOME actually shows is default.png next to this one; this SVG is
+  the design, kept so the wallpaper can be changed without reverse-engineering
+  a bitmap. They are regenerated together (docs/spikes/hardening.md section 4).
+
+  Constraints, in case someone redraws it:
+    * no text, no logo, no faces. The child must never be asked to read the
+      desktop, and the parent's desktop must not advertise at them.
+    * low contrast, warm, no strong verticals. Windows sit on top of this.
+    * geometric and flat, so it stays honest at any resolution and compresses
+      to ~110 KB rather than the 38 MiB that gnome-backgrounds cost.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440"
+     viewBox="0 0 2560 1440">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.00" stop-color="#faedde"/>
+      <stop offset="0.55" stop-color="#f7ddc5"/>
+      <stop offset="1.00" stop-color="#eac6ac"/>
+    </linearGradient>
+    <radialGradient id="halo-outer" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.55" stop-color="#fae2be" stop-opacity="0.24"/>
+      <stop offset="1.00" stop-color="#fae2be" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo-inner" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.45" stop-color="#fad6a3" stop-opacity="0.43"/>
+      <stop offset="1.00" stop-color="#fad6a3" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.70" stop-color="#f6c57c" stop-opacity="0.96"/>
+      <stop offset="1.00" stop-color="#f6c57c" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="frame">
+      <rect x="0" y="0" width="2560" height="1440"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect x="0" y="0" width="2560" height="1440" fill="url(#sky)"/>
+
+    <!-- one low sun, right of centre, with two haloes -->
+    <circle cx="1740.8" cy="518.4" r="576"   fill="url(#halo-outer)"/>
+    <circle cx="1740.8" cy="518.4" r="374.4" fill="url(#halo-inner)"/>
+    <circle cx="1740.8" cy="518.4" r="194.4" fill="url(#sun)"/>
+
+    <!-- Two hills, drawn as circle segments so the horizon is a curve rather
+         than a line. cy = crest + r is what leaves only the top arc on screen. -->
+    <circle cx="358.4"  cy="4534.4" r="3584" fill="#e3baa0"/>
+    <circle cx="2099.2" cy="3712.0" r="2560" fill="#ce9c84"/>
+  </g>
+</svg>

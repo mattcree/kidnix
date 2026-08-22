@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
+<!--
+  Puts kidnix's one wallpaper in Settings -> Appearance, so a parent who does
+  not like the default can see what the default *was* and get back to it.
+  Without this file the image is only reachable by browsing the filesystem.
+
+  Same file for light and dark: it is deliberately low-contrast and warm, and
+  a second dark cut would double the (small) cost for very little.
+-->
+<wallpapers>
+    <wallpaper deleted="false">
+        <name>kidnix</name>
+        <filename>/usr/share/backgrounds/kidnix/default.png</filename>
+        <filename-dark>/usr/share/backgrounds/kidnix/default.png</filename-dark>
+        <options>zoom</options>
+        <shade_type>solid</shade_type>
+        <pcolor>#f7ddc5</pcolor>
+        <scolor>#eac6ac</scolor>
+        <author>the kidnix project</author>
+        <license>Apache-2.0</license>
+    </wallpaper>
+</wallpapers>

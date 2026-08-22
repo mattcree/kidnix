@@ -1,0 +1,58 @@
+# kidnix parent config -- SHIPPED DEFAULTS.
+#
+# Two copies of this file exist in the image and they are byte-identical:
+#
+#   /usr/share/kidnix/parent.toml   this file. Image-owned, read-only at
+#                                   runtime, replaced wholesale by every
+#                                   bootc upgrade. The fallback.
+#   /etc/kidnix/parent.toml         the machine's copy. /etc is writable and
+#                                   3-way merged across upgrades, so a parent's
+#                                   edits survive.
+#
+# kidnix_shell.settings.Paths.parent_config prefers /etc and falls back here.
+# Shipping both means a machine whose /etc copy has been deleted or corrupted
+# still boots to a working grown-up gate instead of a traceback.
+#
+# The keys and their spellings are kidnix_shell/settings.py's ParentConfig;
+# build_files/70-hardening.sh loads this file *through that class* at build
+# time and fails the build if it stops parsing or the PIN stops verifying, so
+# the two cannot drift.
+#
+# --- THE PIN ---------------------------------------------------------------
+#
+# pin_hash is PBKDF2-HMAC-SHA256, 200000 rounds, over the UTF-8 PIN with
+# pin_salt as the (hex) salt. The PIN itself is never stored and is not
+# recoverable from this file.
+#
+# The shipped value is the documented development PIN **1234** (shell spec S9)
+# with a fixed, public salt. That is deliberate and it is not a secret: a
+# freshly installed machine has to let the grown-up in before there is any UI
+# to set a PIN with. It is also the first thing a parent should change, and
+# the parent panel will make them. Treat "still 1234" as "unconfigured", never
+# as "secured".
+pin_salt = "9f2c1a6d4b8e0357c9d1e2f3a4b5c6d7"
+pin_hash = "3d6495d0f726f531cef756cad4ee152a662ac68a68782658c75494d91c267f4d"
+
+# How long one session lasts by default, in minutes. The rest of the session
+# policy (daily budget, the ending ritual's warning points, bedtime) is
+# /etc/kidnix/session.toml, which is root-owned and not the parent's to edit
+# casually.
+default_session_minutes = 25
+
+# allowed_activity_ids is deliberately absent: absent means "every installed
+# activity is allowed". Listing ids here restricts Home to those, and the rest
+# render outline-only (spec S2). The parent panel writes this; a hand edit
+# looks like:
+#
+#   allowed_activity_ids = ["tuxpaint", "gcompris"]
+
+# One child, called "Me", in kidnix's first identity colour pair. The data
+# model supports several (spec 1.7); v0.1 ships one so the "Who's here?" screen
+# has something true to show before a parent has configured anything.
+[[profiles]]
+id = "child"
+name = "Me"
+colour_primary = "#0f8a8a"
+colour_secondary = "#f06292"
+avatar = "face-smile"
+age_band = "4-5"

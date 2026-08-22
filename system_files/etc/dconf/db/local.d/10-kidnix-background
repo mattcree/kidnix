@@ -1,0 +1,37 @@
+# kidnix's default desktop background, for the PARENT's stock GNOME session.
+#
+# Why this file has to exist: build_files/70-hardening.sh removes
+# gnome-backgrounds (38 MiB, ~60% of the parent desktop's whole cost), and
+# GNOME's compiled-in default picture-uri points at
+# /usr/share/backgrounds/gnome/adwaita-l.jxl, which that package owned. Left
+# alone, a parent's first login is a grey rectangle that reads as "broken".
+#
+# Which users this reaches: the stock `user` dconf profile
+# (/etc/dconf/profile/user, shipped by Fedora) is
+#   user-db:user / system-db:local / system-db:site / system-db:distro
+# so anything in /etc/dconf/db/local.d is a *default* for every user whose
+# session does not override DCONF_PROFILE. That is the parent and nobody else:
+# the child's session exports DCONF_PROFILE=kid, whose profile is
+# `user-db:user` + `file-db:/usr/share/kidnix/dconf/kid.compiled` and never
+# reads `local`. The kid shell paints its own background anyway.
+#
+# Nothing here is LOCKED (there is no matching entry under locks/). ADR-0005
+# says the parent's desktop should be familiar; changing your wallpaper is the
+# most ordinary thing a person does to a computer, and it must keep working.
+
+[org/gnome/desktop/background]
+picture-uri='file:///usr/share/backgrounds/kidnix/default.png'
+picture-uri-dark='file:///usr/share/backgrounds/kidnix/default.png'
+picture-options='zoom'
+# Shown while the image loads, and behind it if the file ever goes missing --
+# the two ends of the wallpaper's own gradient, so a failure degrades to
+# "plain and warm" instead of "grey and broken".
+primary-color='#f7ddc5'
+secondary-color='#eac6ac'
+color-shading-type='solid'
+
+[org/gnome/desktop/screensaver]
+picture-uri='file:///usr/share/backgrounds/kidnix/default.png'
+picture-options='zoom'
+primary-color='#f7ddc5'
+secondary-color='#eac6ac'

@@ -84,7 +84,7 @@ section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 section "stock GNOME session packages"
 for pkg in gnome-shell gnome-session gnome-session-wayland-session \
            gnome-settings-daemon gnome-control-center xdg-desktop-portal-gnome \
-           nautilus ptyxis gnome-backgrounds; do
+           nautilus ptyxis; do
     assert_rpm "${pkg}"
 done
 
@@ -214,8 +214,8 @@ assert_no_rpm gnome-boxes         "no VMs on a 6-year-old's laptop"
 assert_no_rpm gnome-user-share    "no file sharing out of the child's home"
 assert_no_rpm yelp                "the GNOME help browser embeds a web engine"
 assert_no_rpm gnome-classic-session "one parent session, not three"
-assert_no_rpm epiphany            "no second browser on top of the base image's firefox"
-assert_no_rpm chromium            "no second browser on top of the base image's firefox"
+assert_no_rpm epiphany            "no browser at all; 70-hardening.sh removed the base image's firefox"
+assert_no_rpm chromium            "no browser at all; 70-hardening.sh removed the base image's firefox"
 # The @gnome-desktop comps group's *mandatory* list is exactly the tripwire:
 # installing the group at any point lands all three of these in one go.
 # Checking them together (rather than one by one above) is what catches

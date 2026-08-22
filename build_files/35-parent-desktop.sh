@@ -13,8 +13,9 @@
 # and `gnome-shell` hard-requires `gnome-control-center`. So
 # /usr/share/wayland-sessions/gnome.desktop, gnome-settings-daemon and
 # xdg-desktop-portal-gnome are on disk the moment you install a display
-# manager. ADR-0005 estimated +400-700 MB for this stage; the measured delta is
-# ~63 MiB (see docs/spikes/parent-desktop.md), and 38 MiB of that is wallpaper.
+# manager. ADR-0005 estimated +400-700 MB for this stage; the measured delta
+# was ~63 MiB (see docs/spikes/parent-desktop.md), 38 MiB of which was
+# wallpaper -- and that 38 MiB is now gone too (see the PACKAGES comment).
 #
 # What we deliberately do NOT install: the `gnome-desktop` comps group. Its
 # mandatory list alone drags in gnome-software, gnome-initial-setup and yelp,
@@ -61,11 +62,12 @@ PACKAGES=(
     # limits; without malcontent-tools the only interface is D-Bus by hand.
     malcontent-tools
 
-    # Wallpaper. Optional, and the single biggest line item here (37.8 MiB of
-    # a 63 MiB stage) -- but without it GNOME's default picture-uri points at a
-    # file that does not exist and the parent's brand-new desktop is a grey
-    # rectangle, which reads as "broken" rather than "minimal".
-    gnome-backgrounds
+    # NOT gnome-backgrounds. It used to be installed here, and at 37.8 MiB it
+    # was 60% of this entire stage. GNOME's default picture-uri does point into
+    # it, so something has to take its place or the parent's first login is a
+    # grey rectangle that reads as "broken" -- that something is
+    # build_files/70-hardening.sh, which ships one kidnix wallpaper (~110 KiB)
+    # and makes it the parent's dconf default. See docs/spikes/hardening.md.
 )
 
 dnf5 -y install "${PACKAGES[@]}"
@@ -81,12 +83,18 @@ for unwanted in gnome-software gnome-initial-setup gnome-boxes yelp \
 done
 
 # ...and the things that ALREADY arrived, before this stage ran, as weak
-# dependencies of gnome-shell (which gdm hard-requires). We do not remove them
-# here -- 00-packages.sh owns the install_weak_deps policy and its comment says
-# leaving Recommends on is a deliberate day-one choice -- but we do count them,
-# so the number appears in every build log and the decision stays visible
-# rather than becoming invisible background radiation. See the open questions
-# in docs/spikes/parent-desktop.md.
+# dependencies of gnome-shell (which gdm hard-requires). We still do not remove
+# them HERE -- 00-packages.sh owns the install_weak_deps policy and its comment
+# says leaving Recommends on is a deliberate day-one choice -- but we count
+# them, so the number appears in every build log and the decision stays visible
+# rather than becoming invisible background radiation.
+#
+# build_files/70-hardening.sh is where the decision now lands: it runs after
+# every install stage and removes gnome-remote-desktop, rygel, gnome-tour and
+# gnome-color-manager outright. So this list is the "before" side of that
+# measurement, and the extras it names should shrink to nm-connection-editor,
+# gnome-bluetooth and bolt by the end of the build. See
+# docs/spikes/hardening.md.
 recommended_extras=()
 for extra in gnome-remote-desktop rygel gnome-tour gnome-color-manager \
              nm-connection-editor gnome-bluetooth bolt; do
