@@ -50,19 +50,21 @@ parsed-but-unused manifest fields (Library opens nothing; age bands ignored);
 
 | # | Action | Owner | State |
 |---|---|---|---|
-| 1 | Absolute mm floors; 4×2/3×2 grid fallback | shell | in progress |
-| 2 | `content_required`, age bands, `allowed_activity_ids` | shell | in progress |
+| 1 | Absolute mm floors; 4×2 grid on small panels (42 mm tiles) | shell | done |
+| 2 | `content_required`, age bands, `allowed_activity_ids` | shell | done |
 | 3 | Label wrap, no ellipsis | shell | done |
-| 4 | `.not-allowed` contrast ≥ 3:1; Atkinson Next font name | shell | in progress |
-| 5 | No spoken digits (Journal titles) | shell | in progress |
-| 6 | Tappable sun + phase earcon | shell | in progress |
+| 4 | `.not-allowed` contrast ≥ 3:1; Atkinson Next font name | shell | done |
+| 5 | No spoken digits (Journal titles) | shell | done |
+| 6 | Tappable sun + phase earcon | shell | done |
 | 7 | Egress proven by packet capture in the boot test; licence + package-lock CI gates | image/CI | in progress |
-| 8 | Trackpad hardening in kid dconf (+ orientation lock if key exists) | image | in progress |
+| 8 | Trackpad hardening in kid dconf (+ orientation lock) | image | done |
 | 9 | Piper cori default voice | image | done (verified in image) |
-| 10 | S1b "What's next after?"; sun shape; dwell 450 + instrumentation; progressive disclosure; representational earcons; gate not voiced | shell | next wave |
+| 10 | S1b "What's next after?"; sun shape; dwell 450 + instrumentation; progressive disclosure; representational earcons; gate not voiced | shell | in progress |
 | 11 | Tux Paint quit dialog: accepted for v0.1 (ADR-0010 #5); band-over-activity spike is the real fix | — | ruled |
 | 12 | Child test #1 (baseline), then P1–P6 | Matt + thinker | when hardware arrives |
-| 13 | GCompris curation (12–20 activities), Tux Paint tool count | activities | P1 |
+| 13 | GCompris curation (12–20 activities) | activities | in progress |
+| 14 | Band-over-activity feasibility spike | session | in progress |
+| 15 | 24 vs 18 mm floor: keep 18 mm floor / 24 preferred (06) | — | ruled |
 
 ## Still genuinely unknown
 
