@@ -113,10 +113,10 @@ class Scenario:
 
 @pytest.fixture(scope="session")
 def scenario():
-    require_tools()
     qcow2 = REPO / "output" / "qcow2" / "disk.qcow2"
     if not qcow2.is_file():
         pytest.skip(f"no disk image at {qcow2} -- run `just build-qcow2-rootless`")
+    require_tools()
 
     OUTPUT.mkdir(parents=True, exist_ok=True)
     for stale in OUTPUT.glob("*.ppm"):
