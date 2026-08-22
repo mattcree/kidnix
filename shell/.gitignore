@@ -1,3 +1,7 @@
 # Tool caches the root .gitignore does not already cover.
 .pytest_cache/
 .mypy_cache/
+
+# Earcons are generated (kidnix_shell/sound.py), never committed: see
+# kidnix_shell/data/sounds/README.md.
+kidnix_shell/data/sounds/*.wav

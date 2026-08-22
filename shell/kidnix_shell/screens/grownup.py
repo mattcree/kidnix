@@ -27,6 +27,12 @@ log = logging.getLogger(__name__)
 PIN_LENGTH = 4
 GRANTS = (5, 15, 30)
 
+LENGTH_SUBTITLE = "Minutes. No number here is evidence-based; 25 is the precaution."
+READ_ONLY_SUBTITLE = (
+    "Kept for this boot only: /etc/kidnix/parent.toml is root-owned, "
+    "which is what keeps the PIN out of the child's hands."
+)
+
 
 class GrownupSheet(Adw.Dialog):
     """PIN pad, then the actions. Closing it returns the child where they were."""
@@ -182,11 +188,22 @@ class GrownupSheet(Adw.Dialog):
         settings_group = Adw.PreferencesGroup(title="Settings")
         length = Adw.SpinRow.new_with_range(MIN_SESSION_MINUTES, MAX_SESSION_MINUTES, 5)
         length.set_title("Default session length")
-        length.set_subtitle("Minutes. No number here is evidence-based; 25 is the precaution.")
+        length.set_subtitle(LENGTH_SUBTITLE)
         length.set_value(self.ctx.config.default_session_minutes)
         length.connect("notify::value", self._on_length_changed)
         self._length_row = length
         settings_group.add(length)
+
+        if self.ctx.config.is_default:
+            warning = Adw.ActionRow(
+                title="This machine has no parent config",
+                subtitle=(
+                    "The gate is on the development PIN 1234 and every activity is "
+                    "allowed. Write /etc/kidnix/parent.toml as root to fix that."
+                ),
+            )
+            warning.add_css_class("pin-error")
+            settings_group.add(warning)
 
         panel = Adw.ActionRow(
             title="Parent panel", subtitle="Allow-lists, budgets, their things -- not in v0.1"
@@ -239,6 +256,14 @@ class GrownupSheet(Adw.Dialog):
     def _on_length_changed(self, row: Adw.SpinRow, _param: object) -> None:
         minutes = int(row.get_value())
         self.ctx.config.default_session_minutes = minutes
+        if self.ctx.config.read_only:
+            # The parent config is root-owned on purpose (a child-writable PIN
+            # is not a PIN), and the shell runs as the child. The change holds
+            # for this boot; making it permanent is the parent panel's job,
+            # from the parent's own account.
+            row.set_subtitle(READ_ONLY_SUBTITLE)
+            log.info("session length set to %d minutes for this boot only", minutes)
+            return
         try:
             self.ctx.config.save()
         except OSError as exc:

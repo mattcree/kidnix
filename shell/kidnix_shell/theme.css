@@ -285,3 +285,17 @@ button.pager:disabled {
   color: #b3261e;
   font-weight: 600;
 }
+
+/* --- "All done" (spec 7a) ---------------------------------------------- */
+
+/* The last tile on Home. Calm and slightly cooler than the activities: it is
+ * a way out, not a treat, and it must not compete with the things the child
+ * came here to make. */
+button.tile.all-done {
+  background-color: #e9e6f7;
+  border-color: rgba(23, 27, 44, 0.28);
+}
+
+button.tile.all-done:hover {
+  background-color: #f2f0fb;
+}

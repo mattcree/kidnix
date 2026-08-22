@@ -29,6 +29,11 @@ class WhosHereScreen(Screen):
     def build(self) -> None:
         metrics = self.ctx.metrics
         self.set_valign(Gtk.Align.CENTER)
+        # Nothing sits flush against the edge of the panel: on the first real
+        # boot the Grown-up tile ran off the bottom-right corner.
+        self.set_margin_start(metrics.gap)
+        self.set_margin_end(metrics.gap)
+        self.set_margin_bottom(metrics.gap)
 
         title = big_label("Who's here?", "screen-title")
         title.set_margin_bottom(metrics.gap * 2)

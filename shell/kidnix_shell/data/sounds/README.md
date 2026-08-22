@@ -1,24 +1,28 @@
 # Earcons
 
-08-shell-ux-patterns section 3.6 specifies a six-sound set, each <= 400 ms,
-distinguished by pitch contour rather than timbre so they survive cheap
-laptop speakers:
+Spec §7a rules **four** sounds, not the six of 08-shell-ux-patterns §3.6, and
+rules them *generated*:
 
-| Event | Character | File (TODO) |
+| Event | Character | File |
 |---|---|---|
-| Focus / hover a tile | very quiet single rising note | `focus.ogg` |
-| Commit / open | two-note rising, brighter | `open.ogg` |
-| Back / close | two-note falling | `back.ogg` |
-| Kept in the Journal | soft click-chime, the only bell | `keep.ogg` |
-| Ask sent | warm, longer -- this must feel like an event | `ask.ogg` |
-| Session phase change | one three-note motif, a tone lower each phase | `phase.ogg` |
+| A child-facing control fired | one soft tick (A5) | `tap.wav` |
+| Back / close | two notes falling (D5 → G4) | `back.wav` |
+| Kept in the Journal | two notes rising (E5 → B5) | `keep.wav` |
+| The session is over | low and slow (E4 → A3) | `sleep.wav` |
 
-**Not shipped in v0.1.** These need composing, not generating: a synthesised
-sine-pair is worse than silence for a sound a child hears two hundred times a
-day, and the licensing ledger (`docs/LICENSES.md`, SYNTHESIS H5) wants a real
-provenance entry per file rather than "Claude made it with numpy".
+They are **not committed**. `kidnix_shell/sound.py` renders them from
+`EARCONS` — sine tones with an exponential decay and 6 ms fades, 16-bit mono
+44.1 kHz, peaking at 0.45 (≈ −14 LUFS by construction, not by meter) — either
 
-`kidnix_shell.sound.Earcons` already has the call sites and the volume/duck
-policy; it is a no-op until these files exist, and logs once at debug level.
-Rules that apply when they land: never more than one earcon per 250 ms, and
-earcons duck under speech.
+* at image build time: `python -m kidnix_shell.sound [DIR]`, or
+* on first run, into `$XDG_CACHE_HOME/kidnix/sounds`, because `/usr` is
+  read-only on the image.
+
+No binary blobs in git, nothing for `docs/LICENSES.md` to track, and the code
+and the sound cannot drift apart. Playback is GStreamer `playbin`, built
+lazily; anything missing (no GStreamer, no sink, no sound card in a VM) logs
+once and the shell runs silent.
+
+Rules that still apply: never more than one earcon per 250 ms, and earcons duck
+under speech. There is no reward chime and there never will be
+(AGENTS.md non-negotiable 1).

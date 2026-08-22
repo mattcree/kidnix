@@ -248,3 +248,189 @@ importing the PNG it wrote through the file monitor, starring it, and killing a
   the SYNTHESIS §3 numbers.
 - Andika should land in `system_files` with a licence ledger entry; the shell
   falls back to Cantarell cleanly until it does.
+
+---
+
+# shell v0.1.1 — fitting the screen, owning the config, and the §7a rulings
+
+> Second implementer's report on `shell/`, 2026-08-22. Additive to everything
+> above: §1–§8 describe v0.1.0 and are still accurate except where this section
+> says otherwise. Driven by the first real boot
+> (`docs/design/screenshots/boot-home.png`), the open questions in
+> `docs/spikes/session-integration.md` §7, and the §7a rulings in the spec.
+
+## 9. Fit to screen — the clipped band
+
+**The bug.** v0.1.0 sized everything from millimetres and never asked whether
+the result fitted. On the VM's 1280×800 / 102 dpi panel the layout wanted about
+6% more than the panel had, so the band's buttons were cut off the top of the
+screen and the Grown-up tile ran off the bottom-right corner. A control a child
+cannot see is worse than one that is 3 mm small.
+
+**The fix, in two layers.**
+
+1. **Arithmetic.** `Metrics` gained `screen_width`/`screen_height` and a single
+   `fit` factor that multiplies `mm()` and `design()` — so every size in the
+   shell shrinks together. `Metrics.for_screen()` computes the mm-based ideal,
+   then shrinks until `required_size()` (band + Home grid + pager + every
+   margin, modelled explicitly) fits the monitor. `fit` is exactly 1.0 whenever
+   the ideal already fits, which is 1920×1080 and up.
+2. **Measurement.** Arithmetic cannot know about CSS padding or font metrics,
+   so `ShellWindow._check_measured_fit()` asks GTK how big the built tree
+   actually wants to be and, if that exceeds the monitor, shrinks and rebuilds
+   (at most three times, before the window is presented). This is what makes
+   "never exceeds the monitor" a fact rather than an intention. It logs the
+   measured size on every start, so a future clipped screenshot has a number
+   next to it.
+
+Rebuilding is a real code path now (`_build_content()`), which also gives us
+**monitor changes**: every 8th tick the shell re-reads the monitor and relays
+out if the geometry, density or scale changed. Screens hold no state that
+outlives them, so throwing them away is safe.
+
+Two supporting changes fell out of it:
+
+- **Band buttons are sized to fit inside the band** (`Metrics.band_target`),
+  because the band is clamped to 80–128 px per §7a and an 86 px button inside a
+  102 px band plus 20 px of CSS padding is exactly how the tops got cut off.
+- **Type scales with the layout.** `theme.css` states point sizes and points do
+  not know about `fit`, so `theme.py` re-emits every child-facing size at the
+  layout's own scale through the runtime CSS provider.
+
+**What it costs.** On 1280×800 the tile is 35 mm rather than 40 mm (at 118 dpi,
+31 mm). That is under SYNTHESIS §3's floor and it is the deliberate trade: the
+mm numbers are what we want, the panel is what we have. On a genuinely small
+panel Home drops to a 4×2 grid rather than shrinking twelve tiles below 128 px.
+
+Measured, all fitting, from the tests:
+
+| Panel | fit | tile | band | grid |
+|---|---|---|---|---|
+| 1280×800 @96 | 0.88 | 142 px (38 mm) | 85 px | 4×3 |
+| 1280×800 @102 | 0.83 | 141 px (35 mm) | 85 px | 4×3 |
+| 1280×800 @118 | 0.72 | 142 px (31 mm) | 85 px | 4×3 |
+| 1366×768 @96 | 0.85 | 136 px (36 mm) | 82 px | 4×3 |
+| 1920×1080 @96 | 1.00 | 160 px (42 mm) | 96 px | 4×3 |
+| 3840×2160 @2× | 0.81 | 191 px (34 mm) | 115 px | 4×3 |
+| 2560×1440 @118 | 1.00 | 197 px (42 mm) | 118 px | 4×3 |
+| 1024×600 @96 | 0.86 | 138 px (37 mm) | 83 px | 4×2 |
+
+`--screen 1280x800@102` (also `KIDNIX_SCREEN` / `KIDNIX_FORCE_DPI`) makes a
+27" desktop render exactly what a small panel gets; `just demo-small` is that
+in one word. `docs/design/screenshots/demo-home.png` and `demo-all-done.png`
+are 1280×800 @102 captures with nothing clipped.
+
+**Screenshots are possible after all.** §6 above says GNOME 45+ lets no
+external tool photograph the kiosk — true, and irrelevant to photographing
+*ourselves*: `--screenshot PATH` paints the shell's own widget tree into a
+`Gtk.Snapshot` and renders it with the renderer we already have. No portal, no
+permission, no QMP.
+
+## 10. The parent config is no longer child-writable
+
+Session-integration spike open question 2, "the one security-shaped gap this
+milestone introduces". `Paths.parent_config` used to fall back to
+`~/.config/kidnix/parent.toml`, which the child owns — so the PIN, the
+allow-list and the profiles were child-writable in principle.
+
+Now: `/etc/kidnix/parent.toml`, then `/usr/share/kidnix/parent.toml`, then
+built-in defaults with a **loud stderr banner** naming the dev PIN. There is no
+fallback into the child's home at all; `--config PATH` is the single exception
+and exists so a developer can point at a file. `session.toml` follows the same
+rule. Everything kid-writable (today's usage, the Journal and its favourites,
+the generated earcons) stays under `XDG_STATE_HOME` / `XDG_DATA_HOME` /
+`XDG_CACHE_HOME`, and nothing in any of it can widen what the child may do.
+
+A config loaded from a system path is marked `read_only`, and `save()` on one
+raises rather than pretending. The grown-up sheet therefore changes the default
+session length **for this boot only** and says so in the row's subtitle, and
+shows a red row when the machine is running on the built-in defaults. Making a
+change permanent means writing `/etc/kidnix/parent.toml` as root — the parent
+panel's job, from the parent's own account, and now a well-defined one.
+
+**For the image implementer:** nothing is required, but shipping
+`/usr/share/kidnix/parent.toml` (a PIN hash and an allow-list) would take the
+dev-PIN banner off a real child's machine, and bootc's 3-way merge would keep a
+parent's `/etc` edit across upgrades.
+
+## 11. The §7a rulings
+
+- **"All done" tile.** Last position on Home, always (page 2 when there are
+  twelve activities), moon icon, calm lavender rather than a treat colour,
+  speaks "All done for today?". One tap → `finish_now()` → Put away → Goodbye.
+  No confirmation: a pre-reader cannot read one, and asking a child to confirm
+  that they have had enough is a bribe to stay.
+- **Back on Put away** is dead for 3 s (`PUT_AWAY_BACK_LOCK_SECONDS`) and then
+  returns Home, so an accidental tap is recoverable. It is *ignored*, not
+  greyed out and not hidden: the band never changes shape under a child. The
+  state machine gained `PUT_AWAY --back--> HOME`; if the *clock* put the child
+  there, the next tick simply brings the ritual back.
+- **Goodbye is now timed for the child-initiated path.** The clock-driven
+  ritual reaches Goodbye at `Phase.ENDED`; "All done" has no clock, so
+  `finish_now()` schedules it (6 s, covering the SIGTERM grace and the keep
+  animation) and the callback checks the state first, so pressing Back does not
+  strand a timer that drags the child into Goodbye anyway.
+- **Ask is gone from the band** (`band.SHOW_ASK = False`, one line to put it
+  back). Undo stays on every surface and says "Nothing to undo."
+- **Sleeping** wakes on a new *budget* day or when the bedtime window that put
+  it to sleep has ended — otherwise the gate. Unchanged in spirit from
+  deviation 5, now expressed against the 04:00 boundary.
+- **Daily budget resets at 04:00**, not midnight (`session.budget_day()`).
+  `may_start()` rolls the day itself, so a shell that has been sitting on the
+  Sleeping screen all night sees the fresh budget without a restart.
+- **`exec_resume` with `{file}`** was already implemented in v0.1.0 and is
+  unchanged; still no shipped manifest declares it (Q2 above is still open).
+- **Earcons: four, generated.** `keep` (E5→B5 rising), `tap` (one A5 tick),
+  `back` (D5→G4 falling), `sleep` (E4→A3, low and slow). Sine tones with an
+  exponential decay and 6 ms fades, 16-bit mono 44.1 kHz, peak 0.45 — roughly
+  −14 LUFS *by construction, not by meter*. Written by
+  `python -m kidnix_shell.sound [DIR]` at image build (`just earcons`) or
+  generated on first run into `$XDG_CACHE_HOME/kidnix/sounds` because `/usr` is
+  read-only; 13 ms for all four, warmed on an idle callback at startup. No
+  binary blobs in git and nothing for `docs/LICENSES.md` to track. Playback is
+  GStreamer `playbin` built lazily; no GStreamer, no sink or a pipeline error
+  logs **once** and the shell runs silent for the rest of the run. Verified
+  playing on this host; nobody has confirmed what it sounds like in a room.
+
+  This reverses v0.1.0's "a synthesised sine pair is worse than silence".
+  Having built them: for a 90 ms tick heard 200×/day, contour is the whole
+  message and a composed sample would not be a better one. If the human
+  disagrees after hearing them, `EARCONS` is eight lines to re-point at files.
+
+## 12. Robustness in the kiosk
+
+`SpeechdBackend` now **connects on the first utterance, not at startup**, and
+reconnects on its own at most once every 5 s, logging each state change once
+rather than per event (a child sweeping a grid of tiles used to be able to fill
+the journal). `select_backend()` is a module-import check and opens no socket,
+so nothing in startup can block on speech-dispatcher — which, with the unit's
+`Wants=speech-dispatcher.socket` from the spike, means a restarting daemon is
+now invisible to the child instead of an 11-second black screen. Earcons have
+the same discipline: one log line, then silence, never an exception on the main
+loop.
+
+## 13. Tests
+
+**282 headless (+1 skip), 320 with a display** (was 193/219). New coverage:
+the fit-to-screen arithmetic across eight panels including 1280×800 at three
+densities and 3840×2160 @2× (band clamp, band-button-inside-the-band, tile
+still touchable, grid choice); the config ownership rules including "a
+parent.toml in the child's home is not a parent config"; the four earcons
+(rendering, levels, fades, the 250 ms gap, ducking, generation into an
+unwritable world); speech lazy-connect and reconnect; the 04:00 budget day; and
+— with a display — a real `ShellWindow` measured against four panels and driven
+through All done → Put away → Back → Home → All done → Goodbye.
+
+## 14. Still open
+
+1. **The 40 mm floor is now advisory on small panels** (31 mm at 1280×800 @118).
+   The alternative is clipping. If the floor is genuinely hard, the answer is
+   fewer tiles per page on those panels — say so and it is a two-line change to
+   `MIN_GRID_TILE_PX`.
+2. **`/usr/share/kidnix/parent.toml` is not shipped** (that is `system_files/`,
+   not mine), so a booted image still prints the dev-PIN banner.
+3. **Nobody has heard the earcons** on real speakers, and no meter has seen
+   them.
+4. Q1, Q2 and Q4–Q7 of §5 above are answered by §7a and implemented here;
+   **Q3 (DPI)** is answered by §9. Q2 (resume) is still open on the *manifest*
+   side.

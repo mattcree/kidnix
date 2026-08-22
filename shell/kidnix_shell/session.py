@@ -109,8 +109,11 @@ class SessionPolicy:
         return candidate
 
 
-def load_policy(path: Path) -> SessionPolicy:
+def load_policy(path: Path | None) -> SessionPolicy:
     """Read ``session.toml``. Any problem falls back to the defaults, loudly."""
+    if path is None:
+        log.info("no root-owned session config; using the SYNTHESIS defaults")
+        return SessionPolicy()
     if not path.is_file():
         log.info("no session config at %s; using defaults", path)
         return SessionPolicy()
@@ -154,14 +157,35 @@ def load_policy(path: Path) -> SessionPolicy:
 
 # --- daily usage ---------------------------------------------------------
 
+#: Spec 7a: "the daily budget resets at 04:00 local". Midnight is the wrong
+#: boundary -- a child awake at 00:30 is still having last night's evening, and
+#: handing them a fresh hour at midnight is exactly backwards.
+BUDGET_RESET_HOUR = 4
+
+
+def budget_day(now: datetime) -> date:
+    """Which day's budget ``now`` spends. Rolls at 04:00, not at midnight."""
+    return (now - timedelta(hours=BUDGET_RESET_HOUR)).date()
+
+
+def next_budget_reset(now: datetime) -> datetime:
+    """When the budget next refills."""
+    today = datetime.combine(now.date(), time(BUDGET_RESET_HOUR, 0), tzinfo=now.tzinfo)
+    return today if now < today else today + timedelta(days=1)
+
 
 @dataclass
 class DailyUsage:
-    """Seconds spent today. Kid-owned state; resets when the date rolls over."""
+    """Seconds spent today. Kid-owned state; resets at 04:00 (spec 7a)."""
 
     day: date
     seconds: int = 0
     path: Path | None = None
+
+    @classmethod
+    def for_now(cls, path: Path, now: datetime) -> DailyUsage:
+        """Load the usage file against the 04:00 budget day."""
+        return cls.load(path, budget_day(now))
 
     @classmethod
     def load(cls, path: Path, today: date) -> DailyUsage:
@@ -222,6 +246,10 @@ class Session:
     # -- lifecycle --
 
     def may_start(self, now: datetime) -> StartRefusal:
+        # Rolls the budget day first: a shell that has been sitting on the
+        # Sleeping screen since last night must see the fresh budget at 04:00
+        # without anyone having restarted it.
+        self.usage.roll(budget_day(now))
         if self.policy.is_bedtime(now):
             return StartRefusal.BEDTIME
         if self.usage.remaining(self.policy.daily_budget) <= 0:
@@ -230,7 +258,7 @@ class Session:
 
     def start(self, now: datetime, length: int | None = None) -> bool:
         """Begin. Returns False if policy refuses (bedtime / budget spent)."""
-        self.usage.roll(now.date())
+        self.usage.roll(budget_day(now))
         if self.may_start(now) is not StartRefusal.OK:
             return False
         wanted = self.policy.length if length is None else length

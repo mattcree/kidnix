@@ -1,17 +1,27 @@
 """XDG paths, child profiles and the parent-owned config (PIN, allow-list).
 
-Two config files, deliberately different in ownership:
+**Ownership is the whole point of this module.** The child's own account must
+never be able to rewrite the PIN, the allow-list or the session policy -- they
+are the only things standing between a five-year-old and an unbounded computer,
+and ``~/.config`` belongs to the five-year-old. So:
 
-* ``/etc/kidnix/session.toml`` -- session policy, root-owned, read-only to the
-  child. Read by :mod:`kidnix_shell.session`.
-* ``<config>/kidnix/parent.toml`` -- PIN hash, default session length, the
-  activity allow-list and the child profiles. On the image this lives in a
-  parent-owned directory the child cannot write; in a dev checkout it is under
-  ``$XDG_CONFIG_HOME``. The shell reads it every time it needs it and writes it
-  only from the grown-up sheet.
+* ``/etc/kidnix/parent.toml`` -- PIN hash, default session length, the activity
+  allow-list, the child profiles. Root-owned. Falls back to
+  ``/usr/share/kidnix/parent.toml`` (the image's defaults), and then to
+  built-in defaults with a loud warning. **Never** read from the kid's home;
+  the only exception is an explicit ``--config PATH`` from the command line,
+  which is a developer typing a path, not the child.
+* ``/etc/kidnix/session.toml`` -- session policy, same rules. Read by
+  :mod:`kidnix_shell.session`.
+* ``$XDG_STATE_HOME/kidnix/usage.toml`` and
+  ``$XDG_DATA_HOME/kidnix/journal/`` -- today's usage, the things the child
+  made, the favourites. Kid-owned, kid-writable, and nothing in them can widen
+  what the child is allowed to do.
 
 TOML both ways. ``tomllib`` cannot write, so there is a small dumper here for
-the flat schema we actually use rather than a third-party dependency.
+the flat schema we actually use rather than a third-party dependency. Writing
+is for the *parent's* tooling (and the tests); the shell running as the child
+treats a config it read from a system path as read-only and says so.
 """
 
 from __future__ import annotations
@@ -21,6 +31,7 @@ import hmac
 import logging
 import os
 import secrets
+import sys
 import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -31,6 +42,9 @@ log = logging.getLogger(__name__)
 DEFAULT_PIN = "1234"  # spec S9: dev default, replaced by the parent
 PBKDF2_ROUNDS = 200_000
 SYSTEM_CONFIG_DIR = Path("/etc/kidnix")
+#: The image's shipped defaults, used when /etc has nothing (bootc's 3-way
+#: merge means /etc is the parent's copy, /usr/share is ours).
+SYSTEM_DEFAULT_DIR = Path("/usr/share/kidnix")
 
 #: 08 section 3.4 -- colour is *whose it is*, shape is *what it is*. Each
 #: profile owns a two-colour identity used for its avatar, band tint, focus
@@ -41,6 +55,30 @@ PROFILE_COLOURS: tuple[tuple[str, str], ...] = (
     ("#4527a0", "#26c6da"),  # violet / cyan
     ("#bf360c", "#ffb300"),  # rust / amber
 )
+
+#: Where root-owned config may live, in order. Module-level so a test (or a
+#: developer with a container) can point it somewhere else; nothing derived
+#: from the child's environment is ever added to it.
+CONFIG_SEARCH_PATH: list[Path] = [SYSTEM_CONFIG_DIR, SYSTEM_DEFAULT_DIR]
+
+
+def system_config_candidates(name: str) -> list[Path]:
+    return [directory / name for directory in CONFIG_SEARCH_PATH]
+
+
+def first_system_config(name: str) -> Path | None:
+    """The first readable root-owned copy of ``name``, or ``None``."""
+    for candidate in system_config_candidates(name):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def is_system_path(path: Path | None) -> bool:
+    """True if ``path`` is inside one of the root-owned config directories."""
+    if path is None:
+        return False
+    return any(path == directory / path.name for directory in CONFIG_SEARCH_PATH)
 
 
 @dataclass(frozen=True)
@@ -82,18 +120,23 @@ class Paths:
         return self.data_home / "kidnix" / "journal"
 
     @property
-    def parent_config(self) -> Path:
-        system = SYSTEM_CONFIG_DIR / "parent.toml"
-        if system.is_file():
-            return system
-        return self.config_home / "kidnix" / "parent.toml"
+    def parent_config(self) -> Path | None:
+        """The parent config, or ``None`` if the machine has no root-owned one.
+
+        Deliberately *not* falling back to ``$XDG_CONFIG_HOME``: the child owns
+        that directory, and a child-writable PIN is not a PIN.
+        """
+        return first_system_config("parent.toml")
 
     @property
-    def session_config(self) -> Path:
-        system = SYSTEM_CONFIG_DIR / "session.toml"
-        if system.is_file():
-            return system
-        return self.config_home / "kidnix" / "session.toml"
+    def session_config(self) -> Path | None:
+        """The session policy. Same ownership rule as the parent config."""
+        return first_system_config("session.toml")
+
+    @property
+    def sounds_cache(self) -> Path:
+        """Where generated earcons land when ``/usr`` is read-only."""
+        return self.cache_home / "kidnix" / "sounds"
 
     @property
     def usage_state(self) -> Path:
@@ -160,6 +203,11 @@ class ParentConfig:
     allowed_activity_ids: list[str] | None = None
     profiles: list[Profile] = field(default_factory=lambda: [DEFAULT_PROFILE])
     path: Path | None = None
+    #: True when this came from a root-owned file (or from nowhere): the shell
+    #: running as the child must not try to write it back.
+    read_only: bool = False
+    #: True when nothing was found and the dev PIN is in force.
+    is_default: bool = False
 
     def __post_init__(self) -> None:
         if not self.pin_hash:
@@ -186,16 +234,30 @@ class ParentConfig:
     # -- persistence --
 
     @classmethod
+    def discover(cls, explicit: Path | None = None) -> ParentConfig:
+        """Load the parent config from a root-owned path, or warn and default.
+
+        ``explicit`` is ``--config`` -- a developer naming a file, which is the
+        only way a path outside :data:`CONFIG_SEARCH_PATH` is ever read.
+        """
+        path = explicit or first_system_config("parent.toml")
+        if path is None:
+            warn_no_parent_config()
+            return cls(read_only=True, is_default=True)
+        return cls.load(path)
+
+    @classmethod
     def load(cls, path: Path) -> ParentConfig:
+        read_only = is_system_path(path)
         if not path.is_file():
             log.info("no parent config at %s; using defaults (PIN %s)", path, DEFAULT_PIN)
-            return cls(path=path)
+            return cls(path=path, read_only=read_only, is_default=True)
         try:
             with path.open("rb") as handle:
                 data = tomllib.load(handle)
         except (OSError, tomllib.TOMLDecodeError) as exc:
             log.warning("parent config %s is unreadable (%s); using defaults", path, exc)
-            return cls(path=path)
+            return cls(path=path, read_only=read_only, is_default=True)
 
         profiles = []
         for raw in data.get("profiles", []) or []:
@@ -222,19 +284,26 @@ class ParentConfig:
         if not isinstance(length, int) or isinstance(length, bool):
             length = 25
 
-        return cls(
+        config = cls(
             pin_salt=str(data.get("pin_salt", "")),
             pin_hash=str(data.get("pin_hash", "")),
             default_session_minutes=length,
             allowed_activity_ids=allowed_list,
             profiles=profiles,
             path=path,
+            read_only=read_only,
         )
+        if not str(data.get("pin_hash", "")):
+            config.is_default = True
+            log.warning("parent config %s has no PIN; the dev default is in force", path)
+        return config
 
     def save(self, path: Path | None = None) -> Path:
         target = path or self.path
         if target is None:
             raise ValueError("ParentConfig has no path to save to")
+        if path is None and self.read_only:
+            raise PermissionError(f"{target} is root-owned; the shell must not rewrite it")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(self.to_toml(), encoding="utf-8")
         # The child must never be able to rewrite their own PIN or allow-list.
@@ -267,6 +336,27 @@ class ParentConfig:
                 f"age_band = {_toml_str(profile.age_band)}",
             ]
         return "\n".join(lines) + "\n"
+
+
+def warn_no_parent_config(stream: Any = None) -> None:
+    """Say, loudly and once, that this machine has no parent config.
+
+    A shell running on the dev PIN is a shell whose grown-up gate is 1234, and
+    that has to be impossible to miss in the journal.
+    """
+    out = stream if stream is not None else sys.stderr
+    looked = ", ".join(str(p) for p in system_config_candidates("parent.toml"))
+    banner = (
+        "\n"
+        "**********************************************************************\n"
+        "  kidnix: NO PARENT CONFIG FOUND. Running with built-in defaults:\n"
+        f"    grown-up PIN {DEFAULT_PIN}, every activity allowed, 25 minutes.\n"
+        f"  Looked in: {looked}\n"
+        "  This is fine for development and NOT fine on a child's machine.\n"
+        "**********************************************************************\n"
+    )
+    print(banner, file=out, flush=True)
+    log.warning("no parent config in %s; using built-in defaults (PIN %s)", looked, DEFAULT_PIN)
 
 
 def _toml_str(value: Any) -> str:

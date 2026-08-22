@@ -184,3 +184,21 @@ def test_sleeping_is_the_only_state_without_a_child_route_to_home() -> None:
         Event.LAUNCH_ACTIVITY,
     }
     assert not (set(TRANSITIONS[State.SLEEPING]) & child_events)
+
+
+def test_back_on_put_away_recovers_an_accidental_all_done() -> None:
+    """Spec 7a: one tap, no confirmation -- so Back has to be the undo.
+
+    The band ignores Back for the first three seconds
+    (``app.PUT_AWAY_BACK_LOCK_SECONDS``); after that this is the way home. If
+    the *clock* put the child here, the next tick simply brings the ritual
+    back, which is why this is safe to allow unconditionally in the graph.
+    """
+    machine = StateMachine(State.HOME)
+    assert machine.fire(Event.IM_FINISHED) is State.PUT_AWAY
+    assert machine.fire(Event.BACK) is State.HOME
+
+
+def test_put_away_still_leads_to_goodbye() -> None:
+    machine = StateMachine(State.PUT_AWAY)
+    assert machine.fire(Event.GOODBYE_DUE) is State.GOODBYE

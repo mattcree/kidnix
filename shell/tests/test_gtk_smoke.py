@@ -231,21 +231,77 @@ def test_goodbye_with_nothing_made_does_not_say_you_made_nothing(
     assert not screen.show_button.get_visible()
 
 
-def test_the_band_has_every_control_the_spec_names(ctx: ShellContext) -> None:
+def make_band(metrics, speech_ui):  # type: ignore[no-untyped-def]
     from kidnix_shell.band import Band, BandActions
 
     noop = lambda: None  # noqa: E731
-    band = Band(
-        ctx.metrics,
-        ctx.speech_ui,
-        BandActions(noop, noop, noop, noop, noop, noop),
-    )
-    for button in (band.back, band.undo, band.my_things, band.ear, band.ask):
+    return Band(metrics, speech_ui, BandActions(noop, noop, noop, noop, noop, noop))
+
+
+def test_the_band_has_every_control_the_spec_names(ctx: ShellContext) -> None:
+    band = make_band(ctx.metrics, ctx.speech_ui)
+    for button in (band.back, band.undo, band.my_things, band.ear):
         assert button.speak_text
-    assert band.ask.has_css_class("outline-only")
     assert band.grownup.has_css_class("grownup-gate")
     height = band.get_size_request()[1]
     assert height >= ctx.metrics.band_height
+
+
+def test_ask_is_not_in_the_band(ctx: ShellContext) -> None:
+    """Spec 7a: an always-disabled control teaches a child that buttons lie."""
+    from kidnix_shell import band as band_module
+
+    assert band_module.SHOW_ASK is False
+    assert make_band(ctx.metrics, ctx.speech_ui).ask is None
+
+
+def test_the_band_fits_the_panel_it_was_sized_for(ctx: ShellContext) -> None:
+    """The v0.1.0 bug: the band measured taller than the screen and got clipped."""
+    for width, height, dpi in ((1280, 800, 102.0), (1280, 800, 118.0), (1366, 768, 96.0)):
+        metrics = Metrics.for_screen(width, height, dpi=dpi)
+        band = make_band(metrics, ctx.speech_ui)
+        assert band.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.band_height
+        assert band.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= width
+
+
+def test_home_ends_with_the_all_done_tile(ctx: ShellContext) -> None:
+    """Spec 7a / SYNTHESIS D5: the child can say they have had enough."""
+    from kidnix_shell.screens.home import ALL_DONE, AllDone
+
+    screen = HomeScreen(ctx)
+    cells = screen.cells()
+    assert isinstance(cells[-1], AllDone)
+    assert cells[-1].speak_text == "All done for today?"
+    assert len(cells) == len(ctx.activities) + 1
+    assert ALL_DONE.icon == "kidnix-moon"
+
+
+def test_the_all_done_tile_runs_the_ending_ritual(ctx: ShellContext) -> None:
+    screen = HomeScreen(ctx)
+    screen._all_done()
+    assert ("finish_now", ()) in ctx.host.calls  # type: ignore[attr-defined]
+
+
+def test_home_measures_inside_the_panel_it_was_sized_for(ctx: ShellContext) -> None:
+    """Twelve tiles, a pager and a band, all inside a 1280x800 panel."""
+    metrics = Metrics.for_screen(1280, 800, dpi=102.0)
+    ctx.metrics = metrics
+    ctx.activities = [make_activity(f"a{i}") for i in range(12)]
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    box.append(make_band(metrics, ctx.speech_ui))
+    box.append(HomeScreen(ctx))
+    assert box.measure(Gtk.Orientation.VERTICAL, -1)[0] <= 800
+    assert box.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= 1280
+
+
+def test_a_shrunk_layout_shrinks_the_type_too(ctx: ShellContext) -> None:
+    """Points do not know about the fit factor, so theme.py restates them."""
+    from kidnix_shell.theme import dynamic_css
+
+    css = dynamic_css(Metrics.for_screen(1280, 800, dpi=118.0), ctx.profile)
+    assert ".tile-label" in css
+    provider = Gtk.CssProvider()
+    provider.load_from_string(css)  # must be valid CSS, not just a string
 
 
 def test_the_sun_moves_when_the_session_depletes(ctx: ShellContext) -> None:
@@ -270,3 +326,98 @@ def test_every_bundled_icon_loads() -> None:
     for icon in icons:
         image = Gtk.Image.new_from_file(str(icon))
         assert image.get_storage_type() != Gtk.ImageType.EMPTY, icon
+
+
+# --- the whole window (v0.1.1) ------------------------------------------
+
+
+def build_window(tmp_path: Path, screen: str = "1280x800@102"):  # type: ignore[no-untyped-def]
+    """A real ShellWindow, never presented, on a pretend panel."""
+    from kidnix_shell.app import ShellApplication, ShellWindow
+    from kidnix_shell.metrics import parse_screen
+
+    paths = Paths(
+        home=tmp_path,
+        data_home=tmp_path / "data",
+        config_home=tmp_path / "config",
+        cache_home=tmp_path / "cache",
+        state_home=tmp_path / "state",
+    )
+    config = ParentConfig()
+    application = ShellApplication(
+        paths=paths,
+        config=config,
+        policy=SessionPolicy.demo(),
+        activities=[make_activity(f"a{i}") for i in range(13)],
+        demo=True,
+        fullscreen=False,
+        speech_backend="null",
+    )
+    return ShellWindow(
+        application,
+        paths=paths,
+        config=config,
+        policy=SessionPolicy.demo(),
+        activities=application._activities,
+        demo=True,
+        fullscreen=False,
+        speech_backend="null",
+        screen=parse_screen(screen),
+    )
+
+
+@pytest.mark.parametrize("screen", ["1280x800@96", "1280x800@102", "1280x800@118", "1366x768@96"])
+def test_the_whole_shell_fits_the_panel_it_was_told_about(tmp_path: Path, screen: str) -> None:
+    """The regression the first real boot found, measured on the real tree."""
+    window = build_window(tmp_path, screen)
+    try:
+        width = window.metrics.screen_width
+        height = window.metrics.screen_height
+        assert window._root.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= width
+        assert window._root.measure(Gtk.Orientation.VERTICAL, -1)[0] <= height
+    finally:
+        window.shutdown()
+
+
+def test_all_done_runs_the_ritual_and_back_recovers_an_accident(tmp_path: Path) -> None:
+    """Spec 7a end to end: one tap, three dead seconds, then a way back."""
+    from kidnix_shell.state import State
+
+    window = build_window(tmp_path)
+
+    def state() -> State:
+        return window.machine.state
+
+    try:
+        window.choose_profile(window.ctx.profile)
+        assert state() is State.HOME
+
+        window.finish_now()
+        assert state() is State.PUT_AWAY
+
+        window.on_back()  # inside the three-second lock: nothing happens
+        assert state() is State.PUT_AWAY
+
+        window._back_locked_until = 0.0
+        window.on_back()
+        assert state() is State.HOME
+
+        # The goodbye timer that is still pending must not drag them back.
+        window._goodbye_now()
+        assert state() is State.HOME
+
+        window.finish_now()
+        window._goodbye_now()
+        assert state() is State.GOODBYE
+    finally:
+        window.shutdown()
+
+
+def test_undo_is_honest_when_there_is_nothing_to_undo(tmp_path: Path) -> None:
+    window = build_window(tmp_path)
+    try:
+        window.speech.backend = FakeBackend()
+        window.on_undo()
+        assert window.speech.last_utterance == "Nothing to undo."
+    finally:
+        window.shutdown()

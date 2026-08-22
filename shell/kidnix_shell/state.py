@@ -103,6 +103,11 @@ TRANSITIONS: dict[State, dict[Event, State | None]] = {
     },
     State.PUT_AWAY: {
         Event.GOODBYE_DUE: State.GOODBYE,
+        # Spec 7a: the escape hatch for an accidental "All done" tap. The band
+        # ignores Back for the first three seconds (see app.PUT_AWAY_BACK_LOCK
+        # _SECONDS); after that it takes the child home. If the *clock* put
+        # them here, the next tick simply brings the ritual back.
+        Event.BACK: State.HOME,
         Event.OPEN_GROWNUP: State.GROWNUP,
     },
     State.GOODBYE: {

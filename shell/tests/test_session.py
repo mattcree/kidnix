@@ -11,7 +11,9 @@ from kidnix_shell.session import (
     Session,
     SessionPolicy,
     StartRefusal,
+    budget_day,
     load_policy,
+    next_budget_reset,
 )
 
 from .conftest import NOW
@@ -208,3 +210,44 @@ def test_nonsense_values_in_the_policy_file_are_ignored(tmp_path: Path) -> None:
     policy = load_policy(path)
     assert policy.length == SessionPolicy().length
     assert policy.bedtime_start == SessionPolicy().bedtime_start
+
+
+# --- the 04:00 budget day (spec 7a) --------------------------------------
+
+
+def test_the_budget_day_rolls_at_four_in_the_morning() -> None:
+    """Midnight is the wrong boundary: 00:30 is still last night."""
+    assert budget_day(datetime(2026, 8, 18, 23, 59)) == date(2026, 8, 18)
+    assert budget_day(datetime(2026, 8, 19, 0, 30)) == date(2026, 8, 18)
+    assert budget_day(datetime(2026, 8, 19, 3, 59)) == date(2026, 8, 18)
+    assert budget_day(datetime(2026, 8, 19, 4, 0)) == date(2026, 8, 19)
+    assert budget_day(datetime(2026, 8, 19, 12, 0)) == date(2026, 8, 19)
+
+
+def test_the_next_reset_is_the_next_four_am() -> None:
+    assert next_budget_reset(datetime(2026, 8, 18, 12, 0)) == datetime(2026, 8, 19, 4, 0)
+    assert next_budget_reset(datetime(2026, 8, 19, 1, 0)) == datetime(2026, 8, 19, 4, 0)
+
+
+def test_a_midnight_snack_does_not_refill_the_budget(tmp_path: Path) -> None:
+    """The v0.1.0 behaviour handed a child a fresh hour at 00:00."""
+    # Bedtime off, so the only thing being tested is the budget boundary.
+    policy = SessionPolicy.from_minutes(
+        daily_budget=60, bedtime_start=time(0, 0), bedtime_end=time(0, 0)
+    )
+    usage = DailyUsage(day=budget_day(datetime(2026, 8, 18, 20, 0)), seconds=60 * 60)
+    session = Session(policy=policy, usage=usage)
+    assert session.may_start(datetime(2026, 8, 19, 0, 30)) is StartRefusal.BUDGET_SPENT
+    assert session.may_start(datetime(2026, 8, 19, 3, 59)) is StartRefusal.BUDGET_SPENT
+    # ...and at 04:00 tomorrow starts.
+    assert session.may_start(datetime(2026, 8, 19, 12, 0)) is StartRefusal.OK
+    assert usage.seconds == 0
+
+
+def test_usage_loaded_after_midnight_still_belongs_to_last_night(tmp_path: Path) -> None:
+    path = tmp_path / "usage.toml"
+    DailyUsage(day=date(2026, 8, 18), seconds=900, path=path).save()
+    late = DailyUsage.for_now(path, datetime(2026, 8, 19, 1, 0))
+    assert late.seconds == 900
+    fresh = DailyUsage.for_now(path, datetime(2026, 8, 19, 9, 0))
+    assert fresh.seconds == 0

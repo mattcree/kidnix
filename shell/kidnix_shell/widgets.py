@@ -33,6 +33,11 @@ from .speech import SpeechManager  # noqa: E402
 #: deliberate presses still read as two.
 DEBOUNCE_MS = 150
 
+#: theme.css: ``button.tile`` has 12 px of padding and 2/6 px borders. Fixed
+#: pixels, so they do *not* shrink with the layout and have to be budgeted for.
+TILE_CHROME_PX = 32
+TILE_SPACING_PX = 6
+
 #: 08 section 3.5: spatial transitions 350-450 ms so the journey is legible.
 TRANSITION_MS = 400
 
@@ -234,6 +239,7 @@ class ActivityTile(ChildButton):
         *,
         allowed: bool = True,
         thumbnail: Path | None = None,
+        extra_css: tuple[str, ...] = (),
     ) -> None:
         speak = getattr(activity, "speak_text", "")
         if not allowed:
@@ -242,15 +248,20 @@ class ActivityTile(ChildButton):
             speak_text=speak,
             on_activate=on_activate,
             speech_ui=speech_ui,
-            css_classes=("tile",) + (() if allowed else ("not-allowed",)),
+            css_classes=("tile",) + (() if allowed else ("not-allowed",)) + extra_css,
             size=metrics.tile_size,
             key=next_key(f"tile-{getattr(activity, 'id', 'x')}"),
         )
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=TILE_SPACING_PX)
         box.set_valign(Gtk.Align.CENTER)
 
-        icon_size = int(metrics.tile_size * 0.52)
+        # The icon takes whatever the label and the CSS padding leave. Sizing
+        # it at a flat 52% made the tile's *minimum* larger than the size we
+        # asked for on a shrunk layout, and a grid of minimums that each
+        # overshoot is how the band ended up off the top of the screen.
+        room = metrics.tile_size - metrics.tile_label_height - TILE_CHROME_PX - TILE_SPACING_PX
+        icon_size = max(24, min(int(metrics.tile_size * 0.52), room))
         icon = icon_image(
             getattr(activity, "icon", ""),
             getattr(activity, "icon_kind", "icon-name"),
@@ -396,4 +407,21 @@ def quiet_carousel() -> Adw.Carousel:
     carousel.set_allow_mouse_drag(False)
     carousel.set_allow_long_swipes(False)
     carousel.set_interactive(False)
+    # Nothing from the *next* page may show at the edge of this one. A sliver
+    # of a tile a child cannot reach is an invitation to try.
+    carousel.set_overflow(Gtk.Overflow.HIDDEN)
     return carousel
+
+
+def carousel_page(child: Gtk.Widget) -> Gtk.Widget:
+    """Wrap a page so it fills the carousel and its neighbours stay off-screen.
+
+    ``Adw.Carousel`` sizes a page to its natural width and centres it, which
+    lets the next page peek in beside a grid narrower than the screen.
+    """
+    page = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    page.set_hexpand(True)
+    page.set_vexpand(True)
+    child.set_hexpand(True)
+    page.append(child)
+    return page

@@ -23,6 +23,7 @@ import contextlib
 import logging
 import shutil
 import subprocess
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -32,6 +33,11 @@ log = logging.getLogger(__name__)
 #: 08 section 3.6 wants ~600 ms; the spec pins it at 300 ms so exploration is
 #: quick enough that a child sweeping the pointer hears the grid.
 HOVER_DWELL_MS = 300
+
+#: How long to wait before trying speech-dispatcher again after a failure.
+#: Long enough that a dead daemon costs nothing, short enough that a restart of
+#: speech-dispatcher is invisible to the child.
+RECONNECT_SECONDS = 5.0
 
 #: en-GB, "slightly slower than default". speechd rate is -100..100.
 SPEECH_RATE = -20
@@ -119,39 +125,118 @@ class SpdSayBackend:
         self.cancel()
 
 
+def open_ssip_client() -> Any:
+    """Connect to speech-dispatcher. Raises if the daemon is not there."""
+    import speechd  # imported lazily: absent on some dev hosts
+
+    client = speechd.SSIPClient("kidnix-shell")
+    client.set_language(SPEECH_LANGUAGE)
+    client.set_rate(SPEECH_RATE)
+    client.set_punctuation(speechd.PunctuationMode.NONE)
+    return client
+
+
 class SpeechdBackend:
-    """The real thing: an SSIP client to speech-dispatcher."""
+    """The real thing: an SSIP client to speech-dispatcher.
+
+    **Connects lazily and reconnects.** The spike
+    (``docs/spikes/session-integration.md`` §5.1) found that connecting at
+    startup is what makes ``python3-speechd`` autospawn a daemon inside the
+    shell's own cgroup; the unit now wants ``speech-dispatcher.socket``, but
+    the shell must not depend on the daemon being up at the moment it starts
+    either. So the socket is opened on the first utterance, and if
+    speech-dispatcher restarts (or was never there) we retry at most once every
+    :data:`RECONNECT_SECONDS` and log the state change **once**, not per event
+    -- a child hovering a grid of tiles must not fill the journal.
+    """
 
     name = "speechd"
 
-    def __init__(self, client: Any) -> None:
+    def __init__(
+        self,
+        client: Any = None,
+        connect: Callable[[], Any] | None = None,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._client = client
+        self._connect = connect or open_ssip_client
+        self._clock = clock
+        self._next_attempt = 0.0
+        self._down = False
+        self._ever_connected = client is not None
+        self.connects = 0
+        self.failures = 0
 
     @classmethod
     def create(cls) -> SpeechdBackend:
-        import speechd  # imported lazily: absent on some dev hosts
+        """Check that the bindings exist; do *not* open a socket yet."""
+        import speechd  # noqa: F401  -- presence check only
 
-        client = speechd.SSIPClient("kidnix-shell")
-        client.set_language(SPEECH_LANGUAGE)
-        client.set_rate(SPEECH_RATE)
-        client.set_punctuation(speechd.PunctuationMode.NONE)
-        return cls(client)
+        return cls()
+
+    @property
+    def connected(self) -> bool:
+        return self._client is not None
+
+    def _ensure(self) -> Any:
+        if self._client is not None:
+            return self._client
+        now = self._clock()
+        if (self._ever_connected or self._down) and now < self._next_attempt:
+            return None
+        self._next_attempt = now + RECONNECT_SECONDS
+        try:
+            self._client = self._connect()
+        except Exception as exc:
+            self.failures += 1
+            if not self._down:
+                log.warning("speech-dispatcher is not answering (%s); retrying quietly", exc)
+                self._down = True
+            return None
+        self.connects += 1
+        if self._down:
+            log.info("speech-dispatcher is back")
+        self._down = False
+        self._ever_connected = True
+        return self._client
+
+    def _drop(self, exc: Exception) -> None:
+        """The daemon went away mid-session. Say so once, then reconnect later."""
+        if not self._down:
+            log.warning("speech-dispatcher went away (%s); will reconnect", exc)
+            self._down = True
+        client, self._client = self._client, None
+        self._next_attempt = self._clock() + RECONNECT_SECONDS
+        if client is not None:
+            with contextlib.suppress(Exception):
+                client.close()
 
     def speak(self, text: str) -> None:
+        client = self._ensure()
+        if client is None:
+            return
         try:
-            self._client.cancel()
-            self._client.speak(text)
+            client.cancel()
+            client.speak(text)
         except Exception as exc:  # the daemon can go away mid-session
-            log.warning("speech-dispatcher speak failed: %s", exc)
+            self._drop(exc)
 
     def cancel(self) -> None:
-        # The daemon can disappear mid-session; that is not the child's problem.
-        with contextlib.suppress(Exception):
-            self._client.cancel()
+        # Never *opens* a connection: cancelling nothing is free, and this is
+        # called on every utterance.
+        client = self._client
+        if client is None:
+            return
+        try:
+            client.cancel()
+        except Exception as exc:
+            self._drop(exc)
 
     def close(self) -> None:
-        with contextlib.suppress(Exception):
-            self._client.close()
+        client, self._client = self._client, None
+        if client is not None:
+            with contextlib.suppress(Exception):
+                client.close()
 
 
 class FakeBackend:
@@ -175,7 +260,12 @@ class FakeBackend:
 
 
 def select_backend(prefer: str | None = None) -> SpeechBackend:
-    """Pick the best available voice. Never raises."""
+    """Pick the best available voice. Never raises, never opens a socket.
+
+    Selection is a *module import* check only: the socket is opened on the
+    first utterance so that nothing here can block the shell's startup on a
+    daemon that has not come up yet.
+    """
     if prefer == "null":
         return NullBackend()
     if prefer in (None, "speechd"):

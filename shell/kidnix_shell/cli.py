@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import __version__
 from .activities import LoadResult, default_activity_dirs, load_activities, load_directory
+from .metrics import ScreenOverride, parse_screen
 from .session import SessionPolicy, load_policy
 from .settings import ParentConfig, Paths
 
@@ -39,7 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="check activity manifests and exit non-zero if any are invalid",
     )
     parser.add_argument(
-        "--config", type=Path, help="parent config TOML to use instead of the default"
+        "--config",
+        type=Path,
+        help=(
+            "parent config TOML to use instead of the root-owned one "
+            "(development only: the shell never reads the child's own config)"
+        ),
     )
     parser.add_argument("--session-config", type=Path, help="session policy TOML")
     parser.add_argument(
@@ -48,7 +54,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--windowed", action="store_true", help="do not go fullscreen (development)"
     )
+    parser.add_argument(
+        "--screen",
+        type=screen_override,
+        metavar="WxH[@DPI]",
+        help=(
+            "pretend the monitor is this size and density, e.g. 1280x800@102 -- "
+            "the way to see on a big desktop what a small panel gets"
+        ),
+    )
+    parser.add_argument(
+        "--generate-earcons",
+        nargs="?",
+        const="",
+        metavar="DIR",
+        help="write the four generated earcons and exit (used at image build)",
+    )
     parser.add_argument("--run-seconds", type=float, help="quit after N seconds (smoke tests)")
+    parser.add_argument(
+        "--screenshot",
+        type=Path,
+        metavar="PATH",
+        help="write a PNG of the shell's own window before quitting (development)",
+    )
     parser.add_argument(
         "--speech",
         choices=("auto", "speechd", "spd-say", "null"),
@@ -57,6 +85,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     return parser
+
+
+def screen_override(text: str) -> ScreenOverride:
+    """argparse type for ``--screen``."""
+    try:
+        return parse_screen(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def configure_logging(verbose: bool) -> None:
@@ -99,8 +135,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.validate_manifests is not None:
         return validate_manifests(args.validate_manifests, paths)
 
-    config_path = args.config or paths.parent_config
-    config = ParentConfig.load(config_path)
+    if args.generate_earcons is not None:
+        from .sound import generate, package_sounds_dir
+
+        directory = Path(args.generate_earcons) if args.generate_earcons else package_sounds_dir()
+        for path in generate(directory):
+            print(f"wrote {path}")
+        return 0
+
+    # The parent config is read only from root-owned locations; --config is a
+    # developer naming a file, and is the only other path we will ever read.
+    config = ParentConfig.discover(args.config)
 
     if args.demo:
         from .demo import build_demo_world
@@ -119,6 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         config.allowed_activity_ids = allowed
         config.path = paths.config_home / "kidnix" / "parent.toml"
+        config.read_only = False
         policy = SessionPolicy.demo()
         log.info("demo world in %s (%d activities, 3-minute session)", root, len(activities))
     else:
@@ -142,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
         fullscreen=not args.windowed,
         speech_backend=None if args.speech == "auto" else args.speech,
         run_seconds=args.run_seconds,
+        screen=args.screen,
+        screenshot=args.screenshot,
     )
     return int(application.run([]))
 

@@ -56,6 +56,14 @@ fix:
     {{uvrun}} ruff check --fix .
     {{uvrun}} ruff format .
 
+# Generate the four earcons (keep/tap/back/sleep) -- run at image build time.
+earcons DIR="":
+    {{python}} -m kidnix_shell.sound {{DIR}}
+
+# Run the demo as if the monitor were a small panel (the one the boot clipped).
+demo-small SCREEN="1280x800@102" *ARGS:
+    {{python}} -m kidnix_shell --demo --windowed --screen {{SCREEN}} {{ARGS}}
+
 # Check the activity manifests the image ships. Exits non-zero on any error.
 validate-manifests DIR="../system_files/usr/share/kidnix/activities":
     {{python}} -m kidnix_shell --validate-manifests {{DIR}}

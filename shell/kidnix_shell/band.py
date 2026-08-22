@@ -1,10 +1,18 @@
 """The band (spec section 2, 08 section 5.2).
 
-``[Back] [Undo] [My Things] ...... [sun] ...... [Ear] [Ask] [Grown-up]``
+``[Back] [Undo] [My Things] ...... [sun] ...... [Ear] [Grown-up]``
 
-96 design px at the top of the screen. It never hides, never scrolls, never
-reorders, and it is tinted in the active child's colours. It is the only piece
-of chrome in the shell and the child's fixed point in it.
+96 design px at the top of the screen, clamped to 80-128 px so it can never
+grow past the panel (spec 7a). It never hides, never scrolls, never reorders,
+and it is tinted in the active child's colours. It is the only piece of chrome
+in the shell and the child's fixed point in it.
+
+**Ask is not here.** Spec 7a: an always-disabled control teaches a child that
+buttons lie, so the envelope is out of the band entirely until the
+ask-a-grown-up flow exists. :data:`SHOW_ASK` is the one-line switch back.
+**Undo is** here, on every surface, and says "Nothing to undo" when there is
+nothing -- a fixed position the child can rely on beats a control that comes
+and goes.
 
 The sun is the timer. It travels left to right and sinks as the session
 depletes, warming in the last six minutes. There are no digits: 08 section 4.6
@@ -23,7 +31,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from .metrics import Metrics  # noqa: E402
+from .metrics import BAND_CHROME_PX, Metrics  # noqa: E402
 from .widgets import ChildButton, SpeechUI, icon_image, next_key  # noqa: E402
 
 #: Spec section 2 / SYNTHESIS G2: the grown-up gate is a three-second hold.
@@ -31,6 +39,10 @@ from .widgets import ChildButton, SpeechUI, icon_image, next_key  # noqa: E402
 #: which is exactly what this is. No child control anywhere uses one.
 HOLD_SECONDS = 3.0
 HOLD_TICK_MS = 50
+
+#: Spec 7a: hide Ask until the flow exists. Flip to True the day it does --
+#: :class:`BandActions` and the icon are both still here.
+SHOW_ASK = False
 
 
 @dataclass
@@ -41,8 +53,9 @@ class BandActions:
     on_undo: Callable[[], None]
     on_my_things: Callable[[], None]
     on_ear: Callable[[], None]
-    on_ask: Callable[[], None]
     on_grownup: Callable[[], None]
+    #: Only ever called when :data:`SHOW_ASK` is on.
+    on_ask: Callable[[], None] | None = None
 
 
 class Sun(Gtk.DrawingArea):
@@ -54,7 +67,7 @@ class Sun(Gtk.DrawingArea):
         self.fraction = 0.0  # 0 = start of session, 1 = the hard stop
         self.warm = False
         self.set_hexpand(True)
-        self.set_content_height(metrics.band_height - metrics.design(16))
+        self.set_content_height(max(24, metrics.band_height - BAND_CHROME_PX))
         self.set_draw_func(self._draw)
         # Decorative: the spoken session state comes from the Ear, not from here.
         self.set_accessible_role(Gtk.AccessibleRole.IMG)
@@ -215,8 +228,10 @@ class Band(Gtk.Box):
         row = Gtk.CenterBox()
         row.set_hexpand(True)
 
-        target = max(metrics.min_target, metrics.design(80))
-        small = max(metrics.min_target, metrics.design(56))
+        # Both sized to live inside the band's clamped height: a target that
+        # does not fit is a target whose top is off the screen (v0.1.0's bug).
+        target = metrics.band_target
+        small = metrics.band_small_target
         icon_px = int(target * 0.62)
 
         # Left: Back, Undo, My Things -- >= 80 px, >= 32 px apart (spec).
@@ -238,15 +253,17 @@ class Band(Gtk.Box):
         centre.append(self.sun)
         row.set_center_widget(centre)
 
-        # Right: Ear, Ask (outline-only in v0.1), Grown-up (hold 3 s).
+        # Right: Ear, Grown-up (hold 3 s). Ask is absent (spec 7a).
         right = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap)
         self.ear = self._button(
             "Say it again", "kidnix-ear", target, icon_px, actions.on_ear, speech_ui
         )
-        self.ask = self._button(
-            "Ask a grown-up", "kidnix-ask", target, icon_px, actions.on_ask, speech_ui
-        )
-        self.ask.add_css_class("outline-only")
+        self.ask: ChildButton | None = None
+        if SHOW_ASK and actions.on_ask is not None:
+            self.ask = self._button(
+                "Ask a grown-up", "kidnix-ask", target, icon_px, actions.on_ask, speech_ui
+            )
+            self.ask.add_css_class("outline-only")
 
         self.hold_progress = Gtk.ProgressBar()
         self.hold_progress.add_css_class("hold-progress")
@@ -262,8 +279,10 @@ class Band(Gtk.Box):
         )
         self.grownup.set_child(icon_image("kidnix-grownup", "icon-name", int(small * 0.66)))
 
-        for widget in (self.ear, self.ask, self.grownup):
-            right.append(widget)
+        right.append(self.ear)
+        if self.ask is not None:
+            right.append(self.ask)
+        right.append(self.grownup)
         row.set_end_widget(right)
 
         self.append(row)
