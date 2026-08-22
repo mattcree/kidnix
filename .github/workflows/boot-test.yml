@@ -135,14 +135,28 @@ jobs:
           # it boots -- the only diagnostic available when sshd never answers.
           # The module is not loaded on a stock runner.
           sudo modprobe vhost_vsock || echo "::warning::no vhost_vsock; the guest journal stream will be missing"
+          # 0660 root:kvm otherwise, and `runner` is not in the kvm group.
+          sudo chmod 0666 /dev/vhost-vsock || true
+          # Ubuntu 24.04 forbids unprivileged user namespaces to unconfined
+          # processes (AppArmor). bcvk's container entrypoint unshares one --
+          # it runs virtiofsd and QEMU under bwrap -- so without this the
+          # container exits before QEMU starts: no console.txt, no journal,
+          # nothing but an empty output directory. Fedora has no such
+          # restriction, which is why this only ever bites in CI.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           ls -l /dev/kvm /dev/vhost-vsock /dev/vhost-net 2>&1 || true
-          echo "--- qemu ---";      qemu-system-x86_64 --version | head -1
-          echo "--- virtiofsd ---"; ls -l /usr/libexec/virtiofsd /usr/lib/virtiofsd 2>&1 || true
-          echo "--- podman ---";    podman version
-          echo "--- cpu ---";       nproc; grep -c '^processor' /proc/cpuinfo
-          grep -Eo 'vmx|svm|hypervisor' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
-          echo "--- session ---";   id; echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}"
-          free -m
+          # Nothing below may fail the step: this is a report, not a gate.
+          {
+            echo "--- qemu ---";      qemu-system-x86_64 --version
+            echo "--- virtiofsd ---"; ls -l /usr/libexec/virtiofsd /usr/lib/virtiofsd
+            echo "--- podman ---";    podman version
+            echo "--- cpu ---";       nproc
+            grep -Eo 'vmx|svm|hypervisor' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
+            echo "--- session ---";   id; echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}"
+            echo "--- userns ---"
+            sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces
+            free -m
+          } 2>&1 || true
 
       - name: Build image
         if: steps.kvm.outputs.available == 'true' && inputs.image_ref == ''
@@ -201,13 +215,24 @@ jobs:
         # the host-side diagnostics are the entire value of this job when it
         # breaks, and naming individual files is how we ended up with a failing
         # run and no artifact at all.
+        #
+        # continue-on-error because the upload is a convenience, not the test:
+        # this account has run out of Actions artifact storage before, and a
+        # storage quota must never be able to fail a boot that passed. The job
+        # log carries the same diagnostics either way.
         if: always() && steps.kvm.outputs.available == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: boot-test-artifacts
-          path: output/
+          # journal*.json is the raw stream; boot-journal-stream.txt is the
+          # same content in a form a human reads, at a fraction of the size.
+          path: |
+            output/
+            !output/journal*.json
+            !output/qcow2
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
 
       - name: Clean up any VM left behind
         if: always() && steps.kvm.outputs.available == 'true'

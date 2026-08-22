@@ -362,7 +362,12 @@ class EphemeralVM:
             "ephemeral",
             "run",
             "--detach",
-            "--rm",
+            # Deliberately NOT --rm. If the VM container dies -- which is what
+            # a broken host looks like: bcvk's entrypoint fails before QEMU
+            # ever starts, so there is no console.txt and no journal either --
+            # then `podman logs` is the only record of why, and `--rm` throws
+            # it away microseconds before we ask. We remove the container
+            # ourselves in __exit__ instead.
             "--ssh-keygen",
             "--name",
             self.name,
@@ -423,8 +428,10 @@ class EphemeralVM:
                 break
             if not self.is_running():
                 raise BootTestError(
-                    f"the VM container '{self.name}' exited before ssh came up. "
-                    f"See {self.args.output_dir}/console.txt"
+                    f"the VM container '{self.name}' exited before ssh came up "
+                    f"({self.exit_state()}).\nThat is bcvk's entrypoint failing, not "
+                    f"the guest: look at `podman logs` in "
+                    f"{self.args.output_dir}/diagnostics.txt, not at console.txt."
                 )
             try:
                 proc = self.ssh("echo ready", timeout=min(remaining, SSH_POLL_SECONDS))
@@ -448,8 +455,29 @@ class EphemeralVM:
         )
 
     def is_running(self) -> bool:
-        proc = run(["podman", "container", "exists", self.name], timeout=30)
-        return proc.returncode == 0
+        """True only while the container is actually running.
+
+        Not `podman container exists`: that is true of a container that exited
+        thirty seconds ago, which is precisely the case we need to catch.
+        """
+        proc = run(
+            ["podman", "inspect", self.name, "--format", "{{.State.Running}}"],
+            timeout=30,
+        )
+        return proc.returncode == 0 and clean(proc.stdout).strip() == "true"
+
+    def exit_state(self) -> str:
+        proc = run(
+            [
+                "podman",
+                "inspect",
+                self.name,
+                "--format",
+                "status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}",
+            ],
+            timeout=30,
+        )
+        return clean(proc.stdout).strip() or "unknown (container is gone)"
 
     def diagnostics(self) -> str:
         """Everything worth knowing when the VM never answered.
@@ -508,15 +536,31 @@ class EphemeralVM:
             ),
             ("id", ["id"]),
             (
+                # bcvk's entrypoint unshares a user namespace (bwrap). Ubuntu
+                # 24.04 forbids that for unconfined processes by default, which
+                # kills the container before QEMU exists.
+                "unprivileged user namespaces",
+                [
+                    "sh",
+                    "-c",
+                    "for f in /proc/sys/kernel/apparmor_restrict_unprivileged_userns "
+                    "/proc/sys/user/max_user_namespaces "
+                    "/proc/sys/kernel/unprivileged_userns_clone; do "
+                    'printf "%s=" "$f"; cat "$f" 2>&1 || true; done',
+                ],
+            ),
+            (
                 "podman info (host)",
                 [
                     "podman",
                     "info",
                     "--format",
                     "rootless={{.Host.Security.Rootless}} runtime={{.Host.OCIRuntime.Name}} "
-                    "cgroups={{.Host.CgroupVersion}}/{{.Host.CgroupManager}} "
-                    "net={{.Host.NetworkBackend}}/{{.Host.RootlessNetworkCmd}} "
-                    "cpus={{.Host.CPUs}} kernel={{.Host.Kernel}}",
+                    "cgroups={{.Host.CgroupsVersion}}/{{.Host.CgroupManager}} "
+                    "apparmor={{.Host.Security.AppArmorEnabled}} "
+                    "selinux={{.Host.Security.SELinuxEnabled}} "
+                    "net={{.Host.NetworkBackend}} cpus={{.Host.CPUs}} "
+                    "kernel={{.Host.Kernel}}",
                 ],
             ),
             ("free -m", ["free", "-m"]),
@@ -862,7 +906,12 @@ def run_boot_test(args: argparse.Namespace) -> int:
 
             used_kvm = vm.qemu_used_kvm()
 
-            remaining = max(30.0, deadline - time.monotonic())
+            # The probe has its own waits inside the guest (up to ~90 s for the
+            # shell unit, ~60 s for the session, then the kill/restart), so it
+            # gets a floor rather than whatever scraps of --timeout a slow boot
+            # left behind. Cutting the probe off mid-flight reports "no result
+            # block" -- a sentence that tells you nothing about the machine.
+            remaining = max(240.0, deadline - time.monotonic())
             result = vm.ssh(GUEST_PROBE, timeout=remaining)
             if args.verbose:
                 print(clean(result.stdout))
