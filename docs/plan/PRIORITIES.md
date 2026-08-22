@@ -14,17 +14,17 @@ manipulation) can all be demonstrated with one activity. Breadth is cheap
 afterwards; the loop is the hard part.
 
 1. **Build/boot/test loop** — `just ci`, bcvk VM boot test in CI, `just vm`,
-   fast upgrade of a running VM. *(in progress)*
+   fast upgrade of a running VM. *(done; CI boot-test on GitHub in progress)*
 2. **Locked-down child session** — autologin → gnome-kiosk; no egress by UID;
    polkit deny; no VT/keybinding escape; shell auto-restart; audio cap;
-   greenboot rollback; updates parent-driven. *(in progress)*
+   greenboot rollback; updates parent-driven. *(done at image level; egress verified in VM)*
 3. **Parent session** — stock GNOME for `parent` on the same GDM screen; GNOME
-   50 parental controls usable as-is for the things they cover. *(next)*
+   50 parental controls usable as-is for the things they cover. *(done)*
 4. **Shell v0.1** (GTK4/libadwaita, Python): Who's-here → Home (≤ 12 tiles) →
    Activity → My Things; the band (Back · Undo · My Things · sun · Ear · Ask ·
    Grown-up); read-aloud on focus/hover via speech-dispatcher; session timer
    with Ending offer / Put away / Goodbye; parent gate (hold + PIN); single
-   profile first, profiles data model from day one.
+   profile first, profiles data model from day one. *(v0.1 built; boots in VM; fit-to-screen + rulings in progress)*
 5. **Journal v0.1** — watch activity output dirs, auto-import, thumbnails,
    Today/Yesterday/Before, resume, favourites shelf, "show a grown-up" export
    folder; open formats.
@@ -80,14 +80,14 @@ generative AI in the child session · age verification · a forked desktop.
 
 ## Day-one checklist (what "done" means for M0/M1 before a child touches it)
 
-- [ ] `just ci` green locally and in GitHub Actions
+- [x] `just ci` green locally and in GitHub Actions
 - [ ] bcvk boot test green in CI; screenshot artefact uploaded
 - [ ] Child session: no egress (tested from inside the VM), no VT switch, no
       shell escape via any keybinding in a 5-minute mash test, shell restarts
       after kill
-- [ ] Parent session reachable and usable (stock GNOME), can run updates and
-      roll back
-- [ ] `docs/LICENSES.md` exists and covers every bundled third-party asset
-- [ ] ADR-0004…0009 written
-- [ ] Activity manifests validated in CI; GCompris speaks offline
-- [ ] First shell screenshot in README
+- [~] Parent session reachable (stock GNOME); updates/rollback not yet
+      exercised in a VM
+- [x] `docs/LICENSES.md` exists (fonts, base; voices to add)
+- [x] ADR-0004…0009 written
+- [~] Activity manifests validated in CI; GCompris speaking offline unverified
+- [x] First shell screenshot in README
