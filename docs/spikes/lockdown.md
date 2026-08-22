@@ -231,6 +231,134 @@ should plan it, but it changes how GDM starts us and what the boot test asserts;
 this wrapper gets the same behaviour today with one moving part. Recorded as an
 open question in §4.
 
+### 1.3b Trackpad and touch hardening
+
+Research 09 Q7's verdict is blunt: *"a five-year-old on a trackpad is the worst
+pointing case in the household"*, so **optimise for mouse and touch, treat the
+trackpad as the degraded path, and harden it in software.** That is now
+`/usr/share/kidnix/dconf/kid.d/11-trackpad` plus `locks/11-trackpad`. The whole
+`org.gnome.desktop.peripherals.touchpad` schema moved out of `10-input` into
+that file — one schema, one keyfile — and the build fails if it ever appears in
+two, because `dconf compile` resolves a duplicate key by directory order and
+nobody should have to reason about that.
+
+**Every key was checked against this image's schemas**, not against memory:
+`gsettings list-recursively org.gnome.desktop.peripherals.touchpad` on GNOME 50
+lists `send-events`, `tap-to-click`, `tap-and-drag`, `tap-and-drag-lock`,
+`tap-button-map`, `click-method`, `middle-click-emulation`,
+`two-finger-scrolling-enabled`, `edge-scrolling-enabled`, `natural-scroll`,
+`left-handed`, `disable-while-typing`, `disable-while-typing-timeout`,
+`accel-profile`, `speed`.
+
+**These keys are read by mutter itself, which is why they work here.** Verified
+by grepping `/usr/lib64/libmutter-18.so.0`: it contains the key names *and*
+`libinput_device_config_{tap,click,scroll}_set_*`. gnome-kiosk is mutter, so
+the settings apply in the kid session even though no `gnome-settings-daemon`
+input plugin is running in it. The image test asserts that grep, so a GNOME
+release that moves the input backend out of mutter tells us.
+
+| Key | Value | Why |
+|---|---|---|
+| `tap-to-click` | `false` | 09 Q7. Accidental taps from a resting palm or a wandering finger are the trackpad's dominant failure mode with small hands, and A3 ("input registers on press") makes every accidental tap a real action. |
+| `click-method` | `'fingers'` | See below — this is the decision that needed making. |
+| `two-finger-scrolling-enabled` | `false` | 09 Q7; A2 bans multi-touch as a design rule and this enforces it. |
+| `edge-scrolling-enabled` | `false` | Same. Both false is what turns scrolling *off*. |
+| `send-events` | `'enabled'` | The pointer must never silently die. |
+| `disable-while-typing` (+ `timeout` 1000 ms) | `true` | 06 spec 6; the closest thing GNOME exposes to "maximum palm rejection". |
+| `middle-click-emulation` | `false` | Never invent a button a child did not press. Mirrors the mouse. |
+| `accel-profile` | `'flat'` | 06 spec 4, as for the mouse. |
+| `speed` | `-0.2` | Moderate, and **not locked** — see below. |
+| `org.gnome.mutter edge-tiling` | `false` | 06 spec 17: nothing a child needs lives at a screen edge. |
+| `org.gnome.settings-daemon.peripherals.touchscreen orientation-lock` | `true` | Convertibles: no screen spinning mid-drawing. **Not locked** — see below. |
+
+**`click-method='fingers'`, and `'default'` is a trap.** The choice is between
+`'areas'` (libinput button-areas: the bottom edge of the pad is divided into
+left / middle / right button zones) and `'fingers'` (clickfinger: one finger
+down is a left click *anywhere* on the pad, two is right, three is middle).
+`'areas'` means pressing in the wrong place is a right-click — a
+position-driven misfire, and a child presses wherever their finger happens to
+be. Clickfinger's misfire needs two separate fingers in contact at once, which
+is rarer and which libinput's palm detection already works against. So
+`'fingers'` minimises accidental right/middle clicks, and it is set
+**explicitly rather than left at `'default'`**: `'default'` defers to
+libinput's per-device default, which is button-areas on every touchpad except
+Apple's — i.e. `'default'` would quietly mean `'areas'` on the ThinkPad-class
+hardware we actually target. (`'none'` disables the click button entirely and
+leaves a child with no way to click at all.) 06 §7.1 spec 3 — both buttons do
+the same primary thing — means a stray right-click is harmless *inside our
+shell*; it is not harmless inside a third-party activity, which is why this is
+tuned rather than ignored.
+
+**Disabling both scroll booleans really does mean no scrolling.** There is no
+third key. mutter picks two-finger if enabled, else edge if enabled, else the
+disabled scroll method, which becomes libinput's `SCROLL_NO_SCROLL`. `natural-
+scroll` is therefore irrelevant and is **deliberately not set** — writing it
+would be a taste call dressed up as evidence, and a key that reads back as a
+lie about what the session does. A mouse wheel and a TrackPoint are separate
+devices and keep scrolling; 06 §7.1 spec 11 says never *require* scroll
+anyway (paginate, or offer large on-screen up/down buttons).
+
+**`send-events='enabled'`, not `'disabled-on-external-mouse'`.** The latter is
+tempting — research says optimise for the mouse, so kill the trackpad when a
+mouse appears — but a trackpad that stops working when a mouse is plugged in
+(and comes back when its battery dies) is exactly the kind of unexplained state
+change a five-year-old cannot diagnose, with no adult-visible error anywhere.
+Determinism wins. Recorded for the thinker as a one-value change if the family
+decides otherwise.
+
+**Two keys are deliberately left writable, and the build asserts that too.**
+`speed`, because -0.2 is a starting point to be measured with the child
+(SYNTHESIS §6 #5), not a finding — it is deliberately *less* slow than the
+mouse's -0.4 because libinput applies an extra constant deceleration to
+touchpads on top of the profile, and with tap-to-click off every click now
+costs a reach and a press, so the pointer has to cross the screen without
+repeated clutching. And `orientation-lock`, because 09 Q7 recommends **tent
+mode** as the touch-first posture for 4–6 and getting into tent mode needs one
+rotation; a locked key could not be flipped even by the parent panel acting on
+the child's behalf (same rationale as `text-scaling-factor`). Everything else
+in the table is locked.
+
+**Gestures: there is no gsettings key, and that is a finding, not an
+omission.** Swept *every* installed schema for keys matching
+`*gesture*|*swipe*|*finger*`; the only hits are `a11y.mouse dwell-gesture-*`,
+`touchpad tap-and-drag*` and `two-finger-scrolling-enabled`. Multi-finger
+swipes are not configurable in GNOME 50 and libinput has no gesture-disable
+API either. What we can say instead:
+
+- mutter turns libinput gestures into Wayland `zwp_pointer_gestures_v1`
+  swipe/pinch/hold events and **forwards them to the focused client**. It
+  implements no workspace or overview swipe of its own — that is gnome-shell's
+  JS `SwipeTracker`, which is not running in a kiosk session.
+- `/usr/bin/gnome-kiosk` contains **no** gesture or swipe strings at all
+  (asserted by the image test). So three- and four-finger swipes in the kid
+  session go nowhere unless the shell itself asks for
+  `zwp_pointer_gestures_v1`.
+- **Therefore this is a requirement on the shell, not on the image:** the
+  kidnix shell must not bind multi-finger gestures (A2 / 06 spec 12 already say
+  so). `num-workspaces=1` and the blanked keybindings mean there is nowhere for
+  a swipe to go even if one were delivered.
+
+**Touchscreen: mostly not configurable here.**
+`org.gnome.desktop.peripherals.touchscreen` is a **relocatable** schema —
+per-device, under `/org/gnome/desktop/peripherals/touchscreens/<device>/` — and
+its only key is `output` (monitor mapping). There is no profile-wide touchscreen
+setting to lock, and we cannot know a device id at build time.
+`org.gnome.settings-daemon.peripherals.touchscreen` *is* non-relocatable, has
+exactly one key (`orientation-lock`), and is set as above. On hardware with no
+accelerometer this is simply inert.
+
+**Not verified — add to §3.** (i) That `'fingers'` actually reduces a *child's*
+misfire rate; there is no child evidence on trackpad click methods at all
+(09 Q7 marks it `GAP`), so this is reasoned, not measured — it is exactly what
+the T480 protocol in 09 §11 should count. (ii) That both scroll booleans false
+produces `SCROLL_NO_SCROLL` on real hardware; the mapping is read out of
+mutter's use of libinput's scroll-method API, not observed. (iii) That
+`disable-while-typing` plus libinput's automatic palm detection is enough palm
+rejection for a five-year-old's hand — libinput exposes no palm-rejection knob,
+so "maximum palm rejection" from 09 Q7 is as implemented as it can be.
+(iv) Whether `orientation-lock=true` interacts badly with putting the machine
+*into* tent mode; leaving the key writable is the mitigation, not the answer.
+
 ### 1.4 Audio safety
 
 Research 07 §2.4 is honest that PipeWire has **no** declarative max-volume and

@@ -341,6 +341,55 @@ check_locked  org.gnome.desktop.lockdown          disable-command-line
 check_locked  org.gnome.desktop.peripherals.mouse double-click
 check_locked  org.gnome.mutter.wayland.keybindings switch-to-session-2
 
+# Trackpad hardening (research 09 Q7). The trackpad is the worst pointing
+# device in the house for a five-year-old and the one cheap laptops ship with,
+# so these are the keys that decide whether it is usable or a source of
+# invisible misfires. Spelled out here as well as caught by the generic
+# read-back loop above, because a silent regression to GNOME's adult defaults
+# (tap-to-click on, click-method deferring to libinput's button-areas,
+# two-finger scrolling on) looks like nothing at all in a diff.
+check_setting org.gnome.desktop.peripherals.touchpad tap-to-click                false
+check_setting org.gnome.desktop.peripherals.touchpad click-method                "'fingers'"
+check_setting org.gnome.desktop.peripherals.touchpad two-finger-scrolling-enabled false
+check_setting org.gnome.desktop.peripherals.touchpad edge-scrolling-enabled      false
+check_setting org.gnome.desktop.peripherals.touchpad send-events                 "'enabled'"
+check_setting org.gnome.desktop.peripherals.touchpad disable-while-typing        true
+check_setting org.gnome.desktop.peripherals.touchpad middle-click-emulation      false
+check_setting org.gnome.desktop.peripherals.touchpad accel-profile               "'flat'"
+check_setting org.gnome.mutter                       edge-tiling                 false
+check_setting org.gnome.settings-daemon.peripherals.touchscreen orientation-lock true
+check_locked  org.gnome.desktop.peripherals.touchpad tap-to-click
+check_locked  org.gnome.desktop.peripherals.touchpad click-method
+check_locked  org.gnome.desktop.peripherals.touchpad two-finger-scrolling-enabled
+check_locked  org.gnome.desktop.peripherals.touchpad send-events
+
+# ...and the two that are deliberately NOT locked, because a parent has to be
+# able to turn them: pointer speed for a specific child, and rotation for tent
+# mode. A lock added here by accident would be silent and unrecoverable
+# without a new image.
+check_writable() {
+    local schema="$1" key="$2" writable
+    writable="$(DCONF_PROFILE=kid gsettings writable "${schema}" "${key}" 2>/dev/null || echo '<error>')"
+    [[ "${writable}" == "true" ]] \
+        || die "kid profile: ${schema} ${key} is locked (${writable}); the parent could not change it"
+}
+check_writable org.gnome.desktop.peripherals.touchpad speed
+check_writable org.gnome.settings-daemon.peripherals.touchscreen orientation-lock
+
+# The touchpad schema must be described in exactly one keyfile. Two keyfiles
+# setting the same key is resolved by dconf compile in directory order, which
+# is not something anyone should have to reason about, and the read-back loop
+# above would blame whichever one lost.
+# Anchored, so prose *about* the move (there is a pointer comment in 10-input)
+# does not count as setting the schema. `-d skip` because locks/ is a
+# directory, and `|| true` because grep exits non-zero when nothing matches,
+# which under pipefail would abort the build with a far less useful message
+# than the die below.
+touchpad_files="$({ grep -lE -d skip '^\[org/gnome/desktop/peripherals/touchpad\]$' \
+    "${DCONF_SRC}"/* || true; } | wc -l)"
+(( touchpad_files == 1 )) \
+    || die "the touchpad schema appears in ${touchpad_files} keyfiles; it must live only in 11-trackpad"
+
 # And that the profile is inert for anyone who is not the child.
 default_cursor="$(gsettings get org.gnome.desktop.interface cursor-size 2>/dev/null || echo '<error>')"
 [[ "${default_cursor}" != "48" ]] \

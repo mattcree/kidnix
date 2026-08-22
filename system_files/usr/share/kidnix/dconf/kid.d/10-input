@@ -28,17 +28,11 @@ middle-click-emulation=false
 # finding either way, and changing it would be a taste call in a file that is
 # meant to carry only evidence.
 
-[org/gnome/desktop/peripherals/touchpad]
-# Spec 6: press-move-release drag without holding the button down.
-tap-and-drag=true
-tap-and-drag-lock=true
-tap-to-click=true
-# Spec 6: 500 -> 1000 ms, so a slow typist's hand resting on the pad does not
-# start clicking.
-disable-while-typing=true
-disable-while-typing-timeout=uint32 1000
-accel-profile='flat'
-speed=-0.4
+# The whole [org/gnome/desktop/peripherals/touchpad] block moved to
+# 11-trackpad. 09 Q7 turns tap-to-click and both scroll methods OFF, which is
+# a different (and later) finding from 06 spec 6, and the trackpad now needs
+# enough explanation to deserve its own file. Setting a key in two keyfiles is
+# a build failure, so it lives in exactly one.
 
 [org/gnome/desktop/a11y/mouse]
 # Spec 8: dwell click available with a much more forgiving threshold. Left

@@ -11,11 +11,7 @@
 /org/gnome/desktop/peripherals/mouse/accel-profile
 /org/gnome/desktop/peripherals/mouse/middle-click-emulation
 
-/org/gnome/desktop/peripherals/touchpad/tap-and-drag
-/org/gnome/desktop/peripherals/touchpad/tap-and-drag-lock
-/org/gnome/desktop/peripherals/touchpad/disable-while-typing
-/org/gnome/desktop/peripherals/touchpad/disable-while-typing-timeout
-/org/gnome/desktop/peripherals/touchpad/accel-profile
+# The touchpad locks moved to locks/11-trackpad, with the keys.
 
 /org/gnome/desktop/interface/cursor-size
 /org/gnome/desktop/interface/enable-hot-corners

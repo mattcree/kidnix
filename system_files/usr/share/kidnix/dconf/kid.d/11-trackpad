@@ -1,0 +1,116 @@
+# kidnix child session: trackpad hardening.
+#
+# From docs/research/09-gap-sweep-checkpoint-1.md Q7 ("Optimise for mouse and
+# touch; treat the trackpad as the degraded path, and harden it in software")
+# and docs/research/06-input-accessibility-hardware-ai.md §7.1 spec 6.
+# 09 Q7 is the later and more specific finding, so where it disagrees with 06
+# -- tap-to-click, two-finger scrolling -- 09 wins. The whole touchpad schema
+# lives in this file rather than 10-input so there is exactly one place that
+# describes the trackpad; a key set in two keyfiles is a build failure anyway
+# (40-lockdown.sh reads every key back).
+#
+# Every key below was verified to exist in GNOME 50's schemas in this image
+# with `gsettings list-recursively org.gnome.desktop.peripherals.touchpad`,
+# and libmutter-18 itself reads them (verified: the key names and the matching
+# `libinput_device_config_{tap,click,scroll}_set_*` symbols are both in
+# /usr/lib64/libmutter-18.so.0). That matters -- gnome-kiosk is mutter, so
+# these apply with no gnome-settings-daemon in the session.
+
+[org/gnome/desktop/peripherals/touchpad]
+# The trackpad must never silently stop working. A child whose pointer does
+# not move has no way to diagnose or recover, and no adult-visible error.
+# 'disabled-on-external-mouse' was considered and rejected for that reason:
+# the trackpad dying the moment a mouse is plugged in (or coming back when its
+# battery does) is exactly the kind of unexplained state change a 5-year-old
+# cannot reason about. Locked, so nothing can turn the pointer off.
+send-events='enabled'
+
+# 09 Q7: tap-to-click OFF. Accidental taps from a resting palm or a wandering
+# finger are the trackpad's dominant failure mode with small hands, and A3's
+# "input registers on press" makes every accidental tap a real action. A
+# physical click is required. This overrides 06 §2.7's note that GNOME's
+# default is true.
+tap-to-click=false
+
+# Inert while tap-to-click is false (libinput's drag options are sub-options
+# of tapping). Kept, and kept locked, so that if a parent ever re-enables taps
+# for a specific child, taps come back with the child-appropriate drag
+# behaviour from 06 spec 6 rather than the adult default. The real answer to
+# "dragging is hard" is 06 spec 7 -- press-to-pick-up / press-to-drop in the
+# shell -- not tap-and-drag.
+tap-and-drag=true
+tap-and-drag-lock=true
+
+# 'fingers' (libinput clickfinger): one finger down = left, two = right,
+# three = middle, anywhere on the pad.
+#
+# The alternative, 'areas', divides the bottom edge into left / middle / right
+# button zones, so *pressing in the wrong place* is a right-click -- and a
+# child presses wherever their finger happens to be. That is a guaranteed,
+# position-driven misfire; clickfinger's misfire needs two separate fingers in
+# contact at once, which is rarer and which libinput's palm detection already
+# works against. 'default' is NOT used: it defers to libinput's per-device
+# default, which is button-areas on every touchpad except Apple's, so
+# 'default' would quietly mean 'areas' on the hardware we actually target.
+# 'none' disables the click button altogether, which leaves a child with no
+# way to click at all.
+#
+# 06 §7.1 spec 3 ("make both buttons do the same primary thing") means a stray
+# right-click is harmless *inside our shell*; it is not harmless inside a
+# third-party activity, which is why this is still tuned rather than ignored.
+click-method='fingers'
+
+# Never invent a middle button a child did not press. Mirrors the mouse.
+middle-click-emulation=false
+
+# 09 Q7: two-finger scroll, edge scroll and gestures off. 06 §7.1 spec 11 says
+# never require scroll -- paginate, or offer large on-screen up/down buttons --
+# so nothing in the shell depends on scrolling existing here.
+#
+# Both booleans false is how you say "no scrolling at all" to mutter: it picks
+# two-finger, else edge, else the DISABLED scroll method, which becomes
+# libinput's LIBINPUT_CONFIG_SCROLL_NO_SCROLL. There is no third key to set.
+# (A mouse wheel and the TrackPoint are separate devices and are unaffected.)
+two-finger-scrolling-enabled=false
+edge-scrolling-enabled=false
+# natural-scroll is deliberately NOT set. With both scroll methods off it
+# cannot have an effect, and 06 has no finding either way; writing it would be
+# a taste call dressed up as evidence, and a key that reads back as a lie
+# about what the session does.
+
+# 06 spec 6: keep disable-while-typing and raise its timeout 500 -> 1000 ms,
+# so a slow typist's hand resting on the pad does not move the pointer
+# mid-word. This is also the closest thing GNOME exposes to "maximum palm
+# rejection" (09 Q7): libinput's real palm detection is automatic and has no
+# configuration surface at all -- see docs/spikes/lockdown.md §1.3b.
+disable-while-typing=true
+disable-while-typing-timeout=uint32 1000
+
+# 06 spec 4: flat (1:1) profile, as for the mouse. Acceleration curves punish
+# the many small corrective sub-movements children actually make.
+accel-profile='flat'
+# Slower than GNOME's 0.0 default, but deliberately NOT as slow as the mouse's
+# -0.4: libinput applies an extra constant deceleration to touchpads on top of
+# the profile, and with tap-to-click off every click now costs a reach and a
+# press, so the pointer has to be able to cross the screen without repeated
+# clutching. -0.2 is a starting point to be measured with the child
+# (SYNTHESIS §6 #5), not a finding. Left UNLOCKED so a parent can tune it.
+speed=-0.2
+
+[org/gnome/mutter]
+# 06 §7.1 spec 17: nothing a child needs lives at a screen edge. Already
+# GNOME's default in this image, set and locked so an activity cannot turn
+# drag-to-edge window tiling back on.
+edge-tiling=false
+
+[org/gnome/settings-daemon/peripherals/touchscreen]
+# Convertibles: stop the screen spinning because a child tilted the machine
+# mid-drawing. Verified this schema is non-relocatable and has exactly one key
+# in this image. Harmless on hardware with no accelerometer (gsd's orientation
+# plugin simply has nothing to lock).
+#
+# NOT locked, and that is the point: 09 Q7 recommends tent mode as the
+# touch-first posture for 4-6, and getting into tent mode needs one rotation.
+# A locked key could not be flipped even by the parent panel acting for the
+# child (same rationale as text-scaling-factor in locks/10-input).
+orientation-lock=true

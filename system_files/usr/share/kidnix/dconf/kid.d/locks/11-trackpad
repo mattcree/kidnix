@@ -1,0 +1,25 @@
+# Trackpad settings the child session may not change.
+#
+# Everything that makes the trackpad safe is locked. Two keys are deliberately
+# left writable:
+#
+#   peripherals/touchpad/speed  -- the one knob a parent will actually want to
+#       turn for a specific child, and -0.2 is a starting point, not evidence.
+#   settings-daemon/peripherals/touchscreen/orientation-lock -- getting a
+#       convertible into tent mode (09 Q7's recommended posture for 4-6)
+#       requires rotating once, and a locked key cannot be flipped even by the
+#       parent panel.
+
+/org/gnome/desktop/peripherals/touchpad/send-events
+/org/gnome/desktop/peripherals/touchpad/tap-to-click
+/org/gnome/desktop/peripherals/touchpad/tap-and-drag
+/org/gnome/desktop/peripherals/touchpad/tap-and-drag-lock
+/org/gnome/desktop/peripherals/touchpad/click-method
+/org/gnome/desktop/peripherals/touchpad/middle-click-emulation
+/org/gnome/desktop/peripherals/touchpad/two-finger-scrolling-enabled
+/org/gnome/desktop/peripherals/touchpad/edge-scrolling-enabled
+/org/gnome/desktop/peripherals/touchpad/disable-while-typing
+/org/gnome/desktop/peripherals/touchpad/disable-while-typing-timeout
+/org/gnome/desktop/peripherals/touchpad/accel-profile
+
+/org/gnome/mutter/edge-tiling

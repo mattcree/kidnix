@@ -431,6 +431,88 @@ else
         "found: $(find /var -mindepth 1 -maxdepth 1 ! -name lib ! -name home -printf '%f ' 2>/dev/null)"
 fi
 
+section "trackpad hardening (research 09 Q7)"
+# 09 Q7: the trackpad is the worst pointing device in the house for a
+# five-year-old and the one cheap laptops ship with. "Optimise for mouse and
+# touch; treat the trackpad as the degraded path, and harden it in software."
+assert_file /usr/share/kidnix/dconf/kid.d/11-trackpad
+assert_file /usr/share/kidnix/dconf/kid.d/locks/11-trackpad
+
+# Accidental taps from a resting palm are the dominant failure mode; a
+# physical click is required instead.
+dconf_is org.gnome.desktop.peripherals.touchpad tap-to-click false
+dconf_locked org.gnome.desktop.peripherals.touchpad tap-to-click
+# 'fingers' = libinput clickfinger: pressing ANYWHERE with one finger is a
+# left click. 'areas' (and 'default', which resolves to button-areas on every
+# non-Apple touchpad) would make the bottom-right of the pad a right-click
+# zone, i.e. a position-driven misfire for a child who presses wherever their
+# finger lands.
+dconf_is org.gnome.desktop.peripherals.touchpad click-method "'fingers'"
+dconf_locked org.gnome.desktop.peripherals.touchpad click-method
+# Both scroll booleans false is how you say "no scrolling" to mutter: it picks
+# two-finger, else edge, else the disabled method. 06 §7.1 spec 11 says never
+# require scroll, so nothing depends on it.
+dconf_is org.gnome.desktop.peripherals.touchpad two-finger-scrolling-enabled false
+dconf_is org.gnome.desktop.peripherals.touchpad edge-scrolling-enabled false
+dconf_locked org.gnome.desktop.peripherals.touchpad two-finger-scrolling-enabled
+dconf_locked org.gnome.desktop.peripherals.touchpad edge-scrolling-enabled
+# The pointer must never silently die: 'disabled-on-external-mouse' would turn
+# the trackpad off when a mouse appears, which a child cannot diagnose.
+dconf_is org.gnome.desktop.peripherals.touchpad send-events "'enabled'"
+dconf_locked org.gnome.desktop.peripherals.touchpad send-events
+# Palm rejection, as far as GNOME exposes it.
+dconf_is org.gnome.desktop.peripherals.touchpad disable-while-typing true
+dconf_locked org.gnome.desktop.peripherals.touchpad disable-while-typing
+dconf_is org.gnome.desktop.peripherals.touchpad middle-click-emulation false
+dconf_is org.gnome.desktop.peripherals.touchpad accel-profile "'flat'"
+dconf_starts org.gnome.desktop.peripherals.touchpad speed -0.2
+# Nothing a child needs lives at a screen edge (06 §7.1 spec 17).
+dconf_is org.gnome.mutter edge-tiling false
+dconf_locked org.gnome.mutter edge-tiling
+# Convertibles: no screen spinning because the machine got tilted.
+dconf_is org.gnome.settings-daemon.peripherals.touchscreen orientation-lock true
+
+# The two keys a parent must still be able to change. A lock here would be
+# silent and unfixable without a new image.
+dconf_writable() {
+    local schema="$1" key="$2" got
+    got="$(DCONF_PROFILE=kid gsettings writable "${schema}" "${key}" 2>/dev/null || echo '<error>')"
+    assert_eq "kid: ${schema} ${key} stays parent-changeable" "true" "${got}"
+}
+dconf_writable org.gnome.desktop.peripherals.touchpad speed
+dconf_writable org.gnome.settings-daemon.peripherals.touchscreen orientation-lock
+
+# libmutter reads these keys itself, which is what makes them apply in a
+# gnome-kiosk session with no gnome-settings-daemon in it.
+mutter_libs=(/usr/lib64/libmutter-*.so.*)
+mutter_lib=""
+[[ -f "${mutter_libs[0]}" ]] && mutter_lib="${mutter_libs[0]}"
+if [[ -n "${mutter_lib}" ]] && grep -qaF 'two-finger-scrolling-enabled' "${mutter_lib}"; then
+    _report ok "libmutter reads the touchpad keys (they apply without gsd)"
+else
+    _report no "libmutter reads the touchpad keys (they apply without gsd)" \
+        "not found in '${mutter_lib:-<no libmutter>}'"
+fi
+# gnome-kiosk binds no multi-finger gestures of its own -- mutter forwards
+# touchpad swipes to the client as zwp_pointer_gestures_v1 and nothing in the
+# session consumes them (gnome-shell's SwipeTracker is not running here).
+# There is no gsettings key for gestures, so this is the only assertion
+# available. See docs/spikes/lockdown.md §1.3b.
+if grep -qaE 'swipe|gesture' /usr/bin/gnome-kiosk; then
+    _report no "gnome-kiosk binds no swipe gestures" "gesture strings found in the binary"
+else
+    _report ok "gnome-kiosk binds no swipe gestures"
+fi
+
+# The touchpad schema must be described in exactly one keyfile: two keyfiles
+# setting one key is resolved by dconf compile in directory order, which is
+# not something anyone should have to reason about.
+# Anchored so prose about the move does not count; -d skip because locks/ is a
+# directory.
+touchpad_files="$({ grep -lE -d skip '^\[org/gnome/desktop/peripherals/touchpad\]$' \
+    /usr/share/kidnix/dconf/kid.d/* || true; } | wc -l)"
+assert_eq "the touchpad schema lives in exactly one keyfile" "1" "${touchpad_files}"
+
 # -----------------------------------------------------------------------------
 
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "${pass}" "${fail}"
