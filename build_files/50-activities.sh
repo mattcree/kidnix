@@ -223,10 +223,22 @@ rpm -q qt6-qtwayland >/dev/null || {
     exit 1
 }
 
-# Every manifest must name a real executable, or the shell will show a tile that
-# does nothing. python3 is in base-main, so tomllib is available at build time.
+# Every manifest must parse, carry the whole schema, and -- for the RPM-backed
+# ones -- name an executable that actually exists. Otherwise the shell shows a
+# tile that does nothing, which for a pre-reader is indistinguishable from the
+# computer being broken. python3 is in base-main, so tomllib is free here.
 python3 - <<'PY'
 import pathlib, shutil, sys, tomllib
+
+REQUIRED = {
+    "schema": int, "id": str, "name": str, "audio_label": str, "icon": str,
+    "exec": list, "category": str, "age_min": int, "age_max": int,
+    "oars_rating": str, "network_required": bool, "source": str,
+    "package": str, "licence": str, "journal_watch": list,
+    "wayland_native": bool, "notes": str,
+}
+CATEGORIES = {"make", "learn", "play"}
+SOURCES = {"rpm", "flatpak"}
 
 failed = False
 manifests = sorted(pathlib.Path("/usr/share/kidnix/activities").glob("*.toml"))
@@ -234,14 +246,35 @@ if not manifests:
     sys.exit("no activity manifests found")
 
 for path in manifests:
+    def bad(message):
+        global failed
+        print(f"{path.name}: {message}", file=sys.stderr)
+        failed = True
+
     with path.open("rb") as handle:
         data = tomllib.load(handle)
-    if not data.get("enabled", True):
-        continue
-    program = data["exec"][0]
-    if shutil.which(program) is None:
-        print(f"{path.name}: exec {program!r} is not on PATH", file=sys.stderr)
-        failed = True
+
+    for key, kind in REQUIRED.items():
+        if key not in data:
+            bad(f"missing required key {key!r}")
+        elif not isinstance(data[key], kind):
+            bad(f"{key!r} should be {kind.__name__}, got {type(data[key]).__name__}")
+
+    if data.get("id") != path.stem:
+        bad(f"id {data.get('id')!r} does not match filename")
+    if data.get("category") not in CATEGORIES:
+        bad(f"category {data.get('category')!r} not in {sorted(CATEGORIES)}")
+    if data.get("source") not in SOURCES:
+        bad(f"source {data.get('source')!r} not in {sorted(SOURCES)}")
+    if data.get("network_required") is True:
+        bad("network_required=true: the child session has no egress")
+
+    # Only RPM activities are in the image at build time; Flatpak ones arrive on
+    # a later, online boot and the shell checks for them at runtime.
+    if data.get("source") == "rpm":
+        program = data["exec"][0]
+        if shutil.which(program) is None:
+            bad(f"exec {program!r} is not on PATH")
 
 print(f"validated {len(manifests)} activity manifests")
 sys.exit(1 if failed else 0)

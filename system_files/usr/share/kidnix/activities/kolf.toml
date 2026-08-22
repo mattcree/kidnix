@@ -1,0 +1,28 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "kolf"
+name = "Mini Golf"
+audio_label = "Mini golf. Hit the ball into the hole."
+icon = "kolf"
+icon_kind = "icon-name"
+exec = ["kolf"]
+
+category = "play"
+age_min = 5
+age_max = 10
+oars_rating = "none"
+network_required = false
+
+source = "rpm"
+package = "kolf"
+licence = "GPL-2.0-or-later"
+journal_watch = []
+wayland_native = true
+
+notes = """
+Real pointer-precision practice (aim, drag, judge strength) with no time pressure
+and no way to fail permanently. 3 MiB marginal. The default course set is fine for
+5+; later courses get fiddly, which is a shell-side ordering question, not a
+packaging one.
+"""

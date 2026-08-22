@@ -61,7 +61,14 @@ main() {
     fi
 
     # base-main ships flatpak but not necessarily the remote.
-    if ! flatpak remotes --system --columns=name | grep -qx flathub; then
+    #
+    # Deliberately NOT `flatpak remotes … | grep -qx flathub`: under
+    # `set -o pipefail`, grep -q exits the moment it matches, flatpak dies of
+    # SIGPIPE, and the pipeline reports failure precisely when the match
+    # SUCCEEDED. Capture first, match second.
+    local remotes
+    remotes="$(flatpak remotes --system --columns=name 2>/dev/null || true)"
+    if ! grep -qx flathub <<<"${remotes}"; then
         log "adding flathub remote"
         if ! flatpak remote-add --system --if-not-exists flathub "${FLATHUB_URL}"; then
             log "cannot reach flathub -- will retry on the next timer tick"

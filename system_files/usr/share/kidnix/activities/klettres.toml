@@ -1,0 +1,30 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "klettres"
+name = "Letters and Sounds"
+audio_label = "Letters and sounds. Listen, then find the letter."
+icon = "klettres"
+icon_kind = "icon-name"
+exec = ["klettres"]
+
+category = "learn"
+age_min = 4
+age_max = 8
+oars_rating = "none"
+# Ships recorded audio for several languages in the RPM; nothing is fetched.
+network_required = false
+
+source = "rpm"
+package = "klettres"
+licence = "GPL-2.0-or-later"
+journal_watch = []
+wayland_native = true
+
+notes = """
+Alphabet and phonics with recorded human audio -- directly serves the 'pre-reader
+first' non-negotiable, and unlike most of the KDE education set it does not assume
+the child can already read. Only ~48 MiB marginal once KF6 is in the image for
+KTuberling. Language defaults to the system locale; en_GB needs checking against a
+real child (does it say the letter's name or its sound?).
+"""

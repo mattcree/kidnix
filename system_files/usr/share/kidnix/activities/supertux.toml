@@ -1,0 +1,36 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "supertux"
+name = "SuperTux"
+audio_label = "SuperTux. Run and jump through the snow."
+icon = "supertux2"
+icon_kind = "icon-name"
+# Note the binary is supertux2, not supertux -- the package is 'supertux'.
+exec = ["supertux2"]
+
+category = "play"
+age_min = 5
+age_max = 12
+# OARS 1.1: cartoon violence, mild (jumping on snowballs). Nothing else.
+oars_rating = "violence-cartoon=mild"
+network_required = false
+
+source = "rpm"
+package = "supertux"
+licence = "GPL-3.0-or-later"
+journal_watch = []
+# SDL2. Wayland via SDL's default video driver on Fedora 44; inferred, not
+# observed in a kiosk session.
+wayland_native = true
+
+notes = """
+The one pure 'play' activity in the first wave, and deliberately only one: the
+research is explicit that kidnix is not built to maximise time-on-device. 240 MiB,
+almost all sprites and music. Fedora has 0.6.3, older than Flathub's 0.7.0, which
+is a fine trade for staying on the RPM path.
+
+Open question for the thinker: SuperTux has lives and game-over, which is exactly
+the kind of soft failure the 'bounded, predictable, never a surprise' principle is
+wary of. Worth watching a real five-year-old hit it.
+"""

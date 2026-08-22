@@ -1,0 +1,36 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "tuxmath"
+name = "Tux Maths"
+audio_label = "Tux maths. Answer the sums to save the igloos."
+icon = "tuxmath"
+icon_kind = "icon-name"
+exec = ["tuxmath"]
+
+category = "learn"
+# Needs number recognition and a keyboard, so it is the top of the band, not the
+# bottom. The shell should not show this to a four-year-old.
+age_min = 6
+age_max = 10
+oars_rating = "violence-cartoon=mild"
+network_required = false
+
+source = "rpm"
+package = "tuxmath"
+licence = "GPL-3.0-or-later"
+journal_watch = []
+# SDL 1.2 through sdl12-compat, which sits on SDL2. Least confident of the set:
+# the Flathub build is flagged X11-only in docs/research/07 §2.5. UNVERIFIED.
+wayland_native = false
+
+notes = """
+Upstream has been dead since 2013; Fedora still carries 2.0.3 and it works. Included
+because typed arithmetic practice is genuinely wanted at 6-8 and there is no live
+alternative in the repos.
+
+Its 142 MiB fluid-soundfont-gm Recommends is excluded at build time (see
+50-activities.sh) -- that is 9x the size of the game for its MIDI background music.
+If a child notices the silence, the fix is to add the soundfont back, not to drop
+the game.
+"""

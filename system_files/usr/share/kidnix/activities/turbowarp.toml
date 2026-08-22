@@ -1,0 +1,38 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "turbowarp"
+name = "TurboWarp"
+audio_label = "Turbo Warp. Make your own game."
+icon = "org.turbowarp.TurboWarp"
+icon_kind = "icon-name"
+exec = ["flatpak", "run", "org.turbowarp.TurboWarp"]
+
+category = "make"
+age_min = 6
+age_max = 12
+oars_rating = "none"
+# Fully offline once installed -- but it has to be installed once, over the
+# network, by kidnix-flatpaks-firstboot.service.
+network_required = false
+
+# The only activity in the first wave that is NOT an RPM: Fedora packages no
+# Scratch-alike, there is no supported Linux ScratchJr, and edu.mit.Scratch is
+# abandoned on an EOL runtime.
+source = "flatpak"
+package = "org.turbowarp.TurboWarp"
+licence = "GPL-3.0-or-later"
+
+# Saves .sb3 project files through a portal file dialog, so the destination is
+# whatever the portal offers. Needs a fixed home before the Journal can watch it.
+journal_watch = []
+wayland_native = true
+
+notes = """
+Present only if kidnix-flatpaks-firstboot.service has had one online boot; the shell
+must check before showing the tile. 382 MB installed.
+
+Requires `flatpak override --system --unshare=network org.turbowarp.TurboWarp` (or
+the global override the lockdown work ships) once installed -- TurboWarp works
+entirely offline and must not be allowed to reach the internet from a child session.
+"""

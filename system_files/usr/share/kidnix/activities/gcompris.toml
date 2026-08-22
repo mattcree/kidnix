@@ -1,0 +1,41 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "gcompris"
+name = "GCompris"
+audio_label = "GCompris. Lots of little games to try."
+icon = "gcompris-qt"
+icon_kind = "icon-name"
+exec = ["gcompris-qt"]
+
+category = "learn"
+age_min = 3
+age_max = 10
+oars_rating = "none"
+# False *because* build_files/50-activities.sh bakes the voice, word and music
+# packs into /usr/share/gcompris-qt/rcc/data3/. Without that seeding this would
+# be true, and the anchor app of the whole product would be mute offline.
+network_required = false
+
+source = "rpm"
+package = "gcompris-qt"
+licence = "AGPL-3.0-only (code); CC-BY-SA-4.0 / GPL-3.0-or-later (bundled voices, words, music)"
+
+# GCompris keeps progress in its own config, not in files a child would
+# recognise as 'something I made'. Nothing for the Journal to watch.
+journal_watch = []
+
+# Qt 6 with qt6-qtwayland installed (asserted at build time).
+wayland_native = true
+
+notes = """
+The anchor activity: ~190 sub-activities spanning the whole 4-8 band. Fedora ships
+26.1 as an RPM, so the Flatpak-into-an-immutable-image problem does not apply.
+
+Voices are the catch. The RPM contains no audio at all; DownloadManager fetches
+.rcc bundles from cdn.kde.org on first run, which a no-egress child session cannot
+do. 50-activities.sh pre-seeds en_GB + en_US voices, the word images and the
+background music, each md5-verified, plus the 'Contents' index files GCompris
+needs in order to look at them. Verified from upstream source, NOT yet verified by
+running GCompris in a VM -- see the spike doc for the exact check to run.
+"""

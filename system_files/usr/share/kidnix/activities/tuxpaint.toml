@@ -1,0 +1,40 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "tuxpaint"
+name = "Tux Paint"
+# Read aloud by the shell when the tile is focused. Written for a pre-reader:
+# what it is, then what you do with it. No brand voice, no verbs they can't do.
+audio_label = "Tux Paint. Draw a picture."
+icon = "tuxpaint"
+icon_kind = "icon-name"
+exec = ["tuxpaint"]
+
+category = "make"
+age_min = 3
+age_max = 10
+# OARS 1.1. Nothing to declare: no violence, no chat, no purchases, no ads.
+oars_rating = "none"
+network_required = false
+
+source = "rpm"
+package = "tuxpaint"
+licence = "GPL-2.0-or-later"
+
+# Verified in tuxpaint(1) FILES: "$HOME/.tuxpaint/saved/ -- a directory of
+# previously-saved images (and thumbnails)". The export dir is separate and only
+# used from the Open dialog, but the Journal should notice both.
+journal_watch = ["~/.tuxpaint/saved", "~/Pictures/TuxPaint"]
+
+# SDL-based. Fedora 44's SDL runtime prefers the Wayland video driver, so no
+# XWayland round-trip -- but this is inferred from the SDL default, not observed
+# in a running kiosk. See "open questions" in the spike doc.
+wayland_native = true
+
+notes = """
+The clearest 'making over consuming' activity we ship, and the one a four-year-old
+gets furthest with unaided. System-wide config is written to /etc/tuxpaint/tuxpaint.conf
+by build_files/50-activities.sh (fullscreen=native, saveovernew, autosave, nolockfile):
+a child is never asked to overwrite their own work and never asked whether to save.
+Stamps come from the separate 193 MiB tuxpaint-stamps package and are most of the fun.
+"""

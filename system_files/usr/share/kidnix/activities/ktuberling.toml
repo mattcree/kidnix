@@ -1,0 +1,32 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "ktuberling"
+name = "Potato Guy"
+audio_label = "Potato Guy. Make a funny face."
+icon = "ktuberling"
+icon_kind = "icon-name"
+exec = ["ktuberling"]
+
+category = "make"
+age_min = 3
+age_max = 7
+oars_rating = "none"
+network_required = false
+
+source = "rpm"
+package = "ktuberling"
+licence = "GPL-2.0-or-later"
+
+# KTuberling can save a playground to a .tuberling file, but only through a file
+# dialog with no fixed default directory -- so there is no reliable path to watch
+# until the shell hands it one. Open question in the spike doc.
+journal_watch = []
+
+wayland_native = true
+
+notes = """
+The single best 4-6 activity in the KDE set: it speaks every part name aloud as you
+pick it up, so it needs no reading whatsoever, and there is no way to lose. Drag-and-
+drop practice disguised as play. 26.04.3 in Fedora 44.
+"""

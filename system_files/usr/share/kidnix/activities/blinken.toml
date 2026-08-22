@@ -1,0 +1,26 @@
+# kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+schema = 1
+
+id = "blinken"
+name = "Blinken"
+audio_label = "Blinken. Watch the lights, then copy them."
+icon = "blinken"
+icon_kind = "icon-name"
+exec = ["blinken"]
+
+category = "play"
+age_min = 4
+age_max = 10
+oars_rating = "none"
+network_required = false
+
+source = "rpm"
+package = "blinken"
+licence = "GPL-2.0-or-later"
+journal_watch = []
+wayland_native = true
+
+notes = """
+Simon-says. Colours and sounds only, no text in the game itself, and the failure
+state is 'the lights stop' rather than anything that reads as losing. 3 MiB.
+"""
