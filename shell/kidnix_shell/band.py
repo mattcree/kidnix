@@ -78,6 +78,11 @@ class BandActions:
     #: which :meth:`Band.set_progress` keeps current, so this is only here for
     #: anything the shell wants to do besides speak (nothing, today).
     on_sun: Callable[[], None] | None = None
+    #: The ending offer, when it is offered *in the band* (v0.1.5, spec S5).
+    #: Both take the same argument as
+    #: :meth:`kidnix_shell.context.ShellHost.dismiss_offer`.
+    on_finish_this: Callable[[], None] | None = None
+    on_one_more: Callable[[], None] | None = None
 
 
 class Sun(Gtk.DrawingArea):
@@ -272,9 +277,35 @@ class Band(Gtk.Box):
         self.my_things = self._button(
             "My Things", "kidnix-my-things", target, icon_px, actions.on_my_things, speech_ui
         )
-        for widget in (self.back, self.undo, self.my_things):
+        # The ending offer, when the child is inside an activity and there is no
+        # shell surface to put it on (v0.1.5). They are built here, at exactly
+        # the size and position Undo and My Things occupy, and swapped in for
+        # those two -- so the band never changes width, the sun never moves and
+        # Back and the Ear stay where the child's hand already knows they are.
+        # See :meth:`set_offer_mode`.
+        self.finish_this = self._button(
+            "Finish this one",
+            "kidnix-finish",
+            target,
+            icon_px,
+            actions.on_finish_this or (lambda: None),
+            speech_ui,
+        )
+        self.one_more = self._button(
+            "One last little thing",
+            "kidnix-one-more",
+            target,
+            icon_px,
+            actions.on_one_more or (lambda: None),
+            speech_ui,
+        )
+        for widget in (self.finish_this, self.one_more):
+            widget.add_css_class("offer")
+            widget.set_visible(False)
+        for widget in (self.back, self.undo, self.my_things, self.finish_this, self.one_more):
             left.append(widget)
         row.set_start_widget(left)
+        self._offer_mode = False
 
         # Centre: the sun -- and it is a target, not a picture (08 section 4.6).
         self.sun = Sun(metrics)
@@ -360,3 +391,40 @@ class Band(Gtk.Box):
     def set_journal_sensitive(self, sensitive: bool) -> None:
         """During the ending ritual the child is not sent off to browse."""
         self.my_things.set_sensitive(sensitive)
+
+    # -- the ending offer, in the band (v0.1.5) --
+
+    @property
+    def offer_mode(self) -> bool:
+        """Are the two ending choices showing instead of Undo and My Things?"""
+        return self._offer_mode
+
+    def set_offer_mode(self, on: bool) -> None:
+        """Swap Undo and My Things for the two ending choices, or back.
+
+        This is what makes the offer *not* a fullscreen modal over a child's
+        drawing (CCI audit 02 #4). Two things about the swap are deliberate:
+
+        * **Nothing moves.** The two offer buttons are the same size as the two
+          they replace and sit in the same places, so the band does not change
+          width, the sun does not shift, and Back and the Ear stay put. A band
+          that re-flows under a five-year-old's hand at the one moment they are
+          being asked to stop would be the worst possible time for it.
+        * **They are pictures, not words.** A band button is one square roughly
+          20 mm on a side; "One last little thing" cannot be set inside that at
+          the 18 pt floor without either cutting it or making the band taller
+          than spec 7a's clamp. The *words* are the ``speak_text``, which is
+          also the accessible name, and the shell speaks the whole question once
+          when the offer appears. Pre-reader-first cuts this way round: the
+          audio is the channel that carries the sentence.
+
+        Undo and My Things come back the moment the offer is answered or times
+        out, so the band is only ever in this shape for a few seconds.
+        """
+        if on == self._offer_mode:
+            return
+        self._offer_mode = on
+        for widget in (self.undo, self.my_things):
+            widget.set_visible(not on)
+        for widget in (self.finish_this, self.one_more):
+            widget.set_visible(on)

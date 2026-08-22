@@ -12,6 +12,21 @@ goal = "Making pictures -- no right answers. Autosaves; a child is never asked w
 order = 10
 icon = "tuxpaint"
 icon_kind = "icon-name"
+# `--noquit` hides Tux Paint's own Quit tool and disables its [Escape] binding,
+# which retires ADR-0010 #5: that dialogue ("Do you really want to quit?", two
+# lines of text a pre-reader cannot read) only existed because the child had no
+# other way out of the activity. Since v0.1.5 the band stays on screen over an
+# activity (docs/spikes/band-over-activity.md), so **Back in the band is the way
+# out** -- it sends SIGTERM, Tux Paint autosaves (`autosave=yes`), and the
+# Journal keeps the drawing. There is deliberately no in-app exit left: one exit,
+# always in the same place, in the shell's chrome rather than each activity's.
+# An adult still has Alt+F4 and Shift+Ctrl+Escape, per tuxpaint(1).
+#
+# THE PERMANENT HOME FOR THIS IS `noquit=yes` IN /etc/tuxpaint/tuxpaint.conf,
+# which build_files/50-activities.sh writes (it cannot live in system_files/:
+# the tuxpaint RPM owns that path as a %config file). It is on the command line
+# here because that script is outside this change's ownership; move it and drop
+# the flag.
 exec = ["tuxpaint"]
 
 category = "make"

@@ -186,9 +186,10 @@ autosave=yes
 # may relaunch an activity after a crash, that is a mysterious dead button.
 nolockfile=yes
 
-# Quit stays available: the shell has to be able to close an activity, and a
-# child needs a way out that is not "ask a grown-up to reboot".
-quit=yes
+# The band's Back is the way out of an activity (shell v0.1.5), so Tux Paint's
+# own Quit tool and its unreadable "do you really want to quit?" modal go away.
+# autosave=yes above means the drawing is already on disk when SIGTERM arrives.
+noquit=yes
 EOF
 
 # --- 4. first-boot Flatpaks (secondary path) ---------------------------------

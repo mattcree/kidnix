@@ -361,6 +361,22 @@ class Metrics:
         return max(BAND_MIN_PX, floor, min(BAND_MAX_PX, ideal))
 
     @property
+    def content_height(self) -> int:
+        """What is left of the panel once the band has its strip.
+
+        Since v0.1.5 the band and the surfaces under it are **two separate
+        toplevels** (``docs/spikes/band-over-activity.md``), so "the height the
+        shell may lay out in" is no longer the monitor's height: the content
+        window is given ``0,band_height W x content_height`` by
+        ``window-config.ini`` and gets nothing else, whatever it asks for.
+        0 means "unknown screen", which disables the measured-fit backstop
+        exactly as ``screen_height`` already does.
+        """
+        if self.screen_height <= 0:
+            return 0
+        return max(1, self.screen_height - self.band_height)
+
+    @property
     def band_target(self) -> int:
         """A band button: 18 mm floor, 80 design px preferred, inside the band."""
         wanted = max(self.design(80), self.min_target)

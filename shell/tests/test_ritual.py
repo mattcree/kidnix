@@ -263,6 +263,106 @@ def test_a_grant_gives_the_child_one_more_warning_and_only_one(live: Session) ->
     assert shell.offers_presented == 2
 
 
+# --- the offer in the band (v0.1.5) --------------------------------------
+#
+# When the child is inside an activity the offer no longer covers their drawing
+# with a fullscreen window (CCI audit 02 #4): it appears as two buttons in the
+# band, and they stay in IN_ACTIVITY. That state is in `ritual.INTERRUPTIBLE`,
+# so without `offer_shown` the shell would re-present it on every tick -- the
+# very bug this file exists for, in a new place.
+
+
+class BandShell(FakeShell):
+    """The v0.1.5 route: the offer goes in the band and the state does not move.
+
+    ``ShellWindow`` sets ``_offer_on_band`` when it puts the two choices in the
+    band, clears it when they are answered, and -- if nobody answers within
+    ``app.BAND_OFFER_SECONDS`` -- latches the offer as answered rather than
+    asking again. All three are modelled here.
+    """
+
+    def __init__(self, session: Session) -> None:
+        super().__init__(session, State.IN_ACTIVITY)
+        self.offer_on_band = False
+
+    def tick(self, now: datetime) -> RitualAction:
+        action = next_action(
+            self.session.phase(now),
+            self.machine.state,
+            offer_answered=self.session.offer_answered,
+            offer_shown=self.offer_on_band,
+        )
+        if action is RitualAction.PRESENT_OFFER:
+            self.offers_presented += 1
+            self.offer_on_band = True
+        elif action is RitualAction.PUT_AWAY:
+            self.offer_on_band = False
+            self.machine.try_fire(Event.PUT_AWAY_DUE)
+        elif action is RitualAction.GOODBYE:
+            self.session.end(now)
+            self.machine.try_fire(Event.GOODBYE_DUE)
+        return action
+
+    def answer_in_the_band(self) -> None:
+        self.offer_on_band = False
+        self.session.answer_offer()
+        self.machine.try_fire(Event.DISMISS_OFFER)  # a no-op in IN_ACTIVITY
+
+    def band_offer_expired(self) -> None:
+        self.offer_on_band = False
+        self.session.answer_offer()
+
+
+def test_the_band_offer_appears_once_and_never_moves_the_child(live: Session) -> None:
+    shell = BandShell(live)
+    shell.run(0, 14.1)
+    assert shell.offers_presented == 1
+    assert shell.offer_on_band is True
+    assert state_of(shell) is State.IN_ACTIVITY, "the drawing is never covered"
+
+
+def test_answering_in_the_band_leaves_the_child_in_the_activity(live: Session) -> None:
+    """Both answers mean "carry on until the sun does" -- there is nowhere to
+    navigate to, and the DISMISS_OFFER that a screen would fire is a no-op."""
+    shell = BandShell(live)
+    shell.run(0, 14.1)
+    shell.answer_in_the_band()
+    assert state_of(shell) is State.IN_ACTIVITY
+
+    shell.run(14.2, 17.9)
+    assert shell.offers_presented == 1
+
+
+def test_an_unanswered_band_offer_is_not_asked_again(live: Session) -> None:
+    """The timeout latches it. Ignoring a question is a legitimate answer, and
+    the alternative is asking it four hundred times over four minutes."""
+    shell = BandShell(live)
+    shell.run(0, 14.1)
+    shell.band_offer_expired()
+    shell.run(14.2, 17.9)
+    assert shell.offers_presented == 1
+    assert live.offer_answered is True
+
+
+def test_the_band_offer_does_not_delay_put_away(live: Session) -> None:
+    shell = BandShell(live)
+    shell.run(0, 18.1)
+    assert state_of(shell) is State.PUT_AWAY
+    assert shell.offers_presented == 1
+
+
+def test_offer_shown_is_the_only_thing_the_flag_changes() -> None:
+    """It suppresses PRESENT_OFFER and nothing else in the ritual."""
+    for phase in Phase:
+        for state in State:
+            shown = next_action(phase, state, offer_answered=False, offer_shown=True)
+            hidden = next_action(phase, state, offer_answered=False, offer_shown=False)
+            if hidden is RitualAction.PRESENT_OFFER:
+                assert shown is RitualAction.NOTHING
+            else:
+                assert shown is hidden, (phase, state)
+
+
 # --- exit friction: there is none (spec 7b, SYNTHESIS D6) ----------------
 #
 # Kuo, Zhao & Scott (IDC 2026) name the harm and argue for "an easy way out".

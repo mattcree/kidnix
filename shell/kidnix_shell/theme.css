@@ -93,6 +93,27 @@ button.outline-only {
   box-shadow: none;
 }
 
+/* The two ending choices, when the offer is made *in the band* because the
+ * child is inside an activity (spec S5, v0.1.5). They take exactly the size
+ * and place of the Undo and My Things buttons they replace, so nothing in the
+ * band moves at the one moment a child is being asked to stop. The only
+ * difference is a heavier edge: @kid-highlight is reserved for "you can touch
+ * this right now" and nothing else may borrow it. */
+.band button.offer {
+  border-color: @kid-edge-strong;
+  border-width: 3px;
+  border-bottom-width: 6px;
+}
+
+/* The band's own toplevel while the child is on the Sleeping screen. The band
+ * itself is hidden there (nothing in it is for a sleeping machine), and this
+ * is what stops the strip it leaves behind being a cream bar over a dark
+ * screen -- it is the same colour as `.sleeping`, so the two windows read as
+ * one surface. */
+window.kidnix.sleeping {
+  background-color: #171b2c;
+}
+
 /* The sun is a target, not a picture (08 section 4.6): tapping it says how
  * much of the sitting is left, in comparisons rather than numbers. It gets no
  * button chrome at all -- a bordered box around the sun would read as a

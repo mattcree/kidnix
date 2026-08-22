@@ -19,6 +19,13 @@ Spec S5, restated as rules:
   "Ask for more time" -- dismisses it, and the child carries on wherever they
   were (Home stays Home, so they may still open one more activity).
 * Nothing asks again before Put away at T-2, which happens regardless.
+* Since v0.1.5 the offer has **two shapes**: a screen in the content window
+  when the child is on a shell surface, and two buttons in the band when they
+  are inside an activity. The second one does not change the state, so
+  ``offer_shown`` is what stops it repeating (see :func:`next_action`), and a
+  band offer nobody answers within
+  :data:`kidnix_shell.app.BAND_OFFER_SECONDS` counts as answered -- ignoring a
+  question is a legitimate answer and the alternative is asking it again.
 * Only a grown-up grant that pushes the hard stop past a new T-6 re-arms it
   (see :meth:`kidnix_shell.session.Session.add_minutes`).
 
@@ -92,17 +99,33 @@ def all_done_delay_seconds(state: State) -> float:
     return 0.0
 
 
-def next_action(phase: Phase, state: State, *, offer_answered: bool) -> RitualAction:
+def next_action(
+    phase: Phase,
+    state: State,
+    *,
+    offer_answered: bool,
+    offer_shown: bool = False,
+) -> RitualAction:
     """The ritual's whole policy, in one pure function.
 
     ``offer_answered`` is :attr:`kidnix_shell.session.Session.offer_answered`.
+
+    ``offer_shown`` is v0.1.5's addition and it exists because the offer no
+    longer always changes the state. When the child is **in an activity** the
+    offer appears *in the band* and they stay in :attr:`State.IN_ACTIVITY` --
+    which is in :data:`INTERRUPTIBLE`, so without this flag the shell would
+    re-present it on every 500 ms tick, which is precisely the bug the offer
+    latch was written to kill (`docs/spikes/e2e-scenario.md` section 3.2). On
+    every other surface the offer is a screen in the content window and the
+    state change is still what stops the repeat; passing ``True`` there as well
+    is harmless and says the same thing.
     """
     if state is State.GROWNUP:
         # Never yank the sheet out from under a parent mid-task; the tick after
         # they close it picks the ritual up again.
         return RitualAction.NOTHING
     if phase is Phase.ENDING_OFFER:
-        if offer_answered or state not in INTERRUPTIBLE:
+        if offer_answered or offer_shown or state not in INTERRUPTIBLE:
             return RitualAction.NOTHING
         return RitualAction.PRESENT_OFFER
     if phase is Phase.PUT_AWAY and state in PUT_AWAY_FROM:

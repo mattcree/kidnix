@@ -1240,3 +1240,234 @@ def _tiles(widget: Gtk.Widget) -> list[ActivityTile]:
 
 def _buttons(widget: Gtk.Widget) -> list[ChildButton]:
     return [node for node in walk(widget) if isinstance(node, ChildButton)]
+
+
+# --- v0.1.5: two toplevels, and the band during an activity ---------------
+#
+# docs/spikes/band-over-activity.md. The band is its own window now, so that
+# gnome-kiosk can pin it to the top strip and keep it above a fullscreen
+# activity. These tests cannot see a compositor -- what they can check is that
+# the shell hands one the two windows, with the two titles, that the offer no
+# longer covers a child's drawing, and that Back and My Things actually end the
+# activity they are now reachable from.
+
+import time  # noqa: E402
+
+from kidnix_shell.kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig  # noqa: E402
+from kidnix_shell.state import State  # noqa: E402
+
+
+def _state(window) -> State:  # type: ignore[no-untyped-def]
+    """Read the state through a call, so a type checker cannot narrow it away."""
+    return window.machine.state
+
+
+def _sleeper():  # type: ignore[no-untyped-def]
+    """An activity that stays up until it is asked to go away."""
+    return make_activity("sleeper", name="Sleeper", exec_argv=("/bin/sleep", "30"))
+
+
+def _start_an_activity(window):  # type: ignore[no-untyped-def]
+    """Walk a fresh window to IN_ACTIVITY with a real child process running."""
+    window.choose_profile(window.ctx.profile)
+    if window.machine.state is State.NEXT_CHOICE:
+        window.choose_next_after(window.ctx.config.next_after[0])
+    assert _state(window) is State.HOME
+    activity = _sleeper()
+    window.ctx.activities.append(activity)
+    window.launch(activity)
+    assert _state(window) is State.IN_ACTIVITY
+    assert window.launcher.running
+    return activity
+
+
+def _wait_for_exit(window, timeout: float = 6.0) -> None:  # type: ignore[no-untyped-def]
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if window.launcher.check() is not None:
+            return
+        time.sleep(0.05)
+    raise AssertionError("the activity was never reaped")
+
+
+def test_the_shell_is_two_toplevels_on_one_application(tmp_path: Path) -> None:
+    """One GtkApplication is a requirement, not a convenience: two *processes*
+    sharing an application id do not get two windows."""
+    window = build_window(tmp_path)
+    try:
+        assert window.get_title() == CONTENT_TITLE
+        assert window.band_window.get_title() == BAND_TITLE
+        assert window.band_window.get_content() is window.band
+        assert window.get_application() is window.band_window.get_application()
+        # ...and the band is emphatically not inside the content window any more.
+        assert window.band not in list(walk(window._root))
+    finally:
+        window.shutdown()
+
+
+def test_each_window_measures_inside_its_own_share_of_the_panel(tmp_path: Path) -> None:
+    """The band gets `band_height` and the content window gets what is left --
+    gnome-kiosk's lock-on-area gives each of them that and nothing more."""
+    window = build_window(tmp_path)
+    try:
+        metrics = window.metrics
+        assert metrics.content_height == metrics.screen_height - metrics.band_height
+        assert window.band.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.band_height
+        assert window.band.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= metrics.screen_width
+        assert window._root.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.content_height
+        assert window._root.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= metrics.screen_width
+    finally:
+        window.shutdown()
+
+
+def test_a_windowed_shell_never_writes_the_child_s_window_config(tmp_path: Path) -> None:
+    """`--windowed` is a developer on their own desktop, where $XDG_CONFIG_HOME
+    is *theirs* and there is no gnome-kiosk to talk to."""
+    window = build_window(tmp_path)
+    try:
+        assert not window.window_config.path.exists()
+    finally:
+        window.shutdown()
+
+
+def test_a_kiosk_shell_writes_phase_a_before_the_band_window_exists(tmp_path: Path) -> None:
+    """Rule R2: geometry is only honoured during a window's first configure, so
+    the catch-all has to say "the band strip" before the band is created."""
+    from kidnix_shell.app import ShellApplication, ShellWindow
+    from kidnix_shell.metrics import parse_screen
+
+    paths = Paths(
+        home=tmp_path,
+        data_home=tmp_path / "data",
+        config_home=tmp_path / "config",
+        cache_home=tmp_path / "cache",
+        state_home=tmp_path / "state",
+    )
+    config = ParentConfig()
+    application = ShellApplication(
+        paths=paths,
+        config=config,
+        policy=SessionPolicy.demo(),
+        activities=[make_activity("a")],
+        demo=True,
+        fullscreen=True,
+        speech_backend="null",
+    )
+    # Never presented, so `fullscreen()` is only ever a request nothing reads.
+    window = ShellWindow(
+        application,
+        paths=paths,
+        config=config,
+        policy=SessionPolicy.demo(),
+        activities=application._activities,
+        demo=True,
+        fullscreen=True,
+        speech_backend="null",
+        screen=parse_screen("1280x800@102"),
+    )
+    try:
+        written = WindowConfig(paths.config_home).path
+        assert written.is_file()
+        text = written.read_text()
+        band = window.metrics.band_height
+        assert f"lock-on-area=0,0 {window.metrics.screen_width}x{band}" in text, text
+        assert f"set-height={band}" in text
+        assert f"match-title={BAND_TITLE}" in text
+    finally:
+        window.shutdown()
+
+
+def test_the_ending_offer_never_covers_a_child_s_drawing(tmp_path: Path) -> None:
+    """CCI audit 02 #4. Inside an activity the offer is two buttons in the band
+    and the child stays exactly where they were."""
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window)
+        window._present_ending_offer()
+
+        assert _state(window) is State.IN_ACTIVITY
+        assert window.band.offer_mode is True
+        assert window.band.finish_this.get_visible() is True
+        assert window.band.one_more.get_visible() is True
+        # The two they replace are the two that stood down, and nothing else
+        # in the band moved.
+        assert window.band.undo.get_visible() is False
+        assert window.band.my_things.get_visible() is False
+        assert window.band.back.get_visible() is True
+        assert window.band.ear.get_visible() is True
+
+        window.dismiss_offer(False)
+        assert window.band.offer_mode is False
+        assert window.band.undo.get_visible() is True
+        assert window.band.finish_this.get_visible() is False
+        assert window.session.offer_answered is True
+    finally:
+        window.shutdown()
+
+
+def test_the_offer_buttons_are_the_same_size_as_the_two_they_replace(tmp_path: Path) -> None:
+    """The band must not re-flow under a child's hand at the one moment they
+    are being asked to stop."""
+    window = build_window(tmp_path)
+    try:
+        band = window.band
+        for offer, ordinary in ((band.finish_this, band.undo), (band.one_more, band.my_things)):
+            assert offer.get_size_request() == ordinary.get_size_request()
+    finally:
+        window.shutdown()
+
+
+def test_back_inside_an_activity_ends_it_and_goes_home(tmp_path: Path) -> None:
+    """ADR-0010 #5 retires here: Back is the way out of an activity, so Tux
+    Paint's own Quit tool and its unreadable modal do not have to be."""
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window)
+        window.on_back()
+        assert _state(window) is State.IN_ACTIVITY, "not until it has actually gone"
+        _wait_for_exit(window)
+        assert _state(window) is State.HOME
+    finally:
+        window.shutdown()
+
+
+def test_my_things_inside_an_activity_ends_it_then_opens_the_journal(tmp_path: Path) -> None:
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window)
+        window.open_journal()
+        assert _state(window) is State.IN_ACTIVITY
+        _wait_for_exit(window)
+        assert _state(window) is State.JOURNAL
+    finally:
+        window.shutdown()
+
+
+def test_undo_inside_an_activity_says_where_the_undo_is(tmp_path: Path) -> None:
+    """Ruling: speak, do not hide. A shell that guessed at a key press per
+    activity would be teaching a child that the button is unreliable."""
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window)
+        window.on_undo()
+        spoken = window.speech.last_utterance
+        assert "undo" in spoken.lower()
+        assert "Sleeper" in spoken, "it names the thing the child is actually in"
+    finally:
+        window.shutdown()
+
+
+def test_the_band_window_goes_dark_rather_than_away_on_sleeping(tmp_path: Path) -> None:
+    """Unmapping it would cost the band its placement: a re-mapped window gets
+    a fresh first configure, and by then the file says "below the band"."""
+    from kidnix_shell.state import Event
+
+    window = build_window(tmp_path)
+    try:
+        window.machine.try_fire(Event.GOODNIGHT)
+        assert _state(window) is State.SLEEPING
+        assert window.band.get_visible() is False
+        assert window.band_window.has_css_class("sleeping")
+        assert window.band_window.get_content() is window.band  # still mapped
+    finally:
+        window.shutdown()

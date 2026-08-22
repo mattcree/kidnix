@@ -24,6 +24,7 @@ import pytest
 from conftest import session_policy
 from pixels import (
     band_buttons,
+    band_height_from,
     centre,
     dark_centroid,
     dark_fraction,
@@ -39,18 +40,42 @@ from pixels import (
 #: log says which activity actually started.
 DRAW_ROW, DRAW_COLUMN = 0, 0
 
-#: Tux Paint's own furniture, at 1280x800 fullscreen. Read off a screenshot of
-#: the real thing (docs/spikes/e2e-scenario.md); Tux Paint lays its tool column
-#: out in a fixed grid, so these do not move with the shell's metrics.
-TUXPAINT_CANVAS = (430, 300, 880, 400)  # somewhere safely inside the paper
-TUXPAINT_QUIT_TOOL = (71, 400)
-TUXPAINT_QUIT_YES = (446, 346)
-
 #: The band's buttons, left to right: Back, Undo, My Things, then the Ear on
 #: the right. Found in the screenshot rather than computed.
+BACK_INDEX = 0
 MY_THINGS_INDEX = 2
 
 JOURNAL_GLOB = "/var/home/kid/.local/share/kidnix/journal"
+
+# --------------------------------------------------------------------------- #
+# v0.1.5: the band is a separate toplevel that gnome-kiosk pins to the top
+# strip, and `lock-on-area` puts every activity in the area *below* it
+# (docs/spikes/band-over-activity.md). So Tux Paint no longer owns rows 0-799:
+# it owns `band..799` and re-lays out into them. Nothing here may therefore
+# hard-code a row -- the boxes are fractions of the content area, and the band's
+# height comes from the shell's own `display metrics:` line, which the fit
+# backstop can move by a pixel or two.
+# --------------------------------------------------------------------------- #
+
+SCREEN_HEIGHT = 800
+
+
+def canvas_box(band: int) -> tuple:
+    """Somewhere safely inside Tux Paint's white paper, below the band."""
+    content = SCREEN_HEIGHT - band
+    return (430, band + int(content * 0.29), 880, band + int(content * 0.43))
+
+
+def canvas_ink_box(band: int) -> tuple:
+    """The region the stroke is drawn in, with a little slack around it."""
+    left, top, right, bottom = canvas_box(band)
+    return (left - 30, top - 20, right + 20, bottom + 20)
+
+
+def canvas_white_box(band: int) -> tuple:
+    """A wide swathe of the paper, for "does this look like Tux Paint at all"."""
+    content = SCREEN_HEIGHT - band
+    return (300, band + int(content * 0.08), 1000, band + int(content * 0.62))
 
 
 def _stroke(box: tuple) -> list:
@@ -87,6 +112,12 @@ def test_01_boots_to_whos_here(scenario):
     metrics = scenario.expect_log("display metrics:")
     assert "1280x800" in metrics, metrics
     scenario.metrics_line = metrics
+    # v0.1.5: everything below the band belongs to the content window and to
+    # every activity, so the band's height is the origin of the rest of this
+    # story. The shell prints it; do not guess it.
+    scenario.band_height = band_height_from(metrics)
+    print(f"  band is {scenario.band_height} px tall")
+    assert 80 <= scenario.band_height <= 128, metrics  # spec 7a's clamp
 
     image = scenario.shot("whos-here", "S1 Who's here?")
     assert (image.width, image.height) == (1280, 800)
@@ -106,15 +137,33 @@ def test_01_boots_to_whos_here(scenario):
     print(f"  avatar at {scenario.avatar} (bbox {box})")
 
 
-def test_02_choosing_me_goes_home(scenario):
-    """S1 -> S2. Clicking the avatar starts a session and lands on Home."""
+def test_02_choosing_me_asks_whats_next_then_goes_home(scenario):
+    """S1 -> S1b -> S2. Clicking the avatar starts a session and asks what
+    happens *after* the computer before it opens Home (spec 7b, Coco's Videos).
+
+    Wave 4 added S1b between Who's here? and Home, so this step is now two
+    clicks: the profile, then one of the picture options. What the child picks
+    is remembered for Goodbye, which is asserted in step 6.
+    """
     vm = scenario.vm
     vm.click(*scenario.avatar)
 
-    scenario.expect_log("state choosing -> home (choose_profile)")
+    scenario.expect_log("state choosing -> next_choice (choose_profile)")
     assert "session started for" in scenario.journal()
 
-    image = scenario.shot("home", "S2 Home, after clicking Me")
+    asked = scenario.shot("next-after", "S1b What's next after?")
+    options = find_grid(asked)
+    flat = [box for row in options for box in row]
+    assert len(flat) >= 2, f"What's next after? has no picture options: {options}"
+    print(f"  {len(flat)} next-after option(s)")
+
+    vm.click(*centre(flat[0]))
+    chosen = scenario.expect_log("next after this session:")
+    scenario.next_after_id = chosen.rsplit(":", 1)[-1].strip()
+    scenario.expect_log("state next_choice -> home (choose_next_after)")
+    print(f"  the child chose {scenario.next_after_id!r}")
+
+    image = scenario.shot("home", "S2 Home, after choosing what's next")
 
     grid = find_grid(image)
     # 9 available activities + "All done" on a 4-column grid -> 4/4/2. Assert
@@ -125,9 +174,10 @@ def test_02_choosing_me_goes_home(scenario):
     scenario.grid = grid
     print("  grid " + str([[centre(box) for box in row] for row in grid]))
 
-    buttons = band_buttons(image, 85)
+    buttons = band_buttons(image, scenario.band_height)
     assert len(buttons) >= 3, f"the band is missing buttons: {buttons}"
     scenario.band = buttons
+    print(f"  band buttons at {[centre(box) for box in buttons]}")
 
 
 def test_03_hovering_draw_speaks(scenario):
@@ -163,8 +213,24 @@ def test_03_hovering_draw_speaks(scenario):
 
 
 def test_04_draw_launches_tuxpaint_and_keeps_the_drawing(scenario):
-    """S2 -> S3 -> S2. Open Tux Paint, draw, quit, and find it in the Journal."""
+    """S2 -> S3 -> S2. Open Tux Paint, draw, quit, and find it in the Journal.
+
+    Rewritten for v0.1.5 (docs/spikes/band-over-activity.md). Two things moved:
+
+    * **Tux Paint no longer owns the screen.** The band is a toplevel of its
+      own, pinned to the top strip and kept above everything by ``set-above``,
+      and ``lock-on-area`` gives the activity the rows below it. So the canvas
+      is measured from ``band`` downwards, and the band is asserted to still be
+      there in the middle of the activity -- which is the whole point of the
+      change and covers audit B3, C1 and D3 at once.
+    * **Quitting is the band's Back**, not Tux Paint's own Quit tool. The
+      manifest passes ``--noquit``, which retires ADR-0010 #5: the picture-coded
+      but text-heavy "Do you really want to quit?" dialogue existed only because
+      the child had no other way out. Back sends SIGTERM, Tux Paint autosaves,
+      and the shell returns Home on ``activity_exited``.
+    """
     vm = scenario.vm
+    band = scenario.band_height
     vm.click(*centre(scenario.draw_tile))
 
     launched = scenario.expect_log("launched tuxpaint", timeout=40)
@@ -180,26 +246,44 @@ def test_04_draw_launches_tuxpaint_and_keeps_the_drawing(scenario):
         pytest.fail("tuxpaint never appeared in the process table")
 
     time.sleep(8)  # Tux Paint fades its splash in
-    image = scenario.shot("tuxpaint", "S3 Tux Paint, fullscreen")
+    image = scenario.shot("tuxpaint", "S3 Tux Paint, under the band")
     # Tux Paint's canvas is white; the shell's cream surface is not.
-    canvas = mean_colour(image, (300, 150, 1000, 600))
+    canvas = mean_colour(image, canvas_white_box(band))
     assert min(canvas) > 245, f"the canvas does not look like Tux Paint: {canvas}"
 
-    vm.drag(_stroke(TUXPAINT_CANVAS), step_delay=0.08)
+    # THE POINT OF v0.1.5: the band is still on screen, with the activity below
+    # it rather than over it. Audit B3 ("fixed band on every surface"), C1
+    # (undo reachable) and D3 (the sun glanceable throughout) all fail together
+    # if this does not hold.
+    over_activity = band_buttons(image, band)
+    assert len(over_activity) >= 3, (
+        f"the band is not over the activity: {over_activity}. The shell should "
+        "have written window-config.ini's phase B before the content window "
+        "was mapped -- check the journal for 'band window mapped' and "
+        "'wrote .../window-config.ini (phase activity)'."
+    )
+    # ...and the activity really did start below it, rather than the band being
+    # painted on top of a fullscreen Tux Paint.
+    assert min(mean_colour(image, (300, band + 4, 1000, band + 24))) > 200, (
+        "the rows just under the band are not Tux Paint's paper"
+    )
+
+    vm.drag(_stroke(canvas_box(band)), step_delay=0.08)
     time.sleep(2)
     drawn = scenario.shot("stroke", "S3 a stroke drawn over QMP")
-    ink = dark_fraction(drawn, (400, 280, 900, 420))
+    ink = dark_fraction(drawn, canvas_ink_box(band))
     assert ink > 0.005, f"the canvas is still blank ({ink:.3%} dark)"
     print(f"  {ink:.2%} of the canvas region is ink")
 
-    # Quit. tuxpaint.conf sets autosave=yes, so nobody is asked whether to
-    # save -- but Tux Paint still asks whether you meant to leave.
-    vm.click(*TUXPAINT_QUIT_TOOL)
-    time.sleep(2.5)
-    scenario.shot("tuxpaint-quit", "S3 'Do you really want to quit?'")
-    vm.click(*TUXPAINT_QUIT_YES)
-
+    # Quit -- from the band, not from Tux Paint. tuxpaint.conf sets
+    # autosave=yes, so nobody is asked whether to save, and the manifest passes
+    # --noquit so there is no in-app Quit tool and no "do you really want to
+    # quit?" modal left to answer. One way out, always in the same place.
+    vm.click(*centre(scenario.band[BACK_INDEX]))
+    scenario.expect_log("the band ended the activity", timeout=20)
     scenario.expect_log("state in_activity -> home (activity_exited)", timeout=40)
+    time.sleep(1.5)
+    scenario.shot("back-home", "S2 Home again, after the band's Back")
 
     deadline = time.monotonic() + 40
     entries = ""
@@ -237,52 +321,86 @@ def test_05_my_things_shows_the_drawing(scenario):
 
 
 def test_06_the_session_ends_on_its_own(scenario):
-    """S5 -> S6 -> S7 -> S8. The ending ritual, on a 90-second session.
+    """S5 -> S6 -> S7 -> S8. The ending ritual, from inside an activity.
 
     The shipped session is 25 minutes, which is the right number for a child
     and the wrong one for a test. The policy is root-owned, so the harness
     rewrites it over ssh and restarts the shell -- which is also the only way
     to get back to Who's here? without rebooting.
+
+    Since v0.1.5 this step deliberately runs the ritual **with Tux Paint on
+    screen**, because that is the case the whole band change is for. The offer
+    used to be raised as a fullscreen window over the child's drawing (the CCI
+    audit's 02 #4, "a consequence of the band gap rather than a choice"); it is
+    now two buttons in the band, and the drawing is never covered.
+
+    Two and a half minutes: offer at T-90 s, put away at T-30 s. Slack on
+    purpose -- Tux Paint takes ten to fifteen seconds to put a window up, and a
+    test that raced it would fail for a reason that is not the code.
     """
     vm = scenario.vm
-    vm.write_session_policy(session_policy(length=1.5, ending_offer=1, put_away=0.34))
+    band = scenario.band_height
+    vm.write_session_policy(session_policy(length=2.5, ending_offer=1.5, put_away=0.5))
     cursor = vm.restart_shell()
 
     blob = scenario.wait_until(
         lambda image: dark_centroid(image, (300, 250, 980, 740)),
         what="Who's here? after the restart",
     )
-    scenario.shot("restarted", "S1 again, on a 90-second session")
+    scenario.shot("restarted", "S1 again, on a two-and-a-half-minute session")
     vm.click(blob[0], blob[1])
-    scenario.expect_log("state choosing -> home (choose_profile)", since=cursor)
+    scenario.expect_log("state choosing -> next_choice (choose_profile)", since=cursor)
     started = time.monotonic()
 
-    scenario.expect_log("state home -> ending_offer (ending_offer_due)", timeout=90, since=cursor)
+    # S1b again. Pick whatever the first option is; Goodbye has to show it back.
+    asked = scenario.wait_until(
+        lambda image: find_grid(image) or None,
+        what="What's next after? options",
+    )
+    vm.click(*centre(asked[0][0]))
+    chosen = scenario.expect_log("next after this session:", since=cursor)
+    next_after_id = chosen.rsplit(":", 1)[-1].strip()
+    scenario.expect_log("state next_choice -> home (choose_next_after)", since=cursor)
+
+    # Into the activity, so the offer has something to *not* cover.
+    vm.click(*centre(scenario.draw_tile))
+    scenario.expect_log("state home -> in_activity (launch_activity)", since=cursor, timeout=40)
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        if vm.out("pgrep -u kid -x tuxpaint || true", check=False):
+            break
+        time.sleep(1)
+    time.sleep(8)  # let it finish laying out under the band
+    before = scenario.shot("in-activity", "S3 drawing again, band above")
+
+    # --- S5, in the band ---------------------------------------------------
+    scenario.expect_log("ending offer, in the band", timeout=120, since=cursor)
     time.sleep(1.5)
-    offer = scenario.shot("ending-offer", "S5 'The sun is going down'")
-    choices = find_grid(offer)
-    row = max(choices, key=len) if choices else []
-    assert len(row) >= 2, f"the offer should have two choices, found {choices}"
-    print(f"  offer buttons at {[centre(box) for box in row]}")
+    offer = scenario.shot("band-offer", "S5 the offer, in the band, over an activity")
 
-    # "Finish this one" is the left-hand choice (ending.py builds it first).
-    vm.click(*centre(row[0]))
-    scenario.expect_log("state ending_offer -> home (dismiss_offer)", timeout=20, since=cursor)
-
-    # KNOWN BUG, recorded in docs/spikes/e2e-scenario.md: nothing remembers
-    # that the offer was answered, so app._advance_ritual re-presents it on the
-    # very next tick. Reported, not asserted -- this line should start printing
-    # "stayed on Home" the day the guard lands, and the test still passes.
-    time.sleep(3)
-    bounced = (
-        "state home -> ending_offer"
-        in scenario.journal(cursor).split("state ending_offer -> home (dismiss_offer)")[-1]
+    # The child is still in their activity: nothing was raised over it.
+    assert "state in_activity -> ending_offer" not in scenario.journal(cursor), (
+        "the offer took the screen away from the child's drawing"
     )
-    print(
-        f"  after 'Finish this one': {'the offer came straight back' if bounced else 'stayed on Home'}"
+    strip = (0, 0, offer.width, band)
+    changed = differs(before, offer, strip)
+    print(f"  {changed:.0%} of the band changed when the offer arrived")
+    buttons = band_buttons(offer, band)
+    assert len(buttons) >= 3, f"the band lost its buttons in offer mode: {buttons}"
+    # ...and the drawing underneath is untouched: same pixels as before.
+    below = (0, band + 10, offer.width, offer.height)
+    assert differs(before, offer, below) < 0.25, "something covered the activity"
+
+    # "Finish this one" replaces Undo, in Undo's place, at Undo's size.
+    vm.click(*centre(buttons[1]))
+    time.sleep(2)
+    scenario.shot("band-offer-answered", "S5 answered; the band is itself again")
+    assert scenario.journal(cursor).count("ending offer, in the band") == 1, (
+        "the offer was presented more than once"
     )
 
-    scenario.expect_log("-> put_away (put_away_due)", timeout=90, since=cursor)
+    # --- S6, S7, S8 --------------------------------------------------------
+    scenario.expect_log("-> put_away (put_away_due)", timeout=120, since=cursor)
     time.sleep(2)
     scenario.shot("put-away", "S6 Let's keep that")
 
@@ -290,6 +408,17 @@ def test_06_the_session_ends_on_its_own(scenario):
     time.sleep(2)
     goodbye = scenario.shot("goodbye", "S7 Goodbye")
     print(f"  the ritual took {time.monotonic() - started:.0f}s from choosing a profile")
+
+    # S7 shows the child their own plan back (Coco's Videos). The shell speaks
+    # the line, and every utterance is one INFO line in the journal.
+    ready = [
+        line
+        for line in scenario.journal(cursor).splitlines()
+        if "speaking: " in line and "Ready to" in line
+    ]
+    assert ready, "Goodbye never said 'Ready to ...' -- the child's choice was lost"
+    print(f"  goodbye said: {ready[-1].split('speaking: ', 1)[-1]}")
+    print(f"  (the child had chosen {next_after_id!r})")
 
     buttons = [box for row in find_grid(goodbye) for box in row]
     assert buttons, "Goodbye has no buttons"

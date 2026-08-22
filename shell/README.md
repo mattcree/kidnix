@@ -71,9 +71,12 @@ kidnix-shell --generate-earcons [DIR]
   a small panel gets. `KIDNIX_SCREEN` and `KIDNIX_FORCE_DPI` do the same from
   the environment.
 - `--run-seconds N` — quit after N seconds, for smoke tests.
-- `--screenshot PATH` — write a PNG of the shell's own window before quitting.
-  GNOME 45+ lets no external tool photograph the kiosk, so the shell renders
-  its own widget tree (`just demo-small --run-seconds 7 --screenshot x.png`).
+- `--screenshot PATH` — write a PNG of the shell as the child sees it, before
+  quitting. GNOME 45+ lets no external tool photograph the kiosk, so the shell
+  renders its own widget trees and **composites the two windows** — the band at
+  the top, the content below it (`just demo-small --run-seconds 7 --start-on
+  home --screenshot x.png`). If the band cannot be rendered the content window
+  is written on its own and the log says so.
 - `--start-on {next-after,home,goodbye}` — development only: drive the shell
   forward immediately so a `--screenshot` run photographs the surface you asked
   for rather than the "Who's here?" chooser it would otherwise still be on.
@@ -90,8 +93,8 @@ There is no telemetry and no network access.
 ```
 kidnix_shell/
   cli.py          argument parsing, the two non-GUI modes
-  app.py          ShellApplication / ShellWindow -- the only thing that
-                  touches the state machine, session and launcher
+  app.py          ShellApplication / BandWindow / ShellWindow -- the only
+                  thing that touches the state machine, session and launcher
   context.py      what screens are handed (ShellContext, ShellHost)
   band.py         the persistent 96 px band and the sun
   widgets.py      ChildButton and friends: where the input rules live
@@ -105,6 +108,8 @@ kidnix_shell/
   # pure logic, no GTK, fully unit-tested headless:
   theme.py        the runtime half of the theme: profile tint, type scale
   labels.py       the no-cut label rule: wrap, shrink, floor at 18 pt
+  kiosk.py        gnome-kiosk's window-config.ini: the two phases that keep
+                  the band above an activity (no GTK; fully unit-tested)
   metrics.py      mm <-> px, DPI-aware sizing, and the fit-to-screen clamp
   activities.py   manifest loading, validation, order and availability (s4)
   ritual.py       the ending ritual as one pure decision (spec S5-S7)
@@ -154,6 +159,36 @@ what keeps twelve tiles on that panel instead of eight.
 The band is clamped to 80–128 px (spec §7a) and its buttons are sized to live
 inside that clamp. On a genuinely small panel Home drops to 4×2 tiles rather
 than shrinking twelve of them past 128 px.
+
+Since v0.1.5 there are **two budgets, not one**, because there are two windows:
+the band gets `W × band_height` and the content window gets
+`W × (H − band_height)` — `Metrics.content_height`. gnome-kiosk gives each of
+them exactly that and nothing more, so a content tree measured against the full
+monitor height would have fitted the old single window and been clipped in the
+new one.
+
+## The band over activities
+
+The band is its own toplevel (`kidnix-band`), and the surfaces under it are a
+second one (`kidnix-content`), on **one** `GtkApplication` — two processes
+sharing an application id do not get two windows. gnome-kiosk pins the band to
+the top strip, keeps it above everything with `set-above`, and locks every other
+window (the content window and every activity) into the area below it. The
+evidence, the four undocumented compositor rules it turns on and the reason the
+configuration has to be written in two phases are in
+[`docs/spikes/band-over-activity.md`](../docs/spikes/band-over-activity.md) and
+in `kidnix_shell/kiosk.py`'s docstring.
+
+What it changes for a child: Back, Undo, My Things, the Ear, the sun and the
+grown-up gate are all reachable **during** an activity, and the ending offer is
+no longer a fullscreen window over their drawing. Back and My Things end the
+activity gracefully (SIGTERM, five seconds to autosave, then SIGKILL) rather
+than navigating away from a program that is still on screen.
+
+`--windowed` does not write `window-config.ini` at all: that is a developer on
+their own desktop, where `$XDG_CONFIG_HOME` is theirs and there is no
+gnome-kiosk to talk to. Both windows still exist, so the code path under test is
+the real one; the window manager simply places them itself.
 
 ## Labels are never cut
 

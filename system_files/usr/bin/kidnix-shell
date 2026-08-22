@@ -31,6 +31,32 @@ set -euo pipefail
 mkdir -p "${HOME}/.config"
 : >"${HOME}/.config/gnome-initial-setup-done"
 
+# --- the band over activities (docs/spikes/band-over-activity.md) ------------
+#
+# gnome-kiosk resolves $XDG_CONFIG_HOME/gnome-kiosk/window-config.ini ONCE, at
+# compositor start-up, and arms its GFileMonitor only if the user's file was
+# already there (kiosk-window-config.c: setup_file_monitoring() returns early
+# when user_config_file_path is NULL). A file created after the compositor is
+# running is never noticed, however many times it is rewritten -- so the shell
+# cannot seed it itself, and this script, which runs before gnome-session and
+# therefore before gnome-kiosk, is the only place that can.
+#
+# The seed carries no geometry: this runs before there is a compositor, so
+# there is no monitor to measure, and gnome-kiosk's geometry keys are absolute
+# pixels with no percentage or monitor-relative form. The shell overwrites it
+# with measured numbers within a second of starting. See the seed file's own
+# comments and /usr/share/kidnix/kiosk/README.md.
+#
+# Unconditionally, on every login: the file the previous session left behind is
+# the "everything below the band" phase, and a band window created against that
+# would be placed below itself. Never fatal -- a session without it behaves the
+# way v0.1.4 did, which is a working computer with the band hidden during an
+# activity, and that beats no session at all.
+if ! install -D -m 0644 /usr/share/kidnix/kiosk/window-config.seed.ini \
+        "${HOME}/.config/gnome-kiosk/window-config.ini"; then
+    echo "kidnix: could not seed window-config.ini; the band will not stay over activities" >&2
+fi
+
 # --- lockdown (see docs/spikes/lockdown.md) ----------------------------------
 
 # Select the child's dconf profile (/etc/dconf/profile/kid), which layers the

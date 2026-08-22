@@ -14,6 +14,7 @@ it" -- questions whose answers change only when the shell genuinely changes.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -177,6 +178,21 @@ def _is_interior(pixel: tuple) -> bool:
     return (
         pixel[0] >= INTERIOR_MIN[0] and pixel[1] >= INTERIOR_MIN[1] and pixel[2] >= INTERIOR_MIN[2]
     )
+
+
+def band_height_from(metrics_line: str, default: int = 96) -> int:
+    """Pull the band's height out of the shell's own ``display metrics:`` line.
+
+    Since v0.1.5 the band is a separate toplevel that gnome-kiosk pins to the
+    top strip, and everything else -- the shell's content window *and every
+    activity* -- is locked into the area below it. So "where does Tux Paint
+    start?" is no longer 0, and hard-coding 96 would break the day the fit
+    backstop shaves a pixel off the band (it settles at 97 on this panel).
+
+    ``Metrics.describe()`` prints ``... band 97 px (button 19.2 mm) ...``.
+    """
+    match = re.search(r"\bband (\d+) px", metrics_line)
+    return int(match.group(1)) if match else default
 
 
 def content_top(image: Image) -> int:

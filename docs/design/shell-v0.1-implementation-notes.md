@@ -1231,3 +1231,316 @@ options are `parent.toml`'s business, not an activity's.
    in P2 — `skip_next_choice` is the escape hatch if so.
 6. **The demo's three-minute session now has one more screen in it.** Nothing
    broke, but a `--demo` run reaches Home a few seconds later than it did.
+
+---
+
+## 18. v0.1.5 — the band stays visible during activities (2026-08-22)
+
+> Implementer's fourth report. It builds the thing
+> `docs/spikes/band-over-activity.md` proved was possible, and it closes the
+> single largest hole in the build: the CCI audit's B3 (fixed band on every
+> surface), C1 (undo in a fixed position), D3 (the sun glanceable throughout),
+> 01 #15, #22, #30, 08 §3.2e and §4.6, plus 02 #4 (the ending offer was a
+> fullscreen modal over the child's drawing) and 01 #20 (an autosave during an
+> activity was invisible). ADR-0010 #5 retires with it. Additive: nothing in
+> §§1–17 changed except where this section says so.
+
+### 18.1 Two toplevels, one process
+
+The shell was one fullscreen window that drew the band and the current surface
+together, and `IN_ACTIVITY` simply left it behind the activity. It is now two
+`Adw.ApplicationWindow`s on **one** `GtkApplication`:
+
+| Role | Class | Title | Contents |
+|---|---|---|---|
+| band | `app.BandWindow` | `kidnix-band` | `Band` — Back, Undo, My Things, sun, Ear, Grown-up |
+| content | `app.ShellWindow` | `kidnix-content` | the `Gtk.Stack` of screens S1–S8 |
+
+One `GtkApplication` is a requirement, not a tidiness choice: two *processes*
+sharing an application id do not get two windows — the second one's `activate`
+is delivered to the first, which presents the window it already has. The spike
+hit that and had to be rewritten around it.
+
+`ShellWindow` is still the only thing that touches the state machine, the
+session and the launcher; `BandWindow` has no logic at all. `_build_content()`
+now fills both windows, and `self.band` is still where it was, so every screen,
+every action and `ShellHost` are unchanged.
+
+**Titles are the whole identity.** Both windows carry `org.kidnix.Shell`, so
+`match-class` cannot tell them apart — and `match-class` could not place them
+anyway (rule R3 below). `kiosk.BAND_TITLE` / `kiosk.CONTENT_TITLE` are the one
+definition, and `tests/test_kiosk.py` asserts they contain no
+`g_pattern_match_simple` metacharacters.
+
+### 18.2 The compositor: `kidnix_shell/kiosk.py`
+
+A new module, no GTK, fully unit-tested headless (`tests/test_kiosk.py`, 26
+cases). It holds the three `window-config.ini` files as string constants and
+writes the rendered ones. The four rules the spike measured, and what each one
+made us do:
+
+* **R1 — the config is resolved once, at compositor start, and gnome-kiosk arms
+  its file monitor only if the user's file already existed.** So the file must
+  exist *before* gnome-kiosk. `/usr/bin/kidnix-shell` — which runs before
+  `gnome-session` — installs the seed, **unconditionally, on every login**. The
+  unconditional part is load-bearing: the file the previous session left behind
+  is phase B, and a band window created against phase B would be placed below
+  itself.
+* **R2 — geometry applies only during a window's first configure.** So the
+  catch-all is sequenced in time: phase A (the catch-all *is* the band strip)
+  before the band window is created, phase B (the catch-all is everything below
+  it) once the band is mapped. Exactly one transition, at start-up — not one per
+  activity launch.
+* **R3 — at that first configure a window may have no identity, and whether it
+  does is toolkit-dependent.** Only a catch-all is guaranteed to match early
+  enough to place any window, so **nothing here ever matches an activity by
+  name**. (Tux Paint is SDL2 and has no `app_id` yet at its first configure;
+  its `wm_class` is `TuxPaint.TuxPaint`, and knowing that buys us nothing.)
+* **R4 — `set-above` is exempt from R2 and is one-way.** So the band can be
+  raised by *title*, on every pass, and phase B's `set-above=false` cannot lower
+  it.
+
+**The seed carries no geometry, and that is a change from the spike's
+prototype.** The prototype seeded a 1280×96 catch-all "whose numbers barely
+matter". They matter in one case: a session whose shell fails to start would
+squeeze every window into a strip sized for somebody else's panel. The wrapper
+runs before there is a compositor, so it cannot measure a monitor, and
+gnome-kiosk's geometry keys are absolute pixels — `CONFIG.md` (read in the
+image) types `set-x`/`set-y`/`set-width`/`set-height` as integers and
+`lock-on-area` as the literal `"x,y WxH"`; there is **no percentage form**, and
+the only monitor-relative form (`set-on-monitor` + `lock-on-monitor-area`) needs
+a monitor *name* the wrapper cannot know either. So the seed contains one
+section — `match-title=kidnix-band` / `set-above=true` — and exists purely so
+that gnome-kiosk resolves the path and arms the monitor. A shell that never
+starts then behaves exactly as v0.1.4 did.
+
+Sequencing, as implemented:
+
+1. `ShellWindow.__init__` measures the monitor and writes **phase A**;
+2. it creates `BandWindow` and connects its `map` signal;
+3. `present_all()` presents the **band alone**;
+4. `_on_band_mapped` logs the band's real size, writes **phase B**, and waits
+   `CONTENT_SETTLE_MS`;
+5. `_present_content` presents the content window and logs the geometry it got.
+
+`CONTENT_SETTLE_MS` is **1200 ms**, not the spike's 3 s sleep. GLib file
+monitors rate-limit at 800 ms by default, so anything under a second is a race.
+It is paid once, at login, behind an already-visible band. The spike's open
+question 3 asked for the shell to say what the content window actually got;
+`_log_content_geometry` does, so a regression is a grep rather than a
+screenshot somebody has to notice.
+
+Writing the same bytes twice is skipped (`WindowConfig` compares before it
+writes): gnome-kiosk reloads on every change event, and a reload that changes
+nothing can only cost us a race.
+
+`--windowed` writes nothing at all. That is a developer on their own desktop,
+where `$XDG_CONFIG_HOME` is *theirs* and there is no gnome-kiosk. Both windows
+still exist, so the code path under test is the real one.
+
+**The shipped templates and the module cannot drift**:
+`system_files/usr/share/kidnix/kiosk/*.ini` are byte-identical to the constants
+and `tests/test_kiosk.py` asserts it (skipping when the shell is running from an
+installed copy with no repo around it).
+
+### 18.3 Two fit budgets, not one
+
+`Metrics.content_height` is new: `screen_height − band_height`, or 0 for an
+unknown screen. `_check_measured_fit` now measures **both** trees and shrinks if
+either overflows *its own* window — the band against `W × band_height`, the
+content against `W × content_height`. gnome-kiosk gives each of them exactly
+that and nothing more (`lock-on-area`), so a content tree measured against the
+full monitor height would have fitted the old single window and been clipped in
+the new one: the v0.1.0 clipping bug wearing a new hat.
+
+On the 1280×800 @102 panel this costs one extra shrink step (chrome 1.00 →
+0.96 → 0.98 of that) and settles at a 97 px band, a 42.3 mm tile and every floor
+intact.
+
+`--screenshot` now composites both windows — the band's tree at `0,0`, the
+content tree at `0,band_height` — into one image the size of the panel, which is
+what the compositor puts in front of the child. If the band cannot be rendered
+the content window is written on its own and the log says so.
+`screenshots/shell-v0.1.5-home.png` is
+`just demo-small --start-on home --run-seconds 7 --screenshot …`; it is 1280×795
+rather than 1280×800 only because the *development* window is sized to what the
+layout needs, not to the strip gnome-kiosk would hand it.
+
+### 18.4 What the band does during an activity
+
+| Control | Before | Now |
+|---|---|---|
+| Back | unreachable | **ends the activity**: SIGTERM, 5 s autosave grace, SIGKILL; `activity_exited` navigates when it has actually gone |
+| Undo | unreachable | speaks "*Draw* has its own undo button" |
+| My Things | unreachable | ends the activity, *then* opens the Journal |
+| Ear, sun, Grown-up | unreachable | unchanged, and now reachable |
+
+Back and My Things deliberately do **not** navigate first: a shell surface
+raised under a program that is still on screen is a screen the child cannot see,
+pressed from a band they can. Both sweep the Journal before asking the activity
+to quit, so a child quick enough to reach My Things finds their drawing already
+there. The stop path is spec S6's, unchanged and shared with Put away.
+
+**Undo speaks rather than routing.** The ruling was "speak", and the reasoning
+is worth recording: routing Undo into a running program means synthesising a key
+press per activity — Tux Paint's undo is Ctrl+Z, GCompris's is not — and a shell
+that guessed would teach a child that the button is unreliable. Honest and
+audible beats clever and intermittent; it is the same rule as "Nothing to undo".
+
+### 18.5 The ending offer is not a modal any more (audit 02 #4)
+
+`_present_ending_offer` has two shapes and neither of them covers a drawing:
+
+* **on a shell surface** — the offer is the `ENDING_OFFER` screen in the content
+  window, which is where the child already is. (The old code raised a *second*
+  fullscreen `Gtk.Window` over everything; that window is gone.)
+* **inside an activity** — the band changes. The sun is already low and warm;
+  Undo and My Things are replaced, in place and at the same size, by
+  "Finish this one" and "One last little thing", spoken once, for
+  `BAND_OFFER_SECONDS` (20 s).
+
+Two things about the swap are deliberate and both are trade-offs worth naming.
+
+1. **Nothing moves.** The two offer buttons are the same size as the two they
+   replace and sit in the same places, so the band does not change width, the
+   sun does not shift and Back and the Ear stay put. A band that re-flowed under
+   a five-year-old's hand at the one moment they are being asked to stop would
+   be the worst possible time for it.
+2. **They are pictures, not words.** A band button is one square ~20 mm on a
+   side; "One last little thing" cannot be set inside that at the 18 pt floor
+   without cutting it or making the band taller than spec §7a's clamp. The words
+   are the `speak_text` — which is also the accessible name — and the shell
+   speaks the whole question once when the offer appears. **This is the one
+   place in the shell where a child-facing control has no visible label**, and
+   it cuts pre-reader-first the other way round on purpose: the audio carries
+   the sentence. Two new icons, `kidnix-finish` (the setting sun, the same
+   picture the offer screen shows) and `kidnix-one-more` (one more small thing
+   beside what is there). **For the thinker: this wants a child's eyes on it.**
+   `screenshots/shell-v0.1.5-band-offer.png` is the band in offer mode (the
+   content window behind it is Home rather than a drawing, because a demo has
+   no Tux Paint to be inside — in the real case the child sees their own
+   picture there, untouched).
+
+`ritual.next_action` gained `offer_shown`, because the band route does not
+change the state and `IN_ACTIVITY` is in `INTERRUPTIBLE` — without it the shell
+would re-present the offer on every 500 ms tick, which is exactly the bug the
+offer latch exists to prevent. A band offer nobody answers within 20 s is
+latched as answered: ignoring a question is a legitimate answer, and the
+alternative is asking it four hundred times over four minutes. Put away at T−2
+still arrives and still ends the activity, unchanged.
+
+### 18.6 Sleeping
+
+The band is still hidden on the Sleeping screen — nothing in it is for a machine
+that has said goodnight — but its **window stays mapped**. Unmapping it would
+cost the band its placement: a re-mapped window gets a fresh first configure, and
+by then the file says phase B, which would put the band below itself. The strip
+it leaves behind is painted `#171b2c` (`window.kidnix.sleeping` in `theme.css`),
+the same colour as the Sleeping screen, so the two windows read as one surface.
+
+### 18.7 Tux Paint: `--noquit`, and where it should really live
+
+`system_files/usr/share/kidnix/activities/tuxpaint.toml` now launches
+`tuxpaint --noquit`, which hides Tux Paint's own Quit tool and disables its
+`[Escape]` binding. **ADR-0010 #5 retires**: that dialogue ("Do you really want
+to quit?", two lines of text a pre-reader cannot read, ~1400 px wide) existed
+only because the child had no other way out of the activity. Now Back in the
+band is the way out, `autosave=yes` means the drawing is already saved when
+SIGTERM arrives, and the Journal keeps it.
+
+**The trade-off, stated:** Tux Paint then has *no* in-app exit. If the band ever
+failed to appear, a child would be stuck in it. That is the design — one exit,
+always in the same place, in the shell's chrome rather than in each activity —
+and it is why `tests/e2e/test_scenario.py` now asserts the band is on screen
+*during* the activity before it uses Back. An adult still has Alt+F4 and
+Shift+Ctrl+Escape (`tuxpaint(1)`).
+
+**For the thinker — this belongs somewhere else.** The right home is
+`noquit=yes` in `/etc/tuxpaint/tuxpaint.conf`, which `build_files/50-activities.sh`
+writes with a heredoc (it cannot live in `system_files/`: the tuxpaint RPM owns
+that path as a `%config` file and the dnf transaction would clobber an overlay
+copy — the script says so at line 157). That script and `tests/image/test_activities.sh`
+are both outside this change's ownership, so the flag is on the command line
+instead. Two one-line edits move it:
+
+```diff
+-# Quit stays available: the shell has to be able to close an activity, and a
+-# child needs a way out that is not "ask a grown-up to reboot".
+-quit=yes
++# The band's Back is the way out of an activity (v0.1.5), so Tux Paint's own
++# Quit tool and its unreadable "do you really want to quit?" modal go away.
++noquit=yes
+```
+
+```diff
+-assert_grep '^quit=yes$'  /etc/tuxpaint/tuxpaint.conf "tuxpaint quit stays available"
++assert_grep '^noquit=yes$' /etc/tuxpaint/tuxpaint.conf "the band's Back is the only way out"
+```
+
+…and then `--noquit` can come off the manifest's `exec`.
+
+### 18.8 Tests
+
+**Headless** (`just test-headless`, no display):
+
+* `tests/test_kiosk.py` — 26 cases: the geometry arithmetic on five panels, the
+  token check, the five refusals, both phases' contents, path resolution,
+  idempotence, directory creation, the seed's emptiness, and byte-equality with
+  the three shipped `.ini` files.
+* `tests/test_ritual.py` — a `BandShell` that models the v0.1.5 route: the offer
+  is presented once, the child never leaves `IN_ACTIVITY`, an unanswered offer
+  is not asked again, put away still arrives, and `offer_shown` suppresses
+  `PRESENT_OFFER` and *nothing else* (checked across every phase × state).
+
+**GTK smoke** (skipped without a display): two toplevels with the two titles and
+one application; the band is no longer inside the content tree; each window
+measures inside its own share of the panel; `--windowed` writes no config while
+a kiosk shell writes phase A before the band exists; the offer never covers the
+drawing and the offer buttons are the same size as the two they replace; Back
+and My Things end a real child process and then navigate; Undo names the
+activity; the band window goes dark rather than away on Sleeping.
+
+`just lint` (ruff + ruff format + mypy strict) and `just test-headless` are
+green — 685 passed, 1 skipped, no display. So is the full suite with a display:
+798 passed.
+
+**e2e** (`tests/e2e/`, run by the thinker): `pixels.band_height_from()` reads the
+band's height out of the shell's own `display metrics:` line rather than
+hard-coding 96 (the fit backstop settles it at 97 on this panel), and every Tux
+Paint region is now a fraction of the area *below* the band. Step 4 asserts the
+band is still there mid-activity and that the rows under it are Tux Paint's
+paper, then quits with the band's Back instead of the Quit tool. Step 6 runs the
+whole ritual from *inside* an activity on a 2½-minute session, asserts the offer
+arrives in the band exactly once and that the pixels below the band did not
+change, and checks that Goodbye speaks the child's own "Ready to …". Step 2 was
+also brought up to date with wave 4's "What's next after?" screen.
+
+### 18.9 Still open after this pass
+
+1. **None of the compositor half is verified in the shipped image.** Everything
+   about `window-config.ini` is measured — but it was measured by the spike's
+   throwaway harness, on hand-written files, not by this code in this session.
+   The e2e run is the proof; until it is green, treat §18.2 as a design.
+2. **`CONTENT_SETTLE_MS = 1200` is reasoned, not measured.** If gnome-kiosk's
+   monitor turns out to be slower, the content window's first configure would
+   land under phase A and the shell would be a second band. The symptom is
+   loud (`content window at 1280x97`), which is why the log line exists.
+3. **A monitor hotplug mid-session leaves the band where it was.** Rule R2 means
+   a window's geometry cannot be changed after its first configure. The shell
+   rewrites phase B so every *subsequent* activity is right, and says so in the
+   log. Fixing it properly means destroying and recreating the band window,
+   which is a re-map with the wrong file in place; the ordering would have to be
+   re-derived. Not urgent — the target hardware is one panel.
+4. **Multi-monitor is untested**, as the spike said. `set-on-monitor` +
+   `lock-on-monitor-area` are the equivalents.
+5. **The band's offer buttons have no visible words** (§18.5). It is the one
+   deliberate exception to icon + label + audio and it needs a child.
+6. **`--noquit` is on a command line rather than in `tuxpaint.conf`** (§18.7).
+7. **Nothing yet puts the keep animation in the band.** Audit 01 #20 asked for
+   an autosave during an activity to be *visible*; the earcon is now audible
+   because the child is not behind a fullscreen window, but `_on_new_work` still
+   only plays a sound. The band is the place for it and the hook is there.
+8. **A shell restart mid-activity** (spike open question 4) is exercised by the
+   e2e's `restart_shell()` only between sessions, not with an activity running.
+   The reasoning says it is safe — the activity's initial config was consumed
+   long ago and the new band gets phase A — but it is reasoning.

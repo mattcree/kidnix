@@ -2,13 +2,16 @@
 
 Templates for `window-config.ini`, the one file that decides where gnome-kiosk
 puts a window and whether it is fullscreen. Evidence and measurements:
-`docs/spikes/band-over-activity.md`.
+`docs/spikes/band-over-activity.md`. The code that renders them is
+`shell/kidnix_shell/kiosk.py`, which holds these three files as string constants
+— `shell/tests/test_kiosk.py` asserts that the copies here are byte-identical to
+them, so the file the session installs and the file the shell writes cannot
+drift apart.
 
-These are **prototypes**, not yet wired into the image. They exist so the shell
-change and the session change can be written against a shape that has already
-been proven on the real compositor.
+**These are shipped.** `/usr/bin/kidnix-shell` installs the seed before
+`gnome-session` starts; the shell renders the other two.
 
-## Why there are two of them
+## Why there are three of them
 
 gnome-kiosk only honours `set-x` / `set-y` / `set-width` / `set-height` /
 `set-fullscreen` / `lock-on-area` while a window is still *initial* — during its
@@ -28,16 +31,18 @@ once, so a window keeps whatever it was given:
 
 | When | File in place | What the catch-all describes |
 |---|---|---|
+| before gnome-kiosk starts | `window-config.seed.ini` | nothing — no geometry at all |
 | shell start, before the band window is created | `window-config.band.ini` | the band strip, `0,0 W×H_band` |
 | once the band window is mapped, and from then on | `window-config.activity.ini` | everything below the band, `0,H_band W×(H−H_band)` |
 
-The shell writes the second file and never needs to touch it again: the content
+The shell writes the third file and never needs to touch it again: the content
 window and every activity launched afterwards are all placed below the band.
 
 ## The `@TOKENS@`
 
-Both files are templates. The shell substitutes real numbers from the monitor it
-measured (`metrics.py` already computes the band height, clamped 80–128 px):
+The band and activity files are templates. The shell substitutes real numbers
+from the monitor it measured (`metrics.py` computes the band height, clamped
+80–128 px):
 
 - `@WIDTH@`, `@HEIGHT@` — the monitor's pixel size
 - `@BAND_HEIGHT@` — the band's height
@@ -46,10 +51,14 @@ measured (`metrics.py` already computes the band height, clamped 80–128 px):
 Rendered output goes to `$XDG_CONFIG_HOME/gnome-kiosk/window-config.ini`
 (`/var/home/kid/.config/gnome-kiosk/window-config.ini`).
 
-## The seeding requirement
+`kiosk.render()` raises rather than emitting a file with a token left in it: an
+unreplaced `@WIDTH@` is a value gnome-kiosk's ini parser silently drops, and the
+failure would only ever appear as a window in the wrong place.
 
-`window-config.seed.ini` must be copied into place **before gnome-kiosk starts**.
-gnome-kiosk resolves the config path once, at compositor start-up, and arms its
+## The seeding requirement, and why the seed has no numbers in it
+
+`window-config.ini` must exist **before gnome-kiosk starts**. gnome-kiosk
+resolves the config path once, at compositor start-up, and arms its
 `GFileMonitor` *only if the user file existed at that moment*
 (`kiosk-window-config.c`, `setup_file_monitoring()` returns early when
 `user_config_file_path` is `NULL`). A file created afterwards is never noticed,
@@ -63,6 +72,21 @@ install -D -m 0644 /usr/share/kidnix/kiosk/window-config.seed.ini \
     "${HOME}/.config/gnome-kiosk/window-config.ini"
 ```
 
+It runs on **every** login, not just the first, and that is load-bearing: the
+file the previous session left behind is the phase-B one, and a band window
+created against phase B would be placed below itself.
+
+The seed carries **no geometry**, deliberately. The wrapper runs before the
+compositor, so it cannot measure a monitor, and gnome-kiosk's geometry keys are
+absolute pixels — `CONFIG.md` types `set-x`/`set-y`/`set-width`/`set-height` as
+integers and `lock-on-area` as the literal `"x,y WxH"`; there is no percentage
+form, and the only monitor-relative form (`set-on-monitor` +
+`lock-on-monitor-area`) needs a monitor *name* the wrapper cannot know either.
+A guessed catch-all would be worse than none: if the shell then failed to start,
+every activity would be squeezed into a strip on the wrong-sized panel. With no
+geometry, a session whose shell never came up behaves exactly as it did before
+the band existed.
+
 ## The `[band]` section
 
 `set-above` is *not* subject to the initial-configure rule — it is applied on
@@ -73,4 +97,24 @@ window (gnome-kiosk only ever calls `meta_window_make_above()`, never
 `unmake_above`), so the catch-all's `set-above=false` cannot undo it.
 
 Match on **title**, not class: both shell windows share the app id
-`org.kidnix.Shell`, and only the band may be above.
+`org.kidnix.Shell` (one process, one `GtkApplication` — two processes sharing an
+application id do not get two windows), and only the band may be above. The
+titles are `kidnix-band` and `kidnix-content`, defined once in
+`shell/kidnix_shell/kiosk.py`.
+
+## What we deliberately do not use
+
+- **`set-window-type=dock`** is what the documentation advertises for panels and
+  it empirically held the band on top (spike experiment 01). Do not use it:
+  mutter's `meta_window_get_default_layer()` drops a `META_WINDOW_DOCK` to
+  `META_LAYER_BOTTOM` whenever `window->monitor->in_fullscreen`, which would put
+  the band *behind* the first activity that really does own the monitor.
+  `set-above` takes the `wm_state_above` branch, which has no fullscreen
+  condition.
+- **`match-tag`** is upstream's own mechanism and would delete the phased
+  rewrite entirely, since a tag is known at window creation and so beats the
+  initial-configure rule. mutter 50.4 implements `xdg_toplevel_tag_v1`; GTK
+  4.22.4 does not expose it (no `xdg_toplevel_tag` symbol in `libgtk-4.so.1`).
+  Revisit when GTK gains it.
+- **`set-on-monitor` / `lock-on-monitor-area`** are the multi-head equivalents
+  of what we use and are untested here. The target hardware is one panel.

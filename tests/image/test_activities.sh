@@ -181,7 +181,7 @@ assert_grep '^saveovernew=yes$'    /etc/tuxpaint/tuxpaint.conf "tuxpaint never o
 assert_grep '^autosave=yes$'       /etc/tuxpaint/tuxpaint.conf "tuxpaint never asks a pre-reader whether to save"
 assert_grep '^nolockfile=yes$'     /etc/tuxpaint/tuxpaint.conf "tuxpaint can be relaunched within 30s (kiosk restarts)"
 # Quitting must stay possible: the shell has to be able to close an activity.
-assert_grep '^quit=yes$'           /etc/tuxpaint/tuxpaint.conf "tuxpaint quit stays available"
+assert_grep '^noquit=yes$'         /etc/tuxpaint/tuxpaint.conf "the band's Back is the only way out of Tux Paint"
 assert_rpm tuxpaint-stamps
 
 section "activity manifests"
