@@ -166,6 +166,31 @@ on schema errors so CI can run it.)
 - Fonts: Andika (child-facing), Atkinson Hyperlegible (parent sheet) — ship in
   `system_files` later; the shell must fall back cleanly to Cantarell.
 
+## 7a. Rulings on implementation questions (2026-08-22, after the first build)
+
+- **Activity refuses SIGTERM:** SIGTERM → 5 s grace → SIGKILL, as built. The
+  Journal importer has already captured autosaved files; losing unsaved
+  in-memory state is acceptable and logged.
+- **Resume:** manifests gain an optional `exec_resume` (argv with `{file}`);
+  where an app cannot open a file from argv (Tux Paint uses its own saved
+  gallery), plain launch is the correct behaviour and the card speaks "Open
+  Draw to find it". Not a bug.
+- **DPI:** keep physical-size scaling for tiles/targets; the band scales with
+  the same factor, clamped to 80–128 px.
+- **Sleeping ends** at the start of the next allowed schedule window (or a
+  new day if no windows) or on a Grown-up unlock. Daily budget resets at
+  04:00 local.
+- **"I'm finished" (D5):** add a **Home tile** (last position, moon/bed icon,
+  label "All done", spoken "All done for today?") that runs the same ending
+  ritual from S6 onward — not a band slot. One tap, no confirmation; Back on
+  the Put-away screen is disabled for 3 s then returns Home (accidental taps
+  recover).
+- **Inert controls:** Undo stays visible everywhere for spatial stability and
+  speaks "Nothing to undo" when empty. **Ask is hidden** until the flow exists
+  (an always-disabled control teaches the child that buttons lie).
+- **Earcons:** ship four short generated tones (keep, tap, back, sleep) at
+  −14 LUFS; no music.
+
 ## 8. Known gaps to spike after v0.1
 - **Band over activities.** Research wants the band visible during an
   activity. Under gnome-kiosk (mutter) the shell cannot stay on top. Options:
