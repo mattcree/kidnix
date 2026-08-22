@@ -34,6 +34,14 @@ table inet kidnix_egress {
         # speech-dispatcher, the (future) resident Piper TTS server and the
         # parent-panel IPC socket. Blocking lo would leave a pre-reader with a
         # mute computer, which is a worse failure than any risk it removes.
+        # DNS must be blocked BEFORE the loopback accept: systemd-resolved
+        # listens on 127.0.0.53 and forwards kid's queries upstream as its own
+        # uid, so `meta skuid 1000` never sees them on the uplink (proven by
+        # packet capture, docs/spikes/egress-proof.md §4). A name lookup is a
+        # two-way channel; reject it at the source.
+        meta skuid 1000 udp dport 53 counter reject with icmpx type admin-prohibited
+        meta skuid 1000 tcp dport 53 counter reject with tcp reset
+
         oif "lo" accept
 
         # UID 1000 is `kid`.

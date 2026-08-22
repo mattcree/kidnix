@@ -27,6 +27,8 @@ runner and on a dev laptop with nothing installed.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 import os
 import re
@@ -87,6 +89,45 @@ SSH_POLL_SECONDS = 60
 # is Restart=always / RestartSec=1, so this is generous by an order of
 # magnitude; it is a ceiling, not a target.
 SHELL_RESTART_BUDGET_SECONDS = 10
+
+# --- the egress proof (docs/spikes/egress-proof.md) -------------------------
+# How many different ways kid must be shown to fail to get out. Seven are coded
+# in the probe (HTTP by IP, HTTPS by name, raw UDP, ICMP, IPv6, a raw TCP
+# connect, and a systemd-spawned unit); the floor is the count, so removing one
+# is a deliberate edit rather than a silent weakening.
+EGRESS_MIN_ATTEMPTS = 7
+
+# Each attempt must fail on the `reject` (an instant ICMP admin-prohibited or
+# EACCES), not on curl's 5 s timeout. A timeout would mean the packet went out
+# and no reply came back -- a much weaker claim than the one we make to parents.
+EGRESS_FAIL_FAST_SECONDS = 3.0
+
+# The uid-1000 counter must move by at least this much across the attempts.
+# Some attempts cost more than one packet (curl retries, IPv6 tries both
+# addresses), none cost fewer than one, so the floor is the attempt count.
+# Observed on a healthy run: +13.
+EGRESS_MIN_COUNTER_DELTA = 7
+
+# --- a KNOWN GAP, proven by this test rather than argued about --------------
+#
+# `getent hosts <name>` as kid succeeds and the query really does leave the
+# machine. The rule is not broken: the packet is sent by systemd-resolved
+# (uid 990) over its own socket, after kid reached it through the LOOPBACK
+# socket the ruleset deliberately accepts. `meta skuid` matches the socket's
+# owner, and that socket is not kid's.
+#
+# So "the child session has no network egress" is true of every direct socket
+# and false of DNS. It is a low-bandwidth two-way channel: arbitrary labels go
+# out in the question, addresses come back in the answer.
+#
+# This is asserted as the CURRENT state, not as an acceptable one. When the
+# ruleset grows the one line that closes it --
+#
+#     meta skuid 1000 udp dport 53 reject   (before the `oif "lo" accept`)
+#
+# -- this test goes red and points here. Flip the constant in the same commit.
+# docs/spikes/egress-proof.md §4 has the full write-up and the options.
+EGRESS_RESOLVED_DNS_STILL_ESCAPES = False
 
 # Runs inside the guest as root. Emits one key=value block we can parse, then
 # a human-readable dump for the log. Must not use `sudo` (it decorates output
@@ -197,6 +238,249 @@ egress_root=$?
 runuser -u kid -- curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
 egress_kid=$?
 
+# --- egress proof, with a packet capture (docs/spikes/egress-proof.md) -------
+#
+# The block above is a differential: kid's curl fails, root's succeeds. That is
+# necessary and not sufficient -- a curl can fail for a dozen reasons that have
+# nothing to do with our rule, and "no reply came back" is not the same claim
+# as "no packet left the machine". A parent is being told the second one.
+#
+# So this section puts an OBSERVER on the wire (tcpdump on the uplink, the
+# same interface and the same capture filter for both windows) and runs two
+# windows through it:
+#
+#   window A -- eight different egress attempts as uid 1000, by eight
+#               different mechanisms. Expected: zero packets captured.
+#   window B -- one root curl to the same address. Expected: packets.
+#
+# Window B is what makes window A mean anything: it proves the observer was
+# watching the right interface with a filter that does catch traffic. Without
+# it, "tcpdump saw nothing" is indistinguishable from "tcpdump was misconfigured".
+#
+# Then three mechanism checks: the rule survives `firewall-cmd --reload`, kid
+# cannot flush it, and deleting it as root *unblocks* kid -- which is the only
+# way to show that the nftables rule is the thing doing the blocking, and not
+# some accident of the VM's networking. The table is reloaded from the shipped
+# file afterwards and kid is re-tested, so the machine is left as it was found.
+
+egress_tcpdump=$(rpm -q tcpdump 2>/dev/null || echo absent)
+egress_uplink=$(ip -o -4 route show default 2>/dev/null | awk '{print $5}' | head -1)
+[ -n "$egress_uplink" ] \
+    || egress_uplink=$(ip -o link show 2>/dev/null | awk -F': ' '$2 != "lo" {print $2; exit}')
+
+# Addresses nothing else on this machine talks to, so a packet matching this
+# filter can only have come from an attempt below. Deliberately NOT the DNS
+# resolver or the slirp gateway, which carry unrelated background chatter.
+EGRESS_FILTER="not port 22 and (host 1.1.1.1 or host 8.8.8.8 or host 9.9.9.9 or host 203.0.113.9 or host 2606:4700:4700::1111)"
+
+# nc is not in the image (nmap-ncat/netcat are not installed), so the raw UDP
+# and raw TCP attempts are done with python3's socket module instead -- same
+# syscalls, no extra package in a child's OS.
+cat >/tmp/kidnix-egress-udp.py <<'PYEOF'
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(3)
+try:
+    s.sendto(b"kidnix-egress-probe", (sys.argv[1], int(sys.argv[2])))
+except OSError as exc:
+    print(exc)
+    sys.exit(1)
+sys.exit(0)
+PYEOF
+
+cat >/tmp/kidnix-egress-tcp.py <<'PYEOF'
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(4)
+try:
+    s.connect((sys.argv[1], int(sys.argv[2])))
+except OSError as exc:
+    print(exc)
+    sys.exit(1)
+sys.exit(0)
+PYEOF
+chmod 0644 /tmp/kidnix-egress-udp.py /tmp/kidnix-egress-tcp.py
+
+# Sum of every kid counter in the table: the general reject plus the two DNS
+# rejects that sit before the loopback accept. A by-name attempt now dies on the
+# DNS rule and never reaches the general one, so only the total is meaningful.
+nft_counter() {
+    nft list table inet kidnix_egress 2>/dev/null \
+        | sed -n 's/.*counter packets \([0-9][0-9]*\) .*/\1/p' \
+        | awk '{ s += $1 } END { print s + 0 }'
+}
+
+# `-U` (packet-buffered) and the drain wait in stop_capture are both load-
+# bearing, and both were bought with a wrong answer. Without them tcpdump
+# reports "0 packets captured, 9 packets received by filter" for traffic that
+# demonstrably went out: the packets are sitting in the kernel ring buffer when
+# SIGINT arrives and tcpdump exits without draining it. A capture that silently
+# under-reports is the worst possible instrument for this particular claim --
+# it would have turned "kid sent nothing" into a PASS for the wrong reason.
+# The root control window exists to catch exactly that, and did.
+start_capture() {
+    rm -f "$1"
+    tcpdump -i "$egress_uplink" -n -p -U -s 128 -w "$1" "$2" \
+        >/tmp/kidnix-tcpdump.log 2>&1 &
+    capture_pid=$!
+    # tcpdump has to open the socket and install the BPF program before it can
+    # miss nothing; the file appearing is the earliest honest signal.
+    tries=0
+    while [ "$tries" -lt 40 ]; do
+        [ -f "$1" ] && break
+        sleep 0.25
+        tries=$(( tries + 1 ))
+    done
+    sleep 1
+}
+
+stop_capture() {
+    sleep 2
+    kill -INT "$capture_pid" 2>/dev/null
+    wait "$capture_pid" 2>/dev/null
+    sleep 0.5
+}
+
+count_capture() {
+    tcpdump -r "$1" -n 2>/dev/null | wc -l | tr -d ' '
+}
+
+egress_attempts=0
+egress_attempts_failed=0
+egress_attempt_max=0
+egress_attempt_rcs=""
+
+# `runuser -u kid --` is the default runner; one attempt goes through
+# `systemd-run --uid=1000` instead, because a transient unit is spawned by PID 1
+# rather than inherited from this shell -- if `meta skuid` were somehow matching
+# something inherited rather than the socket's owner, that is where it would show.
+try_kid() {
+    label="$1"; shift
+    t0=$(date +%s.%N)
+    "$@" >/dev/null 2>&1
+    rc=$?
+    t1=$(date +%s.%N)
+    d=$(awk -v a="$t0" -v b="$t1" 'BEGIN { printf "%.2f", b - a }')
+    egress_attempts=$(( egress_attempts + 1 ))
+    [ "$rc" != "0" ] && egress_attempts_failed=$(( egress_attempts_failed + 1 ))
+    egress_attempt_max=$(awk -v a="$egress_attempt_max" -v b="$d" \
+        'BEGIN { print (b > a) ? b : a }')
+    egress_attempt_rcs="${egress_attempt_rcs}${egress_attempt_rcs:+ }${label}:rc=${rc}/${d}s"
+}
+
+as_kid() { runuser -u kid -- "$@"; }
+
+egress_counter_before=$(nft_counter)
+
+start_capture /tmp/kid.pcap "$EGRESS_FILTER"
+
+# 1. plain HTTP by IP -- no DNS involved, so a failure is the filter and
+#    nothing else. curl exit 7 = "failed to connect to host".
+try_kid http-v4      as_kid curl -s -o /dev/null -m 5 http://1.1.1.1/
+# 2. HTTPS by name -- the whole stack: resolver, TCP, TLS.
+try_kid https-name   as_kid curl -s -o /dev/null -m 5 https://example.com/
+# 3. raw UDP to a nameserver, bypassing libc's resolver entirely.
+try_kid udp-53       as_kid python3 /tmp/kidnix-egress-udp.py 8.8.8.8 53
+# 4. ICMP. `ping` on Fedora 44 uses a datagram socket (net.ipv4.ping_group_range),
+#    not a raw socket and not setuid -- so `meta skuid` still sees uid 1000.
+try_kid icmp         as_kid ping -c 1 -W 2 1.1.1.1
+# 5. IPv6, on the theory that a v4-shaped lockdown is a classic hole. The table
+#    is `inet`, so it hooks both families -- this is where that gets proven.
+try_kid http-v6      as_kid curl -s -o /dev/null -m 5 'http://[2606:4700:4700::1111]/'
+# 6. a raw TCP connect() from python to a documentation address (TEST-NET-3),
+#    to be certain nothing curl-specific is doing the work.
+try_kid tcp-connect  as_kid python3 /tmp/kidnix-egress-tcp.py 203.0.113.9 80
+# 7. spawned by PID 1 as uid 1000 rather than forked from this root shell.
+try_kid systemd-run  systemd-run --quiet --pipe --wait --collect \
+    --uid=1000 --gid=1000 -- curl -s -o /dev/null -m 5 http://9.9.9.9/
+
+# Flatpak: the global override is `--unshare=network`, so a sandboxed app has no
+# network namespace to send from at all. Nothing is installed in an ephemeral VM
+# (the flatpaks land on first boot of a real install), so this reports rather
+# than asserts -- see docs/spikes/egress-proof.md.
+egress_flatpak_app=$(flatpak list --app --columns=application 2>/dev/null | head -1)
+egress_flatpak_rc=""
+if [ -n "$egress_flatpak_app" ]; then
+    try_kid flatpak as_kid flatpak run --command=sh "$egress_flatpak_app" \
+        -c 'curl -s -o /dev/null -m 5 http://1.1.1.1/'
+    egress_flatpak_rc=$rc
+fi
+
+stop_capture
+egress_kid_packets=$(count_capture /tmp/kid.pcap)
+egress_counter_after=$(nft_counter)
+
+# --- the control window: same interface, same filter, root instead of kid ----
+start_capture /tmp/root.pcap "$EGRESS_FILTER"
+curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
+egress_control_rc=$?
+stop_capture
+egress_root_packets=$(count_capture /tmp/root.pcap)
+
+# --- the hole this exercise found: DNS via systemd-resolved -----------------
+#
+# `getent hosts example.com` as kid SUCCEEDS, and the query leaves the machine.
+# Nothing above is broken -- the rule is doing exactly what it says. The path
+# simply does not go through a socket kid owns:
+#
+#     kid -> nss-resolve -> (varlink/D-Bus, a LOOPBACK socket, which the rule
+#     deliberately accepts) -> systemd-resolved, running as uid 990 -> the
+#     nameserver.
+#
+# `meta skuid` matches the socket owner, and the socket that carries the packet
+# off the machine belongs to systemd-resolved, not to uid 1000. So a child (or
+# anything running as the child) can cause a DNS query carrying arbitrary
+# attacker-chosen labels to leave the machine, and can read the answer back.
+# It is a low-bandwidth two-way channel, not "no egress".
+#
+# This window PROVES it rather than reasoning about it: capture port 53 on the
+# uplink while kid resolves a name that cannot be in any cache, and count the
+# packets that leave.
+egress_dns_name="kidnix-egress-probe-$$.example.com"
+start_capture /tmp/kid-dns.pcap "port 53"
+runuser -u kid -- getent hosts "$egress_dns_name" >/dev/null 2>&1
+egress_resolved_rc=$?
+runuser -u kid -- getent hosts example.com >/dev/null 2>&1
+egress_resolved_real_rc=$?
+stop_capture
+egress_dns_packets=$(count_capture /tmp/kid-dns.pcap)
+egress_resolved_active=$(systemctl is-active systemd-resolved 2>/dev/null)
+
+# --- does the rule survive firewalld reloading its own ruleset? -------------
+egress_firewalld=$(systemctl is-active firewalld 2>/dev/null)
+egress_reload_table=skipped
+egress_reload_kid=""
+if [ "$egress_firewalld" = "active" ]; then
+    firewall-cmd --reload >/dev/null 2>&1
+    sleep 1
+    egress_reload_table=absent
+    nft list table inet kidnix_egress >/dev/null 2>&1 && egress_reload_table=loaded
+    runuser -u kid -- curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
+    egress_reload_kid=$?
+fi
+
+# --- can kid take the rule away? --------------------------------------------
+runuser -u kid -- nft flush ruleset >/dev/null 2>&1
+egress_kid_flush_rc=$?
+egress_after_kid_flush=absent
+nft list table inet kidnix_egress >/dev/null 2>&1 && egress_after_kid_flush=loaded
+
+# --- and is the rule really what is doing the blocking? ---------------------
+# Delete it as root and watch kid get straight out. This is the control for the
+# whole section: if kid still could not reach the network with the table gone,
+# every PASS above would be measuring something else.
+nft delete table inet kidnix_egress >/dev/null 2>&1
+egress_after_root_delete=absent
+nft list table inet kidnix_egress >/dev/null 2>&1 && egress_after_root_delete=loaded
+runuser -u kid -- curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
+egress_kid_unblocked=$?
+
+nft -f /usr/lib/kidnix/nftables/kidnix-egress.nft >/dev/null 2>&1
+egress_restored=absent
+nft list table inet kidnix_egress >/dev/null 2>&1 && egress_restored=loaded
+runuser -u kid -- curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
+egress_kid_reblocked=$?
+
 # --- crash recovery ----------------------------------------------------------
 # kidnix-shell.service is Restart=always/RestartSec=1, which replaced the bash
 # supervisor. Kill the shell and time how long the child would stare at an
@@ -258,6 +542,31 @@ echo "shell_restart_seconds=${shell_restart_seconds}"
 echo "nft_table=${nft_table}"
 echo "egress_root=${egress_root}"
 echo "egress_kid=${egress_kid}"
+echo "egress_tcpdump=${egress_tcpdump}"
+echo "egress_uplink=${egress_uplink}"
+echo "egress_attempts=${egress_attempts}"
+echo "egress_attempts_failed=${egress_attempts_failed}"
+echo "egress_attempt_max=${egress_attempt_max}"
+echo "egress_attempt_rcs=${egress_attempt_rcs}"
+echo "egress_counter_before=${egress_counter_before}"
+echo "egress_counter_after=${egress_counter_after}"
+echo "egress_kid_packets=${egress_kid_packets}"
+echo "egress_root_packets=${egress_root_packets}"
+echo "egress_control_rc=${egress_control_rc}"
+echo "egress_resolved_active=${egress_resolved_active}"
+echo "egress_resolved_rc=${egress_resolved_real_rc}"
+echo "egress_dns_packets=${egress_dns_packets}"
+echo "egress_flatpak_app=${egress_flatpak_app}"
+echo "egress_flatpak_rc=${egress_flatpak_rc}"
+echo "egress_firewalld=${egress_firewalld}"
+echo "egress_reload_table=${egress_reload_table}"
+echo "egress_reload_kid=${egress_reload_kid}"
+echo "egress_kid_flush_rc=${egress_kid_flush_rc}"
+echo "egress_after_kid_flush=${egress_after_kid_flush}"
+echo "egress_after_root_delete=${egress_after_root_delete}"
+echo "egress_kid_unblocked=${egress_kid_unblocked}"
+echo "egress_restored=${egress_restored}"
+echo "egress_kid_reblocked=${egress_kid_reblocked}"
 echo "failed_units=$(systemctl list-units --state=failed --no-legend --plain \
     --no-pager 2>/dev/null | awk '{print $1}' | paste -sd, -)"
 echo "os_id=$(. /etc/os-release && echo "$ID")"
@@ -271,6 +580,15 @@ echo "mem_used_mb=$(free -m | awk '/^Mem:/{print $3}')"
 echo "mem_total_mb=$(free -m | awk '/^Mem:/{print $2}')"
 echo "KIDNIX_PROBE_END"
 
+echo "--- the egress ruleset as the kernel holds it ---"
+nft list table inet kidnix_egress 2>&1
+echo "--- packet capture: kid's window (${egress_kid_packets} packets, want 0) ---"
+ls -l /tmp/kid.pcap 2>&1
+tcpdump -r /tmp/kid.pcap -n 2>&1 | head -20
+echo "--- packet capture: root's control window (${egress_root_packets} packets, want >0) ---"
+tcpdump -r /tmp/root.pcap -n 2>&1 | head -10
+echo "--- packet capture: kid's DNS via systemd-resolved (${egress_dns_packets} packets) ---"
+tcpdump -r /tmp/kid-dns.pcap -n 2>&1 | head -10
 echo "--- systemd-analyze blame (top 10) ---"
 systemd-analyze blame --no-pager 2>/dev/null | head -10
 echo "--- loginctl ---"
@@ -742,6 +1060,172 @@ def assert_egress(probe: dict[str, str], checks: Checks) -> None:
         f"kid cannot reach the network (curl exited {kid_rc or '?'}; root got out fine)",
     )
 
+    assert_egress_proof(probe, checks)
+
+
+def _as_int(value: str) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_float(value: str) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def assert_egress_proof(probe: dict[str, str], checks: Checks) -> None:
+    """The packet-capture half: *no packet left the machine*, not merely
+    *no reply came back*.
+
+    Audit item 9 ("prove the egress claim with a packet capture in the VM and
+    make it a CI assertion") and research 03 section 3. The differential above
+    is necessary and not sufficient: a curl fails for many reasons, and a
+    parent is being told something much stronger than "the connection failed".
+    See docs/spikes/egress-proof.md for the evidence this section produced.
+    """
+    checks.check(
+        probe.get("egress_tcpdump", "absent") != "absent",
+        f"tcpdump is in the image, so the capture is a real observation "
+        f"({probe.get('egress_tcpdump') or 'absent'})",
+    )
+
+    attempts = _as_int(probe.get("egress_attempts", "")) or 0
+    failed = _as_int(probe.get("egress_attempts_failed", "")) or 0
+    checks.check(
+        attempts >= EGRESS_MIN_ATTEMPTS and failed == attempts,
+        f"every kid egress attempt failed ({failed}/{attempts}, want {EGRESS_MIN_ATTEMPTS}+)",
+        probe.get("egress_attempt_rcs", ""),
+    )
+
+    # `reject` rather than `drop` exists precisely so a child's activity errors
+    # out instead of hanging. If an attempt took anything like the 5 s curl
+    # timeout, the packet went somewhere and we waited for a reply that never
+    # came -- which is a different, worse lockdown.
+    slowest = _as_float(probe.get("egress_attempt_max", ""))
+    checks.check(
+        slowest is not None and slowest < EGRESS_FAIL_FAST_SECONDS,
+        f"every attempt failed fast, not on a timeout "
+        f"(slowest {slowest if slowest is not None else '?'}s, "
+        f"budget {EGRESS_FAIL_FAST_SECONDS}s)",
+    )
+
+    before = _as_int(probe.get("egress_counter_before", ""))
+    after = _as_int(probe.get("egress_counter_after", ""))
+    delta = after - before if before is not None and after is not None else None
+    checks.check(
+        delta is not None and delta >= EGRESS_MIN_COUNTER_DELTA,
+        f"the nft uid-1000 counter caught the attempts "
+        f"(+{delta if delta is not None else '?'} packets, "
+        f"want +{EGRESS_MIN_COUNTER_DELTA}; {before} -> {after})",
+    )
+
+    kid_packets = _as_int(probe.get("egress_kid_packets", ""))
+    root_packets = _as_int(probe.get("egress_root_packets", ""))
+
+    # The observer has to be shown to work before its silence means anything.
+    checks.check(
+        probe.get("egress_control_rc") == "0" and (root_packets or 0) > 0,
+        f"the capture filter does see traffic -- root's control curl put "
+        f"{root_packets if root_packets is not None else '?'} packets on "
+        f"{probe.get('egress_uplink') or '?'} (exit {probe.get('egress_control_rc') or '?'})",
+    )
+    checks.check(
+        kid_packets == 0,
+        f"NOT ONE PACKET from kid's {attempts} attempts reached "
+        f"{probe.get('egress_uplink') or 'the uplink'} "
+        f"(captured {kid_packets if kid_packets is not None else '?'})",
+    )
+
+    if probe.get("egress_firewalld") == "active":
+        checks.check(
+            probe.get("egress_reload_table") == "loaded"
+            and probe.get("egress_reload_kid") not in ("", "0"),
+            "the rule survives `firewall-cmd --reload` "
+            f"(table {probe.get('egress_reload_table') or '?'}, "
+            f"kid's curl exited {probe.get('egress_reload_kid') or '?'})",
+        )
+    else:
+        print(
+            f"  \033[33mNOTE\033[0m  firewalld is "
+            f"'{probe.get('egress_firewalld') or 'unknown'}', so the "
+            f"`firewall-cmd --reload` survival check did not run."
+        )
+
+    checks.check(
+        probe.get("egress_kid_flush_rc") not in ("", "0")
+        and probe.get("egress_after_kid_flush") == "loaded",
+        "kid cannot flush the ruleset "
+        f"(nft exited {probe.get('egress_kid_flush_rc') or '?'}, "
+        f"table {probe.get('egress_after_kid_flush') or '?'} afterwards)",
+    )
+
+    # The control that makes the whole section falsifiable: with the table
+    # deleted by root, kid MUST get straight out. If it does not, everything
+    # above was measuring something other than our rule.
+    checks.check(
+        probe.get("egress_after_root_delete") == "absent"
+        and probe.get("egress_kid_unblocked") == "0",
+        "root deleting the table is what unblocks kid -- the nft rule is the "
+        f"mechanism (table {probe.get('egress_after_root_delete') or '?'}, "
+        f"kid's curl exited {probe.get('egress_kid_unblocked') or '?'})",
+    )
+    checks.check(
+        probe.get("egress_restored") == "loaded"
+        and probe.get("egress_kid_reblocked") not in ("", "0"),
+        "reloading the shipped ruleset blocks kid again "
+        f"(table {probe.get('egress_restored') or '?'}, "
+        f"kid's curl exited {probe.get('egress_kid_reblocked') or '?'})",
+    )
+
+    # The gap this exercise found. See EGRESS_RESOLVED_DNS_STILL_ESCAPES.
+    dns_packets = _as_int(probe.get("egress_dns_packets", ""))
+    dns_rc = probe.get("egress_resolved_rc", "")
+    # The packets are the evidence, not the exit code: whether the name resolves
+    # depends on what is upstream of the VM, but the query leaving the machine
+    # does not. On a network with no resolver the answer never comes back and
+    # `getent` still exits non-zero -- and the label has still left.
+    dns_escapes = (dns_packets or 0) > 0
+    if EGRESS_RESOLVED_DNS_STILL_ESCAPES:
+        checks.check(
+            dns_escapes,
+            "KNOWN GAP, still open: kid's DNS escapes via systemd-resolved "
+            f"({dns_packets if dns_packets is not None else '?'} port-53 packets left "
+            f"{probe.get('egress_uplink') or 'the uplink'}; getent exited {dns_rc or '?'}). "
+            "If this FAILS the gap was closed -- flip EGRESS_RESOLVED_DNS_STILL_ESCAPES",
+        )
+        print(
+            "  \033[33mNOTE\033[0m  systemd-resolved (uid 990) sends that query on its "
+            "own socket after\n"
+            "        kid reaches it over loopback, which the ruleset accepts on purpose.\n"
+            "        `meta skuid` cannot see through it. docs/spikes/egress-proof.md §4."
+        )
+    else:
+        checks.check(
+            not dns_escapes,
+            "kid's DNS no longer escapes via systemd-resolved "
+            f"({dns_packets if dns_packets is not None else '?'} port-53 packets, "
+            f"getent exited {dns_rc or '?'})",
+        )
+
+    app = probe.get("egress_flatpak_app", "")
+    if app:
+        checks.check(
+            probe.get("egress_flatpak_rc") not in ("", "0"),
+            f"a Flatpak run by kid cannot reach the network ({app}, "
+            f"exit {probe.get('egress_flatpak_rc') or '?'})",
+        )
+    else:
+        print(
+            "  \033[33mNOTE\033[0m  no Flatpak is installed in an ephemeral VM "
+            "(they land on first boot of a real install), so the sandboxed-app "
+            "attempt did not run. `--unshare=network` is asserted statically by "
+            "tests/image/test_egress.sh."
+        )
+
 
 def assert_probe(probe: dict[str, str], checks: Checks) -> None:
     state = probe.get("system_running", "")
@@ -812,6 +1296,32 @@ def capture_journal(vm: EphemeralVM, output_dir: Path) -> Path | None:
     path = output_dir / "boot-journal.txt"
     path.write_text(clean(proc.stdout))
     return path
+
+
+def capture_pcaps(vm: EphemeralVM, output_dir: Path) -> list[Path]:
+    """Copy the egress proof's packet captures out before the VM is destroyed.
+
+    The captures ARE the evidence for the one claim a parent is given in plain
+    words, so they leave the machine as files rather than being reduced to a
+    PASS line and thrown away with the VM. base64 over ssh because these are
+    binary and small (hundreds of bytes to a few KB).
+    """
+    saved: list[Path] = []
+    target = output_dir / "pcap"
+    for name in ("kid.pcap", "root.pcap", "kid-dns.pcap"):
+        proc = vm.ssh(f"base64 -w0 /tmp/{name} 2>/dev/null", timeout=60)
+        blob = clean(proc.stdout).strip()
+        if proc.returncode != 0 or not blob:
+            continue
+        try:
+            data = base64.b64decode(blob, validate=True)
+        except (ValueError, binascii.Error):
+            continue
+        target.mkdir(parents=True, exist_ok=True)
+        path = target / name
+        path.write_bytes(data)
+        saved.append(path)
+    return saved
 
 
 def render_journal_stream(output_dir: Path) -> Path | None:
@@ -939,6 +1449,7 @@ def run_boot_test(args: argparse.Namespace) -> int:
 
             probe = parse_probe(result.stdout)
             journal = capture_journal(vm, output_dir)
+            pcaps = capture_pcaps(vm, output_dir)
         except (BootTestError, subprocess.TimeoutExpired):
             dump_failure_artifacts(vm, output_dir)
             raise
@@ -974,6 +1485,8 @@ def run_boot_test(args: argparse.Namespace) -> int:
         print(f"journal    : {journal}")
     if stream:
         print(f"boot stream: {stream}")
+    if pcaps:
+        print(f"pcaps      : {', '.join(str(p) for p in pcaps)}")
     print(f"wall clock : {elapsed:.1f}s")
     print("=" * 72)
 

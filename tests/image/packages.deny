@@ -1,0 +1,80 @@
+# Packages that must never be in a kidnix image, as extended regular
+# expressions matched against the package NAME (anchored, so `^firefox$`
+# means firefox and not firefox-langpacks).
+#
+# Checked by `just packages-check` against every package in the built image,
+# not merely against additions -- a denylisted package that somehow got into
+# tests/image/packages.lock must still fail the build.
+#
+# WHY EACH GROUP, in one line each. This file is a policy statement, so every
+# entry needs a reason a parent would recognise.
+
+# --- web browsers ------------------------------------------------------------
+# AGENTS.md: "no web browser". ADR-0005 / docs/spikes/hardening.md make this a
+# property of the MACHINE, not of the child's session: `base-main` ships
+# Firefox and build_files/70-hardening.sh removes it. If one comes back, a
+# parent's "there is no browser on this computer" stops being true.
+^firefox$
+^firefox-.*
+^chromium$
+^chromium-.*
+^google-chrome-.*
+^microsoft-edge-.*
+^brave-browser.*
+^opera-?stable$
+^vivaldi-stable$
+^epiphany$
+^midori$
+^falkon$
+^konqueror$
+^qutebrowser$
+^seamonkey$
+^lynx$
+^w3m$
+^links$
+^elinks$
+
+# --- remote access -----------------------------------------------------------
+# A machine a child uses unsupervised must not be reachable, or drivable, from
+# somewhere else. openssh-server is deliberately NOT here: it is how the boot
+# test and a parent's laptop reach the machine, and sshd_config.d/10-kidnix.conf
+# denies `kid` outright.
+^tigervnc.*
+^x11vnc$
+^gnome-remote-desktop$
+^vino$
+^krfb$
+^xrdp$
+^remmina.*
+^freerdp.*
+^teamviewer$
+^anydesk$
+^nomachine$
+^rustdesk$
+
+# --- chat, mail and anything with an inbox -----------------------------------
+# Non-negotiable #1 (no engagement mechanics) and #5 (no accounts). Nothing on
+# this machine should be able to deliver a message to a five-year-old.
+^thunderbird$
+^evolution$
+^telegram-desktop$
+^signal-desktop$
+^discord$
+^hexchat$
+^pidgin$
+^element-desktop$
+
+# --- peer-to-peer and downloaders --------------------------------------------
+^transmission.*
+^qbittorrent.*
+^deluge.*
+^aria2$
+
+# --- network reconnaissance and traffic tooling ------------------------------
+# tcpdump is deliberately NOT here: tests/boot/bcvk_boot_test.py needs it to
+# prove the egress claim, and it requires root. These are the ones that offer a
+# child (or something running as the child) a network capability instead.
+^nmap$
+^wireshark.*
+^telnet$
+^tftp$

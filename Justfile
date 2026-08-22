@@ -154,8 +154,86 @@ _require-image:
     @podman image exists "{{ image_ref }}" || { \
         echo "error: {{ image_ref }} not found -- run 'just build' first" >&2; exit 1; }
 
-# lint + build + test-image. What CI runs.
-ci: lint build test-image
+# --- supply chain: what is actually in the image -----------------------------
+#
+# `bootc container lint` checks the image is a valid bootc image. These two
+# recipes check it is the RIGHT image: that nothing vanished, and that nothing
+# arrived that a child's computer must not have. Both are cheap enough to run
+# on every build, which is the point -- a browser reappearing as somebody's
+# weak dependency is exactly the kind of change nobody notices by reading a
+# diff. (docs/design/cci-compliance-audit-2026-08-22.md §3.2, top-ten item 9.)
+
+# The full name-version list from the built image, sorted. The lock file is
+# this, committed; output/packages.txt is this, now.
+_packages-list:
+    @podman run --rm --entrypoint /bin/bash "{{ image_ref }}" \
+        -c "rpm -qa --qf '%{NAME}-%{VERSION}\n' | sort"
+
+# Regenerate tests/image/packages.lock from the built image. Run this DELIBERATELY,
+# read the diff, and commit it with the change that caused it.
+packages-lock: _require-image
+    @just _packages-list > "{{ justfile_directory() }}/tests/image/packages.lock"
+    @printf '==> tests/image/packages.lock: %s packages\n' \
+        "$(wc -l < "{{ justfile_directory() }}/tests/image/packages.lock")"
+    @echo "    review the diff before committing:  git diff tests/image/packages.lock"
+
+# Diff the built image against tests/image/packages.lock.
+#
+# Fails on a REMOVED package (something the image depended on has gone, and the
+# lock is the only record that it was ever there) and on any package matching
+# tests/image/packages.deny (a browser, a remote-desktop server, a chat client).
+# Version bumps and ordinary additions pass, because Fedora moves and we do not
+# want a lock file that cries wolf -- additions are printed so they are still
+# read, and `just packages-lock` records them.
+packages-check: _require-image
+    @mkdir -p "{{ output_dir }}"
+    @set -euo pipefail; \
+    lock="{{ justfile_directory() }}/tests/image/packages.lock"; \
+    deny="{{ justfile_directory() }}/tests/image/packages.deny"; \
+    now="{{ output_dir }}/packages.txt"; \
+    test -f "$lock" || { echo "error: $lock is missing -- run 'just packages-lock'" >&2; exit 1; }; \
+    just _packages-list > "$now"; \
+    printf '==> %s packages now, %s in the lock\n' "$(wc -l < "$now")" "$(wc -l < "$lock")"; \
+    names() { sed 's/-[^-]*$//' "$1" | sort -u; }; \
+    removed="$(comm -23 <(names "$lock") <(names "$now"))"; \
+    added="$(comm -13 <(names "$lock") <(names "$now"))"; \
+    status=0; \
+    if [[ -n "$removed" ]]; then \
+        echo "REMOVED since the lock -- if this was deliberate, run 'just packages-lock':" >&2; \
+        printf '  - %s\n' $removed >&2; \
+        status=1; \
+    fi; \
+    if [[ -n "$added" ]]; then \
+        echo "added since the lock (allowed; run 'just packages-lock' to record):"; \
+        printf '  + %s\n' $added; \
+    fi; \
+    banned="$(grep -vE '^[[:space:]]*(#|$)' "$deny" | grep -hxE -f /dev/stdin <(names "$now") || true)"; \
+    if [[ -n "$banned" ]]; then \
+        echo "DENYLISTED packages are in the image (tests/image/packages.deny):" >&2; \
+        printf '  !! %s\n' $banned >&2; \
+        status=1; \
+    else \
+        printf '==> no denylisted package in the image (%s patterns checked)\n' \
+            "$(grep -cvE '^[[:space:]]*(#|$)' "$deny")"; \
+    fi; \
+    if (( status == 0 )); then echo "==> packages OK"; fi; \
+    exit $status
+
+# The licence gate, with docs/LICENSES.md mounted so the ledger half runs too.
+#
+# `just test-image` runs the same script without /docs, which skips the two
+# ledger cross-checks and says so. This recipe is the complete gate and is what
+# CI runs. See docs/LICENSES.md and system_files/usr/share/kidnix/THIRD-PARTY.tsv.
+licenses: _require-image
+    @echo "==> licence gate"
+    podman run --rm \
+        -v "{{ justfile_directory() }}/tests/image:/tests:ro,z" \
+        -v "{{ justfile_directory() }}/docs:/docs:ro,z" \
+        --entrypoint /bin/bash \
+        "{{ image_ref }}" /tests/test_licenses.sh
+
+# lint + build + test-image + the supply-chain and licence gates. What CI runs.
+ci: lint build test-image licenses packages-check
 
 # --- bcvk: rootless VMs ------------------------------------------------------
 

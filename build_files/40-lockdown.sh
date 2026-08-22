@@ -488,3 +488,28 @@ test -f /usr/lib/bootupd/grub2-static/configs.d/08_greenboot.cfg \
 # -----------------------------------------------------------------------------
 
 log "lockdown installed"
+
+# --- name resolution for kid must go through the uid filter -------------------
+# glibc's nss-resolve module reaches systemd-resolved over a varlink socket, not
+# UDP/53, so kid's lookups would bypass the per-UID nftables rule and leave the
+# machine as resolved's own uid (packet capture: docs/spikes/egress-proof.md §4).
+# Dropping `resolve` from the hosts line makes glibc use its `dns` module, which
+# sends to the 127.0.0.53 stub over UDP/53 as the calling uid -- where the
+# kidnix_egress table rejects it for kid and lets parent through. resolved keeps
+# running; only the varlink shortcut is gone.
+#
+# authselect-apply-changes.service re-renders /etc/nsswitch.conf from the
+# selected profile on EVERY boot, so editing the generated file is undone at
+# first boot (found the hard way). The durable way is a custom profile.
+log "authselect: custom profile without nss-resolve"
+authselect create-profile kidnix --base-on local --symlink-meta --symlink-dconf --symlink-pam >/dev/null
+KIDNIX_PROFILE=/etc/authselect/custom/kidnix
+test -f "${KIDNIX_PROFILE}/nsswitch.conf"
+sed -i -E 's/resolve[[:space:]]+\[!UNAVAIL=return\][[:space:]]*//' "${KIDNIX_PROFILE}/nsswitch.conf"
+authselect select custom/kidnix with-silent-lastlog with-mdns4 --force >/dev/null
+authselect check >/dev/null
+grep -E '^hosts:' /etc/nsswitch.conf
+if grep -E '^hosts:' /etc/nsswitch.conf | grep -qw resolve; then
+    echo "nsswitch still routes hosts through nss-resolve" >&2
+    exit 1
+fi

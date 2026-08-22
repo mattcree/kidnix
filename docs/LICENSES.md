@@ -9,6 +9,15 @@ AGENTS.md §5 makes this a standing rule: *"Bundled content/fonts/voices must be
 redistributable; record licences."* This file is that record. **Adding anything
 to the image means adding a row here in the same commit.**
 
+**The machine-readable half of this file is
+`system_files/usr/share/kidnix/THIRD-PARTY.tsv`**, shipped in the image at
+`/usr/share/kidnix/THIRD-PARTY.tsv`. It carries one row (path, licence, source,
+origin) for every file the image ships that did **not** arrive inside an RPM.
+`tests/image/test_licenses.sh` fails the build when a vendored file has no row,
+a row has no file, a row is missing from this ledger, or any licence anywhere in
+the image is non-commercial or proprietary. Adding an asset therefore means
+three edits in one commit: the download, the TSV row, and the row here.
+
 Statuses used below:
 
 - **yes** — verified redistributable inside an OS image, no extra obligation
@@ -27,6 +36,8 @@ Statuses used below:
 |---|---|---|---|---|---|
 | kidnix source (build scripts, `system_files/`, shell, tests) | 0.1.0 | Apache-2.0 | <https://github.com/mattcree/kidnix> | `/usr/bin/kidnix-*`, `/usr/libexec/kidnix-*`, `/usr/lib/kidnix/`, `/usr/share/kidnix/` | yes — ours |
 | kidnix documentation (`docs/`) | 0.1.0 | Apache-2.0 | same | not shipped in the image | yes — ours |
+| kidnix wallpaper (`default.svg` source, `default.png` render) | 0.1.0 | Apache-2.0 | same | `/usr/share/backgrounds/kidnix/` | yes — ours, drawn for kidnix; replaces the removed `gnome-backgrounds` |
+| Activity-shell icons and generated earcons | 0.1.0 | Apache-2.0 | same | `…/site-packages/kidnix_shell/data/` | yes — ours; the earcons are synthesised at build time from `sound.py`, so no audio is vendored |
 
 The `LICENSE` file at the repository root is the Apache-2.0 text, and
 `org.opencontainers.image.licenses="Apache-2.0"` is set on the image.
@@ -83,7 +94,7 @@ complete.
 | Item | Version | Licence | Source | Where in the image | Redistribution OK? |
 |---|---|---|---|---|---|
 | GCompris | 26.x (Fedora `gcompris-qt`) | GPL-3.0-or-later | Fedora | `/usr/bin/gcompris-qt` | yes |
-| GCompris voice/word/music assets (`.rcc`) | dated bundles | CC-BY-SA-4.0 / GPL-3.0 (per KDE) | <https://cdn.kde.org/gcompris/> | `/usr/share/gcompris-qt/rcc/data3/` | yes — attribution carried by the bundles |
+| GCompris voice/word/music assets (`.rcc`) | dated bundles, pinned by MD5 in `build_files/50-activities.sh` | CC-BY-SA-4.0 / GPL-3.0 (per KDE) | <https://cdn.kde.org/gcompris/data3/> | `/usr/share/gcompris-qt/rcc/data3/voices-ogg/`, `/usr/share/gcompris-qt/rcc/data3/words/`, `/usr/share/gcompris-qt/rcc/data3/backgroundMusic/` | yes — attribution carried by the bundles |
 | Tux Paint + stamps | 0.9.35 | GPL-2.0-or-later; stamps individually licensed (mostly CC / public domain) | Fedora | `/usr/share/tuxpaint/` | yes — Fedora has already filtered non-free stamps |
 | SuperTux | 0.6.3 | GPL-3.0-or-later; art CC-BY-SA | Fedora | `/usr/share/supertux2/` | yes |
 | KTuberling, Blinken, KLettres, Kolf | KDE 26.04 | GPL-2.0-or-later | Fedora | `/usr/share/` | yes |
@@ -172,7 +183,13 @@ below treats codecs.
    shipped voice is public domain and pinned by SHA-256. Still open for other
    languages: the Welsh TTS that *docs/research/06 §7.5 #31* asks for has no
    public-domain Piper voice, so it is espeak-ng only for now.
-4. **Automation.** This table is hand-maintained, which means it will drift.
-   A `just licenses` recipe that walks `/usr/share/licenses/` in the built
-   image and diffs against this file would make drift a build failure. Not
-   built yet.
+4. ~~**Automation.**~~ **Partly resolved.** `just licenses` cross-checks
+   `/usr/share/kidnix/THIRD-PARTY.tsv` against the image's filesystem and
+   against this file, and screens every RPM `%{LICENSE}` against a
+   non-commercial/proprietary denylist (one reviewed exception: Fedora's
+   `LicenseRef-Callaway-Redistributable-no-modification-permitted` firmware
+   tag). It runs in `just ci` and in `.github/workflows/build.yml`. What is
+   still hand-maintained is the *prose* in this file — the TSV knows a path and
+   an SPDX id, not why `cori` was chosen over `semaine`. Walking
+   `/usr/share/licenses/` to catch an RPM whose licence text is missing
+   entirely remains unbuilt.

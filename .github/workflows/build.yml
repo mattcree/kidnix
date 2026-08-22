@@ -113,6 +113,31 @@ jobs:
       - name: Test image
         run: just test-image
 
+      # Three gates the audit (docs/design/cci-compliance-audit-2026-08-22.md
+      # §3.2) found missing: nothing in CI checked egress, licences or what was
+      # actually in the image. `just test-image` above now covers egress
+      # statically; these two cover the other pair.
+      #
+      # `bootc container lint` already runs inside the Containerfile, so a bad
+      # bootc layout has failed the build before we get here.
+      - name: Licence gate
+        run: just licenses
+
+      - name: Package lock and denylist
+        run: just packages-check
+
+      # Kept whether the step above passed or failed: when it fails, the list is
+      # what you diff against tests/image/packages.lock to see what moved.
+      - name: Upload the package list
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: output/packages.txt
+          if-no-files-found: warn
+          retention-days: 14
+
       # Only main publishes. PRs build and test but never push, so a fork PR
       # can never write to the registry.
       - name: Log in to ghcr.io

@@ -1,0 +1,40 @@
+# kidnix third-party asset manifest -- machine-readable half of docs/LICENSES.md.
+#
+# Everything the image ships that did NOT arrive inside an RPM. RPM content is
+# covered by Fedora's own licensing policy and by `%{LICENSE}` on every package
+# (tests/image/test_licenses.sh screens those against a denylist); this file is
+# for the vendored downloads, where nothing else records provenance.
+#
+# AGENTS.md §5: "Bundled content/fonts/voices must be redistributable; record
+# licences." docs/LICENSES.md is the prose record a human reads. This is the
+# one a test reads, so drift becomes a build failure instead of a surprise.
+#
+# Format: TAB-separated, four columns, one row per file.
+#
+#   path      absolute path in the image, exactly as installed
+#   licence   SPDX identifier where one exists, else a plain-English phrase
+#   source    where it came from (the URL a reviewer would check)
+#   origin    vendored = downloaded at build time by build_files/
+#             first-party = ours, Apache-2.0, lives in system_files/ or shell/
+#
+# TO ADD A FILE: add the row here AND the row in docs/LICENSES.md, in the same
+# commit as the download. tests/image/test_licenses.sh fails a build where a
+# vendored file has no row, a row has no file, or a row is missing from the
+# ledger.
+#
+# path	licence	source	origin
+/usr/lib/kidnix/piper/piper	MIT	https://github.com/rhasspy/piper/releases/tag/2023.11.14-2	vendored
+/usr/lib/kidnix/piper/libpiper_phonemize.so.1.2.0	MIT	https://github.com/rhasspy/piper-phonemize	vendored
+/usr/lib/kidnix/piper/libonnxruntime.so.1.14.1	MIT	https://github.com/microsoft/onnxruntime/tree/v1.14.1	vendored
+/usr/share/kidnix/voices/en_GB-cori-high.onnx	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high	vendored
+/usr/share/kidnix/voices/en_GB-cori-high.onnx.json	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high	vendored
+/usr/share/kidnix/voices/en_GB-cori-high.MODEL_CARD	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high	vendored
+/usr/share/kidnix/voices/en_GB-cori-medium.onnx	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/medium	vendored
+/usr/share/kidnix/voices/en_GB-cori-medium.onnx.json	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/medium	vendored
+/usr/share/kidnix/voices/en_GB-cori-medium.MODEL_CARD	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/medium	vendored
+/usr/share/gcompris-qt/rcc/data3/voices-ogg/voices-en_GB-2026-07-28-15-07-14.rcc	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/gcompris-qt/rcc/data3/voices-ogg/voices-en_US-2026-07-28-15-07-14.rcc	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/gcompris-qt/rcc/data3/words/words-webp-2022-04-10-21-14-15.rcc	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/words/	vendored
+/usr/share/gcompris-qt/rcc/data3/backgroundMusic/backgroundMusic-ogg-2024-03-19-11-10-30.rcc	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/backgroundMusic/	vendored
+/usr/share/backgrounds/kidnix/default.png	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+/usr/share/backgrounds/kidnix/default.svg	Apache-2.0	https://github.com/mattcree/kidnix	first-party
