@@ -44,15 +44,18 @@ session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
 - [ ] Keybinding mash test on real hardware
 - [ ] First-boot idempotency and `bootc upgrade`/rollback tested in a VM
 
-## M2 — Shell vertical slice ("one activity, end-to-end")
+## M2 — Shell vertical slice ("one activity, end-to-end") — largely done 2026-08-22
 
-- Shell tech chosen (ADR) per research §07/§08
-- Home screen: big spoken icons, one activity (Tux Paint), Journal view,
-  session timer, goodbye ritual, profile picker (single profile), parent gate
-- TTS (Piper en_GB) wired to hover/focus read-aloud
-- Journal: auto-import of Tux Paint saves; thumbnails; "show Dad" shared folder
-- Shell integration tests (accessibility tree or Playwright) in CI
-- First test with a real child; notes in `docs/design/testing-log.md`
+- [x] Shell tech chosen: GTK4 + libadwaita, Python (ADR-0004)
+- [x] Home screen: big spoken tiles, Tux Paint, Journal view, session sun,
+      ending ritual, profile picker (single profile), parent gate, All done
+- [~] TTS: espeak-ng via speech-dispatcher works; Piper en_GB spike in progress
+- [x] Journal: auto-import of Tux Paint saves; thumbnails; Today/Yesterday
+- [ ] "Show a grown-up" shared folder
+- [x] End-to-end scenario test (QMP input + screenshots) — `just test-e2e`
+- [ ] Fix: "Finish this one" re-presents the offer; unavailable activities
+      must not fail silently; kid-facing tile names
+- [ ] First test with a real child; notes in `docs/design/testing-log.md`
 
 ## M3 — Activity breadth (priority order TBD by PRIORITIES.md)
 

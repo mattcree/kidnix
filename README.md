@@ -9,7 +9,9 @@ browser, no store, no feeds.
 > in a VM, and the child session is locked down at the image level. Nothing
 > here has been tested with a child yet.
 
-![kidnix shell: Who's here?](docs/design/screenshots/boot-home.png)
+![kidnix end-to-end: Who's here → Home → Tux Paint → Journal → ending ritual → Sleeping](docs/design/screenshots/e2e-contact-sheet.png)
+
+*Twelve frames from the automated end-to-end test (`just test-e2e`): a real VM, driven by QEMU input events, drawing in Tux Paint, the drawing landing in My Things, and the machine ending the session.*
 
 ## Why
 
