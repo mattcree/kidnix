@@ -47,6 +47,7 @@ afterwards; the loop is the hard part.
     schedule windows) · Activities (allow-list per child) · Requests · Their
     things (browse/print/export/restore/delete) · Family recipients · Calm mode
     · Updates (bootc upgrade/rollback).
+12b. **Clock & time** activity (play-with-the-clock toy + curated GCompris clock + visible timers) — see ACTIVITY-IDEAS.md
 13. Keyboard/typing activity (designed, not Tux Typing as-is — see 05):
     lowercase-first, real keyboard, short bursts, no scores.
 14. Story-maker (type/dictate-free: pick pictures + type words + TTS reads it
