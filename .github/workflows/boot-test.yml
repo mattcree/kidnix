@@ -72,7 +72,7 @@ jobs:
 
       - name: Install just
         if: steps.kvm.outputs.available == 'true'
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: Grant access to /dev/kvm
         if: steps.kvm.outputs.available == 'true'
