@@ -135,7 +135,7 @@ jobs:
       #     --certificate-oidc-issuer=https://token.actions.githubusercontent.com
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v3
 
       - name: Sign image (keyless)
         if: github.event_name != 'pull_request'
