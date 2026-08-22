@@ -293,6 +293,11 @@ class GuestVM:
             for panic in PANIC_MARKERS:
                 if panic in text:
                     raise VMError(f"the guest died early: {panic}")
+            # The marker is printed on the same serial line agetty is drawing
+            # its login prompt on, so it can arrive interleaved with escape
+            # sequences. Once a login prompt is visible, ask the journal instead.
+            if "login:" in text and self._journal_has_marker():
+                return
             time.sleep(1.0)
         raise VMError(
             f"no {MARKER_OK} on the serial console within {self.boot_timeout:.0f}s\n"
@@ -306,6 +311,20 @@ class GuestVM:
         return ""
 
     # -- ssh ---------------------------------------------------------------
+
+    def _journal_has_marker(self) -> bool:
+        try:
+            out = self.ssh(
+                "journalctl -b -t kidnix-boot-report --no-pager -o cat 2>/dev/null | tail -n 5",
+                timeout=20.0,
+                check=False,
+            )
+        except Exception:
+            return False
+        text = out.stdout or ""
+        if MARKER_FAIL in text:
+            raise VMError(f"the guest reported a failed boot: {text.strip()}")
+        return MARKER_OK in text
 
     def ssh(self, script: str, timeout: float = 90.0, check: bool = True):
         """Run ``script`` in the guest as root. Returns the CompletedProcess."""
