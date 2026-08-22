@@ -55,7 +55,7 @@ jobs:
           sudo docker image prune --all --force || true
           df -h / | tail -1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.kvm.outputs.available == 'true'
 
       - name: Install just, qemu and OVMF

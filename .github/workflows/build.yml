@@ -28,7 +28,7 @@ jobs:
     name: lint
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install just
         uses: extractions/setup-just@v2
@@ -75,7 +75,7 @@ jobs:
           sudo docker image prune --all --force || true
           echo "after:"; df -h / | tail -1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install just
         uses: extractions/setup-just@v2
