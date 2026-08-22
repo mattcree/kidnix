@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Back</title>
+  <!-- A fat arrow, not a chevron: 08 section 3.7 wants the thing itself. -->
+  <path d="M30 10 L8 32 L30 54 L30 42 L54 42 L54 22 L30 22 Z"
+        fill="#0f8a8a" stroke="#16181d" stroke-width="4" stroke-linejoin="round"/>
+</svg>

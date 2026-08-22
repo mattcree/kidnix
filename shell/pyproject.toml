@@ -1,0 +1,97 @@
+[project]
+name = "kidnix-shell"
+version = "0.1.0"
+description = "kidnix activity shell -- the full-screen surface a child sees"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+# PyGObject is deliberately NOT a dependency: it comes from the system
+# (python3-gobject / gtk4 / libadwaita in the bootc image), and building it
+# from source in a venv needs a full GObject-introspection toolchain we do not
+# want on the image. `just setup` creates the venv with --system-site-packages
+# so `gi` and `speechd` resolve. See README.md.
+dependencies = []
+
+[project.scripts]
+kidnix-shell = "kidnix_shell.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kidnix_shell"]
+
+# NOTE: the venv must be created with `uv venv --system-site-packages` so that
+# `gi` and `speechd` resolve from /usr/lib64/python3.N/site-packages. That is a
+# venv-creation flag, not a pyproject setting -- `just setup` passes it.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["kidnix_shell", "tests", "tools"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # import order
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "RUF",
+]
+ignore = [
+    "E501",   # line length is the formatter's job
+    "B008",   # GTK constructors in defaults are fine where used
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may shadow builtins and use asserts freely.
+"tests/*" = ["B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kidnix_shell"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+files = ["kidnix_shell", "tests", "tools"]
+strict = true
+# PyGObject ships partial stubs at best; treat gi as untyped rather than
+# littering the UI code with casts.
+disallow_untyped_calls = false
+disallow_subclassing_any = false
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = ["gi.*", "speechd.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+# UI modules are thin glue over an untyped C library; full strictness there
+# buys casts, not safety. The logic modules stay strict.
+module = [
+    "kidnix_shell.app",
+    "kidnix_shell.band",
+    "kidnix_shell.widgets",
+    "kidnix_shell.demo",
+    "kidnix_shell.screens.*",
+]
+disallow_any_generics = false
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]

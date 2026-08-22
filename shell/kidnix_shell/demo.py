@@ -1,0 +1,282 @@
+"""``--demo``: fake activities and a three-minute session.
+
+The whole ritual -- launch, make something, keep it, ending offer, put away,
+goodbye, sleeping -- in about three minutes, with no GCompris, no Tux Paint and
+no image. That makes the shell demonstrable on a laptop and exercisable in CI.
+
+The fake activity is a tiny scribble window: click and drag to draw, it
+autosaves a PNG into its watch directory every few seconds, and the shell's
+Journal picks it up exactly as it would a real one.
+
+This module is also run *as a script* by the launcher (``python demo.py
+--play ...``), so everything the play mode needs is imported inside the
+functions or at the top without relative imports.
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import math
+import random
+import signal
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+log = logging.getLogger(__name__)
+
+CANVAS_W = 800
+CANVAS_H = 600
+AUTOSAVE_MS = 4000
+
+#: (id, name, audio label, colour, category, resumable)
+DEMO_ACTIVITIES: tuple[tuple[str, str, str, str, str, bool], ...] = (
+    ("scribble", "Scribble", "Scribble. Draw with the mouse.", "#0f8a8a", "make", True),
+    ("splodge", "Splodge", "Splodge. Make big blobs of colour.", "#f06292", "make", True),
+    ("stamps", "Stamps", "Stamps. Print shapes on the page.", "#f9a825", "make", True),
+    (
+        "letters",
+        "Letters",
+        "Letters. Find the letter that makes the sound.",
+        "#4527a0",
+        "learn",
+        False,
+    ),
+    ("counting", "Counting", "Counting. How many are there?", "#2e7d32", "learn", False),
+    ("shapes", "Shapes", "Shapes. Match the shape to its hole.", "#bf360c", "learn", False),
+    ("library", "Library", "Library. Look things up.", "#37474f", "learn", False),
+    ("bounce", "Bounce", "Bounce. Keep the ball in the air.", "#26c6da", "play", False),
+    ("maze", "Maze", "Maze. Find the way out.", "#7b1fa2", "play", False),
+    ("memory", "Memory", "Memory. Remember where they are.", "#00838f", "play", False),
+    ("music", "Music", "Music. Play a tune.", "#e64a19", "make", True),
+    ("photos", "Photos", "Photos. Take a picture.", "#5d4037", "make", True),
+    ("sticky", "Sticky", "Sticky. This one is slow to put away.", "#455a64", "play", False),
+)
+
+#: Not in the parent's allow-list, so Home renders it outline-only (spec S2).
+NOT_ALLOWED = {"sticky"}
+
+#: "Sticky" ignores SIGTERM, so a --demo run exercises the SIGKILL path in
+#: Put away rather than only the happy one.
+STUBBORN = {"sticky"}
+
+
+# --- building the demo world (used by the shell) -------------------------
+
+
+def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[str]]:
+    """Write demo manifests under ``root`` and load them with the real loader.
+
+    Returns ``(root, activities, allowed_ids)``. Using the real loader means
+    ``--demo`` also smoke-tests manifest parsing on every run.
+    """
+    from .activities import load_directory
+
+    base = root or Path(tempfile.mkdtemp(prefix="kidnix-demo-"))
+    manifests = base / "manifests"
+    manifests.mkdir(parents=True, exist_ok=True)
+
+    script = Path(__file__).resolve()
+    for activity_id, name, audio, colour, category, resumable in DEMO_ACTIVITIES:
+        watch = base / "work" / activity_id
+        watch.mkdir(parents=True, exist_ok=True)
+        argv = [
+            sys.executable,
+            str(script),
+            "--play",
+            "--name",
+            name,
+            "--colour",
+            colour,
+            "--out",
+            str(watch),
+        ]
+        if activity_id in STUBBORN:
+            argv.append("--stubborn")
+        lines = [
+            "schema = 1",
+            f'id = "{activity_id}"',
+            f'name = "{name}"',
+            f'audio_label = "{audio}"',
+            f'icon = "kidnix-{category}"',
+            'icon_kind = "icon-name"',
+            "exec = [" + ", ".join(f'"{a}"' for a in argv) + "]",
+            f'category = "{category}"',
+            "age_min = 4",
+            "network_required = false",
+            f'journal_watch = ["{watch}"]',
+            'journal_glob = "*.png"',
+            f'goal = "A fake activity for demonstrating the shell ({category})."',
+        ]
+        if resumable:
+            resume = [*argv, "--open", "{file}"]
+            lines.append("exec_resume = [" + ", ".join(f'"{a}"' for a in resume) + "]")
+        (manifests / f"{activity_id}.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = load_directory(manifests, home=base)
+    for error in result.errors:
+        log.error("demo manifest is broken: %s", error)
+    allowed = [a.id for a in result.activities if a.id not in NOT_ALLOWED]
+    return base, result.activities, allowed
+
+
+# --- the fake activity itself (run as a subprocess) ----------------------
+
+
+def _hex_to_rgb(value: str) -> tuple[float, float, float]:
+    value = value.lstrip("#")
+    return tuple(int(value[i : i + 2], 16) / 255 for i in (0, 2, 4))  # type: ignore[return-value]
+
+
+def play(name: str, colour: str, out_dir: Path, open_file: Path | None, stubborn: bool) -> int:
+    """A tiny scribble window that keeps saving PNGs where the shell can see."""
+    import cairo
+    import gi
+
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import GLib, Gtk
+
+    if stubborn:
+        # Deliberately rude: refuses the polite request to quit, so Put away has
+        # to escalate. See the implementation notes.
+        signal.signal(signal.SIGTERM, lambda *_a: log.warning("%s ignoring SIGTERM", name))
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    surface = cairo.ImageSurface(cairo.FORMAT_RGB24, CANVAS_W, CANVAS_H)
+    ctx = cairo.Context(surface)
+    ctx.set_source_rgb(0.98, 0.97, 0.94)
+    ctx.paint()
+
+    if open_file is not None and open_file.is_file():
+        try:
+            existing = cairo.ImageSurface.create_from_png(str(open_file))
+            ctx.set_source_surface(existing, 0, 0)
+            ctx.paint()
+            log.info("%s resumed %s", name, open_file)
+        except Exception as exc:
+            log.warning("could not resume %s: %s", open_file, exc)
+
+    red, green, blue = _hex_to_rgb(colour)
+    state = {"dirty": open_file is None, "strokes": 0}
+    target = out_dir / (open_file.name if open_file else f"{name.lower()}.png")
+
+    def blob(x: float, y: float) -> None:
+        ctx.set_source_rgb(
+            min(1.0, red + random.uniform(-0.15, 0.15)),
+            min(1.0, green + random.uniform(-0.15, 0.15)),
+            min(1.0, blue + random.uniform(-0.15, 0.15)),
+        )
+        ctx.arc(x, y, 18, 0, 2 * math.pi)
+        ctx.fill()
+        state["dirty"] = True
+        state["strokes"] += 1
+
+    # Something is on the canvas from the first frame, so the demo produces a
+    # journal entry even if nobody draws.
+    for step in range(14):
+        blob(120 + step * 44, 300 + math.sin(step / 2) * 110)
+
+    area = Gtk.DrawingArea()
+    area.set_hexpand(True)
+    area.set_vexpand(True)
+
+    def draw(_a: Gtk.DrawingArea, cr: Any, width: int, height: int) -> None:
+        cr.save()
+        cr.scale(width / CANVAS_W, height / CANVAS_H)
+        cr.set_source_surface(surface, 0, 0)
+        cr.paint()
+        cr.restore()
+
+    area.set_draw_func(draw)
+
+    def canvas_xy(x: float, y: float) -> tuple[float, float]:
+        width = max(1, area.get_width())
+        height = max(1, area.get_height())
+        return x * CANVAS_W / width, y * CANVAS_H / height
+
+    click = Gtk.GestureClick.new()
+    click.set_button(0)
+
+    def on_pressed(_g: Any, _n: int, x: float, y: float) -> None:
+        blob(*canvas_xy(x, y))
+        area.queue_draw()
+
+    click.connect("pressed", on_pressed)
+    area.add_controller(click)
+
+    drag = Gtk.GestureDrag.new()
+
+    def on_drag(gesture: Any, dx: float, dy: float) -> None:
+        _, start_x, start_y = gesture.get_start_point()
+        blob(*canvas_xy((start_x or 0) + dx, (start_y or 0) + dy))
+        area.queue_draw()
+
+    drag.connect("drag-update", on_drag)
+    area.add_controller(drag)
+
+    def save() -> None:
+        if not state["dirty"]:
+            return
+        surface.flush()
+        surface.write_to_png(str(target))
+        state["dirty"] = False
+        log.info("%s saved %s", name, target)
+
+    def autosave() -> bool:
+        save()
+        return True
+
+    application = Gtk.Application(application_id=f"org.kidnix.demo.{name.lower()}")
+
+    def activate(app: Gtk.Application) -> None:
+        window = Gtk.ApplicationWindow(application=app, title=name)
+        header = Gtk.HeaderBar()
+        header.set_title_widget(Gtk.Label(label=f"{name} (a pretend activity)"))
+        done = Gtk.Button(label="I'm done")
+
+        def on_done(_button: Any) -> None:
+            save()
+            window.close()
+
+        done.connect("clicked", on_done)
+        header.pack_end(done)
+        window.set_titlebar(header)
+        window.set_child(area)
+        window.set_default_size(1000, 700)
+
+        def on_close(_w: Any) -> bool:
+            save()
+            return False
+
+        window.connect("close-request", on_close)
+        window.present()
+        GLib.timeout_add(AUTOSAVE_MS, autosave)
+
+    application.connect("activate", activate)
+    code = application.run([])
+    save()
+    return int(code)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="kidnix demo activity")
+    parser.add_argument("--play", action="store_true", help="run the fake activity")
+    parser.add_argument("--name", default="Scribble")
+    parser.add_argument("--colour", default="#0f8a8a")
+    parser.add_argument("--out", type=Path, default=Path.cwd())
+    parser.add_argument("--open", type=Path, default=None, help="resume this file")
+    parser.add_argument("--stubborn", action="store_true", help="ignore SIGTERM")
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s", stream=sys.stderr
+    )
+    if not args.play:
+        parser.error("this module only runs fake activities; use kidnix-shell --demo")
+    return play(args.name, args.colour, args.out, args.open, args.stubborn)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Learning</title>
+  <path d="M6 14 C16 8 26 8 32 14 C38 8 48 8 58 14 L58 52 C48 46 38 46 32 52
+           C26 46 16 46 6 52 Z" fill="#fbf7ef" stroke="#16181d" stroke-width="3.5"
+        stroke-linejoin="round"/>
+  <path d="M32 14 V52" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M13 24 H25 M13 32 H25 M39 24 H51 M39 32 H51" stroke="#0f8a8a" stroke-width="3"
+        stroke-linecap="round"/>
+</svg>

@@ -119,9 +119,9 @@ _image-size:
 
 # Assert the built image contains what it should (rootless, no VM needed).
 #
-# Runs EVERY tests/image/test_*.sh, each in its own throwaway container so one
-# script cannot leave state behind for the next. Adding a test file is the
-# whole of "adding a test" -- there is no list to keep in sync.
+# Each runs in its own throwaway container so one script cannot leave state
+# behind for the next. Adding a test file is the whole of "adding a test" --
+# there is no list to keep in sync. A FILTER argument matches by substring.
 # Run every tests/image/test_*.sh inside the built image (rootless, ~2s).
 test-image *FILTER: _require-image
     @echo "==> test-image"
@@ -158,8 +158,6 @@ ci: lint build test-image
 
 # --- bcvk: rootless VMs ------------------------------------------------------
 
-# Install bcvk into ~/.local/bin from the upstream release, checksum-verified.
-#
 # Why not a package: Homebrew has no bcvk formula (checked), and the host is
 # Bluefin, where `rpm-ostree install` means a reboot for a dev tool. The
 # upstream release ships a static-ish x86_64 binary plus a .sha256, which is
@@ -188,9 +186,8 @@ _require-bcvk:
     @command -v bcvk >/dev/null 2>&1 || test -x "{{ bcvk_bin }}" || { \
         echo "error: bcvk not found -- run 'just bcvk-install'" >&2; exit 1; }
 
-# Boot the image as a throwaway VM and drop into a root shell. No sudo, no
-# disk image: bcvk exports the container's filesystem over virtiofs as the
-# VM's root and boots its kernel directly. Ctrl-D destroys the VM.
+# No sudo, no disk image: bcvk exports the container's filesystem over virtiofs
+# as the VM's root and boots its kernel directly. Ctrl-D destroys the VM.
 #
 # Headless by design -- bcvk runs QEMU with `-nographic`. For a window, use
 # `just vm-graphical` (libvirt + SPICE) or `just vm` (qcow2 + qemu gtk).
@@ -200,24 +197,29 @@ vm-ephemeral *ARGS: _require-bcvk _require-image
         --memory {{ vm_ram_h }} --vcpus {{ vm_cpus }} \
         "{{ image_ref }}" {{ ARGS }}
 
+# The CI shape:  just vm-exec 'systemctl is-active gdm'
+#
+# [positional-arguments] rather than `{{ CMD }}`: interpolating the command
+# into the recipe body lets the *host* shell expand `$FOO` and `$(...)` before
+# the VM ever sees them, which silently rewrites any script you pass. As `$*`
+# the text travels through untouched, newlines included.
 # Run one command inside a fresh ephemeral VM and exit with its status.
-# This is the CI shape:  just vm-exec 'systemctl is-active gdm'
-# Run one command inside a fresh ephemeral VM and exit with its status.
+[positional-arguments]
 vm-exec +CMD: _require-bcvk _require-image
     @{{ bcvk }} ephemeral run-ssh \
         --memory {{ vm_ram_h }} --vcpus {{ vm_cpus }} \
-        "{{ image_ref }}" -- {{ CMD }}
+        "{{ image_ref }}" -- "$*"
 
 alias vm-ssh-ephemeral := vm-exec
 
-# List / clean up ephemeral VMs left behind by --keep or a crash.
-# List ephemeral VMs left running.
+# List ephemeral VMs left behind by --keep or a crash.
 vm-list: _require-bcvk
     {{ bcvk }} ephemeral ps
 
+# --force: rm-all prompts otherwise, which hangs a CI job on closed stdin.
 # Remove every ephemeral VM bcvk is holding.
 vm-clean: _require-bcvk
-    -{{ bcvk }} ephemeral rm-all
+    -{{ bcvk }} ephemeral rm-all --force
 
 # A GRAPHICAL window onto the kiosk, rootless, via libvirt qemu:///session.
 # bcvk installs the image to a libvirt volume, so this is a real disk boot
@@ -239,9 +241,8 @@ vm-graphical name="kidnix" *ARGS: _require-bcvk _require-image
 vm-graphical-ssh name="kidnix" *ARGS: _require-bcvk
     {{ bcvk }} libvirt ssh "{{ name }}" {{ ARGS }}
 
-# Screenshot the libvirt VM's framebuffer. This is the one screenshot path
-# that works without a disk-image build -- see `just test-boot` for why the
-# ephemeral VMs cannot be screenshotted.
+# The one screenshot path that works without a disk-image build -- see
+# `just test-boot` for why the ephemeral VMs cannot be screenshotted.
 # Screenshot the libvirt VM's framebuffer via virsh.
 vm-graphical-shot name="kidnix":
     @mkdir -p "{{ output_dir }}"
@@ -254,10 +255,9 @@ vm-graphical-rm name="kidnix": _require-bcvk
 
 # --- boot tests --------------------------------------------------------------
 
-# THE boot test. Rootless, no disk image, ~1 minute: boots the container image
-# as a VM with bcvk and asserts the machine reached graphical.target with the
-# kid Wayland session and gnome-kiosk actually running.
-# THE boot test: boot the image with bcvk and assert the kiosk came up (~1 min, no sudo).
+# Boots the container image as a VM with bcvk and asserts the machine reached
+# graphical.target with the kid Wayland session and gnome-kiosk actually running.
+# THE boot test: boot the image with bcvk and assert the kiosk came up (~30s, no sudo).
 test-boot *ARGS: _require-bcvk _require-image
     @mkdir -p "{{ output_dir }}"
     python3 tests/boot/bcvk_boot_test.py \
@@ -267,18 +267,15 @@ test-boot *ARGS: _require-bcvk _require-image
         --timeout 360 \
         {{ ARGS }}
 
-# Validate both boot harnesses without booting anything. Costs nothing; run it
-# on every PR so a typo in either script fails fast.
+# Costs nothing; run it on every PR so a typo in either script fails fast.
 # Validate both boot harnesses without booting anything.
 test-boot-dry:
     python3 -m py_compile tests/boot/bcvk_boot_test.py tests/boot/boot_test.py
     python3 tests/boot/bcvk_boot_test.py --dry-run --image "{{ image_ref }}"
     python3 tests/boot/boot_test.py --dry-run --qcow2 /nonexistent
 
-# Full-fidelity boot test: boots the real qcow2 under QEMU, exercising the
-# bootloader, composefs root and first-boot units that `test-boot` cannot see.
-# Slower, and it needs a disk image first (`just build-qcow2-rootless`).
-# This is also the only boot test that produces a framebuffer screenshot.
+# Exercises the bootloader, composefs root and first-boot units that
+# `test-boot` cannot see. Needs a disk image first (`just build-qcow2-rootless`).
 # Full-fidelity boot test against the real qcow2 (slower; the only one that screenshots).
 test-boot-qcow2 *ARGS: _require-qcow2
     @mkdir -p "{{ output_dir }}"
@@ -304,8 +301,10 @@ test-boot-qcow2 *ARGS: _require-qcow2
 # Build a bootable qcow2 with NO sudo (bcvk to-disk). No blueprint customisations.
 build-qcow2-rootless *ARGS: _require-bcvk _require-image
     @mkdir -p "{{ output_dir }}/qcow2"
+    @rm -f "{{ qcow2 }}"
     @echo "==> building {{ qcow2 }} rootlessly (bcvk to-disk; several minutes)"
     {{ bcvk }} to-disk --format qcow2 --filesystem btrfs --disk-size 20G \
+        --karg console=tty0 --karg console=ttyS0,115200n8 \
         {{ ARGS }} "{{ image_ref }}" "{{ qcow2 }}"
     @echo "==> {{ qcow2 }}"
 
@@ -354,8 +353,7 @@ _stage-rootful: _require-image
 # Build a customised bootable qcow2 with osbuild's image-builder (needs sudo).
 #
 # Unlike build-qcow2-rootless this applies disk_config/config.toml, so the
-# `parent` account gets a password and your SSH key. Use it for an image a
-# human will actually log into or install.
+# `parent` account gets a password and your SSH key.
 # Build a customised bootable qcow2 with osbuild image-builder (needs sudo).
 build-qcow2 *ARGS: (_sudo-warning "qcow2") disk-config _stage-rootful
     @mkdir -p "{{ output_dir }}"
@@ -385,9 +383,8 @@ build-iso *ARGS: (_sudo-warning "anaconda-iso") disk-config _stage-rootful
         --blueprint /config.toml {{ ARGS }}
     sudo chown -R "$(id -u):$(id -g)" "{{ output_dir }}"
 
-# The archived bootc-image-builder, kept as an escape hatch. Frozen since it
-# was merged into osbuild/image-builder on 18 June 2026 (quay.io has had no
-# push since that day). Use it only if `build-qcow2` regresses.
+# Frozen since it was merged into osbuild/image-builder on 18 June 2026 (quay.io
+# has had no push since that day). Use it only if `build-qcow2` regresses.
 # Escape hatch: the archived bootc-image-builder (frozen 18 Jun 2026).
 build-qcow2-bib *ARGS: (_sudo-warning "qcow2 (archived bootc-image-builder)") disk-config _stage-rootful
     @mkdir -p "{{ output_dir }}"
@@ -482,6 +479,9 @@ vm-bootc-upgrade:
 clean:
     rm -rf "{{ output_dir }}"
     find . -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    @# A qcow2 is 7 GB and an abandoned ephemeral VM pins a whole image layer
+    @# stack; both are easy to leave behind and expensive to forget.
+    -@{ command -v bcvk >/dev/null 2>&1 || test -x "{{ bcvk_bin }}"; } && {{ bcvk }} ephemeral rm-all --force 2>/dev/null || true
     podman image prune -f
 
 # Also drop the kidnix images themselves.

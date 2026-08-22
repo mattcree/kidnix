@@ -155,8 +155,7 @@ def run(cmd: list[str], timeout: float, check: bool = False) -> subprocess.Compl
     )
     if check and proc.returncode != 0:
         raise BootTestError(
-            f"command failed ({proc.returncode}): {' '.join(cmd)}\n"
-            f"{clean(proc.stderr).strip()}"
+            f"command failed ({proc.returncode}): {' '.join(cmd)}\n{clean(proc.stderr).strip()}"
         )
     return proc
 
@@ -195,12 +194,20 @@ class EphemeralVM:
 
     def __enter__(self) -> EphemeralVM:
         cmd = [
-            self.bcvk, "ephemeral", "run",
-            "--detach", "--rm", "--ssh-keygen",
-            "--name", self.name,
-            "--memory", self.args.memory,
-            "--vcpus", str(self.args.cpus),
-            "--log-dir", f"console={self.args.output_dir}",
+            self.bcvk,
+            "ephemeral",
+            "run",
+            "--detach",
+            "--rm",
+            "--ssh-keygen",
+            "--name",
+            self.name,
+            "--memory",
+            self.args.memory,
+            "--vcpus",
+            str(self.args.cpus),
+            "--log-dir",
+            f"console={self.args.output_dir}",
             self.image,
         ]
         print(f"==> {' '.join(cmd)}", flush=True)
@@ -258,8 +265,14 @@ class EphemeralVM:
     def qemu_used_kvm(self) -> bool | None:
         """Read the QEMU command line inside the VM container. None = unknown."""
         proc = run(
-            ["podman", "exec", self.name, "sh", "-c",
-             "tr '\\0' '\\n' < /proc/$(pgrep -f qemu-system | head -1)/cmdline"],
+            [
+                "podman",
+                "exec",
+                self.name,
+                "sh",
+                "-c",
+                "tr '\\0' '\\n' < /proc/$(pgrep -f qemu-system | head -1)/cmdline",
+            ],
             timeout=60,
         )
         if proc.returncode != 0:
@@ -352,9 +365,7 @@ def assert_probe(probe: dict[str, str], checks: Checks) -> None:
 
 def capture_journal(vm: EphemeralVM, output_dir: Path) -> Path | None:
     """Save warning-and-worse journal from this boot -- the first thing to read."""
-    proc = vm.ssh(
-        "export SYSTEMD_COLORS=0; journalctl -b -p warning --no-pager 2>&1", timeout=120
-    )
+    proc = vm.ssh("export SYSTEMD_COLORS=0; journalctl -b -p warning --no-pager 2>&1", timeout=120)
     if proc.returncode != 0 and not proc.stdout.strip():
         print(f"warning: could not capture the journal: {clean(proc.stderr).strip()}")
         return None
@@ -415,15 +426,21 @@ def run_boot_test(args: argparse.Namespace) -> int:
 
     print("\n" + "=" * 72)
     print(f"image      : {args.image}")
-    print(f"os         : {probe.get('os_id', '?')} {probe.get('os_version', '?')} "
-          f"kernel {probe.get('kernel', '?')}")
-    print(f"virt       : {probe.get('hypervisor', '?')}, "
-          f"KVM used: {'yes' if used_kvm else 'no' if used_kvm is False else 'unknown'}")
+    print(
+        f"os         : {probe.get('os_id', '?')} {probe.get('os_version', '?')} "
+        f"kernel {probe.get('kernel', '?')}"
+    )
+    print(
+        f"virt       : {probe.get('hypervisor', '?')}, "
+        f"KVM used: {'yes' if used_kvm else 'no' if used_kvm is False else 'unknown'}"
+    )
     print(f"boot       : {probe.get('boot_time', '?')}")
     if probe.get("graphical_target"):
         print(f"graphical  : reached at {probe['graphical_target'].lstrip('@')}")
-    print(f"memory     : {probe.get('mem_used_mb', '?')} MiB used of "
-          f"{probe.get('mem_total_mb', '?')} MiB")
+    print(
+        f"memory     : {probe.get('mem_used_mb', '?')} MiB used of "
+        f"{probe.get('mem_total_mb', '?')} MiB"
+    )
     print(f"kiosk      : {probe.get('kiosk_cmdline') or 'not running'}")
     print(f"console log: {output_dir / 'console.txt'}")
     if journal:
@@ -441,8 +458,7 @@ def run_boot_test(args: argparse.Namespace) -> int:
         return 0
 
     print(
-        f"\033[31mFAIL\033[0m  {checks.failed} of {checks.passed + checks.failed} "
-        f"checks failed.",
+        f"\033[31mFAIL\033[0m  {checks.failed} of {checks.passed + checks.failed} checks failed.",
         file=sys.stderr,
     )
     if journal:

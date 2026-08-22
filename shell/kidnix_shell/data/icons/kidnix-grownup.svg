@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Grown-up</title>
+  <!-- A grown-up's face, not a gear (08 section 3.7). -->
+  <circle cx="32" cy="24" r="13" fill="#e8c39e" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M19 20 A13 13 0 0 1 45 20 L45 15 A13 13 0 0 0 19 15 Z" fill="#5d4037"/>
+  <circle cx="27" cy="25" r="2" fill="#16181d"/>
+  <circle cx="37" cy="25" r="2" fill="#16181d"/>
+  <path d="M10 58 A22 18 0 0 1 54 58 Z" fill="#78909c" stroke="#16181d" stroke-width="3.5"/>
+</svg>

@@ -4,9 +4,15 @@ name: boot-test
 # Experimental but not advisory: if this job runs, it must pass. It skips
 # cleanly (green, with a clear message) when the runner has no KVM, because a
 # TCG boot of a full GNOME stack will not finish inside any sane timeout.
+#
+# The boot test runs under bcvk ("bootc virtualization kit"), which boots the
+# *container image* as a VM directly -- no disk image, no privileged podman,
+# no sudo. A cold run is well under a minute, so this is cheap enough to gate
+# every push to main.
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
     inputs:
       image_ref:
@@ -24,12 +30,40 @@ concurrency:
 
 env:
   IMAGE_NAME: kidnix
+  # Keep in step with `bcvk_version` in the Justfile.
+  BCVK_VERSION: "0.18.0"
 
 jobs:
+  # Cheap on every event: byte-compile both harnesses and check their
+  # plumbing. Costs seconds and catches a typo before we spend 20 minutes
+  # building an OS image.
+  harness:
+    name: boot harness self-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Install bcvk
+        run: just bcvk-install
+
+      - name: Validate both boot harnesses
+        run: |
+          set -euo pipefail
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          python3 -m py_compile tests/boot/bcvk_boot_test.py tests/boot/boot_test.py
+          # --dry-run tolerates a missing image; it must not tolerate a broken
+          # script, so a non-zero exit here is a real failure.
+          PATH="$HOME/.local/bin:$PATH" python3 tests/boot/bcvk_boot_test.py \
+            --dry-run --image "localhost/${IMAGE_NAME}:latest"
+
   boot-test:
     name: boot a real VM
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Check for KVM
         id: kvm
@@ -55,24 +89,30 @@ jobs:
           sudo docker image prune --all --force || true
           df -h / | tail -1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.kvm.outputs.available == 'true'
 
-      - name: Install just, qemu and OVMF
+      - name: Install just
+        if: steps.kvm.outputs.available == 'true'
+        uses: extractions/setup-just@v4
+
+      - name: Install podman, qemu and virtiofsd
         if: steps.kvm.outputs.available == 'true'
         run: |
           set -euo pipefail
           sudo apt-get update
+          # bcvk drives QEMU itself and exports the container root over
+          # virtiofs, so virtiofsd is not optional here.
           sudo apt-get install -y --no-install-recommends \
-            qemu-system-x86 ovmf imagemagick
-          sudo install -d -m 0755 /usr/share/OVMF
-          # Debian ships OVMF_CODE_4M.fd; the test also probes this path.
-          [[ -e /usr/share/OVMF/OVMF_CODE.fd ]] || \
-            sudo ln -sf /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd
+            podman qemu-system-x86 qemu-utils virtiofsd
 
-      - name: Install just
+      - name: Install bcvk
         if: steps.kvm.outputs.available == 'true'
-        uses: extractions/setup-just@v2
+        run: |
+          set -euo pipefail
+          just bcvk-install "${BCVK_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/bcvk" --version
 
       - name: Grant access to /dev/kvm
         if: steps.kvm.outputs.available == 'true'
@@ -80,6 +120,7 @@ jobs:
           set -euo pipefail
           sudo usermod -aG kvm "$USER" || true
           sudo chmod 0666 /dev/kvm
+          ls -l /dev/kvm
 
       - name: Build image
         if: steps.kvm.outputs.available == 'true' && inputs.image_ref == ''
@@ -92,30 +133,25 @@ jobs:
           podman pull "${{ inputs.image_ref }}"
           podman tag "${{ inputs.image_ref }}" "localhost/${IMAGE_NAME}:latest"
 
-      - name: Generate an ephemeral SSH key for the VM
-        if: steps.kvm.outputs.available == 'true'
-        run: ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519 <<< y
-
-      # Runners have passwordless sudo, so the one interactive step in the
-      # local workflow is fully automatic here.
-      - name: Build qcow2
-        if: steps.kvm.outputs.available == 'true'
-        run: just build-qcow2
-
+      # The whole test: rootless, no disk image, ~1 minute once the image is
+      # built. Nothing here needs the runner's sudo.
       - name: Boot test
         if: steps.kvm.outputs.available == 'true'
         run: just test-boot --verbose
 
       - name: Upload boot artifacts
-        # Upload on failure too -- the screenshot and serial log are the whole
+        # Upload on failure too -- the journal and console log are the whole
         # point of this job when something breaks.
         if: always() && steps.kvm.outputs.available == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: boot-test-artifacts
           path: |
-            output/boot.png
-            output/boot.ppm
-            output/boot-serial.log
+            output/boot-journal.txt
+            output/console.txt
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Clean up any VM left behind
+        if: always() && steps.kvm.outputs.available == 'true'
+        run: just vm-clean || true

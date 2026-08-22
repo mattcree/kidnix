@@ -1,0 +1,68 @@
+# kidnix shell -- everything you can do to this directory.
+#
+# The venv is created with --system-site-packages on purpose: PyGObject, GTK4,
+# libadwaita, GdkPixbuf and speechd come from the system (they are already in
+# the bootc image and building them in a venv needs a whole introspection
+# toolchain). uv manages only the dev tools.
+#
+# Run these from `shell/`. The root Justfile gains a delegation later.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+python := ".venv/bin/python"
+uvrun := "uv run --active"
+
+# List the recipes (this is the documentation of what you can do).
+default:
+    @just --list
+
+# Create the venv and install the dev tools.
+setup:
+    uv venv --system-site-packages --python /usr/bin/python3
+    uv sync --active
+    @echo
+    @just _check-gi
+
+_check-gi:
+    {{python}} tools/check_env.py
+
+# Run the shell against the real activity manifests (windowed, for development).
+run *ARGS:
+    {{python}} -m kidnix_shell --windowed {{ARGS}}
+
+# Run the demo: fake activities, a three-minute session, the whole ritual.
+demo *ARGS:
+    {{python}} -m kidnix_shell --demo --windowed {{ARGS}}
+
+# Ten seconds of the demo, then quit. What CI and a smoke check run.
+smoke:
+    {{python}} -m kidnix_shell --demo --windowed --run-seconds 10
+
+# The headless test suite.
+test *ARGS:
+    {{uvrun}} pytest {{ARGS}}
+
+# Just the pure-logic tests -- no display needed, this is the CI floor.
+test-headless:
+    env -u WAYLAND_DISPLAY -u DISPLAY {{uvrun}} pytest -q
+
+lint:
+    {{uvrun}} ruff check .
+    {{uvrun}} ruff format --check .
+    {{uvrun}} mypy
+
+# Apply the formatter and the fixable lints.
+fix:
+    {{uvrun}} ruff check --fix .
+    {{uvrun}} ruff format .
+
+# Check the activity manifests the image ships. Exits non-zero on any error.
+validate-manifests DIR="../system_files/usr/share/kidnix/activities":
+    {{python}} -m kidnix_shell --validate-manifests {{DIR}}
+
+# Everything CI runs for this directory.
+ci: lint test-headless validate-manifests
+
+clean:
+    rm -rf .venv .pytest_cache .ruff_cache .mypy_cache
+    find . -name __pycache__ -type d -prune -exec rm -rf {} +

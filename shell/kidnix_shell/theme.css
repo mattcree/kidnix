@@ -1,0 +1,287 @@
+/* kidnix shell theme.
+ *
+ * Rules this file exists to enforce (08 section 3.4, 3.7):
+ *   - ONE reserved highlight colour (@kid-highlight, a warm yellow). It only
+ *     ever means "this is the thing you can touch right now": focus rings and
+ *     the read-aloud ring. Nothing else in the shell may use it.
+ *   - Flat-with-depth. Every interactive surface has a real elevation cue and
+ *     a press state that moves; nothing non-interactive gets that treatment.
+ *   - Never grey-out to disable. Unavailable things are outline-only, which
+ *     survives greyscale and colour blindness.
+ *   - Colour = whose it is. The band and focus tint come from the child's
+ *     profile colours, injected at runtime as @kid-primary / @kid-secondary.
+ */
+
+@define-color kid-highlight #ffd23f;
+@define-color kid-ink #16181d;
+@define-color kid-paper #fbf7ef;
+@define-color kid-paper-dim #efe8da;
+@define-color kid-edge rgba(0, 0, 0, 0.18);
+@define-color kid-primary #0f8a8a;
+@define-color kid-secondary #f06292;
+
+window.kidnix,
+.surface {
+  background-color: @kid-paper;
+  color: @kid-ink;
+  /* Andika is the child-facing face (08 section 3.3); Cantarell is on every
+   * Fedora system, so the fallback is never a mystery font. */
+  font-family: "Andika", "Cantarell", sans-serif;
+}
+
+/* --- the band ---------------------------------------------------------- */
+
+.band {
+  background-color: @kid-primary;
+  border-bottom: 4px solid @kid-secondary;
+  padding: 8px 16px;
+}
+
+.band button,
+.band .band-button {
+  background-color: @kid-paper;
+  color: @kid-ink;
+  border: 2px solid @kid-edge;
+  border-bottom-width: 5px;
+  border-radius: 18px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
+  margin: 0 4px;
+  padding: 6px;
+}
+
+.band button:hover {
+  background-color: #ffffff;
+}
+
+.band button:active,
+.band button.pressed {
+  /* The press state moves: a five-year-old needs to see that it registered. */
+  margin-top: 3px;
+  border-bottom-width: 2px;
+  box-shadow: none;
+}
+
+/* "Ask a grown-up" is present but not wired up in v0.1: outline-only, never
+ * greyed out. It still speaks and still responds to a press. */
+.band button.outline-only,
+button.outline-only {
+  background-color: transparent;
+  background-image: none;
+  color: @kid-paper;
+  border: 3px dashed @kid-paper;
+  box-shadow: none;
+}
+
+/* The grown-up gate is deliberately small, desaturated and far right. */
+.band button.grownup-gate {
+  background-color: rgba(255, 255, 255, 0.35);
+  border-color: rgba(0, 0, 0, 0.25);
+  color: rgba(0, 0, 0, 0.55);
+  box-shadow: none;
+}
+
+.band button.grownup-gate.holding {
+  background-color: rgba(255, 255, 255, 0.85);
+}
+
+.hold-progress trough {
+  min-height: 8px;
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+.hold-progress progress {
+  min-height: 8px;
+  background-color: @kid-highlight;
+}
+
+/* --- the reserved highlight -------------------------------------------- */
+
+.speaking {
+  outline: 6px solid @kid-highlight;
+  outline-offset: -3px;
+}
+
+:focus-visible,
+button:focus-visible,
+.tile:focus-visible {
+  outline: 6px solid @kid-highlight;
+  outline-offset: 2px;
+}
+
+/* --- tiles (S2 Home) --------------------------------------------------- */
+
+button.tile {
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge;
+  border-bottom-width: 6px;
+  border-radius: 28px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.14);
+  padding: 12px;
+}
+
+button.tile:hover {
+  background-color: #ffffff;
+}
+
+button.tile:active,
+button.tile.pressed {
+  margin-top: 4px;
+  border-bottom-width: 2px;
+  box-shadow: none;
+}
+
+button.tile.not-allowed {
+  background-color: transparent;
+  background-image: none;
+  border: 4px dashed @kid-edge;
+  box-shadow: none;
+}
+
+.tile-label {
+  font-size: 24pt;
+  font-weight: 600;
+}
+
+.tile-thumb {
+  border-radius: 10px;
+  border: 2px solid @kid-edge;
+  background-color: @kid-paper-dim;
+}
+
+/* --- cards (S4 My Things) ---------------------------------------------- */
+
+button.card {
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge;
+  border-bottom-width: 6px;
+  border-radius: 20px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.14);
+  padding: 8px;
+}
+
+button.card:active,
+button.card.pressed {
+  margin-top: 4px;
+  border-bottom-width: 2px;
+  box-shadow: none;
+}
+
+button.star {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 4px;
+}
+
+.day-heading {
+  font-size: 26pt;
+  font-weight: 700;
+  margin: 8px 0 4px 8px;
+}
+
+.shelf-heading {
+  font-size: 22pt;
+  font-weight: 700;
+  margin: 4px 0 4px 8px;
+}
+
+/* --- ritual screens (S1, S5, S6, S7, S8) -------------------------------- */
+
+.big-line {
+  font-size: 34pt;
+  font-weight: 600;
+}
+
+.screen-title {
+  font-size: 40pt;
+  font-weight: 700;
+}
+
+.quiet-line {
+  font-size: 22pt;
+}
+
+button.ritual {
+  background-color: @kid-paper;
+  color: @kid-ink;
+  border: 3px solid @kid-edge;
+  border-bottom-width: 8px;
+  border-radius: 32px;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.14);
+  font-size: 30pt;
+  font-weight: 600;
+  padding: 20px 28px;
+}
+
+button.ritual:active,
+button.ritual.pressed {
+  margin-top: 5px;
+  border-bottom-width: 3px;
+  box-shadow: none;
+}
+
+button.ritual.secondary {
+  font-size: 22pt;
+  border-bottom-width: 5px;
+}
+
+.sleeping {
+  background-color: #171b2c;
+  color: #d8def0;
+}
+
+.sleeping .big-line {
+  color: #d8def0;
+}
+
+/* --- pagination (A4: no free scrolling anywhere) ------------------------ */
+
+button.pager {
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge;
+  border-bottom-width: 6px;
+  border-radius: 50%;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.14);
+}
+
+button.pager:active {
+  margin-top: 4px;
+  border-bottom-width: 2px;
+  box-shadow: none;
+}
+
+button.pager:disabled {
+  /* Not greyed out -- simply not there. A pre-reader cannot read "disabled". */
+  opacity: 0;
+}
+
+/* --- S9 grown-up sheet: adult typography, adult density ----------------- */
+
+.grownup {
+  font-family: "Atkinson Hyperlegible", "Cantarell", sans-serif;
+  font-size: 12pt;
+}
+
+.grownup .title {
+  font-size: 20pt;
+  font-weight: 700;
+}
+
+.pin-pad button {
+  font-size: 20pt;
+  font-family: monospace;
+  min-width: 64px;
+  min-height: 64px;
+}
+
+.pin-display {
+  font-size: 28pt;
+  font-family: monospace;
+  letter-spacing: 8px;
+}
+
+.pin-error {
+  color: #b3261e;
+  font-weight: 600;
+}
