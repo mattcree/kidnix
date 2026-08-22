@@ -105,28 +105,58 @@ OLPC is the most instructive failure because it failed for reasons that had almo
 
 **What went wrong.** The $100 price was announced before a manufacturer was signed; the machine shipped at ~$180. The hand crank — the emblem of the whole project — was dropped almost immediately because winding stressed the case and demanded energy poor children could not spare. Deployments failed on teacher training, maintenance, repair parts, mains power and content localisation, not on the interface. Peru bought nearly a million units into schools with spotty electricity and minimal teacher support; a controlled study in 2012 found **no improvement in maths or language skills**. Total lifetime shipments were roughly **3 million** against an original ambition of hundreds of millions. Walter Bender's own retrospective is the sharpest line in the whole literature: *"we set an expectation around price, rather than an expectation around what this machine was really for."* Morgan Ames's diagnosis — *"The utopianism set unrealistic expectations around what the laptops should be able to accomplish"* — is the second sharpest.
 
-**What was right, and matters directly to kidnix.** Sugar's design principles are still the best-articulated in children's computing: no desktop, no folders, no windows; activities run full-screen; double-clicking is not used; menus show icons; *"limit the controls to those immediately relevant to the task at hand."* The **Journal** — an automatic, chronological record of everything the child did, browsable by date, by activity or by type, with no save dialog and no file system — is precisely the model kidnix proposes. Bender's description of the whole thing is worth keeping on the wall: *"It was very tool-oriented: tools for doing things, for making things. It wasn't curriculum-oriented. It wasn't a bunch of exercises."*
+More evidence accumulated later and it is uniformly negative. A home-use RCT in Lima (~1,000 XOs) found **+0.8 SD on XO-specific proficiency and zero effect on academic achievement or Raven's** (*AEJ: Applied* 7(2), 2015). A long-run follow-up across 531 rural schools over 2009–2019 (*Journal of Public Economics*, 2025) **ruled out effects above 0.05 SD in maths and 0.03 SD in reading**, and found grade progression **1.0pp worse** (p<0.05). Morgan Ames's ethnography *The Charisma Machine* (MIT Press, 2019), based on seven months of fieldwork in Paraguay, found that **over half the children who received an XO simply were not interested in using it**, that roughly 15% had broken machines, and that those who did use them mostly **"surf the Internet, watch movies, listen to music, and play simple games"** and **"more often played video games than programmed them."** Her central thesis is the one to internalise: the XO was designed for the **"technically precocious boy"** — an idealised younger version of its developers — rather than for the children who actually received it.
 
-**The honest caveat.** I could not find rigorous published usability evaluation of the Journal specifically — whether children understood it, whether it stayed navigable after a year of use, whether the lack of hierarchy became a problem at scale. That gap is itself a finding: **the single most-copied idea in kid computing has never been properly evaluated in public.** kidnix should plan its own usability testing on the journal rather than assuming Sugar validated it.
+**What was right, and matters directly to kidnix.** Sugar's design principles are still the best-articulated in children's computing: no desktop, no folders, no windows; activities run full-screen; double-clicking is not used; menus show icons; *"limit the controls to those immediately relevant to the task at hand."* The **zoom metaphor** — Neighbourhood → Group → Home → Activity — gave a child four coherent scales of "where am I" with no window management at all. The **Journal** is precisely the model kidnix proposes, and the original design documents are better than their reputation. Entries are created **implicitly** (every activity launch, photo, message) or explicitly; auto-metadata records time, sharing scope, participants, size, view count and revision count; "Keep" snapshots *state*, so resuming restores what you were doing rather than opening a file. Implicit versioning makes the Journal double as a **portfolio**. The HIG's rationale is worth quoting: *"the traditional 'open' and 'save' model commonly used for files today will fade away"* — a child drawing on paper never "saves". Bender's description of the whole system is worth keeping on the wall: *"It was very tool-oriented: tools for doing things, for making things. It wasn't curriculum-oriented. It wasn't a bunch of exercises."*
 
-Sources: [The Verge, "OLPC's $100 laptop was going to change the world — then it all went wrong" (16 Apr 2018)](https://www.theverge.com/2018/4/16/17233946/olpcs-100-laptop-education-where-are-they-now), [Wikipedia: Sugar](https://en.wikipedia.org/wiki/Sugar_(desktop_environment)), [Wikipedia: Sugar Labs](https://en.wikipedia.org/wiki/Sugar_Labs).
+**Where the Journal actually broke.** The design anticipated its own failure modes and the mitigations never arrived. Clutter was to be solved by **"temporal falloff"** (age × view count × recency) suggesting deletions; data loss was to be solved by **school backup servers**. In deployments neither reliably existed, so on a 1 GB flash device the Journal degraded into an undifferentiated infinite reverse-chronological scroll. Retrieval depended on **child-authored tags** (a five-year-old will not write them) and **OR-logic text search** (on a device where the child has no keyboard fluency). And the most-repeated community complaint was the absence of a conventional alternative: *"it would have helped if Sugar 1.5 had incorporated some standard features, such as a file management system alongside the 'journal' approach."*
+
+**The adults were the real failure.** A 2012 field study (Paz & Gibson, interviews in the US and Uruguay) identified three root causes and none of them concerned children: no administrative sponsorship, no usable training, and adults unable to self-teach an unfamiliar paradigm. A Birmingham, Alabama teacher reported that *"the failure to properly train teachers how to use the Sugar operating system created an environment of animosity toward the laptops"*, that *"students who had been exposed to Windows struggled to learn the XO laptop and the Sugar system, and the teachers did not have the knowledge to teach them"*, and — most damning — that *"even teachers who are comfortable with computers find Sugar difficult and counter-intuitive compared to their everyday Windows."* Negroponte himself later called building Sugar as a custom OS rather than a layer over a standard Linux desktop **"one of the biggest mistakes OLPC made."**
+
+**The honest caveat.** There is still no rigorous published usability evaluation of the Journal specifically with children — whether they understood it, whether it stayed navigable after a year, whether the lack of hierarchy hurt. **The single most-copied idea in kid computing has never been properly evaluated in public.** kidnix should plan its own usability testing rather than assume Sugar validated it.
+
+**Uruguay's Ceibal** is the one durable OLPC descendant and is a lesson in its own right: launched by decree in April 2007 with ~420,000–450,000 XOs, it has since migrated to conventional Windows 10/11 laptops (240,000+ managed via Intune/Autopilot) and Android tablets for pre-schoolers. Sugar is gone from it.
+
+Sources: [The Verge, "OLPC's $100 laptop was going to change the world — then it all went wrong" (16 Apr 2018)](https://www.theverge.com/2018/4/16/17233946/olpcs-100-laptop-education-where-are-they-now), [Sugar HIG: The Journal](https://wiki.sugarlabs.org/go/Human_Interface_Guidelines/The_Laptop_Experience/The_Journal), [Sugar HIG: Zoom metaphor](https://wiki.sugarlabs.org/go/Human_Interface_Guidelines/The_Laptop_Experience/Zoom_Metaphor), [Paz & Gibson, *The XO Laptop and Usability Issues* (2012)](https://wiki.sugarlabs.org/images/5/56/Teacher_Needs_&_Sugar-Usability_Report.pdf), [Ames, *The Charisma Machine* (MIT Press, 2019)](https://mitpress.mit.edu/9780262537445/the-charisma-machine/), [IDB Peru evaluation](https://publications.iadb.org/publications/english/document/Technology-and-Child-Development-Evidence-from-the-One-Laptop-per-Child-Program.pdf), [long-run follow-up, *J. Public Economics* 2025](https://www.sciencedirect.com/science/article/abs/pii/S0047272725002373), [Negroponte on Sugar being a mistake](https://liliputing.com/negroponte-sugar-os-was-olpcs-biggest-mistake/), [Wikipedia: Ceibal](https://en.wikipedia.org/wiki/Ceibal_project).
 
 ### Kano (2013–2023)
 
 Kano raised **$1.5m on Kickstarter (Nov 2013)**, **$15m Series A (May 2015, Breyer Capital)**, a second Kickstarter of **$643,030 (2016)**, **£14m from HSBC (Apr 2019)** and **£800k from Microsoft (Jul 2020)** — over $30m all-in for a company selling a Raspberry Pi in a nice box with a good story. It pivoted from Kano OS (its own Raspberry Pi–based system) to the **Kano PC running Windows 10** in 2019, which is the tell: the custom OS was abandoned in favour of being a hardware skin on someone else's platform. It then pivoted again into licensed novelty (Harry Potter wand, Star Wars/Frozen sensors) and finally into a Kanye West music player. It **entered administration in June 2023**; assets went to Ashdust LLP, connected to the CEO; Kano World was spun out and wound up in 2025.
 
-**Lesson.** A children's computing product that depends on a venture-funded company's survival is a bet the family cannot hedge. Kano's OS was the interesting part and it was the first thing abandoned when growth pressure arrived.
-Source: [Wikipedia: Kano Computing](https://en.wikipedia.org/wiki/Kano_Computing).
+The reviews are worth reading together. PCWorld: *"The Kano Computer Kit Complete aims to teach kids about PC hardware and coding in a fun and engaging way, and it knocks it out of the park"* — the reviewer's daughter *"absolutely adores it."* Digital Trends, on the same product: at $250 *"you are essentially paying for the 10.1-inch screen"* since Kano OS is free and a Pi 3 is $35, and *"we were surprised there was no direction of how to start using the device"* once assembly finished. **The build was the product, and Day 2 was empty.** That onboarding cliff — a spectacular first-run experience followed by nothing — is the retention failure kidnix will face in the same shape.
+
+**The lesson that matters most: the cloud dependency bricked the toys.** After liquidation, buyers found that *"all the servers are offline. Meaning you can't create an account or login, making the device effectively useless."* Retail stock was still on shelves and being sold to families as functional product that could not complete first-run setup. Children's saved creations on Kano World went dark with the company. Kano's only successor is Kano itself: a February 2025 announcement of a revival with AstroSafe and FINH, promising "much-needed maintenance" and a subscription model. It has not visibly relaunched.
+
+**Lesson.** A children's computing product that depends on a venture-funded company's survival — and worse, on its servers being up — is a bet the family cannot hedge. Kano's OS was the interesting part and it was the first thing abandoned when growth pressure arrived.
+Sources: [Wikipedia: Kano Computing](https://en.wikipedia.org/wiki/Kano_Computing), [Companies House insolvency record, company 08375450](https://find-and-update.company-information.service.gov.uk/company/08375450/insolvency), [PCWorld review](https://www.pcworld.com/article/407848/kano-computer-kit-complete-review.html), [Digital Trends review](https://www.digitaltrends.com/computing/kano-computer-kit-complete-review/), [Kano × AstroSafe (Feb 2025)](https://www.kano.me/blog/kano-x-astrosafe).
 
 ### The kid distros: Qimo, DoudouLinux, LinuxKidX
 
 These died quietly, and the pattern is identical in each case: a single maintainer or tiny team assembled a package selection and a theme on top of a mainstream distribution, shipped a few releases, and stopped. Qimo's last release was **27 May 2010**; DoudouLinux's was **6 December 2013**; LinuxKidX is not even in DistroWatch's database any more.
 
+Michael Hall's closing note on Qimo is the epitaph for the whole category: *"All good things must come to an end. I learned so much making Qimo, and have been honored to have been able to touch so many lives in the process."* The stated reason was simply that the team no longer had the time to keep pace with GNU/Linux; the last build was still on Ubuntu 12.04. DoudouLinux is the more painful case because it was *better*: activity-chooser modes rather than a desktop, DansGuardian filtering, DuckDuckGo by default, a usage-monitoring tool, and **44 languages** — an extraordinary achievement for a volunteer project, and precisely the load that sank it.
+
 **Lesson.** A children's Linux distribution that is *a theme plus a package list* has no defensible reason to exist and no mechanism to survive its maintainer. The reason kidnix might be different is that its value is in the **shell, the session model, the journal and the parent controls** — software that must be written and maintained, not merely selected. That is a higher bar, but it is also the only bar worth clearing. The corollary is that **the maintenance burden must be designed down** from day one: immutable base, small surface area, no per-application patching.
+
+### The survival rule: layer, don't fork
+
+Set the survivors against the dead and one variable explains almost everything.
+
+| Survived | Structural reason |
+|---|---|
+| **Edubuntu** (26.04 LTS, Apr 2026) | An **official Ubuntu flavour** — inherits Canonical's archive, builders, mirrors, LTS cadence and security updates. The maintainers own only the seed and the artwork |
+| **Debian Edu / Skolelinux** (13.6.0, Jul 2026; continuous since 2001) | A **Debian Pure Blend** — metapackages and defaults *inside* Debian, not a fork |
+| **Escuelas Linux** (9.0, May 2026) | Small team, Ubuntu base, narrow scope, one genuinely original idea (RestoreUser) |
+| **GCompris** (26.1, Mar 2026) | A **KDE application**, not an OS |
+| **Died** | |
+| Qimo, DoudouLinux, LinuxKidX, Ubermix | Separately maintained derivatives with no upstream leverage |
+| Sugar desktop / Sugar on a Stick | A custom desktop environment maintained by 100+ volunteers and **zero paid staff** |
+
+Endless — the best-funded participant in this field — reached the same conclusion in January 2026 and said it out loud: **"About 95 percent of what we ship is GNOME OS. We focus our effort on the few things that really give value."** And: **"If your OS development cycle is measured in years, you're always behind."** Having already shed its hardware (2020), its commercial entity (2020) and its kids' laptop (2020), it finally shed its custom desktop.
 
 ### Endless Hack, and Edubuntu's death and resurrection
 
-Endless built **Hack**, a genuinely thoughtful "flip to hack" kids' computer that let children break into the games they were playing and modify them. It is gone; the domain redirects to the parent foundation. Edubuntu was killed as an official flavour in 2014 and revived in 2023, now at **26.04 LTS**. The two together make the point: **kid-focused software gets abandoned first when an organisation is under pressure, and the things that come back are the ones with the lowest maintenance cost.**
+Endless built **Hack**, a genuinely thoughtful kids' computer ($299, ages 8–14, announced November 2018) organised around five pathways — Art, Games, Makers, the Operating System, and the Web — in which **the OS itself was an explicit learning subject rather than a substrate to be hidden**, and in which every app carried a **Flip-to-Hack** affordance revealing the code behind the running thing so a child could change the game from inside it, using real tools in a real Linux environment. It was well reviewed and it is gone. Edubuntu was killed as an official flavour in 2014 and revived in 2023. The two together make the point: **kid-focused software gets abandoned first when an organisation is under pressure, and the things that come back are the ones with the lowest maintenance cost.**
 
 ### Microsoft Edge Kids Mode
 
@@ -134,12 +164,15 @@ Worth recording as the cleanest case of big-tech abandonment: a shipped, markete
 
 ### The meta-lesson
 
-Every dead project in this section died of one of four causes, and only one of them is technical:
+Every dead project in this section died of one of five causes, and only one of them is technical:
 
 1. **Dependence on a company** (Kano, LeapFrog, Osmo, Hack, Kids Mode).
-2. **Dependence on a single maintainer** (Qimo, DoudouLinux, LinuxKidX, and Sugar on a Stick's stall on Fedora 35).
-3. **Selling a price or a story rather than a capability** (OLPC's $100, Kano's "build your own computer").
-4. **Solving the wrong layer** — a theme over a distro, or a launcher over an adult OS.
+2. **Dependence on a single maintainer** (Qimo, DoudouLinux, LinuxKidX, Ubermix, and Sugar on a Stick's stall on Fedora 35).
+3. **Dependence on a server** (Kano's kits bricked at first-run when the servers went dark; Sugar's Journal design assumed school backup servers that mostly did not exist).
+4. **Selling a price or a story rather than a capability** (OLPC's $100, Kano's "build your own computer").
+5. **Solving the wrong layer** — a fork instead of a layer, a theme over a distro, or a launcher over an adult OS.
+
+And one non-technical cause outranks all of them: **the adults could not use it.** OLPC's field research says so directly, Kano's Day 2 was empty, and 75% of US parents use no screen-time tool at all. Whatever kidnix ships, the parent must be able to set it up in minutes and understand it without learning a new paradigm.
 
 ---
 
@@ -282,7 +315,7 @@ Ordered by strength of supporting evidence and by relevance to a 4–8 product.
 
 **3. The web is the hole in every system.** Every filter in this survey is defeated by an embedded browser, an in-app WebView, or a self-sent link. Any product that ships a general HTML renderer inherits the problem. The only thing that survives is a strict allowlist enforced at the network layer.
 
-**4. Linux has no session model.** GNOME's parental controls offer app restriction and OARS filtering and **literally no time limits, no schedules and no reporting**. There is no open-source equivalent of Screen Time, let alone of the Nintendo app.
+**4. Linux has *just* acquired a session model, and nobody has built a child product on it.** As of **GNOME 50 (18 March 2026)** — default in Ubuntu 26.04 LTS and Fedora 44 — screen-time limits, bedtime schedules and per-child usage charts exist upstream for the first time, with a web-filtering backend landed and its UI still unwritten. There is still no open-source equivalent of the Nintendo parent app, no per-app limits, no journal, no activity shell, and **no kids edition anywhere in the atomic/immutable ecosystem** (Universal Blue ships Bluefin, Aurora and Bazzite; none is for children). This is a genuinely narrow, genuinely open window: the primitives now exist, and no one has assembled them into a product. kidnix should consume and extend them — and could plausibly contribute the missing web-filter UI back — rather than reinvent the stack.
 
 **5. Nobody separates constraint from surveillance.** The market offers either total permissiveness or Bark-style message scanning and GoGuardian-style screen watching. There is no widely available product that is **tightly constrained and not watching** — local policy, transparent to the child, nothing transmitted. Given that 73% of US parents worry about corporate data collection, this is an underserved position rather than a niche one.
 
@@ -292,9 +325,11 @@ Ordered by strength of supporting evidence and by relevance to a 4–8 product.
 
 **8. Family-authored content is a paid add-on or absent.** Make Your Own is Yoto's most-loved feature and a commercial afterthought. On an open platform it should be free and central.
 
-**9. Nobody has published usability evidence for the journal model.** Sugar invented it twenty years ago; nobody has shown that children understand it or that it scales past a few hundred entries.
+**9. Nobody has published usability evidence for the journal model.** Sugar invented it twenty years ago; nobody has shown that children understand it or that it scales past a few hundred entries. Sugar's own design anticipated the problem (temporal falloff, school backup servers) and shipped neither. For 4–8s the retrieval affordances must be **visual and non-textual** — thumbnails, "today / yesterday / before that", activity colour — with automatic falloff and a small bounded "favourites shelf" the child chooses, plus a boring conventional file view for the adult, whose absence was the single most repeated complaint about Sugar.
 
-**10. Longevity is nobody's promise.** Every product in this survey either died, was acquired, was deprecated, or is one strategy meeting from it. "This will still work in ten years and your child's work is in an open format on your own disk" is a claim only an open, immutable, offline-capable system can credibly make — and it is exactly what a parent who bought a LeapPad, a Kano kit or a 2020 Chromebook now wants to hear.
+**10. Nobody has revived Flip-to-Hack.** Endless's Hack let a child flip any running app over to see and edit what made it work, in a real Linux environment with real tools. It is the best unexploited idea in this entire survey, it costs nothing to prototype, and it is the only mechanism anyone has demonstrated for turning a bounded kid shell into a genuine on-ramp to computing rather than a nicer walled garden.
+
+**11. Longevity is nobody's promise.** Every product in this survey either died, was acquired, was deprecated, or is one strategy meeting from it. "This will still work in ten years and your child's work is in an open format on your own disk" is a claim only an open, immutable, offline-capable system can credibly make — and it is exactly what a parent who bought a LeapPad, a Kano kit or a 2020 Chromebook now wants to hear.
 
 ---
 
@@ -314,6 +349,11 @@ Ordered by strength of supporting evidence and by relevance to a 4–8 product.
 12. **Do not assume the child gets their own device.** 39% of UK primary families are sharing. Profile switching must be trivial and instant.
 13. **Do not promise educational outcomes.** OLPC's Peru RCT found none, and the resulting credibility damage outlasted the project. Promise a *good experience of computing*, not test scores.
 14. **Do not build an age-verification or identity system.** The 2026 criticism of the UK and Australian bans is precisely about mass ID verification, over-blocking and excluding vulnerable children. Local, verification-free constraint sidesteps all of it.
+15. **Do not fork the desktop.** Every separately maintained kid distribution died in three to six years; every survivor is a thin layer over a large upstream. Endless said it plainly after a decade and tens of millions of dollars: *"About 95 percent of what we ship is GNOME OS."* Build the shell, the session, the journal and the parent app — and take everything else from upstream, including GNOME 50's new parental-control primitives.
+16. **Do not build an interface the adult cannot use.** Sugar's fatal wound was that *"even teachers who are comfortable with computers find Sugar difficult and counter-intuitive."* kidnix needs a conventional adult mode on the same machine, reachable from the same login screen, with no reinstall and no jargon.
+17. **Do not assume the child will create.** Ames found over half of XO recipients simply were not interested, and most who used them consumed. Design the guardrails for consumption first, then make creation the easy adjacent step. Any success metric premised on "children will program it" is measuring the designers' childhood, not the users'.
+18. **Do not design a first run that outshines Day 2.** Kano's build experience was superb and reviewers noted there was "no direction of how to start using the device" afterwards. Budget more design effort for week three than for the unboxing.
+19. **Do not promise enforcement you cannot deliver.** malcontent's own README says a technically advanced user can work around it. If kidnix tells parents the controls hold, the immutable base, the absent shell, the Flatpak-only app surface and the network-layer allowlist have to actually make that true.
 
 ---
 
@@ -329,6 +369,8 @@ Ordered by strength of supporting evidence and by relevance to a 4–8 product.
 8. **Kid software is what gets abandoned first.** Edge Kids Mode killed with a one-line notice; Screen Time under-invested since iOS 13; Hack gone; Kano in administration; LeapFrog sold for $72m after a $124m annual loss. Longevity and openness are a genuine, evidence-backed pitch.
 9. **Separate constraint from surveillance and say so.** School monitoring's documented harms — mass false positives on health and LGBTQ resources, discipline outpacing support 78% to 54%, half of students self-censoring — plus 73% of parents worrying about corporate data collection, make "tightly bounded, watching nothing, sending nothing" a differentiated and defensible position.
 10. **Creative and audio are the underserved wins.** 65% of 3–7s already draw on devices; 3–7s are the age group most likely to listen to audiobooks; parents of 3–7s name creative skills as the top benefit of being online. A shell whose default state is *making something* — and which works with the screen off for stories — matches what both children and parents already do.
+
+**Bonus, and possibly the most actionable finding of all: the timing window is now.** GNOME 50 shipped child screen-time limits and bedtime schedules in March 2026 and is the default in Ubuntu 26.04 LTS and Fedora 44; no kids edition exists anywhere in the atomic/immutable ecosystem; the UK's Online Safety Act children's duties have made parents fluent in device-level safety; and the public information about "Linux for kids" is so stale that 2026 listicles still recommend software that died in 2010. Build a **thin layer** — shell, session, journal, parent app — over an upstream that now supplies the primitives, and ship it while the field is empty.
 
 ---
 
@@ -392,12 +434,46 @@ Ordered by strength of supporting evidence and by relevance to a 4–8 product.
 
 ### Linux, OLPC and the graveyard
 
+**OLPC / Sugar**
 - https://www.theverge.com/2018/4/16/17233946/olpcs-100-laptop-education-where-are-they-now
-- https://en.wikipedia.org/wiki/Sugar_(desktop_environment) · https://en.wikipedia.org/wiki/Sugar_Labs · https://wiki.sugarlabs.org/go/Sugar_on_a_Stick
-- https://en.wikipedia.org/wiki/Kano_Computing
-- https://www.endlessglobal.com/foundation/access/operating-system · https://en.wikipedia.org/wiki/Endless_OS
-- https://www.edubuntu.org/
-- https://distrowatch.com/table.php?distribution=escuelas · https://distrowatch.com/table.php?distribution=qimo · https://distrowatch.com/table.php?distribution=doudou
-- https://help.gnome.org/users/gnome-help/stable/parental-controls.html.en
+- https://wiki.sugarlabs.org/go/Human_Interface_Guidelines/The_Laptop_Experience/The_Journal · https://wiki.sugarlabs.org/go/Human_Interface_Guidelines/The_Laptop_Experience/Zoom_Metaphor · https://wiki.sugarlabs.org/go/Human_Interface_Guidelines/The_Sugar_Interface
+- https://wiki.sugarlabs.org/images/5/56/Teacher_Needs_&_Sugar-Usability_Report.pdf (Paz & Gibson, 25 Feb 2012)
+- https://mitpress.mit.edu/9780262537445/the-charisma-machine/ (Ames, 2019)
+- https://publications.iadb.org/publications/english/document/Technology-and-Child-Development-Evidence-from-the-One-Laptop-per-Child-Program.pdf · https://www.aeaweb.org/articles?id=10.1257%2Fapp.20130267 · https://www.sciencedirect.com/science/article/abs/pii/S0047272725002373
+- https://liliputing.com/negroponte-sugar-os-was-olpcs-biggest-mistake/
+- https://en.wikipedia.org/wiki/Sugar_(desktop_environment) · https://en.wikipedia.org/wiki/Sugar_Labs · https://wiki.sugarlabs.org/go/Sugar_on_a_Stick · https://github.com/sugarlabs/sugar/releases
+- https://en.wikipedia.org/wiki/Ceibal_project
+
+**Kano**
+- https://en.wikipedia.org/wiki/Kano_Computing · https://find-and-update.company-information.service.gov.uk/company/08375450/insolvency
+- https://www.pcworld.com/article/407848/kano-computer-kit-complete-review.html · https://www.digitaltrends.com/computing/kano-computer-kit-complete-review/
+- https://www.kano.me/blog/kano-x-astrosafe · https://www.kano.me/faq
+
+**Endless**
+- https://www.endlessglobal.com/foundation/access/operating-system · https://en.wikipedia.org/wiki/Endless_OS_Foundation
+- https://access.endlessstudios.com/blog/hack-computer-chronicles · https://access.endlessstudios.com/blog/endless-os-a-conversation-about-whats-changing-and-why-it-matters · https://blog.endlessglobal.com/blog-1/endless-2-0
+- https://www.phoronix.com/news/Endless-Hack-Computer · https://support.endlessos.org/en/endless-key
+
+**Distros**
+- https://www.edubuntu.org/ · https://discourse.ubuntu.com/t/edubuntu-26-04-lts-released/80831 · https://discourse.ubuntu.com/t/announcing-edubuntu-revival/32929
+- https://distrowatch.com/table.php?distribution=debianedu · https://distrowatch.com/table.php?distribution=escuelas · https://escuelaslinux.sourceforge.io/english/
+- https://distrowatch.com/table.php?distribution=qimo · https://news.softpedia.com/news/qimo-the-popular-ubuntu-based-linux-operating-system-for-kids-closes-shop-499820.shtml
+- https://distrowatch.com/table.php?distribution=doudou · https://en.wikipedia.org/wiki/DoudouLinux · https://distrowatch.com/table.php?distribution=ubermix
+- https://distroscout.com/usage/kids/ (illustrative of how stale the category's public information is) · https://universal-blue.org/ · https://fedoraproject.org/wiki/FedoraForKids
+
+**Linux parental controls**
+- https://help.gnome.org/users/gnome-help/stable/parental-controls.html.en · https://github.com/endlessm/malcontent
+- https://release.gnome.org/50/ · https://tecnocode.co.uk/2025/07/24/a-brief-parental-controls-update/ · https://tecnocode.co.uk/2025/11/19/parental-controls-screen-time-limits-backend/
+- https://discuss.kde.org/t/parental-control-application/957
+- https://support.google.com/chromeosflex/thread/214605352/familylink-can-t-limit-apps-or-device-time-for-chromeos-flex-devices · https://support.google.com/families/answer/9116646
 - https://www.bleepingcomputer.com/news/security/parental-control-app-with-5-million-downloads-vulnerable-to-attacks/ (Kids Place / CVE-2023-28153)
-- https://www.raspberrypi.com/for-home/
+
+**Raspberry Pi, apps, new entrants**
+- https://www.raspberrypi.com/for-home/ · https://static.raspberrypi.org/files/about/Code_Club_annual_survey_report_2025.pdf · https://forums.raspberrypi.com/viewtopic.php?t=299127 · https://raspberrytips.com/most-common-raspberry-pi-issues/
+- https://apps.kde.org/gcompris/ · https://planet.kde.org/gcompris-2026-03-10-release-gcompris-26-1/
+- https://entrepreneur.economictimes.indiatimes.com/news/funding/wippi-raises-1-2-mn-seed-funding-led-by-12-flags-to-build-screen-free-ai-products-for-children/133170389
+- https://www.gov.uk/government/news/keeping-children-safe-online-changes-to-the-online-safety-act-explained · https://www.ofcom.org.uk/online-safety/protecting-children/new-rules
+
+**Sourcing caution.** Two further OLPC figures surfaced during research but were **deliberately excluded** from the body because they traced back only to an AI-generated encyclopaedia: a reported ~70% XO hardware-failure rate within six months in Birmingham, Alabama, and a ~21.5% daily in-school usage rate in Uruguay. Both would strengthen the argument if true; verify against primary sources before using them. Everything quoted above — the RCT results, the Paz & Gibson field interviews, the Ames findings, and the Negroponte, Bender and McQueen quotations — comes from named primary or peer-reviewed sources.
+
+**Items flagged [verify] in the body**, all 2026-dated and sourced from recent trade or news reporting rather than statute or filings: the Amazon UK Kids+ price rise from £38 to £59.99 (5 Aug 2026); Google's climb-down on newly-13 supervision after the October 2025 FTC complaint; the UK under-16 social media ban (announced 15 June 2026), the 16–17 curfews (15 July 2026), and the statutory England school phone ban (announced April 2026, in force from ~30 June 2026). Check each against a primary source before it appears in anything external.
