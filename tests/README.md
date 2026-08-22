@@ -112,14 +112,28 @@ us a red build:
    shorten `SSH_POLL_SECONDS`, keep the `except TimeoutExpired: continue`.
 3. **QEMU and virtiofsd come from the *host*, not the image.** bcvk runs QEMU
    inside a podman container but bind-mounts the host's `/usr` in to find it,
-   so the runner must `apt-get install qemu-system-x86 virtiofsd`. A missing
-   virtiofsd is a container that starts and then does nothing.
+   so the runner must `apt-get install qemu-system-x86 virtiofsd` — and
+   **noble's virtiofsd is 1.10.0, which is too old for bcvk 0.18.** bcvk passes
+   `--allow-mmap`, added in virtiofsd 1.11; 1.10 rejects it with a clap usage
+   error and exits 2. bcvk's entrypoint then aborts, the VM container exits
+   before QEMU is ever spawned, and you get an *empty* `output/` — no console
+   log (QEMU creates that file), no journal, and, with `--rm`, not even a
+   container to ask. The workflow installs `virtiofsd 1.14.0` from the Ubuntu
+   archive over the top, which is the same version Fedora/Bluefin ships. If
+   that URL ever 404s, any `virtiofsd >= 1.11` will do; check with
+   `virtiofsd --help | grep allow-mmap`.
 4. **`/dev/kvm` and `vhost_vsock` need a nudge.** `sudo chmod 0666 /dev/kvm`,
    because `usermod -aG kvm` does not affect the already-running shell and bcvk
    passes the host device straight into an unprivileged rootless container.
-   `sudo modprobe vhost_vsock`, because the module is not loaded on a stock
-   runner and it is what carries the guest's journal stream — the only
-   diagnostic you get from a boot that never reaches sshd.
+   `sudo modprobe vhost_vsock` (then `chmod 0666` it too — it comes up
+   `0660 root:kvm` and `runner` is not in the `kvm` group), because the module
+   is not loaded on a stock runner.
+5. **Two cores, not four.** A hosted runner has 2 vCPUs and 8 GB, so CI passes
+   `--cpus 2`; more vCPUs than the host has only buys contention between QEMU,
+   virtiofsd and the harness.
+6. **The account can run out of artifact storage.** The upload step is
+   `continue-on-error` for exactly that reason — a storage quota must never
+   fail a boot that passed. The job log carries the same diagnostics.
 
 The job uploads the whole of `output/` on success *and* failure, and prints the
 tail of the console and the guest journal into the job log, so a red build is

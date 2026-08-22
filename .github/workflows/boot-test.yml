@@ -37,6 +37,9 @@ env:
   # Ceiling, not a target: a healthy nested boot on a runner is ~2-4 minutes.
   # Anything approaching this is a real failure and the artifacts will say so.
   BOOT_TIMEOUT_SECONDS: "600"
+  # A hosted runner has 2 cores. Handing the guest more vCPUs than the host has
+  # only buys contention between QEMU, virtiofsd and the harness.
+  BOOT_VCPUS: "2"
 
 jobs:
   # Cheap on every event: byte-compile both harnesses and check their
@@ -112,6 +115,30 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             podman qemu-system-x86 qemu-utils virtiofsd
 
+      # THE fix. noble ships virtiofsd 1.10.0, which does not know
+      # `--allow-mmap`; bcvk 0.18 passes it unconditionally, so virtiofsd exits
+      # 2 with a clap usage error, bcvk's entrypoint aborts, and the VM
+      # container is gone before QEMU ever runs -- which is why there was no
+      # console log, no journal and nothing to look at. 1.14.0 is the version
+      # Fedora/Bluefin ships, so this makes CI match the developer's machine
+      # rather than papering over a difference. Its dependencies (libc6 >=
+      # 2.39, libcap-ng0, libseccomp2, libgcc-s1) are all satisfied on noble.
+      - name: Install virtiofsd 1.14 (noble's 1.10 is too old for bcvk)
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          deb=virtiofsd_1.14.0-3_amd64.deb
+          curl -fsSL --retry 3 -o "/tmp/${deb}" \
+            "http://archive.ubuntu.com/ubuntu/pool/universe/r/rust-virtiofsd/${deb}"
+          echo "1bd9cff8d6d6d6a5a0e615a985805431ce4760f35cc35969165492421f92cdb9  /tmp/${deb}" \
+            | sha256sum -c -
+          sudo dpkg -i "/tmp/${deb}"
+          /usr/libexec/virtiofsd --version
+          # Prove it takes the flags bcvk will hand it, before we spend a build
+          # on finding out. Exit 2 here is the exact bug this step exists for.
+          /usr/libexec/virtiofsd --print-capabilities >/dev/null
+          /usr/libexec/virtiofsd --help | grep -q -- --allow-mmap
+
       - name: Install bcvk
         if: steps.kvm.outputs.available == 'true'
         run: |
@@ -182,7 +209,11 @@ jobs:
       # The whole test: rootless, no disk image. Nothing here needs sudo.
       - name: Boot test
         if: steps.kvm.outputs.available == 'true'
-        run: just test-boot --timeout "${BOOT_TIMEOUT_SECONDS}" --verbose
+        run: |
+          just test-boot \
+            --timeout "${BOOT_TIMEOUT_SECONDS}" \
+            --cpus "${BOOT_VCPUS}" \
+            --verbose
 
       # The harness already writes output/diagnostics.txt and prints the tail of
       # the console and the guest journal before the VM is torn down. This adds
