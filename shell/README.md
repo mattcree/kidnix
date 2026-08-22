@@ -94,6 +94,7 @@ kidnix_shell/
 
   # pure logic, no GTK, fully unit-tested headless:
   theme.py        the runtime half of the theme: profile tint, type scale
+  labels.py       the no-cut label rule: wrap, shrink, floor at 18 pt
   metrics.py      mm <-> px, DPI-aware sizing, and the fit-to-screen clamp
   activities.py   manifest loading, validation, order and availability (s4)
   ritual.py       the ending ritual as one pure decision (spec S5-S7)
@@ -132,12 +133,52 @@ ideal, then shrinks every size by one `fit` factor until the band, the Home
 grid and the pager provably fit inside the monitor's geometry — and
 `app.py` measures the built widget tree and shrinks again if GTK disagrees.
 On 1920×1080 and up nothing shrinks (`fit = 1.0`). On the 1280×800 panel of
-the first real boot it settles around 0.83, which is a 35 mm tile instead of a
-40 mm one — small, and *visible*, which the clipped one was not.
+the first real boot it settles around 0.81, which is a 34 mm tile instead of a
+40 mm one — small, and *visible*, which the clipped one was not. The tile is
+also allowed to be taller than it is wide: two reserved label lines are more
+than the spec's 40 px label strip, and `home_size()` budgets for them, which is
+what keeps twelve tiles on that panel instead of eight.
 
 The band is clamped to 80–128 px (spec §7a) and its buttons are sized to live
 inside that clamp. On a genuinely small panel Home drops to 4×2 tiles rather
 than shrinking twelve of them past 128 px.
+
+## Labels are never cut
+
+SYNTHESIS B4 asks for icon + label + audio on every affordance, with the label
+at **>= 18 pt**. v0.1.1 asked Pango to ellipsise instead, and on the 1280x800
+panel Home said `Letters & n...`, `Number ga...`, `Copy the li...` and
+`Jump and r...` -- four of the ten activities the image ships. A pre-reader
+matching a shape to a word cannot match half a word, and cannot widen the tile.
+
+`labels.py` is the rule, in order:
+
+1. **Wrap, never cut.** `ellipsize` is `NONE` on everything a child looks at.
+2. **Two lines is the budget.** The tile reserves two label lines in its own
+   height (`Metrics.tile_label_height`), so a page of long names and a page of
+   short ones lay out identically and the grid never jumps.
+3. **Shrink before spilling**, in 1 pt steps, breaking between words -- a
+   single long word shrinks to the floor before it is ever broken between
+   characters ("Goodnig-ht" is a cut label wearing a hyphen).
+4. **18 pt is the floor**, scaled by the same `fit` factor as every other
+   point size on a panel we had to shrink.
+5. **A third line is the last resort**, and the one case where a tile grows.
+
+Two other rules fall out of it. A page of tiles is set at **one** size -- the
+size the longest name on that page can carry -- because a grid where "Draw" is
+24 pt and "Letters & numbers" is 18 pt reads as a mistake, not a hierarchy; and
+a page whose labels all fit on one line gives the second line's room back to
+the **icon** rather than leaving an empty line under every tile.
+
+`audio_label` is untouched by all of this: what the child *hears* is always the
+manifest's whole sentence, however the visible name had to wrap.
+
+The measuring is pluggable. On a display, Pango measures; headless, a
+deliberately pessimistic pure-Python model of the shipped face does, which is
+what lets `just test-headless` prove the ten shipped names fit at 1280x800 at
+96 / 102 / 118 dpi and at 1366x768 with no display at all
+(`tests/test_labels.py`). `tests/test_gtk_smoke.py` then checks
+`Gtk.Label.get_layout().is_ellipsized()` on every real Home tile.
 
 ## Configuration
 

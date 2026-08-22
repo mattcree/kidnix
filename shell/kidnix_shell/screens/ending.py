@@ -23,10 +23,16 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..sound import KEEP  # noqa: E402
-from ..widgets import ChildButton, big_label, icon_image  # noqa: E402
+from ..theme import points_for  # noqa: E402
+from ..widgets import ChildButton, big_label, icon_image, page_label_fit  # noqa: E402
 from . import Screen  # noqa: E402
 
 PUT_AWAY_ANIMATION_MS = 1100
+
+#: theme.css ``button.ritual``: 28 px of padding and a 3 px border either side.
+RITUAL_CHROME_X_PX = 62
+#: ``button.ritual.secondary``: the same padding, a lighter border.
+RITUAL_SECONDARY_CHROME_X_PX = 56
 
 
 class EndingOfferScreen(Screen):
@@ -45,9 +51,21 @@ class EndingOfferScreen(Screen):
 
         choices = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap * 2)
         choices.set_halign(Gtk.Align.CENTER)
+        # Both endings are read by a child who is being asked to stop. Neither
+        # may be cut, and neither may be wider than the other's button, so the
+        # pair is fitted to the same width (spec S5, SYNTHESIS B4).
+        inner = max(1, metrics.mm(60) - RITUAL_CHROME_X_PX)
+        choices_text = ("Finish this one", "One last little thing")
+        points, _ = page_label_fit(
+            choices_text,
+            inner,
+            base_pt=points_for(metrics, ".big-line"),
+            floor_pt=metrics.label_floor_pt,
+            widget=choices,
+        )
         for label, speak, one_last in (
-            ("Finish this one", "Finish this one", False),
-            ("One last little thing", "One last little thing", True),
+            (choices_text[0], "Finish this one", False),
+            (choices_text[1], "One last little thing", True),
         ):
             button = ChildButton(
                 speak_text=speak,
@@ -57,7 +75,16 @@ class EndingOfferScreen(Screen):
                 width=metrics.mm(60),
                 height=metrics.mm(30),
             )
-            button.set_child(big_label(label, "big-line"))
+            button.set_child(
+                big_label(
+                    label,
+                    "big-line",
+                    width=inner,
+                    base_pt=points_for(metrics, ".big-line"),
+                    floor_pt=metrics.label_floor_pt,
+                    points=points,
+                )
+            )
             choices.append(button)
         self.append(choices)
 
@@ -69,7 +96,15 @@ class EndingOfferScreen(Screen):
             width=metrics.mm(50),
             height=metrics.min_target,
         )
-        more.set_child(Gtk.Label(label="Ask for more time"))
+        more.set_child(
+            big_label(
+                "Ask for more time",
+                "quiet-line",
+                width=max(1, metrics.mm(50) - RITUAL_SECONDARY_CHROME_X_PX),
+                base_pt=points_for(metrics, "button.ritual.secondary"),
+                floor_pt=metrics.label_floor_pt,
+            )
+        )
         more.set_halign(Gtk.Align.CENTER)
         self.append(more)
 

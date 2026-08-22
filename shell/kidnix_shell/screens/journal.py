@@ -20,6 +20,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..journal import Entry, build_pages  # noqa: E402
+from ..theme import points_for  # noqa: E402
 from ..widgets import (  # noqa: E402
     ChildButton,
     Pager,
@@ -33,6 +34,20 @@ from . import Screen  # noqa: E402
 CARDS_PER_PAGE = 8
 CARD_COLUMNS = 4
 
+# S4's cards are deliberately caption-less: the card *is* the thumbnail (08
+# section 4.3), and the only title we have for an entry carries a clock time
+# ("Draw 14:32"), which there are no digits for anywhere in the child's shell.
+# The title is spoken instead, in full. What is written on this screen is the
+# headings and the empty state -- and those follow the same no-cut rule as
+# every other child-facing label.
+
+
+def _text_width(screen: Screen) -> int:
+    """How wide a line of text may be on My Things before it must wrap."""
+    metrics = screen.ctx.metrics
+    across = metrics.screen_width or (CARD_COLUMNS * metrics.card_size + 3 * metrics.gap)
+    return max(1, across - metrics.gap * 2)
+
 
 class JournalScreen(Screen):
     name = "My Things"
@@ -45,7 +60,14 @@ class JournalScreen(Screen):
         self.set_margin_start(metrics.gap)
         self.set_margin_end(metrics.gap)
 
-        self.shelf_heading = big_label("My favourites", "shelf-heading")
+        text_width = _text_width(self)
+        self.shelf_heading = big_label(
+            "My favourites",
+            "shelf-heading",
+            width=text_width,
+            base_pt=points_for(metrics, ".shelf-heading"),
+            floor_pt=metrics.label_floor_pt,
+        )
         self.shelf_heading.set_halign(Gtk.Align.START)
         self.append(self.shelf_heading)
 
@@ -57,7 +79,13 @@ class JournalScreen(Screen):
         self.carousel.set_vexpand(True)
         self.append(self.carousel)
 
-        self.empty = big_label("Nothing here yet. Go and make something!", "big-line")
+        self.empty = big_label(
+            "Nothing here yet. Go and make something!",
+            "big-line",
+            width=text_width,
+            base_pt=points_for(metrics, ".big-line"),
+            floor_pt=metrics.label_floor_pt,
+        )
         self.empty.set_vexpand(True)
         self.empty.set_valign(Gtk.Align.CENTER)
         self.append(self.empty)
@@ -112,7 +140,13 @@ class JournalScreen(Screen):
 
         for kind, value in items:
             if kind == "heading":
-                heading = big_label(str(value), "day-heading")
+                heading = big_label(
+                    str(value),
+                    "day-heading",
+                    width=_text_width(self),
+                    base_pt=points_for(metrics, ".day-heading"),
+                    floor_pt=metrics.label_floor_pt,
+                )
                 heading.set_halign(Gtk.Align.START)
                 box.append(heading)
                 grid = Gtk.Grid()

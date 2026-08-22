@@ -36,7 +36,13 @@ from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..activities import Activity  # noqa: E402
 from ..util import paginate  # noqa: E402
-from ..widgets import ActivityTile, Pager, carousel_page, quiet_carousel  # noqa: E402
+from ..widgets import (  # noqa: E402
+    ActivityTile,
+    Pager,
+    carousel_page,
+    page_label_fit,
+    quiet_carousel,
+)
 from . import Screen  # noqa: E402
 
 ALL_DONE_ID = "kidnix.all-done"
@@ -115,11 +121,30 @@ class HomeScreen(Screen):
         grid.set_halign(Gtk.Align.CENTER)
         grid.set_valign(Gtk.Align.CENTER)
 
+        # One type size for the whole page, taken from the name that has to
+        # shrink most: a grid where "Draw" is 24 pt and "Letters & numbers" is
+        # 18 pt reads as a mistake, not as a hierarchy.
+        points, label_height = page_label_fit(
+            [getattr(cell, "name", "") for cell in cells],
+            metrics.tile_label_width,
+            base_pt=metrics.tile_label_pt,
+            floor_pt=metrics.label_floor_pt,
+            height=metrics.tile_label_height,
+            widget=grid,
+        )
         for index, cell in enumerate(cells):
-            grid.attach(self._tile(cell), index % metrics.columns, index // metrics.columns, 1, 1)
+            grid.attach(
+                self._tile(cell, points, label_height),
+                index % metrics.columns,
+                index // metrics.columns,
+                1,
+                1,
+            )
         return carousel_page(grid)
 
-    def _tile(self, cell: Cell) -> Gtk.Widget:
+    def _tile(
+        self, cell: Cell, points: float | None = None, label_height: int | None = None
+    ) -> Gtk.Widget:
         metrics = self.ctx.metrics
         if isinstance(cell, AllDone):
             return ActivityTile(
@@ -128,6 +153,8 @@ class HomeScreen(Screen):
                 self.ctx.speech_ui,
                 on_activate=self._all_done,
                 extra_css=("all-done",),
+                label_points=points,
+                label_height=label_height,
             )
         denial = self._denial(cell)
         latest = self.ctx.journal.latest_for_activity(cell.id)
@@ -139,6 +166,8 @@ class HomeScreen(Screen):
             allowed=denial is None,
             denial=denial or NOT_ALLOWED_LINE,
             thumbnail=latest.thumbnail if latest is not None else None,
+            label_points=points,
+            label_height=label_height,
         )
 
     def _denial(self, activity: Activity) -> str | None:

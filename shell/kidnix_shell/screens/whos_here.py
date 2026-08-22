@@ -17,8 +17,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
+from ..metrics import TILE_CHROME_X_PX  # noqa: E402
 from ..settings import Profile  # noqa: E402
-from ..widgets import ChildButton, big_label, icon_image, next_key  # noqa: E402
+from ..widgets import ChildButton, big_label, fit_gtk_label, icon_image, next_key  # noqa: E402
 from . import Screen  # noqa: E402
 
 
@@ -78,8 +79,18 @@ class WhosHereScreen(Screen):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         box.set_valign(Gtk.Align.CENTER)
         box.append(icon_image(profile.avatar, "icon-name", int(size * 0.55), "kidnix-child"))
-        label = Gtk.Label(label=profile.name)
+        # A child's own name is the last thing in this shell that may be cut
+        # short: it wraps and shrinks like every other label (SYNTHESIS B4).
+        label = Gtk.Label()
         label.add_css_class("tile-label")
+        fit_gtk_label(
+            label,
+            profile.name,
+            width=max(1, size - TILE_CHROME_X_PX),
+            base_pt=metrics.tile_label_pt,
+            floor_pt=metrics.label_floor_pt,
+            height=metrics.tile_label_height,
+        )
         box.append(label)
         button.set_child(box)
         return button

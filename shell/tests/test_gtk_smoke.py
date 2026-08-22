@@ -487,3 +487,279 @@ def test_ask_for_more_time_dismisses_the_offer(ctx: ShellContext) -> None:
     screen = EndingOfferScreen(ctx)
     screen._ask_for_more()
     assert ("dismiss_offer", (False,)) in ctx.host.calls  # type: ignore[attr-defined]
+
+
+# --- no child-facing label is ever cut (SYNTHESIS B4) --------------------
+
+import contextlib  # noqa: E402
+from collections.abc import Iterator  # noqa: E402
+
+from kidnix_shell.metrics import TILE_LABEL_LINES  # noqa: E402
+from kidnix_shell.theme import dynamic_css  # noqa: E402
+from tests.test_labels import ALL_DONE_NAME, PANELS, shipped_names  # noqa: E402
+
+gi.require_version("Pango", "1.0")
+from gi.repository import Gdk, Pango  # noqa: E402
+
+THEME_CSS = Path(__file__).resolve().parents[1] / "kidnix_shell/theme.css"
+
+
+@contextlib.contextmanager
+def themed(ctx: ShellContext) -> Iterator[None]:
+    """The display styled for *these* metrics, the way the real app styles it.
+
+    ``ShellWindow`` installs ``theme.css`` plus the type sizes for the panel it
+    is on, and how big ``.tile-label`` is in CSS is what GTK turns
+    ``max-width-chars`` into pixels with. Without this the tests inherit
+    whatever panel the last window in the session was built for.
+    """
+    display = Gdk.Display.get_default()
+    base = Gtk.CssProvider()
+    base.load_from_path(str(THEME_CSS))
+    tint = Gtk.CssProvider()
+    tint.load_from_string(dynamic_css(ctx.metrics, ctx.profile) or ".tile-label {}")
+    Gtk.StyleContext.add_provider_for_display(display, base, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+    Gtk.StyleContext.add_provider_for_display(display, tint, Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
+    try:
+        yield
+    finally:
+        Gtk.StyleContext.remove_provider_for_display(display, tint)
+        Gtk.StyleContext.remove_provider_for_display(display, base)
+
+
+def walk(widget):  # type: ignore[no-untyped-def]
+    """Every widget under ``widget``, itself included."""
+    yield widget
+    child = widget.get_first_child()
+    while child is not None:
+        yield from walk(child)
+        child = child.get_next_sibling()
+
+
+def tile_labels(widget):  # type: ignore[no-untyped-def]
+    return [
+        found
+        for found in walk(widget)
+        if isinstance(found, Gtk.Label) and found.has_css_class("tile-label")
+    ]
+
+
+def panel_metrics(width: int, height: int, dpi: float) -> Metrics:
+    return Metrics.for_screen(width, height, dpi=dpi)
+
+
+def home_with_shipped_names(ctx: ShellContext, screen: str) -> HomeScreen:
+    """Home as the image ships it: the ten real manifest names, on one panel."""
+    from kidnix_shell.metrics import parse_screen
+
+    override = parse_screen(screen)
+    ctx.metrics = Metrics.for_screen(override.width, override.height, dpi=override.dpi)
+    ctx.activities = [
+        make_activity(f"a{index}", name=name, audio_label=f"{name}. Come and play.")
+        for index, name in enumerate(shipped_names())
+    ]
+    return HomeScreen(ctx)
+
+
+@pytest.mark.parametrize(("width", "height", "dpi"), PANELS)
+def test_no_home_tile_label_is_ellipsized(
+    ctx: ShellContext, width: int, height: int, dpi: float
+) -> None:
+    """The v0.1.1 bug, measured by Pango itself on the real widget tree.
+
+    ``Letters & n...`` was four of the ten shipped tiles on this panel.
+    """
+    home = home_with_shipped_names(ctx, f"{width}x{height}@{dpi:g}")
+    labels = tile_labels(home)
+    assert len(labels) == len(shipped_names()) + 1  # + the "All done" tile
+
+    names = {*shipped_names(), ALL_DONE_NAME}
+    for label in labels:
+        assert label.get_label() in names
+        assert label.get_ellipsize() == Pango.EllipsizeMode.NONE
+        assert label.get_layout().is_ellipsized() is False
+        assert label.get_wrap()
+        assert label.get_wrap_mode() == Pango.WrapMode.WORD_CHAR
+
+
+@pytest.mark.parametrize(("width", "height", "dpi"), PANELS)
+def test_every_home_tile_label_fits_the_tile_it_is_in(
+    ctx: ShellContext, width: int, height: int, dpi: float
+) -> None:
+    """Not cut *and* not spilling: what GTK will ask for fits what it will get."""
+    ctx.metrics = panel_metrics(width, height, dpi)
+    with themed(ctx):
+        home = home_with_shipped_names(ctx, f"{width}x{height}@{dpi:g}")
+        metrics = ctx.metrics
+        for label in tile_labels(home):
+            tall = label.measure(Gtk.Orientation.VERTICAL, metrics.tile_label_width)[1]
+            assert tall <= metrics.tile_label_height, label.get_label()
+        for tile in walk(home):
+            if isinstance(tile, ActivityTile):
+                natural = tile.measure(Gtk.Orientation.VERTICAL, -1)[1]
+                assert natural <= metrics.tile_height, tile.speak_text
+
+
+@pytest.mark.parametrize(("width", "height", "dpi"), PANELS)
+def test_no_home_tile_label_takes_more_than_two_lines(
+    ctx: ShellContext, width: int, height: int, dpi: float
+) -> None:
+    ctx.metrics = panel_metrics(width, height, dpi)
+    with themed(ctx):
+        home = home_with_shipped_names(ctx, f"{width}x{height}@{dpi:g}")
+        for label in tile_labels(home):
+            layout = label.get_layout()
+            layout.set_width(ctx.metrics.tile_label_width * Pango.SCALE)
+            assert layout.get_line_count() <= TILE_LABEL_LINES, label.get_label()
+
+
+def test_a_page_of_tiles_is_all_one_type_size(ctx: ShellContext) -> None:
+    """A grid where "Draw" is 24 pt and "Letters & numbers" is 18 pt reads as
+    a mistake, so a page agrees on the size its longest name can carry."""
+    home = home_with_shipped_names(ctx, "1280x800@102")
+    tiles = [found for found in walk(home) if isinstance(found, ActivityTile)]
+    assert len(tiles) == len(shipped_names()) + 1
+    assert len({tile.label_fit.points for tile in tiles}) == 1
+    assert all(tile.label.get_attributes() is not None for tile in tiles)
+
+
+def test_the_tile_speaks_the_whole_audio_label_however_the_text_wraps(
+    ctx: ShellContext,
+) -> None:
+    """B4: what the child *hears* is never the abbreviation of what they see."""
+    ctx.metrics = Metrics.for_screen(1280, 800, dpi=102.0)
+    activity = make_activity(
+        "gcompris", name="Letters & numbers", audio_label="Letters and numbers"
+    )
+    tile = ActivityTile(activity, ctx.metrics, ctx.speech_ui, lambda: None)
+    assert tile.speak_text == "Letters and numbers"
+    assert tile.label.get_label() == "Letters & numbers"
+    assert tile.label_fit.line_count == 2
+    tile.fire()
+    assert ctx.speech.backend.spoken == ["Letters and numbers"]  # type: ignore[attr-defined]
+
+
+def test_a_profile_name_is_never_cut_either(ctx: ShellContext) -> None:
+    """S1: a child's own name is the last thing that may be abbreviated."""
+    from kidnix_shell.settings import Profile
+
+    ctx.metrics = Metrics.for_screen(1280, 800, dpi=102.0)
+    ctx.config.profiles = [
+        Profile(id="a", name="Bartholomew", colour_primary="#0f8a8a", colour_secondary="#f06292")
+    ]
+    screen = WhosHereScreen(ctx)
+    labels = tile_labels(screen)
+    assert [label.get_label() for label in labels] == ["Bartholomew"]
+    assert labels[0].get_ellipsize() == Pango.EllipsizeMode.NONE
+    assert labels[0].get_layout().is_ellipsized() is False
+
+
+def test_the_ending_choices_are_never_cut(ctx: ShellContext) -> None:
+    """S5: the two ways to end a session are the two the child has to read."""
+    ctx.metrics = Metrics.for_screen(1280, 800, dpi=102.0)
+    screen = EndingOfferScreen(ctx)
+    texts = {
+        found.get_label()
+        for found in walk(screen)
+        if isinstance(found, Gtk.Label) and found.get_label()
+    }
+    assert {"Finish this one", "One last little thing", "Ask for more time"} <= texts
+    for found in walk(screen):
+        if isinstance(found, Gtk.Label):
+            assert found.get_layout().is_ellipsized() is False
+            assert found.get_ellipsize() == Pango.EllipsizeMode.NONE
+
+
+def test_the_goodbye_buttons_are_never_cut(ctx: ShellContext) -> None:
+    ctx.metrics = Metrics.for_screen(1280, 800, dpi=102.0)
+    screen = GoodbyeScreen(ctx)
+    for found in walk(screen):
+        if isinstance(found, Gtk.Label):
+            assert found.get_ellipsize() == Pango.EllipsizeMode.NONE
+            assert found.get_layout().is_ellipsized() is False
+
+
+def test_my_things_headings_are_never_cut(ctx: ShellContext, tmp_path: Path) -> None:
+    ctx.metrics = Metrics.for_screen(1280, 800, dpi=102.0)
+    ctx.journal.import_file(write_png(tmp_path / "work" / "p.png"), "scribble")
+    screen = JournalScreen(ctx)
+    screen.on_enter()
+    for found in walk(screen):
+        if isinstance(found, Gtk.Label):
+            assert found.get_ellipsize() == Pango.EllipsizeMode.NONE
+
+
+def test_the_grownup_sheet_wraps_instead_of_cutting(ctx: ShellContext) -> None:
+    """The one adult surface: still nobody reads "/etc/kidnix/pare...".."""
+    from kidnix_shell.screens.grownup import GrownupSheet
+
+    sheet = GrownupSheet(ctx)
+    rows = [found for found in walk(sheet.get_child()) if isinstance(found, Adw.PreferencesRow)]
+    assert rows, "the actions page should have built some rows"
+    for row in rows:
+        assert row.get_title_lines() == 0
+        if isinstance(row, Adw.ActionRow):
+            assert row.get_subtitle_lines() == 0
+
+
+@pytest.mark.parametrize("screen", ["1280x800@96", "1280x800@102", "1280x800@118", "1366x768@96"])
+def test_the_shell_still_fits_with_the_names_the_image_actually_ships(
+    tmp_path: Path, screen: str
+) -> None:
+    """The whole tree, the real names, the panels we ship for.
+
+    ``test_the_whole_shell_fits_the_panel_it_was_told_about`` uses made-up
+    one-word names, which is exactly the case that never broke. This is the
+    same measurement with "Letters & numbers" in it.
+    """
+    from kidnix_shell.app import ShellApplication, ShellWindow
+    from kidnix_shell.metrics import parse_screen
+    from kidnix_shell.settings import ParentConfig
+
+    paths = Paths(
+        home=tmp_path,
+        data_home=tmp_path / "data",
+        config_home=tmp_path / "config",
+        cache_home=tmp_path / "cache",
+        state_home=tmp_path / "state",
+    )
+    config = ParentConfig()
+    activities = [
+        make_activity(f"a{index}", name=name) for index, name in enumerate(shipped_names())
+    ]
+    application = ShellApplication(
+        paths=paths,
+        config=config,
+        policy=SessionPolicy.demo(),
+        activities=activities,
+        demo=True,
+        fullscreen=False,
+        speech_backend="null",
+    )
+    window = ShellWindow(
+        application,
+        paths=paths,
+        config=config,
+        policy=SessionPolicy.demo(),
+        activities=application._activities,
+        demo=True,
+        fullscreen=False,
+        speech_backend="null",
+        screen=parse_screen(screen),
+    )
+    try:
+        metrics = window.metrics
+        assert metrics.per_page == 12, "twelve tiles is the point of the reserve"
+        assert window._root.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= metrics.screen_width
+        assert window._root.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.screen_height
+        # Every ``.tile-label`` in the window: Home's twelve and the profile
+        # name on Who's here, which is built at the same time.
+        labels = tile_labels(window._root)
+        assert {*shipped_names(), ALL_DONE_NAME} <= {label.get_label() for label in labels}
+        for label in labels:
+            assert label.get_layout().is_ellipsized() is False
+            assert label.get_ellipsize() == Pango.EllipsizeMode.NONE
+            tall = label.measure(Gtk.Orientation.VERTICAL, metrics.tile_label_width)[1]
+            assert tall <= metrics.tile_label_height, label.get_label()
+    finally:
+        window.shutdown()

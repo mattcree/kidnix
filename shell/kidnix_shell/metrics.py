@@ -27,6 +27,8 @@ import os
 import re
 from dataclasses import dataclass, replace
 
+from .labels import line_height_px
+
 log = logging.getLogger(__name__)
 
 MM_PER_INCH = 25.4
@@ -42,8 +44,33 @@ BAND_HEIGHT_PX = 96  # design px; scaled by DPI like everything else
 
 # Design pixels at 96 dpi (08 section 3.2 / 3.3).
 TILE_PX = 160
-TILE_LABEL_PX = 40
-TILE_LABEL_PT = 18  # spec S2: label >= 18 pt
+
+#: theme.css ``.tile-label``: the size a label gets when it fits on one line.
+TILE_LABEL_BASE_PT = 24.0
+#: SYNTHESIS B4 / spec S2: a child-facing label is never smaller than this.
+#: Below it we add a third line rather than shrink again.
+TILE_LABEL_MIN_PT = 18.0
+#: Reserved in the tile's height whether the label uses them or not, so the
+#: grid does not jump between a page of short names and a page of long ones.
+#:
+#: The box is two lines *at the floor*, and that is a deliberate budget, not a
+#: coincidence: two lines at 24 pt would leave a 1280x800 panel's tiles under
+#: the size at which we keep a 4 x 3 grid, i.e. buying a bigger wrapped label
+#: with four fewer activities on the page. So a label that fits on one line
+#: may be as big as the theme's 24 pt, and a label that has to wrap is stepped
+#: down until two lines fit this box -- which in practice is the 18 pt floor.
+TILE_LABEL_LINES = 2
+
+#: theme.css: ``button.tile`` has 12 px of padding and 2/6 px borders. Fixed
+#: pixels, so they do *not* shrink with the layout and have to be budgeted for.
+TILE_CHROME_PX = 32  # vertical: 12 + 12 padding, 2 + 6 border
+TILE_CHROME_X_PX = 28  # horizontal: 12 + 12 padding, 2 + 2 border
+TILE_SPACING_PX = 6  # the box's spacing between icon and label
+#: The icon may be squeezed by the label box, but only so far: below this
+#: fraction of the tile the picture stops being the thing you recognise.
+TILE_ICON_FRACTION = 0.52
+TILE_ICON_MIN_FRACTION = 0.36
+TILE_ICON_MIN_PX = 24
 
 #: Spec 7a: "the band scales with the same factor, clamped to 80-128 px".
 BAND_MIN_PX = 80
@@ -184,9 +211,57 @@ class Metrics:
         """Activity tile edge: 160 design px, but never under 40 mm."""
         return self.at_least_mm(TILE_PX, PRIMARY_TILE_MM)
 
+    # --- the label box (see kidnix_shell.labels) --------------------------
+
+    @property
+    def tile_label_pt(self) -> float:
+        """The size a tile label starts at, before any fitting."""
+        return self.points(TILE_LABEL_BASE_PT)
+
+    @property
+    def label_floor_pt(self) -> float:
+        """The floor: 18 pt, or its equivalent on a layout we had to shrink."""
+        return self.points(TILE_LABEL_MIN_PT)
+
     @property
     def tile_label_height(self) -> int:
-        return self.design(TILE_LABEL_PX)
+        """Two label lines, always reserved, so the grid never jumps."""
+        return TILE_LABEL_LINES * line_height_px(self.label_floor_pt)
+
+    @property
+    def tile_label_width(self) -> int:
+        """What a label has to fit into across the tile, inside the padding."""
+        return max(1, self.tile_size - TILE_CHROME_X_PX)
+
+    def tile_icon_for(self, label_height: int) -> int:
+        """The icon takes what the label box leaves, within limits.
+
+        ``label_height`` is the *reserved* two lines when sizing the layout,
+        and what a page's labels actually came out at when building one: a page
+        of one-word names gets its icon back rather than staring at an empty
+        second line it never uses.
+        """
+        room = self.tile_size - label_height - TILE_CHROME_PX - TILE_SPACING_PX
+        floor = max(TILE_ICON_MIN_PX, _ceil(self.tile_size * TILE_ICON_MIN_FRACTION))
+        ideal = int(self.tile_size * TILE_ICON_FRACTION)
+        return max(floor, min(ideal, room))
+
+    @property
+    def tile_icon_size(self) -> int:
+        """The icon at the reserved label height -- what the layout budgets."""
+        return self.tile_icon_for(self.tile_label_height)
+
+    @property
+    def tile_height(self) -> int:
+        """A tile is 40 mm square *or* taller, if two label lines need it.
+
+        Spec S2 says "160 x 160 px + 40 px label"; two legible lines are more
+        than 40 px, so the tile is allowed to be the taller of the square and
+        what its contents actually need. :meth:`home_size` uses this, which is
+        what stops the grid from growing off the bottom of a small panel.
+        """
+        contents = TILE_CHROME_PX + self.tile_icon_size + TILE_SPACING_PX + self.tile_label_height
+        return max(self.tile_size, contents)
 
     @property
     def band_height(self) -> int:
@@ -248,7 +323,9 @@ class Metrics:
     def home_size(self) -> tuple[int, int]:
         """What Home needs: the grid, its margins, the band and the pager."""
         grid_width = self.columns * self.tile_size + (self.columns - 1) * self.gap
-        grid_height = self.rows * self.tile_size + (self.rows - 1) * self.gap
+        # Height, not width: a tile with two reserved label lines is taller
+        # than it is wide, and pretending otherwise is how v0.1.0 clipped.
+        grid_height = self.rows * self.tile_height + (self.rows - 1) * self.gap
         width = grid_width + 4 * self.gap  # HomeScreen: gap * 2 either side
         # Three gaps down the page: HomeScreen's top margin, the Screen box's
         # own spacing between the grid and the pager, and the pager's bottom

@@ -31,6 +31,16 @@ BASE_POINTS: dict[str, float] = {
 }
 
 
+def points_for(metrics: Metrics, selector: str) -> float:
+    """What ``selector`` is actually drawn at on this panel.
+
+    The single source of truth for "how big is this text" -- widgets that have
+    to fit a label into a known width ask here rather than repeating a number
+    that ``theme.css`` might change under them.
+    """
+    return metrics.points(BASE_POINTS[selector])
+
+
 def tint_css(profile: Profile) -> str:
     return (
         f".band {{ background-color: {profile.colour_primary};"

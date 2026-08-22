@@ -16,10 +16,13 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
 from ..suggestions import offline_suggestion  # noqa: E402
-from ..widgets import ChildButton, big_label  # noqa: E402
+from ..theme import points_for  # noqa: E402
+from ..widgets import ChildButton, big_label, page_label_fit  # noqa: E402
 from . import Screen  # noqa: E402
 
 MAX_THUMBNAILS = 3
+#: theme.css ``button.ritual``: 28 px of padding and a 3 px border either side.
+RITUAL_CHROME_X_PX = 62
 
 WORDS = ("nothing", "one thing", "two things", "three things", "four things", "five things")
 
@@ -49,6 +52,17 @@ class GoodbyeScreen(Screen):
 
         buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap * 2)
         buttons.set_halign(Gtk.Align.CENTER)
+        inner = max(1, metrics.mm(60) - RITUAL_CHROME_X_PX)
+        base = points_for(metrics, ".big-line")
+        # One size across the pair: two buttons side by side at two different
+        # sizes read as one of them mattering more.
+        points, _ = page_label_fit(
+            ("Show a grown-up", "Goodnight"),
+            inner,
+            base_pt=base,
+            floor_pt=metrics.label_floor_pt,
+            widget=buttons,
+        )
 
         self.show_button = ChildButton(
             speak_text="Show a grown-up",
@@ -58,7 +72,16 @@ class GoodbyeScreen(Screen):
             width=metrics.mm(60),
             height=metrics.mm(28),
         )
-        self.show_button.set_child(big_label("Show a grown-up", "big-line"))
+        self.show_button.set_child(
+            big_label(
+                "Show a grown-up",
+                "big-line",
+                width=inner,
+                base_pt=base,
+                floor_pt=metrics.label_floor_pt,
+                points=points,
+            )
+        )
         buttons.append(self.show_button)
 
         self.goodnight_button = ChildButton(
@@ -69,7 +92,16 @@ class GoodbyeScreen(Screen):
             width=metrics.mm(60),
             height=metrics.mm(28),
         )
-        self.goodnight_button.set_child(big_label("Goodnight", "big-line"))
+        self.goodnight_button.set_child(
+            big_label(
+                "Goodnight",
+                "big-line",
+                width=inner,
+                base_pt=base,
+                floor_pt=metrics.label_floor_pt,
+                points=points,
+            )
+        )
         buttons.append(self.goodnight_button)
         self.append(buttons)
 

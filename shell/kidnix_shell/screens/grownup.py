@@ -17,7 +17,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from ..context import ShellContext  # noqa: E402
 from ..session import MAX_SESSION_MINUTES, MIN_SESSION_MINUTES  # noqa: E402
@@ -32,6 +32,34 @@ READ_ONLY_SUBTITLE = (
     "Kept for this boot only: /etc/kidnix/parent.toml is root-owned, "
     "which is what keeps the PIN out of the child's hands."
 )
+
+
+def no_cut(row: Adw.PreferencesRow) -> Adw.PreferencesRow:
+    """Let an adult row's title and subtitle wrap instead of ellipsising.
+
+    The sheet is the one adult surface in the shell, but "never cut a label"
+    is not a children's rule -- a parent reading "Kept for this boot only:
+    /etc/kidnix/pare..." has been told nothing. libadwaita defaults these rows
+    to a single ellipsised line; both are unbounded here, and the sheet
+    scrolls.
+    """
+    row.set_title_lines(0)
+    row.set_use_markup(False)
+    if isinstance(row, Adw.ActionRow):
+        row.set_subtitle_lines(0)
+    return row
+
+
+def wrapping_button(label: str) -> Gtk.Button:
+    """A sheet button whose text wraps rather than being cut to fit."""
+    button = Gtk.Button(label=label)
+    child = button.get_child()
+    if isinstance(child, Gtk.Label):
+        child.set_wrap(True)
+        child.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        child.set_ellipsize(Pango.EllipsizeMode.NONE)
+        child.set_justify(Gtk.Justification.CENTER)
+    return button
 
 
 class GrownupSheet(Adw.Dialog):
@@ -72,6 +100,8 @@ class GrownupSheet(Adw.Dialog):
 
         title = Gtk.Label(label="Enter the grown-up PIN")
         title.add_css_class("title")
+        title.set_wrap(True)
+        title.set_justify(Gtk.Justification.CENTER)
         box.append(title)
 
         self._display = Gtk.Label(label="_ _ _ _")
@@ -80,6 +110,8 @@ class GrownupSheet(Adw.Dialog):
 
         self._error = Gtk.Label(label="")
         self._error.add_css_class("pin-error")
+        self._error.set_wrap(True)
+        self._error.set_justify(Gtk.Justification.CENTER)
         box.append(self._error)
 
         pad = Gtk.Grid(row_spacing=8, column_spacing=8)
@@ -87,11 +119,11 @@ class GrownupSheet(Adw.Dialog):
         pad.set_halign(Gtk.Align.CENTER)
         for index in range(9):
             pad.attach(self._digit(str(index + 1)), index % 3, index // 3, 1, 1)
-        clear = Gtk.Button(label="Clear")
+        clear = wrapping_button("Clear")
         clear.connect("clicked", lambda _b: self._reset_pin())
         pad.attach(clear, 0, 3, 1, 1)
         pad.attach(self._digit("0"), 1, 3, 1, 1)
-        cancel = Gtk.Button(label="Cancel")
+        cancel = wrapping_button("Cancel")
         cancel.connect("clicked", lambda _b: self.close())
         pad.attach(cancel, 2, 3, 1, 1)
         box.append(pad)
@@ -150,11 +182,11 @@ class GrownupSheet(Adw.Dialog):
         page = Adw.PreferencesPage()
 
         session_group = Adw.PreferencesGroup(title="This session")
-        self._status = Adw.ActionRow(title="Session")
+        self._status = no_cut(Adw.ActionRow(title="Session"))
         session_group.add(self._status)
 
-        start = Adw.ActionRow(title="Start a session", subtitle="Uses the default length")
-        start_button = Gtk.Button(label="Start")
+        start = no_cut(Adw.ActionRow(title="Start a session", subtitle="Uses the default length"))
+        start_button = wrapping_button("Start")
         start_button.add_css_class("suggested-action")
         start_button.set_valign(Gtk.Align.CENTER)
         start_button.connect("clicked", lambda _b: self._start())
@@ -162,21 +194,23 @@ class GrownupSheet(Adw.Dialog):
         start.set_activatable_widget(start_button)
         session_group.add(start)
 
-        grants = Adw.ActionRow(title="Add time", subtitle="Bounded by today's budget")
+        grants = no_cut(Adw.ActionRow(title="Add time", subtitle="Bounded by today's budget"))
         grant_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         grant_box.set_valign(Gtk.Align.CENTER)
         for minutes in GRANTS:
-            button = Gtk.Button(label=f"+{minutes}")
+            button = wrapping_button(f"+{minutes}")
             button.connect("clicked", lambda _b, m=minutes: self._grant(m))
             grant_box.append(button)
         grants.add_suffix(grant_box)
         session_group.add(grants)
 
-        end = Adw.ActionRow(
-            title="End the session now",
-            subtitle="Runs the same put-away and goodbye the child knows",
+        end = no_cut(
+            Adw.ActionRow(
+                title="End the session now",
+                subtitle="Runs the same put-away and goodbye the child knows",
+            )
         )
-        end_button = Gtk.Button(label="End now")
+        end_button = wrapping_button("End now")
         end_button.add_css_class("destructive-action")
         end_button.set_valign(Gtk.Align.CENTER)
         end_button.connect("clicked", lambda _b: self._end())
@@ -186,7 +220,7 @@ class GrownupSheet(Adw.Dialog):
         page.add(session_group)
 
         settings_group = Adw.PreferencesGroup(title="Settings")
-        length = Adw.SpinRow.new_with_range(MIN_SESSION_MINUTES, MAX_SESSION_MINUTES, 5)
+        length = no_cut(Adw.SpinRow.new_with_range(MIN_SESSION_MINUTES, MAX_SESSION_MINUTES, 5))
         length.set_title("Default session length")
         length.set_subtitle(LENGTH_SUBTITLE)
         length.set_value(self.ctx.config.default_session_minutes)
@@ -195,20 +229,24 @@ class GrownupSheet(Adw.Dialog):
         settings_group.add(length)
 
         if self.ctx.config.is_default:
-            warning = Adw.ActionRow(
-                title="This machine has no parent config",
-                subtitle=(
-                    "The gate is on the development PIN 1234 and every activity is "
-                    "allowed. Write /etc/kidnix/parent.toml as root to fix that."
-                ),
+            warning = no_cut(
+                Adw.ActionRow(
+                    title="This machine has no parent config",
+                    subtitle=(
+                        "The gate is on the development PIN 1234 and every activity is "
+                        "allowed. Write /etc/kidnix/parent.toml as root to fix that."
+                    ),
+                )
             )
             warning.add_css_class("pin-error")
             settings_group.add(warning)
 
-        panel = Adw.ActionRow(
-            title="Parent panel", subtitle="Allow-lists, budgets, their things -- not in v0.1"
+        panel = no_cut(
+            Adw.ActionRow(
+                title="Parent panel", subtitle="Allow-lists, budgets, their things -- not in v0.1"
+            )
         )
-        panel_button = Gtk.Button(label="Open")
+        panel_button = wrapping_button("Open")
         panel_button.set_valign(Gtk.Align.CENTER)
         panel_button.connect("clicked", lambda _b: self._open_panel())
         panel.add_suffix(panel_button)
@@ -217,8 +255,8 @@ class GrownupSheet(Adw.Dialog):
         page.add(settings_group)
 
         exit_group = Adw.PreferencesGroup()
-        logout = Adw.ActionRow(title="Log out", subtitle="Back to the login screen")
-        logout_button = Gtk.Button(label="Log out")
+        logout = no_cut(Adw.ActionRow(title="Log out", subtitle="Back to the login screen"))
+        logout_button = wrapping_button("Log out")
         logout_button.set_valign(Gtk.Align.CENTER)
         logout_button.connect("clicked", lambda _b: self._logout())
         logout.add_suffix(logout_button)

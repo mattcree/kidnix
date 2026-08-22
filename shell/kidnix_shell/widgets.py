@@ -17,26 +17,55 @@ Nothing here decides *what* happens; screens pass callbacks.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gtk, Pango  # noqa: E402
 
-from .metrics import Metrics  # noqa: E402
+from .labels import (  # noqa: E402
+    LabelFit,
+    Wrapper,
+    approx_char_px,
+    fit_label,
+    line_height_px,
+)
+from .metrics import (  # noqa: E402
+    TILE_CHROME_PX,
+    TILE_CHROME_X_PX,
+    TILE_SPACING_PX,
+    Metrics,
+)
 from .speech import SpeechManager  # noqa: E402
 
 #: SYNTHESIS A3. Long enough to swallow a burst, short enough that two
 #: deliberate presses still read as two.
 DEBOUNCE_MS = 150
 
-#: theme.css: ``button.tile`` has 12 px of padding and 2/6 px borders. Fixed
-#: pixels, so they do *not* shrink with the layout and have to be budgeted for.
-TILE_CHROME_PX = 32
-TILE_SPACING_PX = 6
+__all__ = [
+    "TILE_CHROME_PX",
+    "TILE_CHROME_X_PX",
+    "TILE_SPACING_PX",
+    "ActivityTile",
+    "ChildButton",
+    "PageDots",
+    "Pager",
+    "SpeechUI",
+    "big_label",
+    "bundled_icon",
+    "carousel_page",
+    "category_icon",
+    "data_dir",
+    "fit_gtk_label",
+    "icon_image",
+    "next_key",
+    "page_label_fit",
+    "quiet_carousel",
+    "spatial_stack",
+]
 
 #: 08 section 3.5: spatial transitions 350-450 ms so the journey is legible.
 TRANSITION_MS = 400
@@ -47,6 +76,191 @@ _KEY_COUNTER = [0]
 def next_key(prefix: str) -> str:
     _KEY_COUNTER[0] += 1
     return f"{prefix}-{_KEY_COUNTER[0]}"
+
+
+# --- labels that are never cut (see kidnix_shell.labels) -------------------
+
+
+#: theme.css: ``window.kidnix`` is Andika with Cantarell behind it, and every
+#: child-facing label is semibold. Stated here rather than read back off the
+#: widget, because a widget that is not in a window yet has no computed style
+#: and would be measured in whatever the system font happens to be.
+CHILD_FACE = "Andika,Cantarell,Sans"
+
+
+def _base_font(points: float, face: str = CHILD_FACE) -> Pango.FontDescription:
+    """The description the theme will draw this text with, at ``points``."""
+    description = Pango.FontDescription.from_string(face)
+    description.set_weight(Pango.Weight.SEMIBOLD)
+    description.set_size(max(1, int(points * Pango.SCALE)))
+    return description
+
+
+def pango_wrapper(widget: Gtk.Widget) -> tuple[Wrapper, Callable[[float], int]]:
+    """``(wrap, line_height)`` measured by the engine that will draw the text.
+
+    The pure-Python estimate in :mod:`kidnix_shell.labels` exists so the tests
+    can run without a display; when there *is* a display we ask Pango, because
+    the only measurement that matters is the one the child sees.
+    """
+    context = widget.get_pango_context()
+
+    def layout_for(points: float) -> Pango.Layout:
+        layout = Pango.Layout.new(context)
+        layout.set_font_description(_base_font(points))
+        return layout
+
+    def wrap(text: str, points: float, width: int) -> tuple[tuple[str, ...], int]:
+        layout = layout_for(points)
+        layout.set_text(text, -1)
+        layout.set_wrap(Pango.WrapMode.WORD_CHAR)
+        layout.set_width(max(1, width) * Pango.SCALE)
+        raw = text.encode("utf-8")
+        lines: list[str] = []
+        for index in range(layout.get_line_count()):
+            line = layout.get_line_readonly(index)
+            start, length = line.start_index, line.length
+            lines.append(raw[start : start + length].decode("utf-8", "replace"))
+        widest = layout.get_pixel_size()[0]
+        return (tuple(lines) or ("",)), widest
+
+    def line_height(points: float) -> int:
+        layout = layout_for(points)
+        # A cap and a descender: the tallest a single line of this face gets.
+        layout.set_text("Xgy", -1)
+        return max(1, layout.get_pixel_size()[1])
+
+    return wrap, line_height
+
+
+def _measurers(widget: Gtk.Widget) -> tuple[Wrapper | None, Callable[[float], int]]:
+    try:
+        return pango_wrapper(widget)
+    except Exception:  # pragma: no cover - no display, no Pango context
+        return None, line_height_px
+
+
+def fit_gtk_label(
+    label: Gtk.Label,
+    text: str,
+    *,
+    width: int,
+    base_pt: float,
+    floor_pt: float,
+    height: int | None = None,
+    points: float | None = None,
+    max_lines: int = 2,
+) -> LabelFit:
+    """Set ``text`` on ``label`` so that all of it is visible. Always.
+
+    Wrapping is word-then-character and centred, ``ellipsize`` is ``NONE``,
+    and the point size is whatever :func:`kidnix_shell.labels.fit_label`
+    decided -- ``points`` overrides it when a whole page has agreed on one
+    size, which is what keeps a grid of tiles typographically even.
+    """
+    wrap, line_height = _measurers(label)
+    if points is not None:
+        lines, widest = (wrap or _estimate)(text, points, width)
+        fit = LabelFit(
+            text, lines, points, widest, len(lines) * line_height(points), widest <= width
+        )
+    else:
+        fit = fit_label(
+            text,
+            width,
+            base_pt=base_pt,
+            floor_pt=floor_pt,
+            max_lines=max_lines,
+            height=height,
+            wrap=wrap,
+            line_height=line_height,
+        )
+
+    label.set_label(text)
+    label.set_wrap(True)
+    label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+    label.set_justify(Gtk.Justification.CENTER)
+    label.set_ellipsize(Pango.EllipsizeMode.NONE)
+    label.set_lines(-1)
+    label.set_single_line_mode(False)
+    label.set_max_width_chars(_chars_across(label, width, base_pt))
+
+    attributes = Pango.AttrList.new()
+    attributes.insert(Pango.attr_size_new(max(1, int(fit.points * Pango.SCALE))))
+    label.set_attributes(attributes)
+    # Height only: the reserved label box is what stops the grid from jumping.
+    # Requesting the *width* too would make every label a minimum-width demand
+    # on its parent, which is how a heading pushes a page wider than the panel.
+    label.set_size_request(-1, height if height is not None else -1)
+    return fit
+
+
+def _estimate(text: str, points: float, width: int) -> tuple[tuple[str, ...], int]:
+    from .labels import wrap_estimate
+
+    return wrap_estimate(text, points, width)
+
+
+def _chars_across(label: Gtk.Label, width: int, css_pt: float) -> int:
+    """How many characters fit across ``width``, in Pango's own reckoning.
+
+    ``max-width-chars`` is what a wrapping ``Gtk.Label`` asks its parent for,
+    and GTK turns it into pixels with the *style* font's average character --
+    the size ``theme.css`` states, not the smaller size we may have fitted the
+    text to. Measure with that one and the label's natural width lands on the
+    space we have: the tile neither grows to fit the text nor asks the grid for
+    a width it cannot give.
+    """
+    per_char = approx_char_px(css_pt)
+    try:
+        metrics = label.get_pango_context().get_metrics(_base_font(css_pt), None)
+        measured = metrics.get_approximate_char_width() / Pango.SCALE
+        if measured > 0:
+            per_char = measured
+    except Exception:  # pragma: no cover - no display
+        pass
+    return max(2, int(width / per_char))
+
+
+def page_label_fit(
+    texts: Sequence[str],
+    width: int,
+    *,
+    base_pt: float,
+    floor_pt: float,
+    height: int | None = None,
+    widget: Gtk.Widget | None = None,
+) -> tuple[float, int]:
+    """``(points, label_height)`` for a whole page of labels.
+
+    Two decisions, both taken per page rather than per tile:
+
+    * **One size.** A grid where "Draw" is 24 pt and "Letters & numbers" is
+      18 pt reads as a mistake, not as a hierarchy, so every tile on the page
+      is set at the size the longest name on it can carry -- never below the
+      floor.
+    * **Only the lines it uses.** The layout *budgets* two lines
+      (:attr:`~kidnix_shell.metrics.Metrics.tile_label_height`) so the grid
+      always fits, but a page of one-word names gives the room back to the
+      icon instead of leaving an empty second line under every tile.
+    """
+    wrap, line_height = _measurers(widget) if widget is not None else (None, line_height_px)
+    points = base_pt
+    fits = []
+    for text in texts:
+        fit = fit_label(
+            text,
+            width,
+            base_pt=base_pt,
+            floor_pt=floor_pt,
+            height=height,
+            wrap=wrap,
+            line_height=line_height,
+        )
+        fits.append(fit)
+        points = min(points, fit.points)
+    lines = max((fit.line_count for fit in fits), default=1)
+    return points, max(1, lines) * line_height(points)
 
 
 class SpeechUI:
@@ -241,6 +455,8 @@ class ActivityTile(ChildButton):
         denial: str = "Ask a grown-up for this one.",
         thumbnail: Path | None = None,
         extra_css: tuple[str, ...] = (),
+        label_points: float | None = None,
+        label_height: int | None = None,
     ) -> None:
         speak = getattr(activity, "speak_text", "")
         if not allowed:
@@ -259,12 +475,13 @@ class ActivityTile(ChildButton):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=TILE_SPACING_PX)
         box.set_valign(Gtk.Align.CENTER)
 
-        # The icon takes whatever the label and the CSS padding leave. Sizing
-        # it at a flat 52% made the tile's *minimum* larger than the size we
-        # asked for on a shrunk layout, and a grid of minimums that each
-        # overshoot is how the band ended up off the top of the screen.
-        room = metrics.tile_size - metrics.tile_label_height - TILE_CHROME_PX - TILE_SPACING_PX
-        icon_size = max(24, min(int(metrics.tile_size * 0.52), room))
+        # The icon takes whatever the two reserved label lines and the CSS
+        # padding leave, down to a floor (metrics.tile_icon_size). Sizing it at
+        # a flat 52% made the tile's *minimum* larger than the size we asked
+        # for on a shrunk layout, and a grid of minimums that each overshoot is
+        # how the band ended up off the top of the screen.
+        label_box = metrics.tile_label_height if label_height is None else label_height
+        icon_size = metrics.tile_icon_for(label_box)
         icon = icon_image(
             getattr(activity, "icon", ""),
             getattr(activity, "icon_kind", "icon-name"),
@@ -287,11 +504,22 @@ class ActivityTile(ChildButton):
             overlay.add_overlay(thumb)
         box.append(overlay)
 
-        label = Gtk.Label(label=getattr(activity, "name", ""))
+        # B4: the label is never cut. It wraps to two lines, shrinks in 1 pt
+        # steps to the 18 pt floor, and only then takes a third line -- and
+        # `speak_text` above is the *whole* audio_label either way, so what the
+        # child hears is never the abbreviation of what they see.
+        label = Gtk.Label()
         label.add_css_class("tile-label")
-        label.set_size_request(-1, metrics.tile_label_height)
-        label.set_ellipsize(3)  # Pango.EllipsizeMode.END
-        label.set_max_width_chars(12)
+        self.label_fit = fit_gtk_label(
+            label,
+            getattr(activity, "name", ""),
+            width=metrics.tile_label_width,
+            base_pt=metrics.tile_label_pt,
+            floor_pt=metrics.label_floor_pt,
+            height=label_box,
+            points=label_points,
+        )
+        self.label = label
         box.append(label)
         self.set_child(box)
 
@@ -382,10 +610,40 @@ class Pager(Gtk.Box):
         self.set_visible(self.pages > 1)
 
 
-def big_label(text: str, css: str = "big-line") -> Gtk.Label:
-    label = Gtk.Label(label=text)
+def big_label(
+    text: str,
+    css: str = "big-line",
+    *,
+    width: int | None = None,
+    base_pt: float | None = None,
+    floor_pt: float | None = None,
+    points: float | None = None,
+    max_lines: int = 2,
+) -> Gtk.Label:
+    """A child-facing line. Wraps, centres, and is never ellipsised.
+
+    Pass ``width`` (and the point sizes that go with it) where the line has to
+    live inside something of a known size -- a ritual button, a card caption.
+    Without it the label keeps 08 section 3.3's 40-character measure and takes
+    as many lines as it needs, which is right for a headline in open space.
+    """
+    label = Gtk.Label()
     label.add_css_class(css)
+    if width is not None and base_pt is not None:
+        fit_gtk_label(
+            label,
+            text,
+            width=width,
+            base_pt=base_pt,
+            floor_pt=floor_pt if floor_pt is not None else base_pt,
+            points=points,
+            max_lines=max_lines,
+        )
+        return label
+    label.set_label(text)
     label.set_wrap(True)
+    label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+    label.set_ellipsize(Pango.EllipsizeMode.NONE)
     label.set_justify(Gtk.Justification.CENTER)
     label.set_max_width_chars(40)  # 08 section 3.3: <= 40 chars for early readers
     return label

@@ -161,9 +161,13 @@ def test_the_physical_panel_decides_the_layout_not_the_reported_dpi() -> None:
 
     This is the point of fitting: mm-based sizing chooses how big things are
     *in millimetres*, and the panel chooses how many pixels that can be.
+
+    The tolerance is pixels, not much: the reserved two-line label box is sized
+    in *points*, and points come through ``fit``, which the band's 80-128 px
+    clamp makes a step function rather than a straight line.
     """
     sizes = {Metrics.for_screen(1280, 800, dpi=dpi).tile_size for dpi in (96.0, 102.0, 118.0)}
-    assert max(sizes) - min(sizes) <= 4
+    assert max(sizes) - min(sizes) <= 8
 
 
 def test_a_small_screen_gets_fewer_bigger_tiles() -> None:
