@@ -187,6 +187,39 @@ class GeometryError(ValueError):
     """The numbers do not describe a screen with a band on it."""
 
 
+#: How far a window's allocation may be from what we asked for and still count
+#: as "the compositor placed it". Non-zero because a fractional scale or a
+#: shadow can cost a pixel, and small because the failure this catches is off
+#: by hundreds (the band landing in the *content* rectangle).
+PLACEMENT_TOLERANCE_PX = 2
+
+
+def placed(width: int, height: int, want_width: int, want_height: int) -> bool:
+    """Did the compositor actually give this window the rectangle we asked for?
+
+    This is the check that had to exist. v0.1.5's first cut trusted GTK's
+    ``map`` signal as "the band has its strip", and ``map`` is far too early:
+    it fires when GTK maps the widget, *before* the compositor has answered
+    with the toplevel's initial configure. So the shell wrote phase B into the
+    window a few microseconds later, gnome-kiosk's file monitor coalesced the
+    whole burst, and the only content it ever read was phase B -- which placed
+    the band in the content rectangle, above everything, with the content
+    window invisible underneath it. Measured in the VM: the band came up
+    1280x708 when it had asked for 1280x92.
+
+    A window's *allocation* is the honest signal, because it is the compositor's
+    own answer. ``width``/``height`` of 0 mean "no configure yet", which is not
+    a failure, just "not yet" -- the caller keeps waiting.
+    """
+    if width <= 0 or height <= 0:
+        return False
+    if want_height <= 0:
+        return False
+    if abs(height - want_height) > PLACEMENT_TOLERANCE_PX:
+        return False
+    return want_width <= 0 or abs(width - want_width) <= PLACEMENT_TOLERANCE_PX
+
+
 def render(template: str, *, width: int, height: int, band_height: int) -> str:
     """Fill a template's ``@TOKENS@`` from a measured monitor.
 

@@ -180,6 +180,35 @@ def _is_interior(pixel: tuple) -> bool:
     )
 
 
+def colour_centroid(image: Image, box: tuple, predicate) -> tuple | None:
+    """Centroid and pixel count of everything in ``box`` matching ``predicate``.
+
+    ``predicate`` takes an ``(r, g, b)`` tuple. Used to find a control by its
+    colour when it belongs to somebody else's toolkit and we have no other
+    handle on it -- Tux Paint's green "Yes, I'm done!" tick, which is the only
+    green thing on a white canvas.
+    """
+    left, top, right, bottom = _box(image, box)
+    total_x = total_y = count = 0
+    for y in range(top, bottom, 2):
+        row = 3 * y * image.width
+        for x in range(left, right, 2):
+            offset = row + 3 * x
+            if predicate((image.data[offset], image.data[offset + 1], image.data[offset + 2])):
+                total_x += x
+                total_y += y
+                count += 1
+    if count < 40:
+        return None
+    return (total_x // count, total_y // count, count)
+
+
+def is_tuxpaint_green(pixel: tuple) -> bool:
+    """Tux Paint's affirmative button fill: a soft green, on white paper."""
+    red, green, blue = pixel
+    return green > 150 and green > red + 35 and green > blue + 35
+
+
 def band_height_from(metrics_line: str, default: int = 96) -> int:
     """Pull the band's height out of the shell's own ``display metrics:`` line.
 
@@ -193,6 +222,31 @@ def band_height_from(metrics_line: str, default: int = 96) -> int:
     """
     match = re.search(r"\bband (\d+) px", metrics_line)
     return int(match.group(1)) if match else default
+
+
+#: ``shell geometry ok: band 0,0 1280x92 (wanted 1280x92), content 0,92 ...``
+GEOMETRY_RE = re.compile(
+    r"shell geometry (?P<verdict>\w+): "
+    r"band 0,0 (?P<bw>\d+)x(?P<bh>\d+) \(wanted (?P<wbw>\d+)x(?P<wbh>\d+)\), "
+    r"content 0,(?P<cy>\d+) (?P<cw>\d+)x(?P<ch>\d+) \(wanted (?P<wcw>\d+)x(?P<wch>\d+)\)"
+)
+
+
+def shell_geometry(line: str) -> dict:
+    """Parse the shell's own report of what the compositor gave its two windows.
+
+    This is the line that would have caught the v0.1.5.0 regression on the
+    first run: the band window came up 1280x708 in the *content* rectangle,
+    above everything, with the content window invisible underneath it, and no
+    pixel assertion in the scenario noticed because the screen was still full
+    of shell-coloured pixels.
+    """
+    match = GEOMETRY_RE.search(line)
+    if match is None:
+        raise AssertionError(f"could not parse the shell's geometry line: {line!r}")
+    parts = {key: int(value) for key, value in match.groupdict().items() if key != "verdict"}
+    parts["verdict"] = match.group("verdict")  # type: ignore[assignment]
+    return parts
 
 
 def content_top(image: Image) -> int:

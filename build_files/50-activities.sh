@@ -186,10 +186,27 @@ autosave=yes
 # may relaunch an activity after a crash, that is a mysterious dead button.
 nolockfile=yes
 
-# The band's Back is the way out of an activity (shell v0.1.5), so Tux Paint's
-# own Quit tool and its unreadable "do you really want to quit?" modal go away.
-# autosave=yes above means the drawing is already on disk when SIGTERM arrives.
-noquit=yes
+# Quit stays available, and this is now a MEASURED decision rather than a taste
+# one -- shell v0.1.5 tried `noquit=yes` and it had to be reverted.
+#
+# Tux Paint does catch SIGTERM (SDL turns it into SDL_QUIT), but it answers it
+# by putting its OWN "Do you really want to quit?" on screen -- a green tick and
+# a pink cross, two large targets -- and waiting for an answer. Only then does
+# `autosave=yes` write the picture. There is no option anywhere in tuxpaint(1)
+# to skip that prompt.
+#
+# So with `noquit=yes` the quit request is swallowed entirely: the band's Back
+# does nothing at all, and whatever the shell does next (a SIGKILL after the
+# autosave grace) destroys the child's drawing. Verified in the VM on
+# 2026-08-22: SIGTERM and SIGINT are both caught and both ignored under
+# `noquit`, SIGHUP kills without saving, and `~/.tuxpaint/saved` stays empty.
+#
+# With `quit=yes` the band's Back reaches the child as Tux Paint's own tick and
+# cross, they answer it, and the drawing is saved. ADR-0010 #5 therefore
+# stands: the dialogue stays for now, and retiring it needs a way to close a
+# Wayland client's window that we do not have (gnome-kiosk exposes no window
+# D-Bus API and there is no input-injection path in the child's session).
+quit=yes
 EOF
 
 # --- 4. first-boot Flatpaks (secondary path) ---------------------------------

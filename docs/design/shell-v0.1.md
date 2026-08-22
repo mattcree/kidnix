@@ -222,3 +222,17 @@ on schema errors so CI can run it.)
 - **Gate**: not voiced; silent failure; attempts logged for the parent.
 - **Exit friction**: none — "All done" and Back are never delayed except the
   3 s accidental-tap guard on Put away.
+
+## 7c. Rulings after wave 5 (2026-08-22)
+
+- **Put away must never destroy work.** At T−2 the shell does not cover the
+  activity: it asks it to finish (SIGTERM; Tux Paint answers with its own
+  tick/cross), the band speaks "Let's keep that — press the tick", and the
+  content "Let's keep that" screen appears only when the activity has exited.
+  Manifests gain `quit = "signal" | "confirm"` and `quit_grace` (Tux Paint:
+  `confirm`, 30 s). SIGKILL only at the hard stop, after the grace, and it is
+  logged as a loss. Spec §S6 is superseded accordingly.
+- **Back in an activity asks and waits** (no SIGKILL); after the grace the
+  band speaks "Draw is asking if you're done".
+- ADR-0010 #5 stands: Tux Paint's tick/cross dialog is the activity's save
+  step; `quit=yes` stays.

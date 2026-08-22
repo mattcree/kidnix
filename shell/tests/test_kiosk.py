@@ -22,6 +22,7 @@ from kidnix_shell.kiosk import (
     GeometryError,
     WindowConfig,
     config_path,
+    placed,
     render,
 )
 
@@ -193,3 +194,54 @@ def test_the_files_the_image_ships_are_the_ones_the_shell_writes(name: str, temp
 
 def test_the_module_and_the_image_agree_on_where_the_templates_live() -> None:
     assert str(kiosk.SHIPPED_DIR) == "/usr/share/kidnix/kiosk"
+
+
+# --- placement, confirmed rather than assumed ------------------------------
+#
+# v0.1.5.0 trusted GTK's `map` signal as "the band has its strip". It is not:
+# `map` fires before the compositor answers with the toplevel's initial
+# configure, so the shell wrote phase B into the gap, gnome-kiosk's file
+# monitor coalesced the burst, and the band was placed by phase B -- 1280x708
+# in the content rectangle, above the content window, measured in the VM.
+
+
+def test_a_window_with_no_configure_yet_is_not_placed() -> None:
+    """0x0 is "the compositor has not answered", not "it answered wrongly"."""
+    assert placed(0, 0, 1280, 96) is False
+    assert placed(1280, 0, 1280, 96) is False
+
+
+def test_the_band_landing_in_the_content_rectangle_is_not_placed() -> None:
+    """The exact regression: asked for 1280x92, got 1280x708."""
+    assert placed(1280, 708, 1280, 92) is False
+
+
+def test_a_fullscreen_band_is_not_placed_either() -> None:
+    """What a seed with no geometry gets: gnome-kiosk's own default."""
+    assert placed(1280, 800, 1280, 96) is False
+
+
+def test_the_strip_we_asked_for_is_placed() -> None:
+    assert placed(1280, 96, 1280, 96) is True
+
+
+@pytest.mark.parametrize("slack", [-2, -1, 0, 1, 2])
+def test_a_pixel_or_two_of_slack_still_counts(slack: int) -> None:
+    """A fractional scale or a shadow may cost a pixel; the failure this
+    catches is off by hundreds."""
+    assert placed(1280 + slack, 96 + slack, 1280, 96) is True
+
+
+@pytest.mark.parametrize("slack", [-4, 3, 20])
+def test_more_than_a_pixel_or_two_does_not(slack: int) -> None:
+    assert placed(1280, 96 + slack, 1280, 96) is False
+
+
+def test_an_unknown_screen_width_only_checks_the_height() -> None:
+    """Headless metrics report 0x0, and the height is the load-bearing half."""
+    assert placed(1280, 96, 0, 96) is True
+    assert placed(1280, 700, 0, 96) is False
+
+
+def test_nothing_is_placed_against_a_zero_height_budget() -> None:
+    assert placed(1280, 800, 1280, 0) is False

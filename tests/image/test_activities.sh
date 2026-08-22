@@ -180,8 +180,12 @@ assert_grep '^stamps=yes$'         /etc/tuxpaint/tuxpaint.conf "tuxpaint stamps 
 assert_grep '^saveovernew=yes$'    /etc/tuxpaint/tuxpaint.conf "tuxpaint never overwrites a child's earlier drawing"
 assert_grep '^autosave=yes$'       /etc/tuxpaint/tuxpaint.conf "tuxpaint never asks a pre-reader whether to save"
 assert_grep '^nolockfile=yes$'     /etc/tuxpaint/tuxpaint.conf "tuxpaint can be relaunched within 30s (kiosk restarts)"
-# Quitting must stay possible: the shell has to be able to close an activity.
-assert_grep '^noquit=yes$'         /etc/tuxpaint/tuxpaint.conf "the band's Back is the only way out of Tux Paint"
+# Quitting must stay possible, and `quit=yes` specifically: Tux Paint answers
+# the shell's SIGTERM with its own picture-coded "really quit?" prompt, and
+# `noquit=yes` swallows the request entirely -- so Back would do nothing and the
+# SIGKILL that follows would destroy the drawing. Measured in the VM; see the
+# comment in build_files/50-activities.sh.
+assert_grep '^quit=yes$'           /etc/tuxpaint/tuxpaint.conf "Back must reach Tux Paint's own tick-and-cross prompt"
 assert_rpm tuxpaint-stamps
 
 section "activity manifests"

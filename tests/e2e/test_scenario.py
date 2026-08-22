@@ -26,12 +26,15 @@ from pixels import (
     band_buttons,
     band_height_from,
     centre,
+    colour_centroid,
     dark_centroid,
     dark_fraction,
     differs,
     find_grid,
+    is_tuxpaint_green,
     mean_colour,
     read_ppm,
+    shell_geometry,
 )
 
 #: The activity the scenario opens. Row 1, column 2 of a 4x3 Home grid --
@@ -112,15 +115,41 @@ def test_01_boots_to_whos_here(scenario):
     metrics = scenario.expect_log("display metrics:")
     assert "1280x800" in metrics, metrics
     scenario.metrics_line = metrics
-    # v0.1.5: everything below the band belongs to the content window and to
-    # every activity, so the band's height is the origin of the rest of this
-    # story. The shell prints it; do not guess it.
-    scenario.band_height = band_height_from(metrics)
-    print(f"  band is {scenario.band_height} px tall")
-    assert 80 <= scenario.band_height <= 128, metrics  # spec 7a's clamp
+
+    # v0.1.5: the shell is two toplevels and gnome-kiosk decides where they go,
+    # so "did it work?" is a question about *geometry*, not about pixels. The
+    # shell reports what the compositor actually gave each window; assert it
+    # here, because v0.1.5.0 shipped a band that came up 1280x708 in the
+    # content rectangle -- above everything, with the content window invisible
+    # underneath it -- and every pixel assertion in this file still passed,
+    # since the screen was full of shell-coloured pixels either way.
+    line = scenario.expect_log("shell geometry ", timeout=45)
+    geometry = shell_geometry(line)
+    assert geometry["verdict"] == "ok", line
+    band = geometry["wbh"]
+    assert 80 <= band <= 128, line  # spec 7a's clamp
+    # ...and the height the *layout* settled on is the height the compositor
+    # was asked for. Deliberately the last such line and not the first: the
+    # measured-fit backstop relays out two or three times in the first second
+    # and the band gets shorter each time, which is exactly why the config is
+    # written once, at the end, rather than on every pass.
+    laid_out = [row for row in scenario.journal().splitlines() if " px (button " in row]
+    assert laid_out, "the shell never logged its metrics"
+    assert band_height_from(laid_out[-1]) == band, f"{laid_out[-1]!r} disagrees with {line!r}"
+    assert (geometry["bw"], geometry["bh"]) == (1280, band), line
+    assert (geometry["cy"], geometry["cw"], geometry["ch"]) == (band, 1280, 800 - band), line
+    scenario.band_height = band
+    print(f"  band 0,0 1280x{band}, content 0,{band} 1280x{800 - band}")
 
     image = scenario.shot("whos-here", "S1 Who's here?")
     assert (image.width, image.height) == (1280, 800)
+
+    # And the same fact, in pixels: a solid strip of the profile's colour at
+    # the very top, paper immediately under it.
+    strip = mean_colour(image, (0, 8, 1280, band - 12))
+    assert strip[1] > strip[0] and strip[2] > strip[0], f"the band strip is {strip}, not teal"
+    under = mean_colour(image, (200, band + 6, 1080, band + 30))
+    assert min(under) > 225, f"the rows under the band are {under}, not paper"
 
     # The surface under the band is the paper colour, not a black framebuffer
     # or a text console: cream is roughly (250, 246, 240).
@@ -166,11 +195,15 @@ def test_02_choosing_me_asks_whats_next_then_goes_home(scenario):
     image = scenario.shot("home", "S2 Home, after choosing what's next")
 
     grid = find_grid(image)
-    # 9 available activities + "All done" on a 4-column grid -> 4/4/2. Assert
-    # shape loosely so hiding/adding one activity doesn't break the harness.
-    assert len(grid) >= 2, f"expected at least two rows of tiles, found {len(grid)}"
+    # Progressive disclosure (spec 7b): a fresh machine shows `initial_tiles`
+    # = 6 **counting "All done"**, so Home is 4 + 2, not the 4/4/2 of the whole
+    # allow-list. `find_grid` reads the densest row it can find, and a two-tile
+    # row covers too little of the width to register at the top of its coverage
+    # ladder -- so assert what this harness actually needs (a full first row,
+    # with Draw at 0,0) rather than a row count that is really a statement
+    # about how many sessions the machine has had.
+    assert grid, "no tiles on Home at all"
     assert len(grid[0]) == 4, [len(row) for row in grid]
-    assert sum(len(row) for row in grid) >= 6, [len(row) for row in grid]
     scenario.grid = grid
     print("  grid " + str([[centre(box) for box in row] for row in grid]))
 
@@ -275,12 +308,27 @@ def test_04_draw_launches_tuxpaint_and_keeps_the_drawing(scenario):
     assert ink > 0.005, f"the canvas is still blank ({ink:.3%} dark)"
     print(f"  {ink:.2%} of the canvas region is ink")
 
-    # Quit -- from the band, not from Tux Paint. tuxpaint.conf sets
-    # autosave=yes, so nobody is asked whether to save, and the manifest passes
-    # --noquit so there is no in-app Quit tool and no "do you really want to
-    # quit?" modal left to answer. One way out, always in the same place.
+    # Quit -- from the band, not from Tux Paint's own Quit tool.
+    #
+    # Back sends SIGTERM. Tux Paint catches it (SDL turns it into SDL_QUIT) and
+    # answers with its *own* picture-coded "Do you really want to quit?" -- a
+    # green tick and a pink cross -- and waits. That is why `noquit=yes` had to
+    # be reverted (it swallows the request entirely) and why the shell does not
+    # SIGKILL after the grace: only the child's tap makes Tux Paint autosave.
+    # So the harness taps the tick, exactly as a child would.
     vm.click(*centre(scenario.band[BACK_INDEX]))
-    scenario.expect_log("the band ended the activity", timeout=20)
+    scenario.expect_log("the band asked the activity to finish", timeout=20)
+    time.sleep(3)
+    asking = scenario.shot("tuxpaint-asking", "S3 Tux Paint's own 'really quit?'")
+    tick = colour_centroid(asking, (0, band, 1280, 800), is_tuxpaint_green)
+    assert tick is not None, (
+        "Tux Paint did not put its quit prompt up. With quit=yes it answers "
+        "SIGTERM with a tick and a cross; with noquit=yes it does nothing at "
+        "all and the drawing is lost."
+    )
+    print(f"  the tick is at ({tick[0]}, {tick[1]}), {tick[2]} px of green")
+    vm.click(tick[0], tick[1])
+
     scenario.expect_log("state in_activity -> home (activity_exited)", timeout=40)
     time.sleep(1.5)
     scenario.shot("back-home", "S2 Home again, after the band's Back")

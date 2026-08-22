@@ -51,7 +51,7 @@ from .activities import Activity  # noqa: E402
 from .band import Band, BandActions  # noqa: E402
 from .context import ShellContext  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
-from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig  # noqa: E402
+from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
 from .launcher import AUTOSAVE_GRACE_SECONDS, Launcher, RunningActivity  # noqa: E402
 from .metrics import Metrics, ScreenOverride, detect_metrics  # noqa: E402
 from .next_after import NextAfter  # noqa: E402
@@ -112,12 +112,22 @@ MAX_FIT_ATTEMPTS = 5
 #: Not answering is a legitimate answer (:mod:`kidnix_shell.ritual`), so when it
 #: expires the offer is latched as answered rather than asked again.
 BAND_OFFER_SECONDS = 20
-#: How long to give gnome-kiosk to notice the phase-B write before the content
-#: window's first configure consumes its geometry. GLib file monitors
-#: rate-limit at 800 ms by default, so anything under a second is a race; the
-#: spike used a 3 s sleep and this is the production number. It is paid once,
-#: at login, behind the band -- not per activity.
-CONTENT_SETTLE_MS = 1200
+#: How long to give gnome-kiosk to notice a window-config write before we
+#: create the window that write is for. **Measured in the VM** (a throwaway
+#: toplevel probed every 100 ms after a write): the new config was in force
+#: 260 ms later, so 400 ms is head-room rather than a guess. It is not a
+#: correctness guarantee -- :func:`kiosk.placed` is -- just the first thing to
+#: try, and it is paid twice, at login only.
+KIOSK_RELOAD_MS = 400
+#: How long to wait for the compositor to answer a presented band window with
+#: the strip it was asked for, before assuming it will not and starting again
+#: with a fresh toplevel.
+BAND_PLACE_TIMEOUT_MS = 2500
+#: How often to ask the band window what size it ended up.
+BAND_POLL_MS = 100
+#: How many fresh toplevels to try before giving up on a band window at all and
+#: falling back to v0.1.4's single fullscreen window.
+BAND_PLACE_ATTEMPTS = 3
 
 
 def _signature(metrics: Metrics) -> tuple[int, int, int, int]:
@@ -165,17 +175,34 @@ class BandWindow(Adw.ApplicationWindow):
         super().__init__(application=application)
         self.set_title(BAND_TITLE)
         self.add_css_class("kidnix")
+        # Nothing in the band is resizable and nothing may drag it: telling the
+        # compositor so is one fewer way for it to be given a size we did not
+        # ask for.
+        self.set_resizable(False)
         self.set_size(metrics)
 
     def set_size(self, metrics: Metrics) -> None:
-        """Ask for the strip. gnome-kiosk decides; this is for the dev desktop.
+        """Ask for the strip -- and the size *request* is the load-bearing half.
 
-        In the real session ``window-config.ini``'s phase-A catch-all places
-        and locks this window, and what we request here is ignored. On a
-        developer's desktop there is no gnome-kiosk, so without this the band
-        would come up as a square window.
+        ``Adw.ApplicationWindow`` (``AdwWindow``) enforces a **360 x 200 px
+        minimum**, whatever its content measures. GTK sends that minimum to the
+        compositor as ``xdg_toplevel.set_min_size``, mutter honours it as a
+        constraint, and a 92 px band therefore came up 200 px tall no matter
+        what ``window-config.ini`` said -- measured in the VM, and the second
+        half of the v0.1.5.0 regression.
+
+        ``gtk_widget_set_size_request()`` *replaces* a widget's measured
+        minimum rather than raising it, so this is what lets the band be
+        shorter than libadwaita's floor. It is safe to override precisely
+        because ``ShellWindow._check_measured_fit`` has already proved the
+        band's own tree fits inside ``band_height``.
+
+        The default size matters only on a developer's desktop, where there is
+        no gnome-kiosk to place the window at all.
         """
-        self.set_default_size(metrics.screen_width or 1280, metrics.band_height)
+        width = metrics.screen_width or 1280
+        self.set_size_request(width, metrics.band_height)
+        self.set_default_size(width, metrics.band_height)
 
 
 class ShellWindow(Adw.ApplicationWindow):
@@ -248,6 +275,9 @@ class ShellWindow(Adw.ApplicationWindow):
         self._goodbye_handle: int | None = None
         self._band_offer_handle: int | None = None
         self._content_handle: int | None = None
+        self._band_handle: int | None = None
+        self._nag_handle: int | None = None
+        self._content_deadline = 0.0
         self._slept_at: datetime | None = None
         self._back_locked_until = 0.0
         self._ticks = 0
@@ -259,7 +289,15 @@ class ShellWindow(Adw.ApplicationWindow):
         #: My Things pressed inside an activity: open the Journal once the
         #: activity has actually finished.
         self._journal_after_activity = False
-        self._band_mapped = False
+        #: Set once the compositor has answered the band window with the strip
+        #: it asked for -- not when GTK mapped it. See :func:`kiosk.placed`.
+        self._band_placed = False
+        self._band_attempts = 0
+        self._band_deadline = 0.0
+        self._startup_begun = False
+        #: v0.1.4's layout, as a fallback: band and surfaces in one fullscreen
+        #: window. Only reached if the compositor will not place the band.
+        self._one_window = False
         self._shutting_down = False
 
         self.kid_state = KidState.load(paths.progress_state)
@@ -285,24 +323,27 @@ class ShellWindow(Adw.ApplicationWindow):
         # -- layout --
         self._load_css()
 
-        # Phase A, *before* the band window exists: gnome-kiosk only honours
-        # geometry during a window's first configure, so the catch-all has to
-        # already describe the band strip by the time the band is created.
-        self._write_band_phase()
+        # The band window is *created* here and deliberately not presented.
+        # A GTK window that has never been presented has no Wayland toplevel
+        # and so has had no initial configure, which means nothing about the
+        # compositor's placement is decided yet -- and the layout below is
+        # still free to change the band's height. `present_all()` writes phase
+        # A once, with the final numbers, and only then puts it on screen.
         self.band_window = BandWindow(application, self.metrics)
-        self.band_window.connect("map", self._on_band_mapped)
         self.band_window.connect("close-request", self._on_close)
 
         self._build_content()
 
         if fullscreen:
-            # The *content* window is deliberately no longer fullscreen: it is
-            # given `0,band_height W x (H - band_height)` by phase B and asking
-            # for the whole monitor would only make gnome-kiosk say no. The
-            # request is left in for the one case phase B cannot cover -- a
-            # session where the seed never landed, where a fullscreen content
-            # window is v0.1.4's behaviour and still a working computer.
-            self.fullscreen()
+            # The *content* window is deliberately NOT fullscreen: phase B
+            # gives it `0,band_height W x (H - band_height)`, and a window that
+            # also asks for the whole monitor gets an answer neither side
+            # agrees on -- measured in the VM, GTK reported 1280x741 for a
+            # window the compositor had constrained to 1280x708, which makes
+            # the geometry check below unable to tell right from wrong. Asking
+            # for exactly the rectangle we expect makes the two agree, and
+            # `_poll_content_placed` can then be believed.
+            self.set_content_size(self.metrics)
         else:
             # Development window: big enough to look like the real thing,
             # never bigger than the share of the panel it would really get.
@@ -379,8 +420,11 @@ class ShellWindow(Adw.ApplicationWindow):
                 on_one_more=lambda: self.dismiss_offer(True),
             ),
         )
-        self.band_window.set_size(self.metrics)
-        self.band_window.set_content(self.band)
+        if not self._one_window:
+            self.band_window.set_size(self.metrics)
+            self.band_window.set_content(self.band)
+            if self._manage_kiosk:
+                self.set_content_size(self.metrics)
 
         self.stack = Gtk.Stack()
         self.stack.set_transition_duration(400)
@@ -398,13 +442,45 @@ class ShellWindow(Adw.ApplicationWindow):
         }
         for name, screen in self.screens.items():
             self.stack.add_named(screen, name)
-        self._root = self.stack
-        self.set_content(self.stack)
+        if self._one_window:
+            # The fallback: v0.1.4's layout, band and surfaces in one window.
+            root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            root.append(self.band)
+            root.append(self.stack)
+            self._root = root
+        else:
+            self._root = self.stack
+        self.set_content(self._root)
+
+    def set_content_size(self, metrics: Metrics) -> None:
+        """Ask for the area under the band, the same way the band asks for its strip.
+
+        ``Adw.ApplicationWindow``'s 360x200 minimum is not binding here, but the
+        size *request* still matters: it is what GTK sends as
+        ``xdg_toplevel.set_min_size``, and matching it to what
+        ``window-config.ini`` says keeps GTK's idea of the window and the
+        compositor's the same, which is what makes the geometry log trustworthy.
+        """
+        width = metrics.screen_width or 1280
+        height = metrics.content_height or 800
+        self.set_size_request(width, height)
+        self.set_default_size(width, height)
 
     # -- the compositor (see kidnix_shell.kiosk) -----------------------
+    #
+    # The whole of start-up is one question asked twice: "has gnome-kiosk read
+    # the file yet?" It cannot be answered by writing and hoping, because a
+    # window's geometry is decided at its first configure and nothing tells us
+    # when that happened. It CAN be answered by looking at what the window
+    # ended up being (`kiosk.placed`), which is the compositor's own reply, so
+    # that is what this does: write, wait a beat, present, and then *confirm*
+    # before doing anything that depends on it. If the confirmation fails the
+    # shell tries again with a fresh toplevel, and if it keeps failing it falls
+    # back to v0.1.4's single window rather than leaving a child with a screen
+    # that has no way out of it.
 
     def _write_band_phase(self) -> None:
-        """Phase A. Must happen before the band window is created (rule R2)."""
+        """Phase A: the catch-all *is* the band strip."""
         if not self._manage_kiosk:
             return
         self.window_config.band_phase(
@@ -412,7 +488,14 @@ class ShellWindow(Adw.ApplicationWindow):
         )
 
     def _write_activity_phase(self) -> None:
-        """Phase B. Must happen after the band is mapped and before anything else."""
+        """Phase B: the catch-all is everything below the band.
+
+        Only ever called once the band is confirmed placed. Calling it earlier
+        is the v0.1.5.0 bug: the band's initial configure had not happened, the
+        file monitor coalesced phase A and phase B into one reload, and the
+        band was placed by phase B -- in the content rectangle, above the
+        content window, which was then invisible underneath it.
+        """
         if not self._manage_kiosk:
             return
         if self.window_config.activity_phase(
@@ -420,63 +503,15 @@ class ShellWindow(Adw.ApplicationWindow):
         ):
             log.info("window config: %s", self.window_config.describe())
 
-    def _on_band_mapped(self, _window: Gtk.Window) -> None:
-        """The band has its strip. Hand the rest of the screen to everyone else.
-
-        This is the one transition in the whole session (spike section 3a): the
-        band's initial config is now consumed, so phase B's ``lock-on-area``
-        can never reach it, and every window created from here on -- the
-        content window and every activity -- is placed below it.
-        """
-        if self._band_mapped:
-            return
-        self._band_mapped = True
-        log.info("band window mapped")
-        self._write_activity_phase()
-        if not self._manage_kiosk:
-            return
-        # gnome-kiosk reloads on the file monitor's schedule, not ours, so the
-        # content window waits. Measured cost: one settle, once, at login.
-        self._content_handle = GLib.timeout_add(CONTENT_SETTLE_MS, self._present_content)
-
-    def _present_content(self) -> bool:
-        self._content_handle = None
-        self.present()
-        # The spike's open question 3 asked for this: say out loud what the
-        # content window actually got, so a regression is a grep in the journal
-        # rather than a screenshot somebody has to notice.
-        GLib.idle_add(self._log_content_geometry)
-        return False
-
-    def _log_content_geometry(self) -> bool:
-        """What the compositor actually gave us, both windows, once.
-
-        Deferred to an idle so both windows have an allocation: at ``map`` time
-        GTK has not run a layout pass yet and everything is 0x0. If the band's
-        height here is not ``band_height``, or the content window's is not
-        ``content_height``, phase B did not land in time -- which is the one
-        failure mode of the sequence in :mod:`kidnix_shell.kiosk` and the reason
-        this line is INFO rather than DEBUG.
-        """
-        log.info(
-            "band window at %dx%d (wanted %dx%d), content window at %dx%d (wanted %dx%d)",
-            self.band_window.get_width(),
-            self.band_window.get_height(),
-            self.metrics.screen_width,
-            self.metrics.band_height,
-            self.get_width(),
-            self.get_height(),
-            self.metrics.screen_width,
-            self.metrics.content_height,
-        )
-        return False
+    # -- start-up ------------------------------------------------------
 
     def present_all(self) -> None:
         """Bring the shell up, in the order the compositor needs.
 
-        The band goes first and alone: phase B is not written until it is
-        mapped, so a content window presented now would be placed by phase A --
-        i.e. inside the band's own strip.
+        The band goes first and alone. Phase B is not written until the band
+        has *demonstrably* taken its strip, and the content window is not
+        presented until phase B has had time to land -- otherwise it would be
+        placed inside the band's own rectangle.
         """
         if not self._manage_kiosk:
             # Development on an ordinary desktop: no gnome-kiosk to sequence
@@ -484,11 +519,163 @@ class ShellWindow(Adw.ApplicationWindow):
             self.band_window.present()
             self.present()
             return
-        self.band_window.present()
-        if self._band_mapped:
+        if self._band_placed or self._one_window:
             # Not the first time round: an activity finished, or the ritual
             # wants the screen back. Only the content window has to move.
             self.present()
+            return
+        if self._startup_begun:
+            return
+        self._startup_begun = True
+        self._begin_band_attempt()
+
+    def _begin_band_attempt(self) -> None:
+        """Write phase A, let it land, then put the band on screen."""
+        self._band_attempts += 1
+        self._write_band_phase()
+        log.info(
+            "placing the band (attempt %d/%d): %s",
+            self._band_attempts,
+            BAND_PLACE_ATTEMPTS,
+            self.window_config.describe(),
+        )
+        self._content_handle = GLib.timeout_add(KIOSK_RELOAD_MS, self._present_band)
+
+    def _present_band(self) -> bool:
+        self._content_handle = None
+        self.band_window.present()
+        self._band_deadline = time.monotonic() + BAND_PLACE_TIMEOUT_MS / 1000.0
+        self._band_handle = GLib.timeout_add(BAND_POLL_MS, self._poll_band_placed)
+        return False
+
+    def _poll_band_placed(self) -> bool:
+        """Ask the band window what the compositor actually made it.
+
+        Returning ``True`` keeps polling. This is the only thing in the shell
+        that knows whether the band has its strip, and everything else waits
+        on it.
+        """
+        width, height = self.band_window.get_width(), self.band_window.get_height()
+        if placed(width, height, self.metrics.screen_width, self.metrics.band_height):
+            self._band_handle = None
+            self._band_placed = True
+            log.info("band window placed at %dx%d", width, height)
+            self._on_band_placed()
+            return False
+        if time.monotonic() < self._band_deadline:
+            return True
+
+        self._band_handle = None
+        log.warning(
+            "the band window came up %dx%d, not %dx%d -- gnome-kiosk had not read "
+            "phase A when it configured the toplevel",
+            width,
+            height,
+            self.metrics.screen_width,
+            self.metrics.band_height,
+        )
+        if self._band_attempts >= BAND_PLACE_ATTEMPTS:
+            self._fall_back_to_one_window()
+            return False
+        # A window's geometry is settled for good at its first configure, so
+        # the only way to ask again is to ask with a new window. The file has
+        # said phase A for seconds by now, so the retry is not a repeat of the
+        # same race.
+        self._recreate_band_window()
+        self._begin_band_attempt()
+        return False
+
+    def _on_band_placed(self) -> None:
+        """The one transition of the session (spike section 3a).
+
+        The band's initial config is consumed, so phase B's ``lock-on-area``
+        can never reach it, and every window created from here on -- the
+        content window and every activity -- is placed below it.
+        """
+        self._write_activity_phase()
+        self._content_handle = GLib.timeout_add(KIOSK_RELOAD_MS, self._present_content)
+
+    def _present_content(self) -> bool:
+        self._content_handle = None
+        self.present()
+        # The spike's open question 3 asked for this: say out loud what both
+        # windows actually got, so a regression is a grep in the journal rather
+        # than a screenshot somebody has to notice.
+        self._content_deadline = time.monotonic() + BAND_PLACE_TIMEOUT_MS / 1000.0
+        self._content_handle = GLib.timeout_add(BAND_POLL_MS, self._poll_content_placed)
+        return False
+
+    def _poll_content_placed(self) -> bool:
+        width, height = self.get_width(), self.get_height()
+        if placed(width, height, self.metrics.screen_width, self.metrics.content_height):
+            self._content_handle = None
+            self._log_geometry("ok")
+            return False
+        if time.monotonic() < self._content_deadline:
+            return True
+        self._content_handle = None
+        self._log_geometry("WRONG")
+        return False
+
+    def _log_geometry(self, verdict: str) -> None:
+        """The one line a regression has to be visible in. Also the e2e's hook."""
+        log.info(
+            "shell geometry %s: band 0,0 %dx%d (wanted %dx%d), content 0,%d %dx%d (wanted %dx%d)",
+            verdict,
+            self.band_window.get_width(),
+            self.band_window.get_height(),
+            self.metrics.screen_width,
+            self.metrics.band_height,
+            self.metrics.band_height,
+            self.get_width(),
+            self.get_height(),
+            self.metrics.screen_width,
+            self.metrics.content_height,
+        )
+
+    def _recreate_band_window(self) -> None:
+        """A fresh toplevel, so the compositor configures it again from scratch."""
+        old = self.band_window
+        old.set_content(None)  # the Band widget outlives its window
+        application = self.get_application()
+        assert application is not None
+        self.band_window = BandWindow(application, self.metrics)
+        self.band_window.connect("close-request", self._on_close)
+        self.band_window.set_content(self.band)
+        if self.machine.state is State.SLEEPING:
+            self.band_window.add_css_class("sleeping")
+        old.destroy()
+
+    def _fall_back_to_one_window(self) -> None:
+        """Give up on the band window and be v0.1.4 instead.
+
+        A machine a five-year-old cannot get out of is the one outcome that is
+        not allowed (AGENTS non-negotiable 8), and a band window the compositor
+        has parked over the whole screen is exactly that. So if the strip
+        cannot be had, the band goes back inside the content window, the
+        content window goes fullscreen, and the shell behaves the way it did
+        before this feature existed: everything works, the band is simply
+        hidden while an activity is on top. Loud, because it is a regression
+        somebody has to come and look at.
+        """
+        log.error(
+            "could not place the band window in %d attempts; falling back to one "
+            "fullscreen window (the band will be hidden during activities)",
+            self._band_attempts,
+        )
+        self._one_window = True
+        self.band_window.set_content(None)
+        self.band_window.destroy()
+        # Back to gnome-kiosk's own defaults, so activities are fullscreen as
+        # they were in v0.1.4 rather than locked into a rectangle under a band
+        # that is not there.
+        if self._manage_kiosk:
+            self.window_config.seed()
+        self._build_content()
+        self._show_state()
+        self.set_size_request(-1, -1)
+        self.fullscreen()
+        self.present()
 
     def _apply_metrics(self, metrics: Metrics) -> None:
         log.info("relaying out: %s", metrics.describe())
@@ -500,15 +687,14 @@ class ShellWindow(Adw.ApplicationWindow):
         # consumed their geometry at their first configure (rule R2). A monitor
         # hotplug mid-session therefore leaves the band where it was until the
         # shell restarts, and says so.
-        if self._band_mapped:
+        if self._band_placed:
             log.info("the band keeps its old strip until the shell restarts (window-config R2)")
             self._write_activity_phase()
-        else:
-            # Still before the band was mapped -- this is the measured-fit
-            # backstop, which is allowed to change the band's height, and phase
-            # A has to keep up with it. Writing phase B here would hand the
-            # band's own strip away before it had taken it.
-            self._write_band_phase()
+        # Before the band is placed this writes nothing at all. That is the
+        # v0.1.5.0 fix: the measured-fit backstop runs three times in the first
+        # second and changed the band's height each time, and every one of
+        # those writes landed inside gnome-kiosk's file-monitor window. One
+        # write, with the final numbers, from `present_all()`.
         self._show_state()
 
     def _check_measured_fit(self) -> None:
@@ -542,15 +728,18 @@ class ShellWindow(Adw.ApplicationWindow):
                     self._root.measure(Gtk.Orientation.HORIZONTAL, -1)[0],
                     self._root.measure(Gtk.Orientation.VERTICAL, -1)[0],
                     screen_width,
-                    content_height,
+                    # In the one-window fallback `_root` contains the band too,
+                    # so its budget is the whole panel again.
+                    self.metrics.screen_height if self._one_window else content_height,
                 ),
-                "band": (
+            }
+            if not self._one_window:
+                measured["band"] = (
                     self.band.measure(Gtk.Orientation.HORIZONTAL, -1)[0],
                     self.band.measure(Gtk.Orientation.VERTICAL, -1)[0],
                     screen_width,
                     band_height,
-                ),
-            }
+                )
         except Exception as exc:  # pragma: no cover - measuring must never fail
             log.debug("could not measure the layout (%s)", exc)
             return
@@ -635,10 +824,11 @@ class ShellWindow(Adw.ApplicationWindow):
         # Sleeping screen's colour instead, so the two windows read as one.
         sleeping = state is State.SLEEPING
         self.band.set_visible(not sleeping)
-        if sleeping:
-            self.band_window.add_css_class("sleeping")
-        else:
-            self.band_window.remove_css_class("sleeping")
+        if not self._one_window:
+            if sleeping:
+                self.band_window.add_css_class("sleeping")
+            else:
+                self.band_window.remove_css_class("sleeping")
         self.band.set_journal_sensitive(state in (State.HOME, State.JOURNAL, State.IN_ACTIVITY))
         if state is not State.IN_ACTIVITY:
             self.screens[name].on_enter()
@@ -796,9 +986,17 @@ class ShellWindow(Adw.ApplicationWindow):
         self.earcons.play(KEEP, speaking=True)
 
     def _force_kill(self) -> bool:
+        """Put away's SIGKILL. The hard stop is the hard stop (spec S6)."""
         self._kill_handle = None
+        was_running = self.launcher.running
         self.launcher.force_stop()
         self.watcher.sweep_now()
+        if was_running:
+            # `force_stop()` reaps the process itself, so the 500 ms poll in
+            # `Launcher.check()` never sees it go and `on_exit` would never
+            # fire -- which left the shell stuck in IN_ACTIVITY with nothing on
+            # screen but the band. Measured in the VM.
+            self._activity_finished()
         return False
 
     # -- ShellHost ----------------------------------------------------
@@ -885,6 +1083,18 @@ class ShellWindow(Adw.ApplicationWindow):
             self.speech.speak("That one didn't open. Let's try something else.")
         elif kept:
             self.earcons.play(KEEP)
+        self._activity_finished()
+
+    def _activity_finished(self) -> None:
+        """Everything that has to happen once the activity is really gone.
+
+        Reached from two directions -- the launcher noticing the process exited
+        on its own, and Put away killing it -- and it must do the same thing
+        both times or the shell strands itself in ``IN_ACTIVITY``.
+        """
+        if self._nag_handle is not None:
+            GLib.source_remove(self._nag_handle)
+            self._nag_handle = None
         if self.machine.state is State.IN_ACTIVITY:
             self.machine.try_fire(Event.ACTIVITY_EXITED)
         if self._journal_after_activity:
@@ -895,7 +1105,7 @@ class ShellWindow(Adw.ApplicationWindow):
             self.open_journal()
 
     def _end_activity(self, *, then_journal: bool = False) -> None:
-        """Finish the running activity gracefully, from the band (v0.1.5).
+        """Ask the running activity to finish, from the band (v0.1.5).
 
         Back and My Things are reachable during an activity for the first time,
         because the band is on screen. Both mean "I have finished with this",
@@ -903,15 +1113,22 @@ class ShellWindow(Adw.ApplicationWindow):
         behind a running program -- so the shell asks the activity to quit and
         lets ``ACTIVITY_EXITED`` do the navigating when it actually has.
 
-        The ask is spec S6's, unchanged and shared with Put away: SIGTERM,
-        :data:`~kidnix_shell.launcher.AUTOSAVE_GRACE_SECONDS` for the program
-        to autosave, then SIGKILL. Tux Paint autosaves on SIGTERM
-        (``autosave=yes`` in ``/etc/tuxpaint/tuxpaint.conf``), so a drawing is
-        already in ``~/.tuxpaint/saved`` before the Journal sweeps.
+        **It asks; it does not insist, and this is the whole design.** Measured
+        on the real image: Tux Paint catches SIGTERM (SDL turns it into
+        ``SDL_QUIT``) and answers it by putting *its own* picture-coded
+        "Do you really want to quit?" on screen -- a tick and a cross, two
+        large targets -- and waiting. Only when the child taps the tick does it
+        autosave and exit. A shell that SIGKILLed after five seconds would
+        therefore destroy the drawing every single time, which is the one
+        outcome "making over consuming" cannot survive. So Back sends SIGTERM
+        and then waits, for as long as the child needs.
 
-        The Journal is swept *first*, so that if the child is quick enough to
-        reach My Things before the activity has died, what they made is already
-        there.
+        Spec 7a's SIGTERM -> grace -> SIGKILL ruling is about **Put away**, and
+        it still holds there: the hard stop is the hard stop. Back is not the
+        hard stop. Back asks.
+
+        The Journal is swept *first*, so that if the child reaches My Things
+        before the activity has gone, what they made is already there.
         """
         self.earcons.play(BACK)
         self._journal_after_activity = then_journal
@@ -923,13 +1140,35 @@ class ShellWindow(Adw.ApplicationWindow):
                 self._journal_after_activity = False
                 self.open_journal()
             return
-        log.info("the band ended the activity (%s)", "my things" if then_journal else "back")
+        log.info(
+            "the band asked the activity to finish (%s)", "my things" if then_journal else "back"
+        )
         if self.launcher.request_stop():
-            if self._kill_handle is not None:
-                GLib.source_remove(self._kill_handle)
-            self._kill_handle = GLib.timeout_add(
-                int(AUTOSAVE_GRACE_SECONDS * 1000), self._force_kill
+            if self._nag_handle is not None:
+                GLib.source_remove(self._nag_handle)
+            self._nag_handle = GLib.timeout_add(
+                int(AUTOSAVE_GRACE_SECONDS * 1000), self._activity_is_asking
             )
+
+    def _activity_is_asking(self) -> bool:
+        """It did not go. Say why, rather than leaving a child pressing Back.
+
+        An activity that is still there a few seconds after SIGTERM is almost
+        always showing its own confirmation. The child can answer it -- Tux
+        Paint's is a tick and a cross -- but nothing on screen tells a
+        pre-reader that the question is *theirs* to answer, so the shell says
+        so out loud.
+        """
+        self._nag_handle = None
+        if not self.launcher.running:
+            return False
+        # Whatever the child asked for, they are still in the activity, so a
+        # Journal that opens later would arrive from nowhere.
+        self._journal_after_activity = False
+        name = self._running_activity_name() or "It"
+        log.info("%s is still running after SIGTERM; it is asking the child something", name)
+        self.speech.speak(f"{name} is asking if you're done.")
+        return False
 
     def _running_activity_name(self) -> str:
         """What the child calls the thing they are in ("Draw"), or a fallback."""
@@ -1169,7 +1408,11 @@ class ShellWindow(Adw.ApplicationWindow):
             width = self.get_width() or self.metrics.screen_width or 1280
             height = self.get_height() or self.metrics.content_height or 800
             content = self._snapshot_node(self, width, height)
-            band = self._snapshot_node(self.band_window, width, band_height)
+            band = (
+                None
+                if self._one_window
+                else self._snapshot_node(self.band_window, width, band_height)
+            )
             renderer = self._renderer()
             if content is None or renderer is None:
                 log.warning("nothing to capture yet")
@@ -1201,7 +1444,8 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _renderer(self) -> Gsk.Renderer | None:
         """Whichever of the two windows has one. Neither is presented in tests."""
-        for window in (self, self.band_window):
+        windows = (self,) if self._one_window else (self, self.band_window)
+        for window in windows:
             native = window.get_native()
             renderer = native.get_renderer() if native is not None else None
             if renderer is not None:
@@ -1248,6 +1492,8 @@ class ShellWindow(Adw.ApplicationWindow):
             self._goodbye_handle,
             self._band_offer_handle,
             self._content_handle,
+            self._band_handle,
+            self._nag_handle,
         ):
             if handle is not None:
                 GLib.source_remove(handle)
@@ -1257,7 +1503,10 @@ class ShellWindow(Adw.ApplicationWindow):
         self._goodbye_handle = None
         self._band_offer_handle = None
         self._content_handle = None
-        self.band_window.destroy()
+        self._band_handle = None
+        self._nag_handle = None
+        if not self._one_window:
+            self.band_window.destroy()
         self.watcher.stop()
         self.launcher.stop()
         self.session.end(datetime.now())

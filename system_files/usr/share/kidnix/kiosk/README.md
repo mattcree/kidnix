@@ -38,6 +38,18 @@ once, so a window keeps whatever it was given:
 The shell writes the third file and never needs to touch it again: the content
 window and every activity launched afterwards are all placed below the band.
 
+**The step between the second and the third is a confirmation, not a timer.**
+gnome-kiosk reloads this file on its own schedule (measured: about 260 ms after
+a write), and a window's geometry is settled for good at its first configure --
+which happens *after* GTK has already emitted `map`. So the shell presents the
+band and then polls the window's own allocation until it really is the strip;
+only then does it write the third file. v0.1.5.0 trusted `map` instead, wrote
+the third file into the gap, gnome-kiosk coalesced the whole burst, and the band
+was placed by the "everything below the band" rule -- on top of everything, with
+the content window invisible underneath it. If three fresh toplevels all fail to
+get the strip, the shell stops using this file at all and goes back to
+gnome-kiosk's defaults.
+
 ## The `@TOKENS@`
 
 The band and activity files are templates. The shell substitutes real numbers

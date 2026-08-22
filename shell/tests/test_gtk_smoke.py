@@ -1253,7 +1253,7 @@ def _buttons(widget: Gtk.Widget) -> list[ChildButton]:
 
 import time  # noqa: E402
 
-from kidnix_shell.kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig  # noqa: E402
+from kidnix_shell.kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
 from kidnix_shell.state import State  # noqa: E402
 
 
@@ -1330,9 +1330,16 @@ def test_a_windowed_shell_never_writes_the_child_s_window_config(tmp_path: Path)
         window.shutdown()
 
 
-def test_a_kiosk_shell_writes_phase_a_before_the_band_window_exists(tmp_path: Path) -> None:
-    """Rule R2: geometry is only honoured during a window's first configure, so
-    the catch-all has to say "the band strip" before the band is created."""
+def test_a_kiosk_shell_writes_phase_a_once_with_the_final_band_height(tmp_path: Path) -> None:
+    """The v0.1.5.0 regression, as a test.
+
+    Constructing the window used to write phase A -- three times, because the
+    measured-fit backstop changed the band's height on each pass, and all three
+    writes plus the phase-B one landed inside gnome-kiosk's file-monitor
+    window, so the only content it ever read was phase B. Now `__init__` writes
+    *nothing*: the config is written once, from `present_all()`, with the
+    height the layout actually settled on.
+    """
     from kidnix_shell.app import ShellApplication, ShellWindow
     from kidnix_shell.metrics import parse_screen
 
@@ -1367,12 +1374,51 @@ def test_a_kiosk_shell_writes_phase_a_before_the_band_window_exists(tmp_path: Pa
     )
     try:
         written = WindowConfig(paths.config_home).path
-        assert written.is_file()
+        assert not written.exists(), "building the window must not touch the config"
+
+        # What `present_all()` does first, without putting anything on screen.
+        window._write_band_phase()
         text = written.read_text()
         band = window.metrics.band_height
         assert f"lock-on-area=0,0 {window.metrics.screen_width}x{band}" in text, text
         assert f"set-height={band}" in text
         assert f"match-title={BAND_TITLE}" in text
+        # ...and phase B is only ever written once the band is confirmed placed.
+        assert window._band_placed is False
+    finally:
+        window.shutdown()
+
+
+def test_the_band_is_only_believed_when_the_compositor_has_answered(tmp_path: Path) -> None:
+    """`map` is not placement. The v0.1.5.0 bug in one assertion."""
+    window = build_window(tmp_path)
+    try:
+        # A window nobody presented has no toplevel and so no allocation, which
+        # is exactly the state `map` fires in.
+        assert window.band_window.get_height() == 0
+        assert not placed(
+            window.band_window.get_width(),
+            window.band_window.get_height(),
+            window.metrics.screen_width,
+            window.metrics.band_height,
+        )
+    finally:
+        window.shutdown()
+
+
+def test_the_fallback_is_v0_1_4_rather_than_a_screen_with_no_way_out(tmp_path: Path) -> None:
+    """AGENTS non-negotiable 8. If the strip cannot be had, be last release."""
+    window = build_window(tmp_path)
+    try:
+        window._fall_back_to_one_window()
+        assert window._one_window is True
+        # One window, with the band back inside it, and everything still works.
+        assert window.band in list(walk(window._root))
+        assert window.stack in list(walk(window._root))
+        window.choose_profile(window.ctx.profile)
+        assert _state(window) is State.NEXT_CHOICE
+        # ...and the whole tree is budgeted against the whole panel again.
+        assert window._root.measure(Gtk.Orientation.VERTICAL, -1)[0] <= window.metrics.screen_height
     finally:
         window.shutdown()
 
@@ -1469,5 +1515,39 @@ def test_the_band_window_goes_dark_rather_than_away_on_sleeping(tmp_path: Path) 
         assert window.band.get_visible() is False
         assert window.band_window.has_css_class("sleeping")
         assert window.band_window.get_content() is window.band  # still mapped
+    finally:
+        window.shutdown()
+
+
+def test_back_asks_the_activity_rather_than_killing_it(tmp_path: Path) -> None:
+    """The v0.1.5.0 data-loss bug, as a test.
+
+    Measured on the real image: Tux Paint answers SIGTERM with its own
+    picture-coded "Do you really want to quit?" and waits, and only the child's
+    tap makes it autosave. A Back that SIGKILLed after the autosave grace would
+    therefore destroy the drawing every time. So Back asks and then waits --
+    the hard stop is Put away's job, not Back's.
+    """
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window)
+        window.on_back()
+        assert window._kill_handle is None, "Back must not schedule a SIGKILL"
+        assert window._nag_handle is not None, "Back must notice if nothing happens"
+    finally:
+        window.shutdown()
+
+
+def test_a_killed_activity_still_leaves_in_activity(tmp_path: Path) -> None:
+    """`Launcher.force_stop()` reaps the process itself, so the 500 ms poll in
+    `check()` never sees it go and `on_exit` never fires. Without this the shell
+    sat in IN_ACTIVITY with nothing on screen but the band -- measured in the
+    VM, on an activity that ignored SIGTERM."""
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window)
+        window._force_kill()
+        assert _state(window) is State.HOME
+        assert not window.launcher.running
     finally:
         window.shutdown()

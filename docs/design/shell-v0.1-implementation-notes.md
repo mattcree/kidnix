@@ -1314,7 +1314,11 @@ section — `match-title=kidnix-band` / `set-above=true` — and exists purely s
 that gnome-kiosk resolves the path and arms the monitor. A shell that never
 starts then behaves exactly as v0.1.4 did.
 
-Sequencing, as implemented:
+> **This sequence shipped broken and has been rewritten. Read §19, not the
+> five steps below; they are kept only so the correction has something to
+> point at.**
+
+Sequencing, as first implemented:
 
 1. `ShellWindow.__init__` measures the monitor and writes **phase A**;
 2. it creates `BandWindow` and connects its `map` signal;
@@ -1323,12 +1327,11 @@ Sequencing, as implemented:
    `CONTENT_SETTLE_MS`;
 5. `_present_content` presents the content window and logs the geometry it got.
 
-`CONTENT_SETTLE_MS` is **1200 ms**, not the spike's 3 s sleep. GLib file
-monitors rate-limit at 800 ms by default, so anything under a second is a race.
-It is paid once, at login, behind an already-visible band. The spike's open
-question 3 asked for the shell to say what the content window actually got;
-`_log_content_geometry` does, so a regression is a grep rather than a
-screenshot somebody has to notice.
+`CONTENT_SETTLE_MS` was **1200 ms**, reasoned from GLib file monitors' 800 ms
+default rate limit. Both the trigger in step 4 and the number were wrong, in
+ways only a real compositor could show. §19.1. The spike's open question 3
+asked for the shell to say what the content window actually got; it does, and
+that line is what finally caught this.
 
 Writing the same bytes twice is skipped (`WindowConfig` compares before it
 writes): gnome-kiosk reloads on every change event, and a reload that changes
@@ -1438,7 +1441,15 @@ by then the file says phase B, which would put the band below itself. The strip
 it leaves behind is painted `#171b2c` (`window.kidnix.sleeping` in `theme.css`),
 the same colour as the Sleeping screen, so the two windows read as one surface.
 
-### 18.7 Tux Paint: `--noquit`, and where it should really live
+### 18.7 Tux Paint: `noquit`, and where it should really live
+
+> **Reverted: `quit=yes` is what ships.** The note below is wrong on a point of
+> fact nobody had measured, and §19.2 is the measurement. It is kept because
+> the mistake is instructive -- it was an inference from `autosave=yes` plus
+> "SDL turns SIGTERM into SDL_QUIT", both of which are true, and the conclusion
+> still did not follow.
+
+#### The original note, as written
 
 `system_files/usr/share/kidnix/activities/tuxpaint.toml` now launches
 `tuxpaint --noquit`, which hides Tux Paint's own Quit tool and disables its
@@ -1504,7 +1515,7 @@ activity; the band window goes dark rather than away on Sleeping.
 green — 685 passed, 1 skipped, no display. So is the full suite with a display:
 798 passed.
 
-**e2e** (`tests/e2e/`, run by the thinker): `pixels.band_height_from()` reads the
+**e2e** (`tests/e2e/`): `pixels.band_height_from()` reads the
 band's height out of the shell's own `display metrics:` line rather than
 hard-coding 96 (the fit backstop settles it at 97 on this panel), and every Tux
 Paint region is now a fraction of the area *below* the band. Step 4 asserts the
@@ -1544,3 +1555,198 @@ also brought up to date with wave 4's "What's next after?" screen.
    e2e's `restart_shell()` only between sessions, not with an activity running.
    The reasoning says it is safe — the activity's initial config was consumed
    long ago and the new band gets phase A — but it is reasoning.
+
+---
+
+## 19. v0.1.5.1 — what the real compositor said (2026-08-22)
+
+> §18 was written against unit tests, a developer's Wayland session and a
+> spike's hand-written config files. On the shipped image it produced
+> `docs/spikes/screenshots/band-regression-2026-08-22.png`: the band window
+> parked over the whole screen with the content window invisible underneath it,
+> and — had it got that far — a child's drawing destroyed by every press of
+> Back. Two bugs, both of them things only a real gnome-kiosk and a real
+> Tux Paint could have told us. Everything here is measured in a booted VM.
+
+### 19.1 The band was placed by the wrong phase
+
+**What was seen.** The shell's own line, first run on the image:
+
+```
+shell geometry: band 0,0 1280x708 (wanted 1280x92), content 0,92 1280x741
+```
+
+The band window had been given the *content* rectangle — and `set-above` dutifully
+kept that on top of everything.
+
+**Cause 1: `map` is not placement.** `_on_band_mapped` wrote phase B the instant
+GTK mapped the band widget, and `map` fires *before* the compositor answers with
+the toplevel's initial configure. Worse, `_apply_metrics` rewrote phase A on
+every pass of the measured-fit backstop — three times in the first second, each
+with a different band height. So four writes landed inside one file-monitor
+window, gnome-kiosk coalesced them, and **the only content it ever read was
+phase B**. The band's first configure then happened against it.
+
+The fix is to stop guessing. A window's *allocation* is the compositor's own
+answer, so:
+
+* nothing writes a window config during construction any more, including the fit
+  backstop — phase A is written **once**, from `present_all()`, with the height
+  the layout finally settled on;
+* the band is presented, and then polled (`kiosk.placed()`, 100 ms) until its
+  allocation actually is the strip;
+* only then is phase B written, and only then does the content window follow.
+
+If the band does not get its strip within 2.5 s the shell **starts again with a
+fresh toplevel** — geometry is settled for good at a window's first configure,
+so a new window is the only way to ask twice, and by then the file has said
+phase A for seconds. Three attempts; if all three fail, `_fall_back_to_one_window()`
+puts the band back inside the content window, makes that fullscreen, restores
+gnome-kiosk's own defaults and logs an `ERROR`. That is v0.1.4's behaviour —
+everything works, the band is simply hidden during an activity — and it exists
+because AGENTS non-negotiable 8 does not have an exception for "the compositor
+surprised us".
+
+**Cause 2: libadwaita has a 200 px floor.** Even with the sequencing right, the
+band came up `1280x200`. Measured, five window shapes side by side in the guest:
+
+| window | measured min height | placed at |
+|---|---|---|
+| `Gtk.ApplicationWindow`, no child | 0 | **1280x92** |
+| `Adw.ApplicationWindow` + empty box | 200 | 1280x200 |
+| `Adw.ApplicationWindow` + 92 px box | 200 | 1280x200 |
+| …undecorated, and/or not resizable | 200 | 1280x200 |
+| `Adw.ApplicationWindow` + `set_size_request(1280, 92)` | **92** | **1280x92** |
+
+`AdwWindow` enforces a 360×200 minimum whatever its content measures; GTK sends
+that as `xdg_toplevel.set_min_size` and mutter honours it as a constraint, so
+`window-config.ini` could not win. `gtk_widget_set_size_request()` *replaces* a
+widget's measured minimum rather than raising it, which is the one lever that
+works — and it is safe to pull precisely because `_check_measured_fit()` has
+already proved the band's own tree fits inside `band_height`. The content window
+now asks the same way rather than calling `fullscreen()`, which also fixed GTK
+reporting `1280x741` for a window the compositor had constrained to `1280x708`.
+
+**Measured, not guessed:** a throwaway toplevel probed every 100 ms after a
+write showed gnome-kiosk applying the new config **260 ms** later, so
+`KIOSK_RELOAD_MS` is 400. The 800 ms GLib rate limit that §18 reasoned from
+throttles *bursts*; a single write after a quiet period is delivered promptly.
+Which is exactly why writing four times in a second was fatal and writing once
+is not.
+
+**Result, on the image, every run:**
+
+```
+placing the band (attempt 1/3): … phase band, band 0,0 1280x92, content 0,92 1280x708
+band window placed at 1280x92
+shell geometry ok: band 0,0 1280x92 (wanted 1280x92), content 0,92 1280x708 (wanted 1280x708)
+```
+
+…including on a shell restart, where the file on disk is the previous session's
+phase B.
+
+### 19.2 Tux Paint cannot be closed by a signal, and `noquit` made that fatal
+
+§18.7 asserted that Back would send SIGTERM, Tux Paint would autosave and exit,
+and the Journal would keep the drawing. **All of it was inference and the
+conclusion was false.** Measured, on the image:
+
+| config | signal | result | `~/.tuxpaint/saved` |
+|---|---|---|---|
+| `noquit=yes` | SIGTERM | ignored, still up after 15 s | empty |
+| `noquit=yes` | SIGINT | ignored, still up after 15 s | empty |
+| `quit=yes` | SIGTERM | ignored, still up after 15 s | empty |
+| `quit=yes` | SIGINT | ignored, still up after 15 s | empty |
+| either | SIGHUP | dies in ~115 ms | empty |
+
+`/proc/<pid>/status` shows `SigCgt` with bits 2 and 15 set, so SIGINT and
+SIGTERM *are* caught — SDL's handlers are there and they do post `SDL_QUIT`.
+What Tux Paint does with it is the surprise, and a screenshot taken three
+seconds after SIGTERM shows it: **it puts its own "Do you really want to quit?"
+on screen — a green tick, a pink cross — and waits.** Only when that is answered
+does `autosave=yes` write the picture. `README.txt` §g confirms there is no
+option anywhere to skip the prompt, and with `noquit=yes` the quit request is
+swallowed entirely: nothing appears, nothing happens.
+
+So `noquit=yes` turned the band's Back into a five-second lie followed by a
+SIGKILL that destroyed the drawing — worse, by some distance, than the modal it
+was meant to remove. Reverted:
+
+* **`build_files/50-activities.sh` ships `quit=yes` again**, with the
+  measurement in a comment, and `tests/image/test_activities.sh` asserts it.
+  **ADR-0010 #5 therefore stands** — it cannot be retired until there is a way
+  to close another Wayland client's window, and there is none: gnome-kiosk
+  exposes no window D-Bus API (spike §3b) and the child's session has no
+  input-injection path.
+* **Back asks; it does not insist.** `_end_activity()` sends SIGTERM and then
+  *waits*, with no SIGKILL. The child answers Tux Paint's tick, it autosaves,
+  it exits, and `activity_exited` takes them Home. If nothing has happened after
+  the autosave grace the shell says so out loud — "Draw is asking if you're
+  done" — because nothing on screen tells a pre-reader that the question is
+  theirs. Spec 7a's SIGTERM → grace → SIGKILL is about **Put away**, and it
+  still holds there: the hard stop is the hard stop. Back is not the hard stop.
+* **`_force_kill()` now reports the death.** `Launcher.force_stop()` reaps the
+  process itself, so `check()`'s 500 ms poll never saw it go and `on_exit` never
+  fired — the shell sat in `IN_ACTIVITY` with nothing on screen but the band.
+  Both routes out of an activity now go through one `_activity_finished()`.
+
+### 19.3 A P0 for the thinker: Put away still destroys unsaved work
+
+This is not new in v0.1.5 and it is not fixed here, but it is the same fact and
+somebody has to decide about it.
+
+At T−2 the ritual raises the content window over the activity, sends SIGTERM and
+SIGKILLs five seconds later. For Tux Paint that means: the child cannot see the
+tick they would have to press (the shell is now in front of it), does not press
+it, and **"Let's keep that." is followed by the drawing being destroyed.** The
+old e2e never caught it because the scenario always quit Tux Paint by hand
+first, so put-away had nothing left to kill.
+
+Three possible answers, none of them mine to pick:
+
+1. **Do not cover the activity during put-away** until it has actually gone, and
+   give the grace long enough to answer (the put-away window is two minutes; the
+   grace is five seconds). The child sees their own activity's tick, and
+   "Let's keep that" appears when it is true.
+2. **A per-activity quit contract in the manifest** (`quit = "signal" | "confirm"`,
+   `quit_grace = 20`), so the shell knows which activities can be ended without
+   asking and which will ask.
+3. **Accept the loss and change the words.** Not recommended: "Let's keep that"
+   while deleting it is the worst version of this.
+
+### 19.4 Tests
+
+Headless additions: eight cases for `kiosk.placed()` — including the exact
+regression (asked 1280x92, got 1280x708), a fullscreen band, "no configure yet",
+and the ±2 px tolerance; a GTK smoke test that a never-presented window is not
+"placed"; one that Back schedules no SIGKILL; one that a force-killed activity
+still leaves `IN_ACTIVITY`; and one that the one-window fallback really is
+v0.1.4 (band inside the content tree, whole-panel budget, navigation intact).
+**700 passed, 1 skipped headless; 802 with a display.**
+
+e2e: `test_01` now asserts the shell's own geometry line — `verdict == "ok"`,
+band `0,0 1280×H`, content `0,H 1280×(800−H)` — cross-checked against the
+*last* metrics line rather than the first, plus the strip's colour in pixels.
+`pixels.shell_geometry()` parses it. `test_04` quits through the band's Back and
+then finds Tux Paint's tick by colour (`colour_centroid` + `is_tuxpaint_green`)
+and taps it, which is the only assertion that actually proves the drawing
+survives — it does: `tuxpaint saved: ['20260822192707.png']`, one Journal entry.
+`test_02`'s row-count assertion was relaxed to a first-row assertion, because
+wave 4's progressive disclosure makes a fresh Home 4+2 and a two-tile row is too
+narrow to register at the top of `find_grid`'s coverage ladder.
+
+**`just test-e2e`: 19 passed in 3m28s.** Sixteen screenshots, including the band
+above a child's drawing and the ending offer in the band over that drawing.
+
+### 19.5 Still open after this pass
+
+1. **§19.3, the put-away data loss.** The biggest thing in this report.
+2. **The fallback has never fired in anger.** It is unit-tested; it has not been
+   provoked on the image.
+3. **`KIOSK_RELOAD_MS = 400` is measured on one machine** (one VM, one
+   monitor). The retry loop is what makes it not matter, and the retry loop has
+   also never fired on the image since the size-request fix.
+4. **The band's buttons have no vertical slack at 92 px.** The fit backstop
+   proves the row fits, but the CSS drop-shadow has nowhere to go. Cosmetic.
+5. **Everything in §18.9 that was not about the band's placement still stands**
+   — multi-monitor, the wordless offer buttons, the keep animation.

@@ -181,9 +181,22 @@ in `kidnix_shell/kiosk.py`'s docstring.
 
 What it changes for a child: Back, Undo, My Things, the Ear, the sun and the
 grown-up gate are all reachable **during** an activity, and the ending offer is
-no longer a fullscreen window over their drawing. Back and My Things end the
-activity gracefully (SIGTERM, five seconds to autosave, then SIGKILL) rather
-than navigating away from a program that is still on screen.
+no longer a fullscreen window over their drawing.
+
+Back and My Things **ask** the activity to finish — SIGTERM, and then the shell
+waits. It does not insist, and that is deliberate: Tux Paint answers SIGTERM
+with its own picture-coded "Do you really want to quit?" and only saves when the
+child taps the tick, so a Back that killed after the autosave grace would
+destroy the drawing every time (measured; see §19.2 of the implementation
+notes). Put away at T−2 is the one thing that insists — the hard stop is the
+hard stop.
+
+The band's placement is *confirmed*, not assumed: the shell writes phase A once,
+presents the band, and polls until the window's own allocation is the strip
+before it writes phase B and shows anything else. If the compositor will not
+place it after three fresh toplevels, the shell falls back to one fullscreen
+window — v0.1.4's layout — rather than leaving a child looking at a screen with
+no way out of it.
 
 `--windowed` does not write `window-config.ini` at all: that is a developer on
 their own desktop, where `$XDG_CONFIG_HOME` is theirs and there is no
