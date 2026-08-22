@@ -20,9 +20,18 @@ age_max = 12
 oars_rating = "none"
 # Serves purely from local ZIM files over loopback. No egress.
 network_required = false
-# Nothing to show until a parent adds a ZIM: the shell must hide this tile when
-# the library file is missing rather than opening an empty book.
-content_required = true
+# Nothing to show until a parent adds a ZIM, so the shell hides this tile until
+# one is there (kidnix_shell.activities.Availability.has_content). Every glob
+# listed must match at least one file or the activity is treated exactly as if
+# kiwix-serve were not installed.
+#
+# /var/lib/kidnix/library is the chosen home for parent-added content: it is
+# outside the child's $HOME (so the child cannot delete the library), it is on
+# the writable /var that bootc upgrades leave alone, and it is the directory
+# the exec below already points kiwix-serve at. A parent drops
+# wikipedia_en-simple_all_mini.zim in there and the tile appears at the next
+# session; nothing else has to be configured.
+content_required = ["/var/lib/kidnix/library/*.zim"]
 
 source = "rpm"
 package = "kiwix-tools"

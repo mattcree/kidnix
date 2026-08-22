@@ -171,7 +171,9 @@ class JournalScreen(Screen):
         overlay = Gtk.Overlay()
 
         card = ChildButton(
-            speak_text=entry.speak_text,
+            # Not entry.title: what a child hears is the name *and* a
+            # child-terms "when", with no clock in it (03 #32).
+            speak_text=entry.spoken(),
             on_activate=partial(self._open, entry),
             speech_ui=self.ctx.speech_ui,
             css_classes=("card",),
@@ -241,7 +243,7 @@ class JournalScreen(Screen):
         if self.showing_mode:
             # S7's showing mode is read-only: this is the child showing a
             # grown-up what they made, not starting something new.
-            self.ctx.speech.speak(entry.title)
+            self.ctx.speech.speak(entry.spoken())
             return
         self.ctx.host.resume_entry(entry)
 

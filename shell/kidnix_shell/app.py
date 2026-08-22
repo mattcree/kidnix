@@ -42,9 +42,10 @@ from .session import (  # noqa: E402
     SessionPolicy,
     StartRefusal,
     budget_day,
+    time_left_words,
 )
 from .settings import ParentConfig, Paths, Profile  # noqa: E402
-from .sound import BACK, KEEP, SLEEP, TAP, Earcons  # noqa: E402
+from .sound import BACK, KEEP, PHASE, SLEEP, TAP, Earcons  # noqa: E402
 from .speech import GLibScheduler, SpeechManager, select_backend  # noqa: E402
 from .state import Event, State, StateMachine  # noqa: E402
 from .theme import dynamic_css  # noqa: E402
@@ -67,8 +68,12 @@ PUT_AWAY_SECONDS = 6
 #: Re-measure the monitor every few ticks: a child's machine gets a projector
 #: plugged into it, and the shell has to still fit afterwards.
 MONITOR_CHECK_TICKS = 8
-#: How many times the measured-overflow backstop may shrink the layout.
-MAX_FIT_ATTEMPTS = 3
+#: How many times the measured-overflow backstop may relax the layout. Higher
+#: since v0.1.3, because each step now spends *chrome* first (a gap, the band's
+#: spare height) rather than shrinking every target at once, so a step is
+#: smaller and it takes more of them to close a 40 px overshoot. All of them
+#: happen before the window is presented.
+MAX_FIT_ATTEMPTS = 5
 
 
 def _signature(metrics: Metrics) -> tuple[int, int, int, int]:
@@ -152,6 +157,7 @@ class ShellWindow(Adw.ApplicationWindow):
         self._slept_at: datetime | None = None
         self._back_locked_until = 0.0
         self._ticks = 0
+        self._last_phase: Phase | None = None
 
         profile = config.profiles[0]
         self.ctx = ShellContext(
@@ -242,6 +248,7 @@ class ShellWindow(Adw.ApplicationWindow):
                 on_ear=self.on_ear,
                 on_grownup=self.open_grownup,
                 on_ask=self.on_ask,
+                on_sun=self.on_sun,
             ),
         )
         root.append(self.band)
@@ -372,12 +379,36 @@ class ShellWindow(Adw.ApplicationWindow):
             self._check_monitor()
 
         if self.session.running:
-            self.band.set_progress(self.session.fraction_spent(now), self.session.is_warm(now))
-            self._advance_ritual(self.session.phase(now))
+            self.band.set_progress(
+                self.session.fraction_spent(now),
+                self.session.is_warm(now),
+                self.session.time_left_words(now),
+            )
+            phase = self.session.phase(now)
+            self._announce_phase(phase)
+            self._advance_ritual(phase)
         else:
-            self.band.set_progress(0.0, False)
+            self._last_phase = None
+            self.band.set_progress(0.0, False, time_left_words(0.0, running=False))
             self._maybe_wake(now)
         return True  # GLib.SOURCE_CONTINUE
+
+    def _announce_phase(self, phase: Phase) -> None:
+        """08 section 3.6b's session-phase earcon -- the audio half of the sun.
+
+        It plays exactly once, on the step into :class:`Phase.ENDING_OFFER`,
+        which is the one transition with no sound of its own: Put away already
+        has the keep motif and Goodnight has the sleep motif, and two earcons
+        inside a quarter of a second is one earcon and a swallowed one.
+
+        A child whose eyes are on their drawing, not on the band, is told that
+        the light has changed before the screen tells them.
+        """
+        previous, self._last_phase = self._last_phase, phase
+        if previous is None or phase is previous:
+            return
+        if phase is Phase.ENDING_OFFER:
+            self.earcons.play(PHASE)
 
     def _maybe_wake(self, now: datetime) -> None:
         """Spec 7a: Sleeping ends at the next allowed window, a new day, or the gate.
@@ -664,6 +695,17 @@ class ShellWindow(Adw.ApplicationWindow):
     def on_ask(self) -> None:
         self.speech.speak("Asking a grown-up is coming soon.")
 
+    def on_sun(self) -> None:
+        """Tapping the sun (08 section 4.6).
+
+        The sentence is already the button's ``speak_text`` -- kept current by
+        every tick -- and :class:`ChildButton` speaks that before calling here,
+        so there is nothing left to say. This exists so the gesture has a
+        named owner and so a later milestone (the timer study) has one place
+        to count from.
+        """
+        log.debug("the child asked the sun")
+
     def _warm_earcons(self) -> bool:
         self.earcons.ensure_sounds()
         return False
@@ -678,6 +720,13 @@ class ShellWindow(Adw.ApplicationWindow):
         photograph the kiosk. Rendering our *own* widget tree needs no
         permission at all: paint it into a snapshot and hand the node to the
         renderer we are already using.
+
+        Two routes, because the first one has a hole. ``Gtk.WidgetPaintable``
+        hands back the widget's *last painted* content, and returns nothing at
+        all when the widget is waiting for a redraw -- which is the normal
+        state of a window nobody is compositing, i.e. every automated
+        screenshot run. So if the paintable comes back empty we walk the tree
+        ourselves, which always has an answer.
         """
         try:
             from gi.repository import Gsk  # noqa: F401  -- ensures the typelib
@@ -688,6 +737,10 @@ class ShellWindow(Adw.ApplicationWindow):
             snapshot = Gtk.Snapshot()
             paintable.snapshot(snapshot, width, height)
             node = snapshot.to_node()
+            if node is None:
+                direct = Gtk.Snapshot()
+                self.do_snapshot(self, direct)
+                node = direct.to_node()
             native = self.get_native()
             renderer = native.get_renderer() if native is not None else None
             if node is None or renderer is None:
@@ -744,6 +797,7 @@ class ShellApplication(Adw.Application):
         run_seconds: float | None = None,
         screen: ScreenOverride | None = None,
         screenshot: Path | None = None,
+        start_on: str = "choosing",
     ) -> None:
         super().__init__(application_id=APP_ID)
         self._paths = paths
@@ -756,6 +810,7 @@ class ShellApplication(Adw.Application):
         self._run_seconds = run_seconds
         self._screen = screen
         self._screenshot = screenshot
+        self._start_on = start_on
         self.window: ShellWindow | None = None
 
     def do_activate(self) -> None:
@@ -771,12 +826,29 @@ class ShellApplication(Adw.Application):
                 speech_backend=self._speech_backend,
                 screen=self._screen,
             )
+            if self._start_on == "home" and self._config.profiles:
+                # Development only (--start-on home): a --screenshot run should
+                # photograph the grid, and the chooser is what a six-second run
+                # would otherwise catch. After the first frame, so the window
+                # has a renderer by the time anything asks it to paint.
+                GLib.timeout_add(500, self._choose_first_profile)
             if self._screenshot is not None:
                 delay = max(1.0, (self._run_seconds or 3.0) - 0.5)
                 GLib.timeout_add(int(delay * 1000), self._capture)
             if self._run_seconds:
                 GLib.timeout_add_seconds(int(self._run_seconds), self._auto_quit)
         self.window.present()
+
+    def _choose_first_profile(self) -> bool:
+        if self.window is not None and self._config.profiles:
+            # No slide. A --screenshot run is often not being composited by
+            # anything, so the frame clock does not tick, so a 400 ms stack
+            # transition never advances and the window keeps painting the
+            # surface it was already showing. Zero duration settles the tree
+            # in one layout pass. Development only.
+            self.window.stack.set_transition_duration(0)
+            self.window.choose_profile(self._config.profiles[0])
+        return False
 
     def _capture(self) -> bool:
         if self.window is not None and self._screenshot is not None:

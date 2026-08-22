@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from kidnix_shell import settings
 from kidnix_shell.settings import (
     DEFAULT_PIN,
+    DEFAULT_PROFILE,
     ParentConfig,
     Paths,
     Profile,
@@ -283,3 +285,81 @@ def test_the_kid_writable_state_stays_in_the_kid_s_home(tmp_path: Path) -> None:
     assert paths.state_home in paths.usage_state.parents
     assert paths.data_home in paths.journal_root.parents
     assert paths.cache_home in paths.sounds_cache.parents
+
+
+# --- the allow-list (spec S2, SYNTHESIS G3) -------------------------------
+
+
+def test_an_empty_allow_list_means_all_not_none() -> None:
+    """A parent panel that unticks the last box must not empty Home.
+
+    Home with nothing on it but "All done" is not a setting anybody wants by
+    accident, and there is no UI to get out of it. Empty means all.
+    """
+    config = ParentConfig(allowed_activity_ids=[])
+    assert config.is_allowed("tuxpaint")
+    assert config.is_allowed("anything-at-all")
+
+
+def test_a_missing_allow_list_means_all() -> None:
+    assert ParentConfig(allowed_activity_ids=None).is_allowed("tuxpaint")
+
+
+def test_a_named_allow_list_restricts_home() -> None:
+    config = ParentConfig(allowed_activity_ids=["tuxpaint", "ktuberling"])
+    assert config.is_allowed("tuxpaint")
+    assert config.is_allowed("ktuberling")
+    assert not config.is_allowed("supertux")
+
+
+def test_an_empty_allow_list_round_trips_through_toml(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    ParentConfig(allowed_activity_ids=[]).save(path)
+    reloaded = ParentConfig.load(path)
+    assert reloaded.allowed_activity_ids == []
+    assert reloaded.is_allowed("tuxpaint")
+
+
+def test_the_shipped_parent_config_allows_everything() -> None:
+    """system_files ships `allowed_activity_ids = []`, i.e. no restriction."""
+    shipped = Path(__file__).resolve().parents[2] / "system_files/usr/share/kidnix/parent.toml"
+    if not shipped.is_file():  # pragma: no cover - outside the checkout
+        pytest.skip("running outside the kidnix checkout")
+    config = ParentConfig.load(shipped)
+    assert config.allowed_activity_ids == []
+    assert config.is_allowed("tuxpaint")
+
+
+def test_the_two_shipped_parent_configs_are_byte_identical() -> None:
+    root = Path(__file__).resolve().parents[2] / "system_files"
+    usr, etc = root / "usr/share/kidnix/parent.toml", root / "etc/kidnix/parent.toml"
+    if not usr.is_file() or not etc.is_file():  # pragma: no cover
+        pytest.skip("running outside the kidnix checkout")
+    assert usr.read_bytes() == etc.read_bytes()
+
+
+# --- the profile's age band (01 #35, SYNTHESIS B8) -------------------------
+
+
+def test_the_default_profile_is_banded_four_to_five() -> None:
+    assert DEFAULT_PROFILE.age_band == "4-5"
+    assert DEFAULT_PROFILE.age_range == (4, 5)
+
+
+def test_the_shipped_profile_is_banded_four_to_five() -> None:
+    shipped = Path(__file__).resolve().parents[2] / "system_files/usr/share/kidnix/parent.toml"
+    if not shipped.is_file():  # pragma: no cover
+        pytest.skip("running outside the kidnix checkout")
+    profile = ParentConfig.load(shipped).profiles[0]
+    assert profile.age_range == (4, 5)
+
+
+def test_a_profile_with_no_band_has_no_range() -> None:
+    assert replace(DEFAULT_PROFILE, age_band="").age_range is None
+    assert replace(DEFAULT_PROFILE, age_band="nonsense").age_range is None
+
+
+def test_a_band_round_trips_through_toml(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    ParentConfig(profiles=[replace(DEFAULT_PROFILE, age_band="6-8")]).save(path)
+    assert ParentConfig.load(path).profiles[0].age_range == (6, 8)

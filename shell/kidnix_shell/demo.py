@@ -59,6 +59,15 @@ DEMO_ACTIVITIES: tuple[tuple[str, str, str, str, str, bool], ...] = (
 #: Not in the parent's allow-list, so Home renders it outline-only (spec S2).
 NOT_ALLOWED = {"sticky"}
 
+#: Declares ``content_required`` against a directory the demo leaves empty, so
+#: a demo run exercises the predicate that hides the real Library until a
+#: parent has put a ZIM on the machine (05 Lib-4). Its tile is simply absent.
+NEEDS_CONTENT = {"library"}
+
+#: Banded above the demo profile's ``age_band`` ("4-5"), so a demo run also
+#: shows the age filter: no tile, no outline, nothing to ask about (01 #35).
+TOO_OLD = {"maze"}
+
 #: Points at a program that does not exist, and asks to be shown anyway --
 #: the ``show_when_unavailable`` path, so a demo run exercises the
 #: "This one isn't ready yet" tile as well as the not-allowed one.
@@ -117,12 +126,19 @@ def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[st
             # The demo grid is in the order the list above is written, which is
             # also how the shipped manifests do it (spec section 4, `order`).
             f"order = {(index + 1) * 10}",
-            "age_min = 4",
+            # The demo profile is banded "4-5"; TOO_OLD overrides this below.
+            'age_band = "4-6"',
             "network_required = false",
             f'journal_watch = ["{watch}"]',
             'journal_glob = "*.png"',
             f'goal = "A fake activity for demonstrating the shell ({category})."',
         ]
+        if activity_id in NEEDS_CONTENT:
+            empty = base / "content" / activity_id
+            empty.mkdir(parents=True, exist_ok=True)
+            lines.append(f'content_required = ["{empty}/*.zim"]')
+        if activity_id in TOO_OLD:
+            lines[lines.index('age_band = "4-6"')] = 'age_band = "7-10"'
         if activity_id in NOT_INSTALLED:
             lines.append("show_when_unavailable = true")
         if resumable:

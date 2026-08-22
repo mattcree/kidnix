@@ -397,7 +397,11 @@ assert config.pin_salt and config.pin_hash, "the shipped file has no PIN hash"
 assert config.check_pin(DEFAULT_PIN), f"the shipped PIN hash does not verify {DEFAULT_PIN!r}"
 assert not config.check_pin("0000"), "the shipped PIN hash verifies the wrong PIN"
 assert config.default_session_minutes == 25, config.default_session_minutes
-assert config.allowed_activity_ids is None, "shipping an allow-list would hide activities by default"
+# Empty *or* absent both mean "every activity is allowed"
+# (ParentConfig.is_allowed); the shipped file states the empty list so a
+# parent editing it can see the key. A non-empty one would hide activities.
+assert not config.allowed_activity_ids, "shipping a non-empty allow-list hides activities by default"
+assert config.is_allowed("tuxpaint"), "the shipped config must allow every installed activity"
 assert [p.id for p in config.profiles] == ["child"], [p.id for p in config.profiles]
 assert config.profiles[0].name == "Me", config.profiles[0].name
 print(f"  -- parent.toml loads: PIN {DEFAULT_PIN}, {config.default_session_minutes} min, "

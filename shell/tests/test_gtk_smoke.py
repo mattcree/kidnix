@@ -8,6 +8,8 @@ logic tests are the ones that must always run (spec section 7).
 from __future__ import annotations
 
 import os
+import re
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -31,7 +33,12 @@ Adw.init()
 
 from kidnix_shell.context import ShellContext  # noqa: E402
 from kidnix_shell.journal import Journal  # noqa: E402
-from kidnix_shell.metrics import Metrics  # noqa: E402
+from kidnix_shell.metrics import (  # noqa: E402
+    MIN_TARGET_MM,
+    PRIMARY_TILE_MM,
+    TILE_LABEL_MIN_PT,
+    Metrics,
+)
 from kidnix_shell.screens.ending import EndingOfferScreen, PutAwayScreen  # noqa: E402
 from kidnix_shell.screens.goodbye import GoodbyeScreen  # noqa: E402
 from kidnix_shell.screens.home import HomeScreen  # noqa: E402
@@ -295,13 +302,28 @@ def test_home_measures_inside_the_panel_it_was_sized_for(ctx: ShellContext) -> N
 
 
 def test_a_shrunk_layout_shrinks_the_type_too(ctx: ShellContext) -> None:
-    """Points do not know about the fit factor, so theme.py restates them."""
+    """Points do not know about the fit factor, so theme.py restates them.
+
+    ...and never below the 18 pt floor. A stylesheet that re-emitted 14.9 pt
+    would put back exactly the floor the audit's fix #1 took out.
+    """
     from kidnix_shell.theme import dynamic_css
 
-    css = dynamic_css(Metrics.for_screen(1280, 800, dpi=118.0), ctx.profile)
+    css = dynamic_css(Metrics(dpi=96.0, fit=0.7), ctx.profile)
     assert ".tile-label" in css
+    for size in re.findall(r"font-size:\s*([\d.]+)pt", css):
+        assert float(size) >= TILE_LABEL_MIN_PT, css
     provider = Gtk.CssProvider()
     provider.load_from_string(css)  # must be valid CSS, not just a string
+
+
+def test_a_panel_that_does_not_have_to_shrink_restates_nothing(ctx: ShellContext) -> None:
+    """1280x800 at 118 dpi keeps its 40 mm tile now; only the chrome gave way."""
+    from kidnix_shell.theme import dynamic_css
+
+    metrics = Metrics.for_screen(1280, 800, dpi=118.0)
+    assert metrics.fit == 1.0
+    assert ".tile-label" not in dynamic_css(metrics, ctx.profile)
 
 
 def test_the_sun_moves_when_the_session_depletes(ctx: ShellContext) -> None:
@@ -451,7 +473,10 @@ def test_the_two_denials_do_not_say_the_same_thing(ctx: ShellContext) -> None:
     from kidnix_shell.screens.home import NOT_ALLOWED_LINE, NOT_READY_LINE
 
     ctx.activities = [make_activity("ghost", available=False, show_when_unavailable=True)]
-    ctx.config.allowed_activity_ids = []
+    # A *non-empty* list that does not name "ghost". An empty list means
+    # "everything is allowed" (settings.ParentConfig.is_allowed): a parent
+    # panel that unticks the last box must not empty Home.
+    ctx.config.allowed_activity_ids = ["something-else"]
     screen = HomeScreen(ctx)
     assert screen._denial(ctx.activities[0]) == NOT_ALLOWED_LINE  # forbidden wins
     ctx.config.allowed_activity_ids = None
@@ -749,11 +774,21 @@ def test_the_shell_still_fits_with_the_names_the_image_actually_ships(
     )
     try:
         metrics = window.metrics
-        assert metrics.per_page == 12, "twelve tiles is the point of the reserve"
+        # The measured-fit backstop has run by now, so these are the numbers a
+        # child actually gets -- not the ones the arithmetic hoped for. The
+        # floors hold on the real widget tree, which is the whole of the CCI
+        # audit's fix #1: the grid gives way (4 x 2 here), the tile does not.
+        assert metrics.mm_of(metrics.tile_size) >= PRIMARY_TILE_MM - 0.5, metrics.describe()
+        assert metrics.mm_of(metrics.min_target) >= MIN_TARGET_MM - 0.05, metrics.describe()
+        assert metrics.mm_of(metrics.gap) >= 8.0 - 0.05, metrics.describe()
+        assert metrics.mm_of(metrics.band_target) >= MIN_TARGET_MM - 0.05, metrics.describe()
+        assert metrics.label_floor_pt == TILE_LABEL_MIN_PT
+        assert metrics.per_page in (8, 12), metrics.describe()
         assert window._root.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= metrics.screen_width
         assert window._root.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.screen_height
-        # Every ``.tile-label`` in the window: Home's twelve and the profile
-        # name on Who's here, which is built at the same time.
+        # Every ``.tile-label`` in the window: all ten shipped names across
+        # however many pages they take, and the profile name on Who's here,
+        # which is built at the same time.
         labels = tile_labels(window._root)
         assert {*shipped_names(), ALL_DONE_NAME} <= {label.get_label() for label in labels}
         for label in labels:
@@ -763,3 +798,108 @@ def test_the_shell_still_fits_with_the_names_the_image_actually_ships(
             assert tall <= metrics.tile_label_height, label.get_label()
     finally:
         window.shutdown()
+
+
+# --- Home's three ways of not offering a tile (v0.1.3) --------------------
+
+
+def _home_names(ctx: ShellContext) -> list[str]:
+    return [getattr(cell, "name", "") for cell in HomeScreen(ctx).cells()]
+
+
+def test_an_activity_outside_the_age_band_gets_no_tile_at_all(ctx: ShellContext) -> None:
+    """01 #35: not outlined, not spoken -- simply not part of this computer."""
+    ctx.activities = [
+        make_activity("draw", name="Draw"),
+        make_activity("sums", name="Number game", age_min=6, age_max=10),
+    ]
+    ctx.profile = replace(ctx.profile, age_band="4-5")
+    assert _home_names(ctx) == ["Draw", "All done"]
+    ctx.profile = replace(ctx.profile, age_band="6-8")
+    assert _home_names(ctx) == ["Draw", "Number game", "All done"]
+
+
+def test_a_profile_with_no_band_sees_everything(ctx: ShellContext) -> None:
+    ctx.activities = [make_activity("sums", name="Number game", age_min=6, age_max=10)]
+    ctx.profile = replace(ctx.profile, age_band="")
+    assert _home_names(ctx) == ["Number game", "All done"]
+
+
+def test_an_activity_with_no_content_gets_no_tile(ctx: ShellContext) -> None:
+    """05 Lib-4: kiwix-serve is installed and there is no ZIM."""
+    ctx.activities = [make_activity("library", name="Library", has_content=False)]
+    assert _home_names(ctx) == ["All done"]
+
+
+def test_a_contentless_activity_that_asks_to_be_seen_is_outlined_and_says_why(
+    ctx: ShellContext,
+) -> None:
+    from kidnix_shell.screens.home import NOT_READY_LINE
+
+    ctx.activities = [
+        make_activity("library", name="Library", has_content=False, show_when_unavailable=True)
+    ]
+    screen = HomeScreen(ctx)
+    assert _home_names(ctx) == ["Library", "All done"]
+    assert screen._denial(ctx.activities[0]) == NOT_READY_LINE
+
+
+def test_an_empty_allow_list_leaves_every_tile_pressable(ctx: ShellContext) -> None:
+    """A parent panel that unticks the last box must not empty Home."""
+    ctx.config.allowed_activity_ids = []
+    screen = HomeScreen(ctx)
+    for activity in ctx.activities:
+        assert screen._denial(activity) is None
+
+
+def test_a_named_allow_list_outlines_the_rest_rather_than_hiding_them(
+    ctx: ShellContext,
+) -> None:
+    """SYNTHESIS G3: the outline is the affordance, so the tile has to stay."""
+    from kidnix_shell.screens.home import NOT_ALLOWED_LINE
+
+    ctx.config.allowed_activity_ids = ["scribble"]
+    screen = HomeScreen(ctx)
+    assert len(screen.cells()) == len(ctx.activities) + 1  # nothing was hidden
+    assert screen._denial(ctx.activities[0]) is None
+    assert screen._denial(ctx.activities[1]) == NOT_ALLOWED_LINE
+    tile = screen._tile(ctx.activities[1])
+    assert tile.has_css_class("not-allowed")
+    assert NOT_ALLOWED_LINE in tile.speak_text
+
+
+# --- the sun answers when you ask it (08 section 4.6) ---------------------
+
+
+def test_the_sun_is_a_target_not_a_picture(ctx: ShellContext) -> None:
+    """v0.1.2's Sun was an AccessibleRole.IMG with no gesture on it."""
+    band = make_band(ctx.metrics, ctx.speech_ui)
+    assert isinstance(band.sun_button, ChildButton)
+    assert band.sun_button.get_focusable()
+    assert band.sun_button.has_css_class("sun")
+
+
+def test_tapping_the_sun_says_how_much_is_left_in_child_terms(ctx: ShellContext) -> None:
+    from kidnix_shell.session import LOTS_LEFT, NEARLY_TIME, NOT_RUNNING
+
+    band = make_band(ctx.metrics, ctx.speech_ui)
+    assert band.sun_button.speak_text == NOT_RUNNING
+
+    band.set_progress(0.1, warm=False, words=LOTS_LEFT)
+    assert band.sun_button.speak_text == LOTS_LEFT
+    band.sun_button.fire()
+    assert ctx.speech.backend.spoken[-1] == LOTS_LEFT  # type: ignore[attr-defined]
+
+    band.set_progress(0.95, warm=True, words=NEARLY_TIME)
+    assert band.sun_button.speak_text == NEARLY_TIME
+    # And the accessible name follows it, so a screen reader hears the same.
+    assert band.sun_button.get_size_request() is not None
+
+
+def test_the_sun_never_speaks_a_digit(ctx: ShellContext) -> None:
+    from kidnix_shell.session import time_left_words
+
+    band = make_band(ctx.metrics, ctx.speech_ui)
+    for step in range(21):
+        band.set_progress(step / 20, warm=False, words=time_left_words(1 - step / 20))
+        assert not any(c.isdigit() for c in band.sun_button.speak_text)

@@ -349,7 +349,9 @@ config = ParentConfig.load(Path("/etc/kidnix/parent.toml"))
 assert config.check_pin(DEFAULT_PIN)
 assert not config.check_pin("0000")
 assert config.default_session_minutes == 25
-assert config.allowed_activity_ids is None
+# Empty or absent both mean "all allowed" (ParentConfig.is_allowed).
+assert not config.allowed_activity_ids
+assert config.is_allowed("tuxpaint")
 assert [p.id for p in config.profiles] == ["child"]
 PY
 then

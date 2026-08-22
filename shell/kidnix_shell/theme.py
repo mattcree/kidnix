@@ -37,8 +37,13 @@ def points_for(metrics: Metrics, selector: str) -> float:
     The single source of truth for "how big is this text" -- widgets that have
     to fit a label into a known width ask here rather than repeating a number
     that ``theme.css`` might change under them.
+
+    Every selector in :data:`BASE_POINTS` is child-facing, so all of them carry
+    the 18 pt floor (:meth:`~kidnix_shell.metrics.Metrics.child_points`). The
+    grown-up sheet's own type is not in this table and is not floored: an adult
+    reads 12 pt happily and 08 section 4.5 wants the sheet to feel adult.
     """
-    return metrics.points(BASE_POINTS[selector])
+    return metrics.child_points(BASE_POINTS[selector])
 
 
 def tint_css(profile: Profile) -> str:
@@ -49,12 +54,16 @@ def tint_css(profile: Profile) -> str:
 
 
 def font_css(metrics: Metrics) -> str:
-    """Re-state every child-facing point size at the layout's own scale."""
+    """Re-state every child-facing point size at the layout's own scale.
+
+    Floored at 18 pt: the point of the audit's fix #1 is that the floors do not
+    move, and a stylesheet that re-emits 14.9 pt would put one back.
+    """
     if metrics.fit >= 0.999:
         return ""
     rules = []
     for selector, points in BASE_POINTS.items():
-        rules.append(f"{selector} {{ font-size: {metrics.points(points)}pt; }}")
+        rules.append(f"{selector} {{ font-size: {metrics.child_points(points)}pt; }}")
     return "\n".join(rules)
 
 

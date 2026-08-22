@@ -5,7 +5,14 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
-from kidnix_shell.demo import DEMO_ACTIVITIES, NOT_ALLOWED, STUBBORN, build_demo_world
+from kidnix_shell.demo import (
+    DEMO_ACTIVITIES,
+    NEEDS_CONTENT,
+    NOT_ALLOWED,
+    STUBBORN,
+    TOO_OLD,
+    build_demo_world,
+)
 from kidnix_shell.journal import Journal
 from kidnix_shell.session import DailyUsage, Phase, Session, SessionPolicy
 
@@ -89,3 +96,38 @@ def test_the_demo_session_reaches_goodbye_in_three_minutes() -> None:
 def test_the_demo_never_touches_a_real_bedtime() -> None:
     """A demo at 8pm must still run."""
     assert not SessionPolicy.demo().is_bedtime(NOW.replace(hour=20))
+
+
+def test_one_demo_activity_has_nothing_to_open_yet(tmp_path: Path) -> None:
+    """So --demo exercises the content_required predicate (05 Lib-4).
+
+    The Library's directory is created and left empty, which is exactly the
+    state of a freshly installed machine before a parent adds a ZIM.
+    """
+    _, activities, _ = build_demo_world(tmp_path)
+    library = next(a for a in activities if a.id in NEEDS_CONTENT)
+    assert library.content_required
+    assert library.available is True, "the fake program is there"
+    assert library.has_content is False
+    assert library.usable is False
+    assert library.on_home is False
+
+
+def test_one_demo_activity_is_above_the_demo_profile_age_band(tmp_path: Path) -> None:
+    """So --demo shows the age filter as well: no tile, and nothing to ask for."""
+    from kidnix_shell.activities import in_age_band
+
+    _, activities, _ = build_demo_world(tmp_path)
+    too_old = next(a for a in activities if a.id in TOO_OLD)
+    assert (too_old.age_min, too_old.age_max) == (7, 10)
+    assert in_age_band(too_old, (4, 5)) is False
+    assert in_age_band(too_old, (7, 10)) is True
+
+
+def test_the_demo_still_has_more_than_one_page_after_the_new_filters(
+    tmp_path: Path,
+) -> None:
+    """Eight tiles a page now, so the pager matters more than it did."""
+    _, activities, _ = build_demo_world(tmp_path)
+    shown = [a for a in activities if a.on_home and a.id not in TOO_OLD]
+    assert len(shown) > 8

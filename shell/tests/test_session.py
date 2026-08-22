@@ -5,7 +5,14 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
+import pytest
+
 from kidnix_shell.session import (
+    A_LITTLE_LEFT,
+    LOTS_LEFT,
+    NEARLY_TIME,
+    NOT_RUNNING,
+    ONE_STORY_LEFT,
     DailyUsage,
     Phase,
     Session,
@@ -14,6 +21,7 @@ from kidnix_shell.session import (
     budget_day,
     load_policy,
     next_budget_reset,
+    time_left_words,
 )
 
 from .conftest import NOW
@@ -251,3 +259,77 @@ def test_usage_loaded_after_midnight_still_belongs_to_last_night(tmp_path: Path)
     assert late.seconds == 900
     fresh = DailyUsage.for_now(path, datetime(2026, 8, 19, 9, 0))
     assert fresh.seconds == 0
+
+
+# --- what the sun says when a child taps it (08 section 4.6) --------------
+#
+# The audit: the sun is "not tappable -- Sun is an AccessibleRole.IMG with no
+# gesture, so 08 section 4.6's 'tapping speaks the remaining time in child
+# terms' is absent." These are the terms.
+
+
+@pytest.mark.parametrize(
+    ("fraction_left", "expected"),
+    [
+        (1.0, LOTS_LEFT),
+        (0.9, LOTS_LEFT),
+        (0.67, LOTS_LEFT),
+        (0.66, ONE_STORY_LEFT),
+        (0.5, ONE_STORY_LEFT),
+        (0.34, ONE_STORY_LEFT),
+        (0.33, A_LITTLE_LEFT),
+        (0.2, A_LITTLE_LEFT),
+        (0.11, A_LITTLE_LEFT),
+        (0.1, NEARLY_TIME),
+        (0.02, NEARLY_TIME),
+        (0.0, NEARLY_TIME),
+    ],
+)
+def test_the_sun_maps_a_fraction_onto_words(fraction_left: float, expected: str) -> None:
+    assert time_left_words(fraction_left) == expected
+
+
+def test_the_sun_never_says_a_number() -> None:
+    """01 #19 and 01 #30: no digits anywhere the child can see *or hear*."""
+    for fraction in [i / 100 for i in range(101)]:
+        for running in (True, False):
+            words = time_left_words(fraction, running=running)
+            assert not any(c.isdigit() for c in words), words
+
+
+def test_every_sun_sentence_is_short_enough_to_hear(session: Session) -> None:
+    """01 #16: at most two sentences and twelve words."""
+    for words in (LOTS_LEFT, ONE_STORY_LEFT, A_LITTLE_LEFT, NEARLY_TIME, NOT_RUNNING):
+        assert len([s for s in words.split(".") if s.strip()]) <= 2, words
+        assert len(words.split()) <= 12, words
+
+
+def test_a_nonsense_fraction_still_lands_on_a_sentence() -> None:
+    """A clock that jumped must not make the sun speechless."""
+    assert time_left_words(-5.0) == NEARLY_TIME
+    assert time_left_words(17.0) == LOTS_LEFT
+    assert time_left_words(float("nan")) in {LOTS_LEFT, NEARLY_TIME}
+
+
+def test_an_idle_sun_says_so_rather_than_lying(session: Session) -> None:
+    assert session.running is False
+    assert session.time_left_words(NOW) == NOT_RUNNING
+    assert time_left_words(1.0, running=False) == NOT_RUNNING
+
+
+def test_the_sun_walks_down_the_sentences_across_a_real_session(session: Session) -> None:
+    """Twenty-five minutes, minute by minute: the words only ever go one way."""
+    assert session.start(NOW)
+    order = [LOTS_LEFT, ONE_STORY_LEFT, A_LITTLE_LEFT, NEARLY_TIME]
+    seen = [session.time_left_words(NOW + timedelta(minutes=m)) for m in range(26)]
+    assert seen[0] == LOTS_LEFT
+    assert seen[-1] == NEARLY_TIME
+    indices = [order.index(w) for w in seen]
+    assert indices == sorted(indices), seen
+
+
+def test_fraction_left_is_the_complement_of_fraction_spent(session: Session) -> None:
+    assert session.start(NOW)
+    for minutes in (0, 5, 12, 25, 40):
+        when = NOW + timedelta(minutes=minutes)
+        assert round(session.fraction_left(when) + session.fraction_spent(when), 6) == 1.0

@@ -549,3 +549,390 @@ flags a manifest with no `goal`.
 3. **`flatpak info` is run on the main thread at startup.** Five-second timeout,
    one call for the one Flatpak we ship. If the Flatpak list grows this belongs
    off the startup path.
+
+---
+
+## 16. v0.1.3 — the audit fixes (shell side, 2026-08-22)
+
+> Implementer's second report. Everything here answers a row in
+> `docs/design/cci-compliance-audit-2026-08-22.md` — §3.2 "by accident" and §5
+> "top ten" — and nothing here changes a decision §3.1 says was deliberate.
+> The sections above are unchanged; this one is additive.
+
+### 16.1 The floors are floors again (audit §5 #1; 01 #1, #2, #14; 06 #13, #21; A1, B4)
+
+The audit's sentence is the whole fix: *"a floor that moves is not a floor."*
+`Metrics` now separates two kinds of number.
+
+* **Floors — `fit` never touches them.** `MIN_TARGET_MM` (18 mm),
+  `GAP_FLOOR_MM` (8 mm, new) and `TILE_LABEL_MIN_PT` (18 pt). They are computed
+  from the panel's real density by `Metrics.mm_floor()` and that is the end of
+  it. `Metrics.label_floor_pt` is now the constant, not `points(18)`.
+* **Preferences — `fit` shrinks them.** The 160 design-px tile, the 40 mm
+  primary tile, the 12 mm preferred gap, the 96 px band, the icon's share of a
+  tile, the margins.
+
+When the ideal will not fit, the cost is paid in this order, which is the order
+the audit asked for:
+
+1. **Chrome.** A new `chrome_fit` factor narrows the gaps toward 8 mm, the
+   band's spare height and the pager, and nothing else. A child loses nothing
+   when 12 mm of dead space becomes 9 mm. `CHROME_STEPS` is the ladder.
+2. **The grid.** `Metrics.for_screen` still walks `GRIDS` (4×3 → 4×2 → 3×2) but
+   the acceptance test is now `MIN_GRID_TILE_MM` (= 40 mm) instead of
+   `MIN_GRID_TILE_PX` (= 128 px, which is 34 mm at 96 dpi and 27 mm at 118).
+   Whatever does not fit on the page paginates, which Home already did.
+3. **The tile**, and never past 18 mm.
+
+`ShellWindow._check_measured_fit` spends in the same order (`Metrics.shrunk_by`
+reduces `chrome_fit` before `fit`), and `MAX_FIT_ATTEMPTS` went 3 → 5 because
+each step is now smaller. All of them still happen before the window is shown.
+
+Two consequential knock-ons:
+
+* **`theme.py` floors type at 18 pt.** `Metrics.child_points()` is
+  `max(points(base), 18)`, and both `points_for()` (what a widget fits a label
+  into) and `font_css()` (what the display provider emits) go through it. The
+  grown-up sheet's own type is not in `BASE_POINTS` and is deliberately not
+  floored: an adult reads 12 pt happily and 08 §4.5 wants the sheet to feel
+  adult.
+* **`avatar_size` and `card_size` are chrome-scaled** above their own mm floors
+  (30 mm and 20 mm). Who's here? is the *tallest* surface in the stack on a
+  small dense panel — taller than Home — so it was the thing actually binding
+  the measured fit at 1280×800 @118, and a 40 mm face is still a face.
+
+**The result, per panel** (arithmetic; `Metrics.describe()` prints all of it,
+and `tests/test_metrics.py` asserts every floor on every row):
+
+| Panel | fit / chrome | grid | tile | gap | min target | band button | label floor |
+|---|---|---|---|---|---|---|---|
+| 1280×800 @96 | 1.00 / 1.00 | 4×2 | 42.3 mm | 12.2 mm | 18.3 mm | 20.1 mm | 18 pt |
+| 1280×800 @102 | 1.00 / 1.00 | 4×2 | 42.3 mm | 12.2 mm | 18.2 mm | 20.4 mm | 18 pt |
+| 1280×800 @118 | 1.00 / 0.82 | 4×2 | 42.4 mm | 9.9 mm | 18.1 mm | 18.1 mm | 18 pt |
+| 1366×768 @96 | 1.00 / 1.00 | 4×2 | 42.3 mm | 12.2 mm | 18.3 mm | 20.1 mm | 18 pt |
+| 1920×1080 @96 | 1.00 / 1.00 | 4×3 | 42.3 mm | 12.2 mm | 18.3 mm | 20.1 mm | 18 pt |
+| 3840×2160 @2× | 1.00 / 1.00 | 4×2 | 42.3 mm | 12.1 mm | 18.0 mm | 19.5 mm | 18 pt |
+| 2560×1440 @118 | 1.00 / 1.00 | 4×3 | 42.4 mm | 12.1 mm | 18.1 mm | 21.1 mm | 18 pt |
+| 2560×1440 @2× | 1.00 / 0.70 | 4×2 | 42.5 mm | 8.5 mm | 18.2 mm | 18.2 mm | 18 pt |
+| 1024×600 @96 | 0.88 / 0.35 | 4×2 | 37.3 mm | 8.2 mm | 18.3 mm | 18.3 mm | 18 pt |
+
+Compare v0.1.2 on the panel we test on: 1280×800 @102 was `fit = 0.83`, a
+35.1 mm tile, a 14.9 mm minimum target and a 14.9 pt label floor. **Every
+number on the 1280×800 rows is now inside its guideline**; the price is eight
+tiles a page rather than twelve, which is a step *toward* 01 #12 rather than
+away from it.
+
+**Residuals, stated rather than hidden.**
+
+* **1024×600** (a netbook we do not ship for) cannot hold a 40 mm tile: it
+  settles at 37.3 mm. Every floor holds; the preference does not.
+  `test_a_netbook_is_the_one_panel_that_costs_a_millimetre` pins it.
+* **The band clamp.** Spec §7a's 80–128 px and the 18 mm button are now
+  satisfied *together*: `band_height`'s lower bound moves up to
+  `min_target + BAND_CHROME_PX` (the CSS padding + border the buttons have to
+  live inside), still capped at 128. A panel denser than ≈152 **logical** dpi
+  would need more than 128 px for an 18 mm button and would get a button under
+  the floor. No panel in `HARDWARE.md` is close — the worst case we ship for
+  needs 104 px, at 118 dpi. A 4K panel at scale 2 reports 141 logical dpi and
+  needs 120 px, which fits. Recorded here so that when it does bite, it bites a
+  documented number rather than a surprise.
+* **Twelve versus eight tiles** is now a *panel* decision rather than a product
+  one, which is not quite what SYNTHESIS B2 says. The thinker may want to make
+  it a product decision (01 #12's five) via `allowed_activity_ids`; §16.4 ships
+  the mechanism for that.
+
+### 16.2 `content_required` is a predicate (audit §3.2, §5 #4; 05 Lib-4)
+
+`content_required` was a bool that nothing read, so `kiwix-serve` being on
+`PATH` was enough to draw a Library tile that opened an empty library. It is
+now **a list of path globs**:
+
+```toml
+content_required = ["/var/lib/kidnix/library/*.zim"]
+```
+
+Every glob must match at least one file. `Availability.has_content()` answers
+it (cached per boot, `globber` injectable so no test touches the disk),
+`resolve_availability()` stamps `Activity.has_content`, and
+`Activity.usable` = `available and has_content` is what `on_home` and Home's
+`_denial()` now ask. The two failures are the same failure to a child, so they
+share the "This one isn't ready yet. Ask a grown-up." line — deliberately *not*
+"ask a grown-up for this one", because nobody can hand a child a library with
+no books in it.
+
+A bare `content_required = true` is now a **manifest error** with a message
+naming the fix, rather than a field that silently does nothing.
+`--validate-manifests` gates it in CI.
+
+**The path is a choice and here is the reasoning.** `/var/lib/kidnix/library/`
+is where a parent drops ZIMs. It is outside the child's `$HOME` (so the child
+cannot delete the library), it is on the writable `/var` that bootc upgrades
+leave alone, and it is already the directory `kiwix.toml`'s `exec` points
+`kiwix-serve` at. Nothing else has to be configured: drop
+`wikipedia_en-simple_all_mini.zim` in there and the tile appears at the next
+session. **Somebody still has to create that directory in the image** — that is
+a `build_files/` change and is not in this pass.
+
+### 16.3 Age bands are honoured (audit §3.2; 01 #35, SYNTHESIS B8)
+
+`age_min` / `age_max` were parsed and never used, so `tuxmath.toml`'s own
+comment ("the shell should not show this to a four-year-old") was untrue.
+
+* `Profile.age_range` parses the profile's `age_band` (`"4-5"`, `"6-8"`, or a
+  bare `"5"`) via `activities.parse_age_band`.
+* `activities.in_age_band(activity, band)` is the predicate: **overlap, not
+  containment**, so a Library banded 5–12 is right for a five-year-old and an
+  activity with no bounds at all is right for everybody.
+* A manifest may also write the shorthand `age_band = "6-8"`; explicit
+  `age_min`/`age_max` win over it.
+* `HomeScreen.cells()` applies it, and it **removes the tile** rather than
+  outlining it. That distinction is the point: a four-year-old is not shown a
+  dashed box and told to go and ask about typed arithmetic. There is nothing
+  there.
+* A profile with an empty or unparsable `age_band` filters nothing. We do not
+  guess a child's age from silence.
+
+Against the shipped set, the shipped `"4-5"` profile now hides **two** tiles:
+`tuxmath` (6–10) and `turbowarp` (6–12, whose own `goal` says "realistically a
+six-plus activity"). A `"6-8"` profile hides none.
+
+### 16.4 `allowed_activity_ids`: empty means *all* (audit §5 #2, G3)
+
+The key already existed and already worked; two things changed.
+
+1. **`is_allowed` treats an empty list as "everything".** It used to mean
+   "nothing", which is a Home screen with only "All done" on it and no UI to
+   get out of — not a state anyone wants to reach by unticking the last box in
+   a parent panel. `None` (absent) and `[]` now behave identically.
+2. **`system_files/*/kidnix/parent.toml` ships `allowed_activity_ids = []`
+   explicitly**, with the reasoning in a comment, so a parent editing the file
+   can see the key and its spelling. Both copies stay byte-identical (there is
+   now a test asserting that from the shell suite as well as from
+   `test_hardening.sh`).
+
+Tiles not on a non-empty list still render outline-only and still speak
+"Ask a grown-up for this one" (G3) — that path is unchanged, and §16.5 is what
+makes the outline visible.
+
+**For the thinker:** the audit's §5 #2 asks for a five-tile Home at the child
+test. The mechanism is here; choosing the five is a product decision and this
+pass deliberately did not make it. Ship it as, e.g.:
+
+```toml
+allowed_activity_ids = ["tuxpaint", "ktuberling", "gcompris", "blinken"]
+```
+
+(four, plus "All done" — 01 #12's five choices) and note that the age band is
+already removing `tuxmath` and `turbowarp` for a 4–5 profile.
+
+**This required two one-line edits outside `shell/`:** `build_files/70-hardening.sh`
+and `tests/image/test_hardening.sh` both asserted
+`config.allowed_activity_ids is None`, which the shipped `[]` breaks. Both now
+assert `not config.allowed_activity_ids` and `config.is_allowed("tuxpaint")`,
+which is the property they were reaching for.
+
+### 16.5 Contrast, computed (audit §3.2, §5 #8; 06 #25, 03 #31)
+
+`@kid-edge` was `rgba(0, 0, 0, 0.18)`, which composites to `#cecbc4` on
+`@kid-paper`: **1.5:1**. On a `.not-allowed` tile — which has no fill at all —
+that border is the entire G3 affordance. It was also the only boundary an
+*ordinary* tile had, since a tile's fill is the same paper as the page behind
+it.
+
+Edges are stated as solid hex now, because a ratio you cannot compute is a
+ratio nobody computed:
+
+| Token | Value | vs `@kid-paper` | vs white (hover) |
+|---|---|---|---|
+| `@kid-edge` | `#7e838c` | 3.57:1 | 3.81:1 |
+| `@kid-edge-strong` | `#5a5f6a` | 5.99:1 | 6.40:1 |
+
+`.not-allowed` and `.all-done` take the strong one. `tests/test_theme_css.py`
+parses `theme.css` and recomputes every one of these from the literals, so the
+next person to pick a colour by eye gets a red test rather than a shipped
+1.5:1.
+
+Also checked and passing: band-button ink on paper **16.6:1** (AAA, and well
+over 08 §3.4's preferred 4.5:1 for text and 3:1 for icons); the band button's
+own boundary against **all four** profile primaries (3.91 / 4.80 / 9.58 /
+5.24:1, since `@kid-primary` is replaced at runtime); the sleeping screen
+(12.7:1); the PIN error line (6.1:1).
+
+**One thing the audit did not flag and this pass changed anyway.**
+`@kid-highlight` (`#ffd23f`) is 12.3:1 against `@kid-ink` and **1.35:1** against
+`@kid-paper` — legible as *colour*, not as an *edge*, which is a WCAG 1.4.11
+problem for a focus ring on a pale tile. Rather than spend the one reserved
+highlight colour (08 §3.4b) on a darker yellow, `.speaking` and `:focus-visible`
+now also take the control's border to full ink while they are up, so the
+indicator has a 16.6:1 boundary on both sides of the yellow. One colour, one
+meaning, with an edge. **This is a taste call and the human should look at it.**
+
+### 16.6 The font the image actually installs (audit §3.2; 06 #20)
+
+`theme.css` asked for `"Atkinson Hyperlegible"`; `build_files/36-fonts.sh`
+installs `atkinson-hyperlegible-next-fonts`, whose family is
+**"Atkinson Hyperlegible Next"**. The names did not match, so the grown-up
+sheet silently rendered in Cantarell and the only way to notice was to diff two
+files. Now:
+
+* `.grownup` — `"Atkinson Hyperlegible Next", "Atkinson Hyperlegible", "Cantarell", sans-serif`
+* `window.kidnix` / `.surface` — `"Andika", "Andika New Basic", "Cantarell", sans-serif`
+* `.pin-pad` / `.pin-display` — `"Atkinson Hyperlegible Mono", monospace` (the
+  image installs that cut too, and it was going unused)
+* `widgets.CHILD_FACE` — kept in step, because measuring in a face we do not
+  draw in is how a label that "fits" gets clipped on the real machine.
+
+`test_the_shipped_font_packages_still_match_the_stylesheet` reads
+`36-fonts.sh`'s own `check_family` lines and asserts each name appears in
+`theme.css`, so the two cannot drift again.
+
+### 16.7 No spoken digits (audit §3.2; 01 #19, 03 #32)
+
+`friendly_title()` produced `"Draw 14:32"` and the Journal card read it aloud —
+a 24-hour clock spoken to a pre-reader, in a shell that bans digits everywhere
+they can be *seen*. Three pure functions in `journal.py`, all tested:
+
+* `part_of_day(when)` → `morning` / `afternoon` / `evening` / `night`
+  (boundaries 05:00, 12:00, 17:00, 21:00 — coarse on purpose).
+* `when_words(created, now)` → `"this morning"`, `"yesterday afternoon"`,
+  `"last night"`, `"tonight"`, or `"before"`. The three buckets are the same
+  Today / Yesterday / Before the Journal's own day headings use, so what the
+  child hears and what they are looking at are the same vocabulary. A clock
+  that has slipped backwards still says "this", never anything about the
+  future.
+* `spoken_title(title, created, now)` → `"Draw, from this morning"`.
+
+`friendly_title()` no longer puts a time in the stored title at all (and now
+rejects a stem containing four or more consecutive digits, which is what a Tux
+Paint timestamp filename looks like). `Entry.spoken(now)` composes the phrase at
+the moment a child asks; the Journal card's `speak_text` and S7's showing mode
+both use it. **The ISO timestamps in `entry.json` are untouched** — exact times
+are the parent's business (F4), and the parent has a file browser.
+
+`test_no_spoken_journal_string_contains_a_digit` walks every hour of three days
+and asserts the obvious thing.
+
+### 16.8 The session-phase earcon (audit §3.2; 08 §3.6b)
+
+08 lists six earcons; v0.1.2 shipped four and blamed both absences on the
+missing Ask flow. Only one of them was Ask's. The fifth is now here:
+
+```
+PHASE: A5 (120 ms, level 0.62) -> E5 (250 ms, level 0.55)
+```
+
+A gentle step down a fourth, at the lowest level of the five, 370 ms total. It
+has to be tellable with the eyes shut from `BACK` (falls further, starts lower)
+and from `SLEEP` (an octave down, twice as long), and
+`test_the_phase_motif_is_tellable_from_the_others` asserts exactly those
+relationships.
+
+`ShellWindow._announce_phase` plays it **once, on the step into
+`Phase.ENDING_OFFER`** — the only phase transition with no sound of its own
+(Put away already has the keep motif; Goodnight has the sleep motif, and two
+earcons inside `MIN_GAP_SECONDS` is one earcon and a swallowed one). It is the
+audio half of the sun: a child whose eyes are on their drawing is told the
+light has changed before the screen tells them.
+
+Still unheard on real speakers (impl. notes §14.3 remains open).
+
+### 16.9 The sun answers when you ask it (audit §5 #7; 08 §4.6)
+
+`Sun` was a `Gtk.DrawingArea` with `AccessibleRole.IMG` and no gesture. It is
+now the child of a `ChildButton` (`Band.sun_button`, CSS class `sun`) drawn
+with no button chrome at all — a bordered box around the sun would read as a
+control the child is meant to press *for* something. The drawing itself dropped
+to `AccessibleRole.PRESENTATION`; the button carries the name.
+
+What it says is `session.time_left_words(fraction_left)`, a pure function with
+five sentences and no digits anywhere:
+
+| Remaining | Sentence |
+|---|---|
+| > 2⁄3 | "Lots of time left." |
+| 1⁄3 – 2⁄3 | "About as long as one story." |
+| 0.1 – 1⁄3 | "A little bit of time left." |
+| ≤ 0.1 | "Nearly time to put things away." |
+| not running | "The sun has gone down for today." |
+
+Every one is a **comparison**, never a quantity: a four-year-old has no idea
+what "twelve minutes" is and every idea what "one story" is, and a number would
+put a digit into the one part of the product that has never had one. (A
+twenty-five minute session's middle band is roughly 8–17 minutes, which is a
+bedtime story.) The function is total — any float, including one from a clock
+that jumped, lands on a sentence.
+
+`Band.set_progress(fraction, warm, words)` keeps `speak_text` current on every
+tick, and `speak_text` is both the accessible name and what a tap or a hover
+reads aloud, so that is all the wiring the gesture needs. `ShellWindow.on_sun`
+exists so the gesture has a named owner and so the timer study (audit §4 item 1)
+has one place to count from.
+
+### 16.10 Odds and ends
+
+* **`--start-on {choosing,home}`** (development only). A `--screenshot` run
+  would otherwise photograph the "Who's here?" chooser, because six seconds is
+  not long enough for anybody to press anything. It chooses the first profile
+  after the first frame and zeroes the stack transition — a window nobody is
+  compositing gets no frame-clock ticks, so a 400 ms slide never advances and
+  the old surface stays up.
+* **`ShellWindow.capture()` has a second route.** `Gtk.WidgetPaintable` hands
+  back the widget's *last painted* content and returns nothing at all when the
+  widget is waiting for a redraw — the normal state of an uncomposited window,
+  i.e. every automated screenshot. It now falls back to walking the tree
+  itself, which always has an answer. This is why `boot-home.png`-style
+  captures were occasionally empty.
+* **`--demo` covers all five failure modes now**: outside the allow-list
+  (outline), not installed + `show_when_unavailable` (outline, different
+  sentence), `content_required` unmatched (no tile — the Library case), above
+  the profile's age band (no tile — `maze`, banded 7–10), and `SIGTERM`-ignoring
+  (`sticky`).
+* **`Metrics.describe()`** now prints the millimetres, not just the pixels:
+  tile, gap, min target, band button and the label floor. A future clipped or
+  shrunken screenshot has every number that matters next to it in the journal.
+
+### 16.11 Screenshots and tests
+
+`docs/design/screenshots/demo-home-1280.png` (1280×800 @102) and
+`demo-home-1366.png` (1366×768 @96) are fresh captures of the new Home: a 4×2
+grid of 42 mm tiles at 24 pt, page dots and a 21 mm forward arrow, visible tile
+borders, and the Library and Maze tiles correctly absent.
+
+```
+just lint            ruff check + ruff format --check + mypy   clean
+just test-headless   540 tests, no display
+just test            617 tests with a display (77 of them GTK)
+```
+
+Up from 370 / 437. Where the 180 new ones went:
+
+| File | before | after | what was added |
+|---|---|---|---|
+| `test_metrics.py` | 55 | 118 | every floor on every panel we ship for |
+| `test_activities.py` | 45 | 75 | `content_required`, age bands |
+| `test_journal.py` | 24 | 47 | no spoken digits, at every hour of three days |
+| `test_session.py` | 29 | 47 | the sun's words |
+| `test_settings.py` | 28 | 38 | empty-means-all, the profile's band |
+| `test_theme_css.py` | — | 21 | WCAG arithmetic, the two font families |
+| `test_gtk_smoke.py` | 67 | 77 | Home's three filters, the tappable sun |
+| `test_demo.py` | 9 | 12 | the two new demo failure modes |
+| `test_sound.py` | 20 | 22 | the fifth earcon |
+
+### 16.12 Still open after this pass
+
+1. **Who picks the five tiles.** §16.4 ships `allowed_activity_ids` and the
+   empty-means-all semantics; the child-test subset is the thinker's call.
+2. **`/var/lib/kidnix/library/` does not exist in the image.** The predicate
+   correctly hides the Library either way, but a parent has nowhere obvious to
+   put a ZIM until a `build_files/` change creates it (0755 root, or 0775 with
+   a group the parent is in).
+3. **Eight tiles a page is a panel decision, not a product one.** If 01 #12's
+   five is the answer, it should be a product rule, not a consequence of the
+   monitor.
+4. **The focus ring's ink border is a taste call** (§16.5) and wants a look on
+   a real screen before the child test.
+5. **The phase earcon has never been heard on speakers**, like the other four.
+6. **A 24 mm target floor** (01 #1) instead of 18 (06 #13, A1) is still
+   unadjudicated — audit §4 item 11. Raising `MIN_TARGET_MM` to 24 is now a
+   one-line change with tests that will tell you exactly what it costs; at a
+   guess it takes 1280×800 to a 3×2 grid.

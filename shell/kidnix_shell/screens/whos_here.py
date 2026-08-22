@@ -57,7 +57,7 @@ class WhosHereScreen(Screen):
             speak_text="Grown-up",
             on_activate=self.ctx.host.open_grownup,
             speech_ui=self.ctx.speech_ui,
-            width=metrics.mm(40),
+            width=metrics.target_mm(40),
             height=metrics.min_target,
         )
         grownup.set_child(Gtk.Label(label="Grown-up"))

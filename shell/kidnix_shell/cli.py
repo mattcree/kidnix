@@ -84,6 +84,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="write a PNG of the shell's own window before quitting (development)",
     )
     parser.add_argument(
+        "--start-on",
+        choices=("choosing", "home"),
+        default="choosing",
+        help=(
+            "which surface to open on (development). The child always starts on "
+            "Who's here?; 'home' chooses the first profile immediately so a "
+            "--screenshot run photographs the grid rather than the chooser."
+        ),
+    )
+    parser.add_argument(
         "--speech",
         choices=("auto", "speechd", "spd-say", "null"),
         default="auto",
@@ -208,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
         run_seconds=args.run_seconds,
         screen=args.screen,
         screenshot=args.screenshot,
+        start_on=args.start_on,
     )
     return int(application.run([]))
 

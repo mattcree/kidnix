@@ -24,6 +24,7 @@ import hashlib
 import json
 import logging
 import mimetypes
+import re
 import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
@@ -44,6 +45,37 @@ MAX_FAVOURITES = 8
 TODAY = "Today"
 YESTERDAY = "Yesterday"
 BEFORE = "Before"
+
+#: 01 #19 / 03 #32: the child never *sees* a digit in kidnix, and until v0.1.3
+#: they could still hear one -- ``friendly_title`` produced "Draw 14:32" and
+#: the Journal card read it aloud. A five-year-old cannot read a 24-hour clock
+#: and does not need one to find the thing they made after lunch.
+#:
+#: So a title carries no time at all, and *when* is composed at speaking time
+#: from the entry's ISO ``created`` (which stays in ``entry.json`` untouched --
+#: the parent's file view is the place for exact times, F4).
+MORNING, AFTERNOON, EVENING, NIGHT = "morning", "afternoon", "evening", "night"
+#: Local-clock boundaries. Coarse on purpose: "after lunch" is the unit a
+#: five-year-old has, and no boundary here needs defending to the minute.
+AFTERNOON_FROM_HOUR = 12
+EVENING_FROM_HOUR = 17
+NIGHT_FROM_HOUR = 21
+
+_THIS = {
+    MORNING: "this morning",
+    AFTERNOON: "this afternoon",
+    EVENING: "this evening",
+    NIGHT: "tonight",
+}
+_YESTERDAY = {
+    MORNING: "yesterday morning",
+    AFTERNOON: "yesterday afternoon",
+    EVENING: "yesterday evening",
+    NIGHT: "last night",
+}
+#: Anything older gets the same word the Journal's own day heading uses, so
+#: what the child hears and what they read are the same vocabulary.
+LONG_AGO = "before"
 
 
 def sha256_file(path: Path) -> str:
@@ -113,6 +145,10 @@ class Entry:
     def speak_text(self) -> str:
         return self.title
 
+    def spoken(self, now: datetime | None = None) -> str:
+        """The title plus a child-terms "when" -- and no digits (03 #32)."""
+        return spoken_title(self.title, self.created_at, now or datetime.now())
+
     # -- persistence --
 
     def to_dict(self) -> dict[str, Any]:
@@ -179,12 +215,61 @@ def guess_mime(path: Path) -> str:
     return mime or "application/octet-stream"
 
 
+def part_of_day(when: datetime) -> str:
+    """Which quarter of the day ``when`` falls in. Pure, no digits out."""
+    hour = when.hour
+    if hour < 5 or hour >= NIGHT_FROM_HOUR:
+        return NIGHT
+    if hour < AFTERNOON_FROM_HOUR:
+        return MORNING
+    if hour < EVENING_FROM_HOUR:
+        return AFTERNOON
+    return EVENING
+
+
+def when_words(created: datetime, now: datetime) -> str:
+    """ "this morning", "yesterday afternoon", "last night", "before".
+
+    Never a number, never a date, never a clock. The three buckets match the
+    Journal's own Today / Yesterday / Before headings so a child hears the
+    same words they are looking at.
+    """
+    days = (now.date() - created.date()).days
+    part = part_of_day(created)
+    if days <= 0:  # <= so a clock that has slipped backwards still says "this"
+        return _THIS[part]
+    if days == 1:
+        return _YESTERDAY[part]
+    return LONG_AGO
+
+
+def spoken_title(title: str, created: datetime, now: datetime) -> str:
+    """What a Journal card says when a child hovers it (spec section 3).
+
+    ``"Draw, from this morning"``. The comma is a breath, not punctuation the
+    child reads: speech-dispatcher gives it a ~200 ms pause, which is what
+    stops the name and the time running into one another.
+    """
+    name = title.strip() or "A thing I made"
+    return f"{name}, from {when_words(created, now)}"
+
+
+#: A stem of four digits or more is a timestamp, not a name a child gave it.
+_TIMESTAMP_RE = re.compile(r"\d{4,}")
+
+
 def friendly_title(path: Path, activity_name: str, when: datetime) -> str:
-    """A title a six-year-old could read back. Never a file path."""
+    """A title a six-year-old could read back. Never a file path, never a clock.
+
+    ``when`` is kept in the signature (and in ``entry.json`` as an ISO string)
+    but deliberately does not appear in the result: see the note on
+    :data:`MORNING` above. :func:`spoken_title` is what turns the stored time
+    into words at the moment a child asks.
+    """
     stem = path.stem.replace("_", " ").replace("-", " ").strip()
-    if stem and not stem.isdigit() and len(stem) <= 24:
+    if stem and not _TIMESTAMP_RE.search(stem) and len(stem) <= 24:
         return stem.capitalize()
-    return f"{activity_name} {when:%H:%M}"
+    return activity_name
 
 
 class Journal:

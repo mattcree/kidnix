@@ -24,10 +24,24 @@ Two things beyond parsing live here because they are the same question --
   resolves ``exec[0]`` on ``PATH`` and asks ``flatpak info`` about
   ``flatpak run <ref>`` execs, once per boot, and the unavailable ones are left
   off Home unless the manifest says ``show_when_unavailable = true``.
+* **Age band.** 01 #35 / SYNTHESIS B8 ask for a *fine* band (4-5 vs 6-8), set
+  by the parent on the profile. ``age_min``/``age_max`` (or the shorthand
+  ``age_band = "6-8"``) are matched against it by :func:`in_age_band`, and an
+  activity outside the band is simply **not there** -- not outlined, not
+  spoken. ``tuxmath.toml``'s own comment says "the shell should not show this
+  to a four-year-old", and until v0.1.3 the shell showed it.
+* **Content.** An *installed* program with nothing to open is the same button
+  telling the same lie through a different door: ``kiwix-serve`` is on ``PATH``
+  on every image, and until a parent copies a ZIM onto the machine the Library
+  tile opens an empty library (05 Lib-4, CCI audit section 3.2). A manifest
+  therefore declares ``content_required = ["/path/*.glob", ...]``; if any one
+  of those globs matches nothing, the activity is treated exactly as if its
+  program were missing.
 """
 
 from __future__ import annotations
 
+import glob as globlib
 import logging
 import os
 import re
@@ -51,6 +65,10 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 CATEGORIES = frozenset({"make", "learn", "play"})
 ICON_KINDS = frozenset({"icon-name", "path"})
 
+#: ``"4-5"``, ``"6-8"``, or a bare ``"5"``. Used by both the profile
+#: (kidnix_shell.settings.Profile.age_band) and the manifest shorthand.
+AGE_BAND_RE = re.compile(r"^\s*(\d{1,2})\s*(?:[-\u2013]\s*(\d{1,2})\s*)?$")
+
 #: Fields the shell knows about. Anything else in a manifest is ignored (with a
 #: debug line) rather than rejected, so the activities implementer can add
 #: fields ahead of the shell.
@@ -65,6 +83,7 @@ KNOWN_KEYS = frozenset(
         "exec",
         "exec_resume",
         "category",
+        "age_band",
         "age_min",
         "age_max",
         "oars_rating",
@@ -119,11 +138,16 @@ class Activity:
     order: int | None = None
     show_when_unavailable: bool = False
     wayland_native: bool = True
-    content_required: bool = False
+    #: Path globs that must each match at least one file for this activity to
+    #: have anything to open. Empty means "nothing to check".
+    content_required: tuple[str, ...] = ()
     notes: str = ""
     package: str = ""
     #: Set by :func:`resolve_availability` at startup, not by the manifest.
     available: bool = True
+    #: Set by :func:`resolve_availability` at startup: every glob in
+    #: :attr:`content_required` matched something.
+    has_content: bool = True
 
     @property
     def speak_text(self) -> str:
@@ -140,15 +164,24 @@ class Activity:
         )
 
     @property
+    def usable(self) -> bool:
+        """Can a tap on this actually produce something?
+
+        Two ways to fail and they are the same failure to a five-year-old: the
+        program is not installed, or it is installed with nothing to open.
+        """
+        return self.available and self.has_content
+
+    @property
     def on_home(self) -> bool:
         """Should this be a tile at all?
 
-        An activity whose program is missing is not shown -- a tile that cannot
-        work is worse than no tile -- unless the manifest asks for it, in which
-        case Home renders it outline-only and says so (SYNTHESIS G3: never a
-        silent denial, but also never a lie).
+        An activity that cannot work is not shown -- a tile that cannot work is
+        worse than no tile -- unless the manifest asks for it, in which case
+        Home renders it outline-only and says so (SYNTHESIS G3: never a silent
+        denial, but also never a lie).
         """
-        return self.available or self.show_when_unavailable
+        return self.usable or self.show_when_unavailable
 
     @property
     def flatpak_ref(self) -> str:
@@ -187,6 +220,40 @@ class LoadResult:
     @property
     def ok(self) -> bool:
         return not self.errors
+
+
+def parse_age_band(text: str) -> tuple[int, int] | None:
+    """``"4-5"`` -> ``(4, 5)``; ``"5"`` -> ``(5, 5)``; nonsense -> ``None``.
+
+    One parser for both spellings of the same idea: the profile's band (set by
+    the parent) and a manifest's ``age_band`` shorthand.
+    """
+    match = AGE_BAND_RE.match(text or "")
+    if match is None:
+        return None
+    low = int(match.group(1))
+    high = int(match.group(2)) if match.group(2) else low
+    return (low, high) if high >= low else (high, low)
+
+
+def in_age_band(activity: Activity, band: tuple[int, int] | None) -> bool:
+    """Is ``activity`` pitched at a child in ``band``?
+
+    Overlap, not containment: a Library banded 5-12 is right for a five-year-old
+    even though most of its range is not, and Tux Paint (no bounds at all) is
+    right for everybody. An activity is out only when its whole range sits
+    above or below the child's -- which is exactly ``tuxmath`` (6-10) against a
+    4-5 profile, the case 01 #35 names.
+
+    ``band`` of ``None`` (a profile with no band set) means "do not filter":
+    a parent who has not answered the question is not answered *for*.
+    """
+    if band is None:
+        return True
+    low, high = band
+    if activity.age_max is not None and activity.age_max < low:
+        return False
+    return not (activity.age_min is not None and activity.age_min > high)
 
 
 def _expand(raw: str, home: Path | None = None) -> Path:
@@ -275,12 +342,35 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
     if not isinstance(watch_raw, list) or not all(isinstance(w, str) for w in watch_raw):
         raise ManifestError(path, "'journal_watch' must be a list of strings")
 
+    content_raw = data.get("content_required", [])
+    if isinstance(content_raw, bool):
+        # v0.1.1 accepted a bare `true` and nothing ever checked it, which is
+        # how the Library shipped as a tile that opened an empty library.
+        raise ManifestError(
+            path,
+            "'content_required' must be a list of path globs, e.g. "
+            '["/var/lib/kidnix/library/*.zim"] -- a bare true says nothing '
+            "the shell can check",
+        )
+    if not isinstance(content_raw, list) or not all(isinstance(c, str) for c in content_raw):
+        raise ManifestError(path, "'content_required' must be a list of path globs")
+    content_required = tuple(str(_expand(c, home)) for c in content_raw if c.strip())
+
     order = data.get("order")
     if order is not None and (isinstance(order, bool) or not isinstance(order, int)):
         raise ManifestError(path, "'order' must be a whole number")
 
     age_min = _opt_int(data, "age_min", path)
     age_max = _opt_int(data, "age_max", path)
+    band_text = _opt_str(data, "age_band", path)
+    if band_text:
+        # A shorthand for the pair, so a manifest can say `age_band = "6-8"`
+        # in the same spelling the profile uses. Explicit bounds win.
+        band = parse_age_band(band_text)
+        if band is None:
+            raise ManifestError(path, f"age_band {band_text!r} must look like '4-5' or '6-8'")
+        age_min = band[0] if age_min is None else age_min
+        age_max = band[1] if age_max is None else age_max
     if age_min is not None and age_max is not None and age_max < age_min:
         raise ManifestError(path, f"age_max ({age_max}) is below age_min ({age_min})")
 
@@ -304,7 +394,7 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
         order=order,
         show_when_unavailable=_opt_bool(data, "show_when_unavailable", path, False),
         wayland_native=_opt_bool(data, "wayland_native", path, True),
-        content_required=_opt_bool(data, "content_required", path, False),
+        content_required=content_required,
         notes=_opt_str(data, "notes", path),
         package=_opt_str(data, "package", path),
     )
@@ -389,21 +479,33 @@ def _flatpak_installed(ref: str) -> bool:
     return completed.returncode == 0
 
 
+def _glob_matches(pattern: str) -> bool:
+    """Does ``pattern`` match at least one path? Never raises."""
+    try:
+        return bool(next(iter(globlib.iglob(pattern)), None))
+    except (OSError, ValueError) as exc:  # pragma: no cover - a broken pattern
+        log.warning("content glob %r could not be evaluated (%s)", pattern, exc)
+        return False
+
+
 class Availability:
     """Which activities can actually run. Answers are cached for the boot.
 
-    Both probes are injectable so the tests never touch ``PATH`` or spawn
-    ``flatpak``.
+    All three probes are injectable so the tests never touch ``PATH``, spawn
+    ``flatpak`` or read the real filesystem.
     """
 
     def __init__(
         self,
         which: Callable[[str], str | None] | None = None,
         flatpak: Callable[[str], bool] | None = None,
+        globber: Callable[[str], bool] | None = None,
     ) -> None:
         self._which = which or shutil.which
         self._flatpak = flatpak or _flatpak_installed
+        self._globber = globber or _glob_matches
         self._cache: dict[str, bool] = {}
+        self._content_cache: dict[str, bool] = {}
 
     def check(self, activity: Activity) -> bool:
         if not activity.exec_argv:
@@ -421,26 +523,57 @@ class Availability:
             return False
         return self._flatpak(ref) if ref else True
 
+    def has_content(self, activity: Activity) -> bool:
+        """Every glob in ``content_required`` matches at least one file.
+
+        A manifest with no ``content_required`` has nothing to check and is
+        content-complete by definition -- most activities carry their own.
+        """
+        for pattern in activity.content_required:
+            matched = self._content_cache.get(pattern)
+            if matched is None:
+                matched = self._globber(pattern)
+                self._content_cache[pattern] = matched
+            if not matched:
+                return False
+        return True
+
+    def missing_content(self, activity: Activity) -> list[str]:
+        """Which globs found nothing -- for the log line the parent reads."""
+        return [p for p in activity.content_required if not self._content_cache.get(p, False)]
+
 
 def resolve_availability(
     activities: list[Activity], availability: Availability | None = None
 ) -> list[Activity]:
-    """Stamp ``available`` on every activity, logging what is missing.
+    """Stamp ``available`` and ``has_content``, logging what is missing.
 
-    The unavailable ones stay in the list -- the Journal still has to be able
-    to name the activity an old entry came from -- and it is Home that decides
+    The unusable ones stay in the list -- the Journal still has to be able to
+    name the activity an old entry came from -- and it is Home that decides
     whether to draw a tile (:attr:`Activity.on_home`).
     """
     checker = availability or Availability()
     resolved = []
     for activity in activities:
         available = checker.check(activity)
+        has_content = checker.has_content(activity) if available else True
+        fate = "showing it outline-only" if activity.show_when_unavailable else "hiding its tile"
         if not available:
             log.warning(
                 "activity %r is not installed (%s); %s",
                 activity.id,
                 " ".join(activity.exec_argv),
-                "showing it outline-only" if activity.show_when_unavailable else "hiding its tile",
+                fate,
             )
-        resolved.append(replace(activity, available=available))
+        elif not has_content:
+            # 05 Lib-4: kiwix-serve is installed on every image and there is no
+            # ZIM until a parent copies one on. A tile that opens an empty
+            # library is the same lie as a tile that opens nothing.
+            log.warning(
+                "activity %r is installed but has no content yet (nothing matches %s); %s",
+                activity.id,
+                ", ".join(checker.missing_content(activity)) or "its content globs",
+                fate,
+            )
+        resolved.append(replace(activity, available=available, has_content=has_content))
     return resolved

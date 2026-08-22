@@ -10,14 +10,33 @@ Design pixel values (the 160 x 160 tile, the 96 px band) come from
 08-shell-ux-patterns section 3.2 and are treated as a *floor* at 96 dpi: the
 physical minimum wins whenever it is larger.
 
-**Fit beats physics.** v0.1.0 sized purely from millimetres and produced a
-layout 6% larger than a 1280x800 panel: the band's buttons were clipped off the
-top of the first real boot (``docs/design/screenshots/boot-home.png``). A
-control the child cannot see is worse than one that is 3 mm small, so
-:class:`Metrics` carries a ``fit`` factor: the mm-based ideal is computed first,
-then shrunk uniformly until the band, the Home grid and the pager provably fit
-inside the monitor's geometry. ``fit`` is 1.0 whenever the ideal already fits,
-which is every screen from 1920x1080 up.
+**Fit beats physics -- but never below a floor.** v0.1.0 sized purely from
+millimetres and produced a layout 6% larger than a 1280x800 panel: the band's
+buttons were clipped off the top of the first real boot
+(``docs/design/screenshots/boot-home.png``). A control the child cannot see is
+worse than one that is 3 mm small, so :class:`Metrics` carries a ``fit`` factor:
+the mm-based ideal is computed first, then shrunk uniformly until the band, the
+Home grid and the pager provably fit inside the monitor's geometry.
+
+v0.1.2 shrank the *floors* with it, which the CCI audit of 2026-08-22 called
+correctly: "a floor that moves is not a floor". At 1280x800@102 the 18 mm
+minimum target was 14.9 mm and the 18 pt label floor was 14.9 pt. So there are
+now two kinds of number here:
+
+* **Floors** -- :data:`MIN_TARGET_MM` (18 mm, any interactive thing),
+  :data:`GAP_FLOOR_MM` (8 mm between targets) and :data:`TILE_LABEL_MIN_PT`
+  (18 pt). ``fit`` never touches these. They are computed from the panel's real
+  density and that is the end of it.
+* **Preferences** -- the 160 design px tile, the 40 mm primary tile, the 12 mm
+  preferred gap, the 96 px band, the icon's share of the tile, the margins.
+  ``fit`` shrinks all of these, in step, until the layout fits.
+
+When the preferences at ``fit = 1.0`` do not fit, the **grid** gives way before
+the tile does: 4 x 3 -> 4 x 2 -> 3 x 2, and the rest of the activities paginate
+(:data:`GRIDS`). Eight 42 mm tiles a child can hit beat twelve 26 mm ones, and
+01 #12 wanted fewer choices anyway. Only when no grid can hold a
+:data:`MIN_GRID_TILE_MM` tile does ``fit`` start shrinking the tile itself, and
+even then it stops at the 18 mm floor.
 """
 
 from __future__ import annotations
@@ -35,11 +54,17 @@ MM_PER_INCH = 25.4
 DEFAULT_DPI = 96.0
 
 # SYNTHESIS section 3, "The numbers".
-MIN_TARGET_MM = 18.0  # any interactive thing
-PRIMARY_TILE_MM = 40.0  # activity tile, journal card, big ritual button
+#: **A floor.** Any interactive thing, on any panel, whatever ``fit`` says.
+#: SYNTHESIS A1 / 06 #13 (Hourcade's 64 px on a 1998 display); 01 #1 argues for
+#: 24 mm from the same data and is unresolved -- see the audit section 4 item 11.
+MIN_TARGET_MM = 18.0
+PRIMARY_TILE_MM = 40.0  # activity tile, journal card, big ritual button: preferred
 JOURNAL_CARD_MM = 20.0  # 08 section 4.3
 AVATAR_TILE_MM = 30.0  # spec S1
-MIN_GAP_MM = 12.0  # 8 mm floor, 12 mm preferred
+MIN_GAP_MM = 12.0  # preferred dead space between targets (01 #2)
+#: **A floor.** 08 section 3.1c: gaps >= 8 mm, 12 preferred. ``fit`` may take
+#: the preference away; it may not take this.
+GAP_FLOOR_MM = 8.0
 BAND_HEIGHT_PX = 96  # design px; scaled by DPI like everything else
 
 # Design pixels at 96 dpi (08 section 3.2 / 3.3).
@@ -47,8 +72,10 @@ TILE_PX = 160
 
 #: theme.css ``.tile-label``: the size a label gets when it fits on one line.
 TILE_LABEL_BASE_PT = 24.0
-#: SYNTHESIS B4 / spec S2: a child-facing label is never smaller than this.
-#: Below it we add a third line rather than shrink again.
+#: **A floor.** SYNTHESIS B4 / spec S2: a child-facing label is never smaller
+#: than this, on any panel. Below it we add a third line rather than shrink
+#: again. ``fit`` does not apply -- a point is a physical unit and 18 pt is the
+#: size at which a five-year-old can still match the shape to the word.
 TILE_LABEL_MIN_PT = 18.0
 #: Reserved in the tile's height whether the label uses them or not, so the
 #: grid does not jump between a page of short names and a page of long ones.
@@ -89,16 +116,24 @@ MAX_DPI = 400.0
 
 #: Home grids we are willing to draw, largest first (columns, rows). A screen
 #: too small for 4 x 3 at a legible size gets fewer, bigger tiles rather than
-#: twelve unreadable ones.
+#: twelve unreadable ones; what does not fit on the page paginates.
 GRIDS: tuple[tuple[int, int], ...] = ((4, 3), (4, 2), (3, 2))
-#: A grid is acceptable while its tiles are still this big. Below it we drop to
-#: the next grid down rather than shrinking further: on a small panel, eight
-#: tiles a child can hit beat twelve they cannot. (128 px is a 34 mm tile at
-#: 96 dpi -- under the 40 mm ideal, still comfortably a five-year-old's target.)
-MIN_GRID_TILE_PX = 128
+#: A grid is acceptable while its tiles are still this big **in millimetres**.
+#: Below it we drop to the next grid down rather than shrinking further: on a
+#: small panel, eight tiles a child can hit beat twelve they cannot (01 #2 wants
+#: 40-60 mm; 01 #12 wants fewer choices anyway). Only when no grid clears this
+#: does ``fit`` shrink the tile, and never past :data:`MIN_TARGET_MM`.
+MIN_GRID_TILE_MM = PRIMARY_TILE_MM
 #: Absolute floor. Below this the screen is too small for kidnix and we would
 #: rather draw something too big than something illegible.
 MIN_FIT = 0.45
+
+#: Chrome -- the gaps, the band's spare height, the pager's arrows -- is what
+#: gets spent first when the layout is a little too tall. These are the steps
+#: :meth:`Metrics.shrunk_to_fit` tries *before* it touches the tile, and each
+#: one still stops at its own floor (8 mm gaps, an 18 mm band button, an 18 mm
+#: pager arrow). Only when the last of them still overflows does ``fit`` start.
+CHROME_STEPS: tuple[float, ...] = (1.0, 0.94, 0.88, 0.82, 0.76, 0.7, 0.62, 0.54, 0.45, 0.35)
 
 #: ``--screen 1280x800@102`` / ``KIDNIX_SCREEN=1280x800@102``.
 SCREEN_RE = re.compile(r"^\s*(\d+)\s*[xX]\s*(\d+)\s*(?:@\s*([\d.]+))?\s*$")
@@ -120,8 +155,14 @@ class Metrics:
     scale_factor: int = 1
     screen_width: int = 0
     screen_height: int = 0
-    #: Uniform shrink applied to every size so the layout fits the screen.
+    #: Uniform shrink applied to every *preferred* size so the layout fits the
+    #: screen. Floors (:data:`MIN_TARGET_MM`, :data:`GAP_FLOOR_MM`,
+    #: :data:`TILE_LABEL_MIN_PT`) ignore it.
     fit: float = 1.0
+    #: Shrink applied to chrome only -- gaps, the band's spare height, the
+    #: pager. Spent before ``fit``, because a narrower gap costs the child
+    #: nothing and a smaller tile costs them the target.
+    chrome_fit: float = 1.0
     columns: int = GRIDS[0][0]
     rows: int = GRIDS[0][1]
 
@@ -175,7 +216,7 @@ class Metrics:
             ).shrunk_to_fit()
             if best is None or candidate.tile_size > best.tile_size:
                 best = candidate
-            if candidate.tile_size >= MIN_GRID_TILE_PX:
+            if candidate.mm_of(candidate.tile_size) >= MIN_GRID_TILE_MM:
                 return candidate
         assert best is not None
         return best
@@ -183,8 +224,29 @@ class Metrics:
     # --- unit conversion --------------------------------------------------
 
     def mm(self, millimetres: float) -> int:
-        """Millimetres to logical pixels, rounded up (never undersize)."""
+        """A *preferred* size in millimetres, in logical pixels after fitting.
+
+        Rounded up: undersizing a target is the one error that matters.
+        """
         return _ceil(millimetres * self.px_per_mm * self.fit)
+
+    def mm_floor(self, millimetres: float) -> int:
+        """A **floor** in millimetres. ``fit`` does not apply to these.
+
+        This is the whole point of specifying in millimetres: 18 mm is 18 mm on
+        a 1080p ThinkPad and on the 1280x800 panel we test on. When the ideal
+        layout will not fit, the grid gives way (:data:`GRIDS`) and the
+        preferences shrink -- the floors do not move.
+        """
+        return _ceil(millimetres * self.px_per_mm)
+
+    def chrome(self, pixels: float) -> int:
+        """A piece of chrome, shrunk toward (never past) its own floor."""
+        return _ceil(pixels * self.chrome_fit)
+
+    def target_mm(self, millimetres: float) -> int:
+        """A size for something the child touches: preferred, but never sub-floor."""
+        return max(self.min_target, self.mm(millimetres))
 
     def design(self, pixels: float) -> int:
         """A design pixel value at 96 dpi, scaled to this display's density."""
@@ -204,24 +266,44 @@ class Metrics:
         """A theme.css point size, shrunk by the same factor as the layout."""
         return round(base_pt * self.fit, 1)
 
+    def child_points(self, base_pt: float) -> float:
+        """A theme.css point size for text a *child* reads: 18 pt floor.
+
+        06 #21 / SYNTHESIS B4. ``.quiet-line`` at 22 pt on a panel we had to
+        shrink by a third is 14.7 pt, which is smaller than the floor we just
+        spent a tile column defending on the same screen.
+        """
+        return max(self.points(base_pt), TILE_LABEL_MIN_PT)
+
     # --- the sizes the UI actually asks for ------------------------------
 
     @property
     def tile_size(self) -> int:
-        """Activity tile edge: 160 design px, but never under 40 mm."""
-        return self.at_least_mm(TILE_PX, PRIMARY_TILE_MM)
+        """Activity tile edge: 160 design px, 40 mm preferred, 18 mm floor."""
+        return max(self.min_target, self.at_least_mm(TILE_PX, PRIMARY_TILE_MM))
 
     # --- the label box (see kidnix_shell.labels) --------------------------
 
     @property
     def tile_label_pt(self) -> float:
-        """The size a tile label starts at, before any fitting."""
-        return self.points(TILE_LABEL_BASE_PT)
+        """The size a tile label starts at: theme.css's 24 pt, shrunk to fit.
+
+        Never below :attr:`label_floor_pt` -- the starting size cannot be under
+        the size we refuse to go below.
+        """
+        return max(self.points(TILE_LABEL_BASE_PT), self.label_floor_pt)
 
     @property
     def label_floor_pt(self) -> float:
-        """The floor: 18 pt, or its equivalent on a layout we had to shrink."""
-        return self.points(TILE_LABEL_MIN_PT)
+        """**The floor: 18 pt, on every panel.**
+
+        v0.1.2 ran this through :meth:`points` and got 14.9 pt at 1280x800@102.
+        A floor that moves is not a floor (CCI audit section 3.2): a label
+        smaller than this is one a pre-reader cannot match to a shape, and no
+        amount of panel arithmetic changes that. The layout gives up a tile
+        column instead.
+        """
+        return TILE_LABEL_MIN_PT
 
     @property
     def tile_label_height(self) -> int:
@@ -265,42 +347,64 @@ class Metrics:
 
     @property
     def band_height(self) -> int:
-        """Spec 7a: scales with everything else, clamped to 80-128 px."""
-        ideal = self.at_least_mm(BAND_HEIGHT_PX, MIN_TARGET_MM + 6.0)
-        return max(BAND_MIN_PX, min(BAND_MAX_PX, ideal))
+        """Spec 7a: scales with everything else, clamped to 80-128 px.
+
+        With one addition since the audit: the clamp may not squeeze a band
+        *button* below the 18 mm floor, so the band is at least tall enough to
+        hold one plus its CSS chrome -- still never taller than 128 px. On a
+        panel denser than ~152 logical dpi even 128 px cannot hold 18 mm; that
+        is the one residual, and it does not arise on any panel we ship for
+        (the worst is 104 px needed at 118 dpi).
+        """
+        ideal = self.chrome(self.at_least_mm(BAND_HEIGHT_PX, MIN_TARGET_MM + 6.0))
+        floor = min(BAND_MAX_PX, self.min_target + BAND_CHROME_PX)
+        return max(BAND_MIN_PX, floor, min(BAND_MAX_PX, ideal))
 
     @property
     def band_target(self) -> int:
-        """A band button. Sized to live *inside* the band's clamped height."""
-        wanted = self.at_least_mm(80, MIN_TARGET_MM)
-        return max(BAND_TARGET_MIN_PX, min(wanted, self.band_height - BAND_CHROME_PX))
+        """A band button: 18 mm floor, 80 design px preferred, inside the band."""
+        wanted = max(self.design(80), self.min_target)
+        room = self.band_height - BAND_CHROME_PX
+        return max(BAND_TARGET_MIN_PX, min(wanted, max(room, self.min_target)))
 
     @property
     def band_small_target(self) -> int:
-        """The grown-up gate: small, desaturated, far right (spec section 2)."""
-        return max(BAND_TARGET_MIN_PX, min(self.design(56), self.band_target))
+        """The grown-up gate: small, desaturated, far right (spec section 2).
+
+        An *adult* control, so 08 section 3.1e's 9 mm applies, not the child's
+        18 mm -- being small is the point (08 section 4.5: unenticing).
+        """
+        return max(BAND_TARGET_MIN_PX, self.mm_floor(9.0), min(self.design(56), self.band_target))
 
     @property
     def min_target(self) -> int:
-        return self.mm(MIN_TARGET_MM)
+        """**The floor.** 18 mm of real panel, whatever ``fit`` says."""
+        return self.mm_floor(MIN_TARGET_MM)
 
     @property
     def gap(self) -> int:
-        return self.mm(MIN_GAP_MM)
+        """Dead space between targets: 12 mm preferred, **8 mm floor**."""
+        return max(self.chrome(self.mm(MIN_GAP_MM)), self.mm_floor(GAP_FLOOR_MM))
 
     @property
     def card_size(self) -> int:
-        """Journal card edge (08 section 4.3: >= 20 mm, thumbnail-dominant)."""
-        return self.at_least_mm(200, JOURNAL_CARD_MM)
+        """Journal card edge. **Floor 20 mm** (08 section 4.3), 200 design px preferred."""
+        return max(self.min_target, self.mm_floor(JOURNAL_CARD_MM), self.chrome(self.design(200)))
 
     @property
     def avatar_size(self) -> int:
-        return self.at_least_mm(220, AVATAR_TILE_MM)
+        """Who's-here face tile. **Floor 30 mm** (08 section 4.4), 220 design px preferred.
+
+        Chrome-scaled because Who's here is the tallest surface in the stack on
+        a small dense panel, and a 40 mm face is still a face. The floor is the
+        one number that does not move.
+        """
+        return max(self.min_target, self.mm_floor(AVATAR_TILE_MM), self.chrome(self.design(220)))
 
     @property
     def pager_height(self) -> int:
-        """The big page arrows under Home and My Things."""
-        return max(self.min_target, self.design(96))
+        """The big page arrows under Home and My Things. 18 mm floor."""
+        return max(self.min_target, self.chrome(self.design(96)))
 
     @property
     def per_page(self) -> int:
@@ -317,7 +421,7 @@ class Metrics:
         """
         left = 3 * self.band_target + 2 * self.gap
         right = self.band_target + self.band_small_target + self.gap
-        centre = self.design(320)
+        centre = self.chrome(self.design(320))
         return 2 * max(left, right) + centre
 
     def home_size(self) -> tuple[int, int]:
@@ -345,10 +449,25 @@ class Metrics:
         return width <= self.screen_width and height <= self.screen_height
 
     def shrunk_to_fit(self) -> Metrics:
-        """Shrink uniformly until :meth:`required_size` fits the screen."""
+        """Fit the layout to the screen, spending the cheapest thing first.
+
+        Two stages, in the order the CCI audit's fix #1 asks for:
+
+        1. **Chrome.** Walk :data:`CHROME_STEPS`, narrowing the gaps, the band's
+           spare height and the pager toward (never past) their own floors. A
+           child loses nothing when 12 mm of dead space becomes 9 mm.
+        2. **Everything.** Only if the whole of stage 1 still overflows does
+           ``fit`` start, and even then the floors stay where they are -- what
+           actually gives is the tile, and before the tile it is the *grid*
+           (:meth:`for_screen` tries 4x3, then 4x2, then 3x2).
+        """
         if self.screen_width <= 0 or self.screen_height <= 0:
             return self
         candidate = self
+        for chrome_fit in CHROME_STEPS:
+            candidate = replace(self, chrome_fit=chrome_fit)
+            if candidate.fits():
+                return candidate
         for _ in range(64):
             if candidate.fits():
                 return candidate
@@ -363,7 +482,17 @@ class Metrics:
         return candidate
 
     def shrunk_by(self, ratio: float) -> Metrics:
-        """Shrink by a measured overflow ratio (the app's belt-and-braces)."""
+        """Shrink by a *measured* overflow ratio (the app's belt-and-braces).
+
+        Same order of spending as :meth:`shrunk_to_fit`: chrome first, and only
+        once the chrome is exhausted does the tile give way. GTK's measurement
+        includes CSS padding and real font metrics that the arithmetic cannot
+        know, and it typically overshoots by a few pixels -- exactly the size
+        of a gap, not of a target.
+        """
+        floor = CHROME_STEPS[-1]
+        if self.chrome_fit > floor:
+            return replace(self, chrome_fit=max(floor, round(self.chrome_fit * ratio, 4)))
         return replace(self, fit=max(MIN_FIT, round(self.fit * ratio, 4)))
 
     # --- reporting --------------------------------------------------------
@@ -377,8 +506,10 @@ class Metrics:
         )
         return (
             f"{screen} at {self.dpi:.0f} dpi (scale {self.scale_factor}), "
-            f"fit {self.fit:.2f}, tile {self.tile_size} px ({self.mm_of(self.tile_size):.0f} mm), "
-            f"band {self.band_height} px, grid {self.columns}x{self.rows}, "
+            f"fit {self.fit:.2f}, tile {self.tile_size} px ({self.mm_of(self.tile_size):.1f} mm), "
+            f"gap {self.mm_of(self.gap):.1f} mm, target {self.mm_of(self.min_target):.1f} mm, "
+            f"band {self.band_height} px (button {self.mm_of(self.band_target):.1f} mm), "
+            f"label floor {self.label_floor_pt:.0f} pt, grid {self.columns}x{self.rows}, "
             f"needs {width}x{height}"
         )
 

@@ -52,7 +52,7 @@ class GoodbyeScreen(Screen):
 
         buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap * 2)
         buttons.set_halign(Gtk.Align.CENTER)
-        inner = max(1, metrics.mm(60) - RITUAL_CHROME_X_PX)
+        inner = max(1, metrics.target_mm(60) - RITUAL_CHROME_X_PX)
         base = points_for(metrics, ".big-line")
         # One size across the pair: two buttons side by side at two different
         # sizes read as one of them mattering more.
@@ -69,8 +69,8 @@ class GoodbyeScreen(Screen):
             on_activate=self.ctx.host.show_a_grownup,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual",),
-            width=metrics.mm(60),
-            height=metrics.mm(28),
+            width=metrics.target_mm(60),
+            height=metrics.target_mm(28),
         )
         self.show_button.set_child(
             big_label(
@@ -89,8 +89,8 @@ class GoodbyeScreen(Screen):
             on_activate=self.ctx.host.goodnight,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual",),
-            width=metrics.mm(60),
-            height=metrics.mm(28),
+            width=metrics.target_mm(60),
+            height=metrics.target_mm(28),
         )
         self.goodnight_button.set_child(
             big_label(

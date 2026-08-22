@@ -54,7 +54,7 @@ class EndingOfferScreen(Screen):
         # Both endings are read by a child who is being asked to stop. Neither
         # may be cut, and neither may be wider than the other's button, so the
         # pair is fitted to the same width (spec S5, SYNTHESIS B4).
-        inner = max(1, metrics.mm(60) - RITUAL_CHROME_X_PX)
+        inner = max(1, metrics.target_mm(60) - RITUAL_CHROME_X_PX)
         choices_text = ("Finish this one", "One last little thing")
         points, _ = page_label_fit(
             choices_text,
@@ -72,8 +72,8 @@ class EndingOfferScreen(Screen):
                 on_activate=partial(self.ctx.host.dismiss_offer, one_last),
                 speech_ui=self.ctx.speech_ui,
                 css_classes=("ritual",),
-                width=metrics.mm(60),
-                height=metrics.mm(30),
+                width=metrics.target_mm(60),
+                height=metrics.target_mm(30),
             )
             button.set_child(
                 big_label(
@@ -93,14 +93,14 @@ class EndingOfferScreen(Screen):
             on_activate=self._ask_for_more,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual", "secondary"),
-            width=metrics.mm(50),
+            width=metrics.target_mm(50),
             height=metrics.min_target,
         )
         more.set_child(
             big_label(
                 "Ask for more time",
                 "quiet-line",
-                width=max(1, metrics.mm(50) - RITUAL_SECONDARY_CHROME_X_PX),
+                width=max(1, metrics.target_mm(50) - RITUAL_SECONDARY_CHROME_X_PX),
                 base_pt=points_for(metrics, "button.ritual.secondary"),
                 floor_pt=metrics.label_floor_pt,
             )

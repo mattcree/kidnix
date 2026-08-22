@@ -18,6 +18,14 @@ The sun is the timer. It travels left to right and sinks as the session
 depletes, warming in the last six minutes. There are no digits: 08 section 4.6
 is explicit that a countdown is an anxiety animation, and a continuous analogue
 depletion is not.
+
+**The sun answers when you ask it.** 08 section 4.6 also asks for a timer a
+child can *tap* to hear how much is left, and v0.1.2's was an image with no
+gesture on it. It is a :class:`ChildButton` now, drawn with no button chrome at
+all -- what it says comes from
+:func:`kidnix_shell.session.time_left_words`, which is comparisons ("about as
+long as one story") and never quantities. It is also the timer study's
+instrument: how often a child asks the sun is a number worth having.
 """
 
 from __future__ import annotations
@@ -32,6 +40,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from .metrics import BAND_CHROME_PX, Metrics  # noqa: E402
+from .session import NOT_RUNNING  # noqa: E402
 from .widgets import ChildButton, SpeechUI, icon_image, next_key  # noqa: E402
 
 #: Spec section 2 / SYNTHESIS G2: the grown-up gate is a three-second hold.
@@ -56,6 +65,10 @@ class BandActions:
     on_grownup: Callable[[], None]
     #: Only ever called when :data:`SHOW_ASK` is on.
     on_ask: Callable[[], None] | None = None
+    #: Tapping the sun. The *words* come from the button's ``speak_text``,
+    #: which :meth:`Band.set_progress` keeps current, so this is only here for
+    #: anything the shell wants to do besides speak (nothing, today).
+    on_sun: Callable[[], None] | None = None
 
 
 class Sun(Gtk.DrawingArea):
@@ -69,9 +82,9 @@ class Sun(Gtk.DrawingArea):
         self.set_hexpand(True)
         self.set_content_height(max(24, metrics.band_height - BAND_CHROME_PX))
         self.set_draw_func(self._draw)
-        # Decorative: the spoken session state comes from the Ear, not from here.
-        self.set_accessible_role(Gtk.AccessibleRole.IMG)
-        self.update_property([Gtk.AccessibleProperty.LABEL], ["The sun"])
+        # The drawing itself is decorative; the button around it (Band.sun_button)
+        # carries the accessible name and the sentence a tap speaks.
+        self.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
 
     def set_progress(self, fraction: float, warm: bool) -> None:
         changed = abs(fraction - self.fraction) > 0.001 or warm != self.warm
@@ -245,12 +258,21 @@ class Band(Gtk.Box):
             left.append(widget)
         row.set_start_widget(left)
 
-        # Centre: the sun.
+        # Centre: the sun -- and it is a target, not a picture (08 section 4.6).
         self.sun = Sun(metrics)
+        self.sun_button = ChildButton(
+            speak_text=NOT_RUNNING,
+            on_activate=actions.on_sun or (lambda: None),
+            speech_ui=speech_ui,
+            css_classes=("sun",),
+            key=next_key("sun"),
+        )
+        self.sun_button.set_child(self.sun)
+        self.sun_button.set_hexpand(True)
         centre = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         centre.set_hexpand(True)
-        centre.set_size_request(metrics.design(320), -1)
-        centre.append(self.sun)
+        centre.set_size_request(metrics.chrome(metrics.design(320)), metrics.band_target)
+        centre.append(self.sun_button)
         row.set_center_widget(centre)
 
         # Right: Ear, Grown-up (hold 3 s). Ask is absent (spec 7a).
@@ -308,8 +330,15 @@ class Band(Gtk.Box):
 
     # -- state --
 
-    def set_progress(self, fraction: float, warm: bool) -> None:
+    def set_progress(self, fraction: float, warm: bool, words: str = NOT_RUNNING) -> None:
+        """Move the sun, and keep what it *says* in step with where it is.
+
+        ``speak_text`` is both the accessible name and what a tap or a hover
+        reads aloud, so setting it here is all the wiring the tap needs.
+        """
         self.sun.set_progress(fraction, warm)
+        if words and words != self.sun_button.speak_text:
+            self.sun_button.set_speak_text(words)
 
     def set_journal_sensitive(self, sensitive: bool) -> None:
         """During the ending ritual the child is not sent off to browse."""

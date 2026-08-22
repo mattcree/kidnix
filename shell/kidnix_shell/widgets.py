@@ -84,8 +84,11 @@ def next_key(prefix: str) -> str:
 #: theme.css: ``window.kidnix`` is Andika with Cantarell behind it, and every
 #: child-facing label is semibold. Stated here rather than read back off the
 #: widget, because a widget that is not in a window yet has no computed style
-#: and would be measured in whatever the system font happens to be.
-CHILD_FACE = "Andika,Cantarell,Sans"
+#: and would be measured in whatever the system font happens to be. Keep the
+#: family list in step with ``theme.css``: measuring in a face we do not draw
+#: in is how a label that "fits" gets clipped on the machine that has the real
+#: font installed.
+CHILD_FACE = "Andika,Andika New Basic,Cantarell,Sans"
 
 
 def _base_font(points: float, face: str = CHILD_FACE) -> Pango.FontDescription:

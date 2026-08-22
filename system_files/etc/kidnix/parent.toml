@@ -39,12 +39,22 @@ pin_hash = "3d6495d0f726f531cef756cad4ee152a662ac68a68782658c75494d91c267f4d"
 # casually.
 default_session_minutes = 25
 
-# allowed_activity_ids is deliberately absent: absent means "every installed
-# activity is allowed". Listing ids here restricts Home to those, and the rest
-# render outline-only (spec S2). The parent panel writes this; a hand edit
-# looks like:
+# Which activities Home lets the child open. **An empty list means "all of
+# them"** -- not "none of them" (kidnix_shell.settings.ParentConfig.is_allowed).
+# That is deliberate: a parent panel that empties this list must not leave a
+# five-year-old looking at a Home screen with nothing on it but "All done".
 #
-#   allowed_activity_ids = ["tuxpaint", "gcompris"]
+# A non-empty list restricts Home to those ids. The rest still draw a tile, but
+# outline-only (never greyed out) and saying "Ask a grown-up for this one" --
+# SYNTHESIS G3, never a silent denial. Ids are the `id` field of the manifests
+# in /usr/share/kidnix/activities/. A hand edit looks like:
+#
+#   allowed_activity_ids = ["tuxpaint", "ktuberling", "gcompris", "blinken"]
+#
+# Note this is *not* the age filter. An activity outside the child's age_band
+# (below) gets no tile at all rather than an outlined one: there is nothing to
+# ask a grown-up for.
+allowed_activity_ids = []
 
 # One child, called "Me", in kidnix's first identity colour pair. The data
 # model supports several (spec 1.7); v0.1 ships one so the "Who's here?" screen
@@ -55,4 +65,9 @@ name = "Me"
 colour_primary = "#0f8a8a"
 colour_secondary = "#f06292"
 avatar = "face-smile"
+# The child's age band, "LOW-HIGH" (or a single year). Home hides any activity
+# whose age_min/age_max does not overlap it -- "4-5" is why a four-to-five-year-
+# old does not see tuxmath, which is banded 6-10 and needs a keyboard and
+# number recognition. Widen it to "6-8" as the child grows. An empty string
+# means "not set", and nothing is filtered: we do not guess a child's age.
 age_band = "4-5"

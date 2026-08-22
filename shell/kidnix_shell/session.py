@@ -361,3 +361,58 @@ class Session:
     def is_warm(self, now: datetime) -> bool:
         """Spec section 2: the sun warms in the last six minutes."""
         return self.running and self.remaining(now) <= self.policy.ending_offer_at
+
+    def fraction_left(self, now: datetime) -> float:
+        """1.0 at the start, 0.0 at the hard stop. What the sun *says*."""
+        return 1.0 - self.fraction_spent(now)
+
+    def time_left_words(self, now: datetime) -> str:
+        """What tapping the sun says (08 section 4.6)."""
+        return time_left_words(self.fraction_left(now), running=self.running)
+
+
+# --- what the sun says when a child taps it (08 section 4.6) --------------
+#
+# "Tapping speaks the remaining time in child terms." The sun is the most
+# distinctive thing in the build and until v0.1.3 it was an `AccessibleRole.IMG`
+# with no gesture: a five-year-old could look at it and not ask it anything.
+#
+# Every one of these is a *comparison*, never a quantity. A four-year-old has
+# no idea what "twelve minutes" is and every idea what "one story" is; a number
+# would also put a digit into the one part of the product that has never had
+# one (01 #19, 01 #30 -- a countdown is an anxiety animation).
+
+#: More than two thirds of the sitting still ahead.
+LOTS_LEFT = "Lots of time left."
+#: A third to two thirds -- about ten minutes of a twenty-five minute session,
+#: which is a bedtime story. The unit a child already owns.
+ONE_STORY_LEFT = "About as long as one story."
+#: Inside the last third, but before the ending offer.
+A_LITTLE_LEFT = "A little bit of time left."
+#: The last tenth. The same words the ritual is about to use, said early.
+NEARLY_TIME = "Nearly time to put things away."
+#: No session running: Goodbye, or the shell sitting idle. Honest, not sad.
+NOT_RUNNING = "The sun has gone down for today."
+
+LOTS_ABOVE = 2.0 / 3.0
+ONE_STORY_ABOVE = 1.0 / 3.0
+A_LITTLE_ABOVE = 0.1
+
+
+def time_left_words(fraction_left: float, *, running: bool = True) -> str:
+    """Map "how much of the sitting is left" onto words with no digits in them.
+
+    Pure and total: any float, including nonsense from a clock that jumped,
+    lands on one of five sentences, each of them two sentences or fewer and
+    twelve words or fewer (01 #16).
+    """
+    if not running:
+        return NOT_RUNNING
+    fraction = max(0.0, min(1.0, fraction_left))
+    if fraction > LOTS_ABOVE:
+        return LOTS_LEFT
+    if fraction > ONE_STORY_ABOVE:
+        return ONE_STORY_LEFT
+    if fraction > A_LITTLE_ABOVE:
+        return A_LITTLE_LEFT
+    return NEARLY_TIME

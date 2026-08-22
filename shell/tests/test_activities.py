@@ -8,11 +8,14 @@ from pathlib import Path
 import pytest
 
 from kidnix_shell.activities import (
+    Activity,
     Availability,
     ManifestError,
+    in_age_band,
     load_activities,
     load_directory,
     load_manifest,
+    parse_age_band,
     parse_manifest,
     resolve_availability,
 )
@@ -41,7 +44,7 @@ journal_watch = ["~/.tuxpaint/saved", "~/Pictures/TuxPaint"]
 journal_glob = "*.png"
 goal = "Making pictures."
 wayland_native = true
-content_required = false
+content_required = []
 notes = "hello"
 source = "rpm"
 package = "tuxpaint"
@@ -306,44 +309,241 @@ SHIPPED_LABELS = {
 }
 
 
-def shipped_activities() -> list[object]:
+def shipped_activities() -> list[Activity]:
     directory = Path(__file__).resolve().parents[2] / "system_files/usr/share/kidnix/activities"
     if not directory.is_dir():
         pytest.skip("running outside the kidnix checkout")
     result = load_activities([directory], home=Path("/var/home/kid"))
     assert result.ok, [str(e) for e in result.errors]
-    return result.activities  # type: ignore[return-value]
+    return result.activities
 
 
 def test_the_shipped_tiles_are_named_for_what_the_child_does() -> None:
     for activity in shipped_activities():
-        name, audio = SHIPPED_LABELS[activity.id]  # type: ignore[attr-defined]
-        assert activity.name == name  # type: ignore[attr-defined]
-        assert activity.speak_text == audio  # type: ignore[attr-defined]
+        name, audio = SHIPPED_LABELS[activity.id]
+        assert activity.name == name
+        assert activity.speak_text == audio
 
 
 def test_no_shipped_tile_says_a_product_name() -> None:
     """The label is a verb phrase, not a brand. "Library" is the one noun."""
     banned = ("tux", "gcompris", "kde", "klettres", "kolf", "blinken", "turbowarp", "scratch")
     for activity in shipped_activities():
-        spoken = f"{activity.name} {activity.speak_text}".lower()  # type: ignore[attr-defined]
+        spoken = f"{activity.name} {activity.speak_text}".lower()
         for word in banned:
-            assert word not in spoken, f"{activity.id} still says {word!r}"  # type: ignore[attr-defined]
+            assert word not in spoken, f"{activity.id} still says {word!r}"
 
 
 def test_every_shipped_activity_has_an_order_and_a_goal() -> None:
     for activity in shipped_activities():
-        assert activity.order is not None, activity.id  # type: ignore[attr-defined]
-        assert activity.goal, activity.id  # type: ignore[attr-defined]
+        assert activity.order is not None, activity.id
+        assert activity.goal, activity.id
 
 
 def test_draw_is_the_first_tile_on_home() -> None:
     """The one a four-year-old gets furthest with unaided, first."""
-    assert shipped_activities()[0].id == "tuxpaint"  # type: ignore[attr-defined]
+    assert shipped_activities()[0].id == "tuxpaint"
 
 
 def test_the_unshipped_flatpak_does_not_get_an_outline_tile() -> None:
     """TurboWarp is not installed until an online boot has happened."""
-    turbowarp = next(a for a in shipped_activities() if a.id == "turbowarp")  # type: ignore[attr-defined]
-    assert turbowarp.show_when_unavailable is False  # type: ignore[attr-defined]
-    assert turbowarp.flatpak_ref == "org.turbowarp.TurboWarp"  # type: ignore[attr-defined]
+    turbowarp = next(a for a in shipped_activities() if a.id == "turbowarp")
+    assert turbowarp.show_when_unavailable is False
+    assert turbowarp.flatpak_ref == "org.turbowarp.TurboWarp"
+
+
+# --- content_required (05 Lib-4, CCI audit 3.2) ---------------------------
+#
+# kiwix-serve is installed on every image, so `which` says the Library works
+# and the child opens an empty library. The predicate below is the fix.
+
+CONTENT = """
+id = "library"
+name = "Library"
+exec = ["kiwix-serve"]
+content_required = ["/var/lib/kidnix/library/*.zim"]
+"""
+
+
+def _check(installed: bool = True, present: tuple[str, ...] = ()) -> Availability:
+    return Availability(
+        which=lambda p: "/usr/bin/x" if installed else None,
+        flatpak=lambda ref: installed,
+        globber=lambda pattern: pattern in present,
+    )
+
+
+def test_content_required_parses_as_a_list_of_globs(tmp_path: Path) -> None:
+    activity = load_manifest(write(tmp_path, "a.toml", CONTENT))
+    assert activity.content_required == ("/var/lib/kidnix/library/*.zim",)
+
+
+def test_content_required_defaults_to_nothing_to_check(tmp_path: Path) -> None:
+    activity = load_manifest(write(tmp_path, "a.toml", MINIMAL))
+    assert activity.content_required == ()
+    assert activity.has_content is True
+
+
+def test_a_bare_true_content_required_is_now_a_manifest_error(tmp_path: Path) -> None:
+    """v0.1.1's spelling said nothing checkable, so it silently did nothing."""
+    with pytest.raises(ManifestError, match="list of path globs"):
+        load_manifest(
+            write(tmp_path, "a.toml", "id='a'\nname='A'\nexec=['x']\ncontent_required=true\n")
+        )
+
+
+def test_content_globs_expand_the_kid_home(tmp_path: Path) -> None:
+    activity = load_manifest(
+        write(
+            tmp_path, "a.toml", "id='a'\nname='A'\nexec=['x']\ncontent_required=['~/books/*.zim']\n"
+        ),
+        home=Path("/var/home/kid"),
+    )
+    assert activity.content_required == ("/var/home/kid/books/*.zim",)
+
+
+def test_an_installed_activity_with_no_content_is_not_on_home(tmp_path: Path) -> None:
+    activity = load_manifest(write(tmp_path, "a.toml", CONTENT))
+    resolved = resolve_availability([activity], _check(present=()))[0]
+    assert resolved.available is True, "kiwix-serve is installed"
+    assert resolved.has_content is False
+    assert resolved.usable is False
+    assert resolved.on_home is False
+
+
+def test_content_that_is_there_puts_the_tile_back(tmp_path: Path) -> None:
+    activity = load_manifest(write(tmp_path, "a.toml", CONTENT))
+    resolved = resolve_availability([activity], _check(present=("/var/lib/kidnix/library/*.zim",)))[
+        0
+    ]
+    assert (resolved.has_content, resolved.usable, resolved.on_home) == (True, True, True)
+
+
+def test_every_content_glob_has_to_match_not_just_one(tmp_path: Path) -> None:
+    text = "id='a'\nname='A'\nexec=['x']\ncontent_required=['/one/*.zim', '/two/*.zim']\n"
+    activity = load_manifest(write(tmp_path, "a.toml", text))
+    resolved = resolve_availability([activity], _check(present=("/one/*.zim",)))[0]
+    assert resolved.has_content is False
+
+
+def test_a_missing_program_short_circuits_the_content_check(tmp_path: Path) -> None:
+    """Not installed is already the answer; do not stat the disk to confirm it."""
+    activity = load_manifest(write(tmp_path, "a.toml", CONTENT))
+    resolved = resolve_availability([activity], _check(installed=False))[0]
+    assert (resolved.available, resolved.on_home) == (False, False)
+
+
+def test_show_when_unavailable_still_outlines_a_contentless_activity(tmp_path: Path) -> None:
+    text = CONTENT + "show_when_unavailable = true\n"
+    activity = load_manifest(write(tmp_path, "a.toml", text))
+    resolved = resolve_availability([activity], _check(present=()))[0]
+    assert resolved.usable is False
+    assert resolved.on_home is True  # drawn outline-only, and it says why
+
+
+def test_the_shipped_library_names_a_real_directory() -> None:
+    """The tile the audit found opening nothing now declares what it needs."""
+    kiwix = next(a for a in shipped_activities() if a.id == "kiwix")
+    assert kiwix.content_required == ("/var/lib/kidnix/library/*.zim",)
+    assert resolve_availability([kiwix], _check(present=()))[0].on_home is False
+
+
+# --- age bands (01 #35, SYNTHESIS B8) -------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("4-5", (4, 5)),
+        ("6-8", (6, 8)),
+        ("5", (5, 5)),
+        (" 4 - 5 ", (4, 5)),
+        ("5-4", (4, 5)),
+        ("", None),
+        ("toddler", None),
+        ("4-", None),
+        ("4 to 5", None),
+    ],
+)
+def test_parsing_an_age_band(text: str, expected: tuple[int, int] | None) -> None:
+    assert parse_age_band(text) == expected
+
+
+def _banded(age_min: int | None = None, age_max: int | None = None) -> Activity:
+    return parse_manifest(
+        {
+            "id": "a",
+            "name": "A",
+            "exec": ["x"],
+            **({"age_min": age_min} if age_min is not None else {}),
+            **({"age_max": age_max} if age_max is not None else {}),
+        },
+        Path("a.toml"),
+    )
+
+
+def test_an_activity_above_the_band_is_out() -> None:
+    """tuxmath: 6-10 against a 4-5 profile. Its own manifest says so."""
+    assert in_age_band(_banded(6, 10), (4, 5)) is False
+
+
+def test_an_activity_below_the_band_is_out() -> None:
+    assert in_age_band(_banded(2, 3), (6, 8)) is False
+
+
+def test_an_overlapping_activity_is_in() -> None:
+    """The Library is banded 5-12 and is right for a five-year-old."""
+    assert in_age_band(_banded(5, 12), (4, 5)) is True
+    assert in_age_band(_banded(3, 10), (4, 5)) is True
+
+
+def test_an_unbanded_activity_is_in_for_everybody() -> None:
+    assert in_age_band(_banded(), (4, 5)) is True
+    assert in_age_band(_banded(), (6, 8)) is True
+
+
+def test_a_half_open_band_only_closes_the_end_it_states() -> None:
+    assert in_age_band(_banded(age_min=6), (4, 5)) is False
+    assert in_age_band(_banded(age_max=3), (4, 5)) is False
+    assert in_age_band(_banded(age_min=4), (4, 5)) is True
+
+
+def test_a_profile_with_no_band_filters_nothing() -> None:
+    """We do not guess a child's age from silence."""
+    assert in_age_band(_banded(6, 10), None) is True
+
+
+def test_the_age_band_shorthand_sets_the_bounds(tmp_path: Path) -> None:
+    activity = load_manifest(
+        write(tmp_path, "a.toml", "id='a'\nname='A'\nexec=['x']\nage_band='6-8'\n")
+    )
+    assert (activity.age_min, activity.age_max) == (6, 8)
+
+
+def test_explicit_bounds_win_over_the_shorthand(tmp_path: Path) -> None:
+    activity = load_manifest(
+        write(tmp_path, "a.toml", "id='a'\nname='A'\nexec=['x']\nage_band='6-8'\nage_min=4\n")
+    )
+    assert (activity.age_min, activity.age_max) == (4, 8)
+
+
+def test_a_nonsense_age_band_is_a_manifest_error(tmp_path: Path) -> None:
+    with pytest.raises(ManifestError, match="age_band"):
+        load_manifest(write(tmp_path, "a.toml", "id='a'\nname='A'\nexec=['x']\nage_band='big'\n"))
+
+
+def test_the_default_profile_band_hides_the_two_six_plus_activities() -> None:
+    """The shipped set against the shipped 4-5 profile.
+
+    Both manifests say so in their own ``goal``: tuxmath is "typed arithmetic
+    ... the top of the age band" and TurboWarp is "realistically a six-plus
+    activity". Until v0.1.3 the shell showed both to a four-year-old.
+    """
+    out = sorted(a.id for a in shipped_activities() if not in_age_band(a, (4, 5)))
+    assert out == ["turbowarp", "tuxmath"]
+
+
+def test_a_six_to_eight_year_old_gets_the_number_game_back() -> None:
+    band = (6, 8)
+    out = [a.id for a in shipped_activities() if not in_age_band(a, band)]
+    assert out == []

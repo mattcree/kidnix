@@ -178,11 +178,22 @@ class Profile:
     colour_primary: str = PROFILE_COLOURS[0][0]
     colour_secondary: str = PROFILE_COLOURS[0][1]
     avatar: str = "face-smile"
+    #: 01 #35 / SYNTHESIS B8: a *fine* band, set by the parent. ``"4-5"`` is
+    #: the shipped default, which puts the target five-year-old in the middle
+    #: of it. An empty string means "the parent has not said", and nothing is
+    #: filtered -- we do not guess a child's age.
     age_band: str = "4-5"
 
     @property
     def speak_text(self) -> str:
         return self.name
+
+    @property
+    def age_range(self) -> tuple[int, int] | None:
+        """``(low, high)`` from :attr:`age_band`, or ``None`` if unset/unparsable."""
+        from .activities import parse_age_band
+
+        return parse_age_band(self.age_band)
 
 
 DEFAULT_PROFILE = Profile(id="child", name="Me")
@@ -198,8 +209,14 @@ class ParentConfig:
     pin_salt: str = ""
     pin_hash: str = ""
     default_session_minutes: int = 25
-    #: ``None`` means "every installed activity is allowed". A list restricts
-    #: Home to those ids; the rest render outline-only (spec S2).
+    #: **Empty or missing means "every installed activity is allowed".** A
+    #: non-empty list restricts Home to those ids; the rest render outline-only
+    #: and speak "Ask a grown-up for this one" (spec S2, SYNTHESIS G3).
+    #:
+    #: Empty-means-all is the deliberate reading: a parent panel that writes
+    #: ``allowed_activity_ids = []`` while a parent unticks the last box must
+    #: not hand a five-year-old a Home screen with nothing on it but "All
+    #: done". Denying everything is not a setting anyone wants by accident.
     allowed_activity_ids: list[str] | None = None
     profiles: list[Profile] = field(default_factory=lambda: [DEFAULT_PROFILE])
     path: Path | None = None
@@ -224,7 +241,7 @@ class ParentConfig:
         self.pin_salt, self.pin_hash = hash_pin(pin)
 
     def is_allowed(self, activity_id: str) -> bool:
-        if self.allowed_activity_ids is None:
+        if not self.allowed_activity_ids:
             return True
         return activity_id in self.allowed_activity_ids
 
@@ -321,7 +338,7 @@ class ParentConfig:
         ]
         if self.allowed_activity_ids is None:
             lines.append("# allowed_activity_ids omitted = every activity is allowed")
-        else:
+        else:  # an empty list round-trips, and still means "all"
             allowed = ", ".join(_toml_str(a) for a in self.allowed_activity_ids)
             lines.append(f"allowed_activity_ids = [{allowed}]")
         for profile in self.profiles:

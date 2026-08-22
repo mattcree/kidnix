@@ -15,6 +15,7 @@ from kidnix_shell.sound import (
     KEEP,
     MIN_GAP_SECONDS,
     NAMES,
+    PHASE,
     SAMPLE_RATE,
     SLEEP,
     TAP,
@@ -26,9 +27,31 @@ from kidnix_shell.sound import (
 )
 
 
-def test_there_are_exactly_four_sounds() -> None:
-    """Spec 7a rules four, not 08's six: keep, tap, back, sleep."""
-    assert set(EARCONS) == {KEEP, TAP, BACK, SLEEP} == set(NAMES)
+def test_there_are_exactly_five_sounds() -> None:
+    """Spec 7a ruled four; the CCI audit restored 08 section 3.6b's fifth.
+
+    The sixth, *ask sent*, still waits for the Ask queue -- but the
+    session-phase motif never had anything to do with Ask, and it is the audio
+    half of a sun that is invisible for most of a session.
+    """
+    assert set(EARCONS) == {KEEP, TAP, BACK, PHASE, SLEEP} == set(NAMES)
+
+
+def test_the_phase_motif_is_tellable_from_the_others() -> None:
+    """A child has to know it with their eyes shut, which is the whole spec.
+
+    It falls (so it is not KEEP), it starts a fourth above BACK's first note
+    and lands where BACK has already gone past, and it is an octave above
+    SLEEP. It is also the quietest of the five, because "the light changed" is
+    news about the room, not about the child.
+    """
+    first, second = EARCONS[PHASE]
+    assert second.frequency < first.frequency, "it falls"
+    assert first.frequency > EARCONS[BACK][0].frequency
+    assert second.frequency > EARCONS[SLEEP][0].frequency
+    peak = max(tone.level for tone in EARCONS[PHASE])
+    for name in (KEEP, TAP, BACK, SLEEP):
+        assert peak < max(tone.level for tone in EARCONS[name]), name
 
 
 def test_rendering_gives_the_right_number_of_frames() -> None:

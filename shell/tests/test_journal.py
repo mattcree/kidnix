@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from kidnix_shell.journal import (
+    BEFORE,
     MAX_FAVOURITES,
     Journal,
     JournalImporter,
     build_pages,
     friendly_title,
+    part_of_day,
+    spoken_title,
+    when_words,
 )
 
 from .conftest import NOW, make_activity, write_png
@@ -198,7 +204,7 @@ def test_latest_for_activity_drives_the_home_tile_corner(tmp_path: Path, journal
 
 def test_friendly_title_prefers_a_readable_stem() -> None:
     assert friendly_title(Path("my_dog.png"), "Scribble", NOW) == "My dog"
-    assert friendly_title(Path("20260818120000.png"), "Scribble", NOW) == "Scribble 12:00"
+    assert friendly_title(Path("20260818120000.png"), "Scribble", NOW) == "Scribble"
 
 
 # --- the importer sweep --------------------------------------------------
@@ -263,3 +269,107 @@ def test_pages_repeat_the_day_heading_across_a_break(tmp_path: Path, journal: Jo
 
 def test_no_entries_still_produces_one_page() -> None:
     assert build_pages([], per_page=8) == [[]]
+
+
+# --- nothing the child hears has a digit in it (01 #19, 03 #32) -----------
+#
+# The audit found `friendly_title` producing "Draw 14:32" and the Journal card
+# reading it aloud: a 24-hour clock spoken to a pre-reader, in a shell that
+# bans digits everywhere they can be *seen*. The time itself is not lost -- it
+# is in entry.json as an ISO string, which is where a parent looks.
+
+MIDNIGHT_ISH = datetime(2026, 8, 18, 23, 30)
+BREAKFAST = datetime(2026, 8, 18, 8, 15)
+LUNCHTIME = datetime(2026, 8, 18, 13, 5)
+TEATIME = datetime(2026, 8, 18, 18, 40)
+
+
+@pytest.mark.parametrize(
+    ("hour", "expected"),
+    [
+        (0, "night"),
+        (4, "night"),
+        (5, "morning"),
+        (8, "morning"),
+        (11, "morning"),
+        (12, "afternoon"),
+        (16, "afternoon"),
+        (17, "evening"),
+        (20, "evening"),
+        (21, "night"),
+        (23, "night"),
+    ],
+)
+def test_the_parts_of_the_day(hour: int, expected: str) -> None:
+    assert part_of_day(datetime(2026, 8, 18, hour, 0)) == expected
+
+
+def test_today_is_this_something() -> None:
+    now = datetime(2026, 8, 18, 20, 0)
+    assert when_words(BREAKFAST, now) == "this morning"
+    assert when_words(LUNCHTIME, now) == "this afternoon"
+    assert when_words(TEATIME, now) == "this evening"
+    assert when_words(MIDNIGHT_ISH, now) == "tonight"
+
+
+def test_yesterday_is_yesterday_something() -> None:
+    now = datetime(2026, 8, 19, 10, 0)
+    assert when_words(BREAKFAST, now) == "yesterday morning"
+    assert when_words(LUNCHTIME, now) == "yesterday afternoon"
+    assert when_words(TEATIME, now) == "yesterday evening"
+    assert when_words(MIDNIGHT_ISH, now) == "last night"
+
+
+def test_anything_older_is_the_same_word_as_the_day_heading() -> None:
+    assert when_words(BREAKFAST, datetime(2026, 8, 20, 10, 0)) == BEFORE.lower()
+    assert when_words(BREAKFAST, datetime(2026, 12, 25, 10, 0)) == "before"
+
+
+def test_a_clock_that_slipped_backwards_still_says_this() -> None:
+    """An NTP correction must not make a drawing come from the future."""
+    assert when_words(TEATIME, datetime(2026, 8, 18, 9, 0)) == "this evening"
+    assert when_words(BREAKFAST, datetime(2026, 8, 17, 9, 0)) == "this morning"
+
+
+def test_the_spoken_title_is_the_name_and_a_when() -> None:
+    assert spoken_title("Draw", BREAKFAST, datetime(2026, 8, 18, 20, 0)) == (
+        "Draw, from this morning"
+    )
+    assert spoken_title("My dog", TEATIME, datetime(2026, 8, 20, 9, 0)) == "My dog, from before"
+
+
+def test_an_entry_with_no_title_still_says_something_true() -> None:
+    assert spoken_title("  ", BREAKFAST, BREAKFAST) == "A thing I made, from this morning"
+
+
+@pytest.mark.parametrize(
+    "stem",
+    ["20260818120000", "IMG_20260818_120000", "0001", "1234567"],
+)
+def test_a_timestamp_stem_is_never_read_aloud(stem: str) -> None:
+    title = friendly_title(Path(f"{stem}.png"), "Draw", NOW)
+    assert not any(c.isdigit() for c in title), title
+
+
+def test_no_spoken_journal_string_contains_a_digit() -> None:
+    """The whole rule, in one assertion, across every hour of two days."""
+    for day in (18, 19, 21):
+        for hour in range(24):
+            created = datetime(2026, 8, day, hour, 30)
+            spoken = spoken_title(
+                friendly_title(Path("20260818120000.png"), "Draw", created),
+                created,
+                datetime(2026, 8, 21, 12, 0),
+            )
+            assert not any(c.isdigit() for c in spoken), spoken
+
+
+def test_the_iso_timestamp_is_still_in_entry_json(tmp_path: Path, journal: Journal) -> None:
+    """No digits for the child; every digit for the parent (F4)."""
+    source = write_png(tmp_path / "20260818120000.png")
+    entry = journal.import_file(source, "tuxpaint", activity_name="Draw", now=LUNCHTIME)
+    assert entry is not None
+    stored = json.loads((entry.directory / "entry.json").read_text(encoding="utf-8"))
+    assert stored["created"] == LUNCHTIME.isoformat(timespec="seconds")
+    assert stored["title"] == "Draw"
+    assert entry.spoken(datetime(2026, 8, 18, 20, 0)) == "Draw, from this afternoon"

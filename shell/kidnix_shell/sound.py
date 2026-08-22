@@ -1,10 +1,17 @@
 """Earcons (08 section 3.6, spec 7a).
 
-Four short sounds, and only four: **keep** (a thing was saved), **tap** (a
-child-facing control fired), **back** (we went back), **sleep** (the session is
-over). No music, no fanfare, no reward chime -- an earcon here is punctuation,
-not applause, and non-negotiable 1 rules out anything that celebrates time on
-the device.
+Five short sounds, and only five: **keep** (a thing was saved), **tap** (a
+child-facing control fired), **back** (we went back), **phase** (the session
+moved on), **sleep** (the session is over). No music, no fanfare, no reward
+chime -- an earcon here is punctuation, not applause, and non-negotiable 1
+rules out anything that celebrates time on the device.
+
+08 section 3.6b lists six; v0.1.2 shipped four and attributed both absences to
+the missing Ask flow. Only one of them was Ask's: the **session-phase** motif
+has nothing to do with asking a grown-up, and it is the audio half of the sun
+(01 #30, 08 section 4.6) -- the thing that tells a child looking at their
+drawing, not at the band, that the light has changed. The sixth, *ask sent*,
+genuinely waits for the Ask queue.
 
 They are **generated, not shipped**. A sine pair with a decay envelope is what
 these four gestures actually need (they are 100 ms of feedback, not a
@@ -47,14 +54,17 @@ FADE_MS = 6.0  # a click at the edge of a 90 ms sound is the whole sound
 KEEP = "keep"
 TAP = "tap"
 BACK = "back"
+#: The session moved from one phase to the next (spec section 6 / 08 3.6b).
+PHASE = "phase"
 SLEEP = "sleep"
 
-#: v0.1.0 spoke of six sounds; 7a rules four. ``OPEN`` and ``FOCUS`` are kept
-#: as aliases so call sites read naturally and nothing plays a fifth tone.
+#: v0.1.0 spoke of six sounds; 7a ruled four and v0.1.3 restored the fifth.
+#: ``OPEN`` and ``FOCUS`` are aliases so call sites read naturally without
+#: anyone inventing a new tone.
 OPEN = TAP
 FOCUS = TAP
 
-NAMES: tuple[str, ...] = (KEEP, TAP, BACK, SLEEP)
+NAMES: tuple[str, ...] = (KEEP, TAP, BACK, PHASE, SLEEP)
 
 
 @dataclass(frozen=True)
@@ -73,6 +83,12 @@ EARCONS: dict[str, tuple[Tone, ...]] = {
     KEEP: (Tone(659.26, 90), Tone(987.77, 200, 0.9)),  # E5 -> B5, "kept"
     TAP: (Tone(880.0, 80),),  # A5, one soft tick
     BACK: (Tone(587.33, 80), Tone(392.0, 150, 0.9)),  # D5 -> G4, falling
+    # A5 -> E5, a gentle step *down* a fourth at two-thirds the level of the
+    # others: "the light changed", not "something happened to you". It has to
+    # be tellable from BACK (which falls further and starts lower) and from
+    # SLEEP (which is an octave down and much longer), because the whole point
+    # of an earcon is that a child knows it with their eyes shut.
+    PHASE: (Tone(880.0, 120, 0.62), Tone(659.26, 250, 0.55)),
     SLEEP: (Tone(329.63, 220, 0.8), Tone(220.0, 520, 0.7)),  # E4 -> A3, low
 }
 

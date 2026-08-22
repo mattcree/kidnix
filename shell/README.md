@@ -47,7 +47,7 @@ CLI, and without that it degrades silently and logs once (spec §3).
 ```
 kidnix-shell [--demo] [--config PATH] [--session-config PATH]
              [--activities DIR] [--windowed] [--screen WxH[@DPI]]
-             [--run-seconds N] [--screenshot PATH]
+             [--run-seconds N] [--screenshot PATH] [--start-on {choosing,home}]
              [--speech {auto,speechd,spd-say,null}] [-v]
 kidnix-shell --validate-manifests [DIR]
 kidnix-shell --generate-earcons [DIR]
@@ -56,10 +56,13 @@ kidnix-shell --generate-earcons [DIR]
 - `--demo` — fourteen fake activities (a scribble window that autosaves PNGs)
   and a three-minute session: ending offer at T−60 s, put away at T−20 s. The
   whole world lives in a temp directory; your real journal is never touched.
-  One demo activity is outside the allow-list (outline-only tile), one points
-  at a program that does not exist and asks to be shown anyway
-  (`show_when_unavailable`, the "This one isn't ready yet" tile), and one
-  deliberately ignores `SIGTERM` so put-away has to escalate.
+  Each of the five ways a tile can fail is represented: one activity is outside
+  the allow-list (outline-only tile), one points at a program that does not
+  exist and asks to be shown anyway (`show_when_unavailable`, the "This one
+  isn't ready yet" tile), one declares `content_required` against an empty
+  directory (no tile at all — the Library case), one is banded above the demo
+  profile's `age_band` (no tile, nothing to ask for), and one deliberately
+  ignores `SIGTERM` so put-away has to escalate.
 - `--validate-manifests` — exits non-zero on any schema error, for CI.
 - `--windowed` — do not go fullscreen; use this on a normal desktop.
 - `--screen WxH[@DPI]` — pretend the monitor is that size and density, e.g.
@@ -69,8 +72,11 @@ kidnix-shell --generate-earcons [DIR]
 - `--run-seconds N` — quit after N seconds, for smoke tests.
 - `--screenshot PATH` — write a PNG of the shell's own window before quitting.
   GNOME 45+ lets no external tool photograph the kiosk, so the shell renders
-  its own widget tree (`just demo-small --run-seconds 6 --screenshot x.png`).
-- `--generate-earcons [DIR]` — write the four generated tones and exit; run at
+  its own widget tree (`just demo-small --run-seconds 7 --screenshot x.png`).
+- `--start-on home` — development only: choose the first profile immediately so
+  a `--screenshot` run photographs the grid rather than the "Who's here?"
+  chooser it would otherwise still be on. The child always starts on S1.
+- `--generate-earcons [DIR]` — write the five generated tones and exit; run at
   image build time so `/usr` has them and the child's cache does not need to.
 
 Logging goes to stderr, which is the systemd journal in the real session.
@@ -90,7 +96,7 @@ kidnix_shell/
                   S7 goodbye, S8 sleeping, S9 grown-up sheet
   theme.css       the reserved highlight colour, flat-with-depth, tints
   data/icons/     representational fallback icons (SVG)
-  data/sounds/    the four earcons (generated, never committed)
+  data/sounds/    the five earcons (generated, never committed)
 
   # pure logic, no GTK, fully unit-tested headless:
   theme.py        the runtime half of the theme: profile tint, type scale
@@ -160,8 +166,9 @@ matching a shape to a word cannot match half a word, and cannot widen the tile.
 3. **Shrink before spilling**, in 1 pt steps, breaking between words -- a
    single long word shrinks to the floor before it is ever broken between
    characters ("Goodnig-ht" is a cut label wearing a hyphen).
-4. **18 pt is the floor**, scaled by the same `fit` factor as every other
-   point size on a panel we had to shrink.
+4. **18 pt is the floor**, absolutely — not scaled by `fit`, because a floor
+   that moves is not a floor. Every child-facing size in `theme.css` goes
+   through the same floor (`Metrics.child_points`).
 5. **A third line is the last resort**, and the one case where a tile grows.
 
 Two other rules fall out of it. A page of tiles is set at **one** size -- the
@@ -184,7 +191,7 @@ what lets `just test-headless` prove the ten shipped names fit at 1280x800 at
 
 | File | Owner | What |
 |---|---|---|
-| `/etc/kidnix/parent.toml`, then `/usr/share/kidnix/parent.toml` | **root** | PIN hash, default session length, activity allow-list, child profiles |
+| `/etc/kidnix/parent.toml`, then `/usr/share/kidnix/parent.toml` | **root** | PIN hash, default session length, activity allow-list (empty = all), child profiles with their `age_band` |
 | `/etc/kidnix/session.toml`, then `/usr/share/kidnix/session.toml` | **root** | session length, daily budget, ending offer / put away offsets, bedtime window |
 | `<state>/kidnix/usage.toml` | child | seconds used today (budget day rolls at 04:00) |
 | `<data>/kidnix/journal/` | child | the Journal: `YYYY/MM/DD/<entry>/entry.json` + versions + `thumb.png` |

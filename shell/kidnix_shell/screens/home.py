@@ -1,21 +1,33 @@
 """S2 -- Home. The only root.
 
-At most 12 tiles on a page in a 4 x 3 grid (08 section 3.2), each 160 design px
-and never under 40 mm, with >= 12 mm gaps -- all of it shrunk together if the
-panel is too small for the ideal (see :mod:`kidnix_shell.metrics`), and fewer
-columns on a genuinely small screen rather than twelve unreadable tiles. More
-activities than fit paginate with big arrows and page dots -- never scrolling
-(SYNTHESIS A4).
+Up to 12 tiles on a page in a 4 x 3 grid (08 section 3.2), each 160 design px
+and **never under 40 mm**, with >= 8 mm gaps. On a panel that cannot hold
+twelve at that size the grid gives way, not the tile: 4 x 2, then 3 x 2, and
+what does not fit paginates with big arrows and page dots -- never scrolling
+(SYNTHESIS A4, and see :mod:`kidnix_shell.metrics`).
 
 A tile the child has used recently carries a small thumbnail of the last thing
-they made there. A tile the parent has not allowed renders outline-only (never
-greyed out) and says "Ask a grown-up for this one".
+they made there.
 
-An activity whose program is **not installed** gets no tile at all by default:
-a button that flickers and returns you to Home is worse than an absent one
-(`docs/spikes/e2e-scenario.md` section 3.1). A manifest that would rather be
-seen than hidden sets ``show_when_unavailable = true`` and gets the same
-outline-only treatment with "This one isn't ready yet. Ask a grown-up."
+Three reasons a tile may not be pressable, and they are deliberately not the
+same treatment:
+
+* **Outside the child's age band** (``age_min``/``age_max`` against the
+  profile's ``age_band``) -- **no tile at all**. There is nothing to ask a
+  grown-up for; the activity simply is not part of this child's computer
+  (01 #35, SYNTHESIS B8).
+* **Not on the parent's allow-list** (``allowed_activity_ids``) --
+  outline-only, never greyed out, and it says "Ask a grown-up for this one".
+  This is SYNTHESIS G3's affordance and the reason the dashed border has to
+  clear 3:1 contrast.
+* **Not installed, or installed with nothing to open** (``content_required``
+  matched nothing) -- hidden by default, because a button that flickers and
+  returns you to Home is worse than an absent one
+  (`docs/spikes/e2e-scenario.md` section 3.1). A manifest that would rather be
+  seen than hidden sets ``show_when_unavailable = true`` and gets the
+  outline-only treatment with "This one isn't ready yet. Ask a grown-up." --
+  a different sentence, because nobody can give a child a library with no
+  books in it.
 
 **The last tile is always "All done"** (spec 7a, SYNTHESIS D5): a moon, one
 tap, no confirmation, and the same ending ritual the clock would have run. A
@@ -34,7 +46,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
-from ..activities import Activity  # noqa: E402
+from ..activities import Activity, in_age_band  # noqa: E402
 from ..util import paginate  # noqa: E402
 from ..widgets import (  # noqa: E402
     ActivityTile,
@@ -94,8 +106,21 @@ class HomeScreen(Screen):
     # -- content --
 
     def cells(self) -> list[Cell]:
-        """Everything on Home, in manifest ``order``. "All done" is last (spec 7a)."""
-        shown = [a for a in self.ctx.activities if getattr(a, "on_home", True)]
+        """Everything on Home, in manifest ``order``. "All done" is last (spec 7a).
+
+        Two filters, and the difference between them is the point:
+
+        * **Age band** removes the tile entirely. A four-year-old is not told
+          that typed arithmetic exists and that they may not have it -- there
+          is nothing there to ask about (01 #35, SYNTHESIS B8).
+        * **Allow-list** and **unusable** leave the tile and outline it, because
+          a child who has seen Draw every day and finds it dashed today needs
+          to be told why (SYNTHESIS G3: never a silent denial).
+        """
+        band = self.ctx.profile.age_range
+        shown = [
+            a for a in self.ctx.activities if getattr(a, "on_home", True) and in_age_band(a, band)
+        ]
         return [*shown, ALL_DONE]
 
     def refresh(self) -> None:
@@ -171,10 +196,16 @@ class HomeScreen(Screen):
         )
 
     def _denial(self, activity: Activity) -> str | None:
-        """Why this tile cannot be pressed, in the child's words -- or None."""
+        """Why this tile cannot be pressed, in the child's words -- or None.
+
+        Two reasons, two sentences (SYNTHESIS G3). "Ask a grown-up" is only
+        ever said about something a grown-up can actually give: a program that
+        is not installed, or a Library with no books in it yet, is not that --
+        so it gets the other line.
+        """
         if not self.ctx.config.is_allowed(activity.id):
             return NOT_ALLOWED_LINE
-        if not getattr(activity, "available", True):
+        if not getattr(activity, "usable", True):
             return NOT_READY_LINE
         return None
 

@@ -16,7 +16,24 @@
 @define-color kid-ink #16181d;
 @define-color kid-paper #fbf7ef;
 @define-color kid-paper-dim #efe8da;
-@define-color kid-edge rgba(0, 0, 0, 0.18);
+
+/* Edges are stated as solid hex, not as rgba(0,0,0,alpha), for one reason:
+ * a ratio you cannot compute is a ratio nobody computed. The CCI audit of
+ * 2026-08-22 (06 #25, 03 #31) found the old `rgba(0,0,0,0.18)` composited to
+ * #cecbc4 on @kid-paper -- 1.5:1, a clear WCAG 1.4.11 fail on the border that
+ * is the *only* boundary these controls have, because a tile's fill is the
+ * same paper as the page behind it.
+ *
+ *   @kid-edge         #7e838c  3.57:1 on @kid-paper, 3.81:1 on white (hover)
+ *   @kid-edge-strong  #5a5f6a  5.99:1 on @kid-paper, 6.40:1 on white
+ *
+ * tests/test_theme_css.py recomputes both from these literals and fails if
+ * either drops under 3:1. */
+@define-color kid-edge #7e838c;
+/* Reserved for the outline-only treatment, where the border carries the whole
+ * meaning ("ask a grown-up") and there is no fill at all to help it. */
+@define-color kid-edge-strong #5a5f6a;
+
 @define-color kid-primary #0f8a8a;
 @define-color kid-secondary #f06292;
 
@@ -24,9 +41,13 @@ window.kidnix,
 .surface {
   background-color: @kid-paper;
   color: @kid-ink;
-  /* Andika is the child-facing face (08 section 3.3); Cantarell is on every
-   * Fedora system, so the fallback is never a mystery font. */
-  font-family: "Andika", "Cantarell", sans-serif;
+  /* Andika is the child-facing face (06 #19, 08 section 3.3): it is designed
+   * for beginning readers, with an unambiguous single-storey a and g.
+   * `sil-andika-fonts` 6.101 ships it as the family "Andika"; "Andika New
+   * Basic" is the superseded name and is listed in case an older host has
+   * only that. Cantarell is on every Fedora system, so the last fallback is
+   * never a mystery font. */
+  font-family: "Andika", "Andika New Basic", "Cantarell", sans-serif;
 }
 
 /* --- the band ---------------------------------------------------------- */
@@ -72,6 +93,32 @@ button.outline-only {
   box-shadow: none;
 }
 
+/* The sun is a target, not a picture (08 section 4.6): tapping it says how
+ * much of the sitting is left, in comparisons rather than numbers. It gets no
+ * button chrome at all -- a bordered box around the sun would read as a
+ * control the child is meant to press *for* something, and it is not. The
+ * drawing carries its own contrast against the band; the focus ring still
+ * finds it, because :focus-visible is on every button. */
+.band button.sun {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+.band button.sun:hover {
+  background-color: transparent;
+}
+
+.band button.sun:active,
+.band button.sun.pressed {
+  /* The same 2 px drop every other press state has, so "it registered" is the
+   * same signal everywhere (01 #18). */
+  margin-top: 2px;
+}
+
 /* The grown-up gate is deliberately small, desaturated and far right. */
 .band button.grownup-gate {
   background-color: rgba(255, 255, 255, 0.35);
@@ -96,9 +143,17 @@ button.outline-only {
 
 /* --- the reserved highlight -------------------------------------------- */
 
+/* @kid-highlight is 12.3:1 against @kid-ink and only 1.35:1 against
+ * @kid-paper, so a yellow ring on a pale tile is legible as *colour* and not
+ * as an *edge*. The ring therefore never travels alone: the control's own
+ * border goes to full ink while it is focused or speaking, which gives the
+ * indicator a 16.6:1 boundary against the paper on both sides of the yellow.
+ * One reserved colour (08 section 3.4b) is preserved -- this adds an edge to
+ * it, not a second colour. */
 .speaking {
   outline: 6px solid @kid-highlight;
   outline-offset: -3px;
+  border-color: @kid-ink;
 }
 
 :focus-visible,
@@ -106,6 +161,7 @@ button:focus-visible,
 .tile:focus-visible {
   outline: 6px solid @kid-highlight;
   outline-offset: 2px;
+  border-color: @kid-ink;
 }
 
 /* --- tiles (S2 Home) --------------------------------------------------- */
@@ -130,10 +186,15 @@ button.tile.pressed {
   box-shadow: none;
 }
 
+/* Not allowed, or not ready. Outline-only -- never greyed out (08 section
+ * 3.4c): grey survives neither greyscale nor colour blindness, and a
+ * pre-reader cannot read "disabled". The dashed border is therefore the whole
+ * affordance (SYNTHESIS G3), which is why it takes the stronger edge: 5.99:1
+ * against the paper it sits on, where the old value was 1.5:1. */
 button.tile.not-allowed {
   background-color: transparent;
   background-image: none;
-  border: 4px dashed @kid-edge;
+  border: 4px dashed @kid-edge-strong;
   box-shadow: none;
 }
 
@@ -259,7 +320,13 @@ button.pager:disabled {
 /* --- S9 grown-up sheet: adult typography, adult density ----------------- */
 
 .grownup {
-  font-family: "Atkinson Hyperlegible", "Cantarell", sans-serif;
+  /* 06 #20. The image installs `atkinson-hyperlegible-next-fonts`, whose
+   * family name is "Atkinson Hyperlegible Next" -- v0.1.2 asked for
+   * "Atkinson Hyperlegible", which matched nothing, so the grown-up sheet
+   * silently fell back to Cantarell and nobody could see that it had. Both
+   * names are listed now (the original family is still what a non-kidnix host
+   * is likely to have), Cantarell behind them. */
+  font-family: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", "Cantarell", sans-serif;
   font-size: 12pt;
 }
 
@@ -270,14 +337,16 @@ button.pager:disabled {
 
 .pin-pad button {
   font-size: 20pt;
-  font-family: monospace;
+  /* Atkinson Hyperlegible Mono is the cut the image ships for exactly this:
+   * digits a shoulder-surfing parent can read at a glance and not confuse. */
+  font-family: "Atkinson Hyperlegible Mono", monospace;
   min-width: 64px;
   min-height: 64px;
 }
 
 .pin-display {
   font-size: 28pt;
-  font-family: monospace;
+  font-family: "Atkinson Hyperlegible Mono", monospace;
   letter-spacing: 8px;
 }
 
@@ -293,7 +362,9 @@ button.pager:disabled {
  * came here to make. */
 button.tile.all-done {
   background-color: #e9e6f7;
-  border-color: rgba(23, 27, 44, 0.28);
+  /* 5.52:1 against the tile's own lavender, 5.99:1 against the paper behind
+   * it -- the same computed floor as every other edge. */
+  border-color: @kid-edge-strong;
 }
 
 button.tile.all-done:hover {
