@@ -1,0 +1,62 @@
+#!/usr/sbin/nft -f
+#
+# kidnix: the child account has no network egress. Ever.
+#
+# AGENTS.md non-negotiable #5: "Child session has no network egress by default."
+# This file is the load-bearing enforcement of that. The Flatpak
+# `--unshare=network` override and the polkit lockdown are belt-and-braces --
+# they can be worked around by a non-Flatpak process or a clever child; a
+# kernel-level per-UID filter cannot.
+#
+# WHY NOT firewalld: firewalld's rich language cannot match a UID
+# (firewalld.richlanguage(5) matches address/MAC/ipset/protocol/port/service/
+# ICMP only). nftables `meta skuid` can, so we own a table of our own.
+#
+# COEXISTENCE WITH firewalld: firewalld's nftables backend only ever touches
+# tables it named itself (`firewalld`, `firewalld_policy_drop`,
+# `firewalld_probe` -- see TABLE_NAME in firewall/core/nftables.py). Its
+# FlushAllOnReload=yes only flushes those. `inet kidnix_egress` is invisible to
+# it and survives `firewall-cmd --reload`.
+#
+# IDEMPOTENCY: the create-then-delete dance below is the documented nft idiom
+# for "replace this table atomically whether or not it already exists". Without
+# the bare `table` line the `delete` fails on a cold boot; without the `delete`
+# a reload appends duplicate rules.
+
+table inet kidnix_egress
+delete table inet kidnix_egress
+
+table inet kidnix_egress {
+    chain output {
+        type filter hook output priority filter; policy accept;
+
+        # Loopback stays open on purpose. The shell needs it for
+        # speech-dispatcher, the (future) resident Piper TTS server and the
+        # parent-panel IPC socket. Blocking lo would leave a pre-reader with a
+        # mute computer, which is a worse failure than any risk it removes.
+        oif "lo" accept
+
+        # UID 1000 is `kid`.
+        #
+        # NUMERIC ON PURPOSE. `meta skuid "kid"` makes nft resolve the name
+        # with getpwnam() *while parsing the file*. The account does not exist
+        # inside the build container -- systemd-sysusers creates it on first
+        # boot (see build_files/20-users.sh) -- so a named rule cannot be
+        # syntax-checked at build time or in the image test suite, and a
+        # cold-boot ordering slip would make the ruleset fail to load *open*.
+        # /usr/lib/sysusers.d/kidnix.conf pins kid to 1000 and
+        # build_files/40-lockdown.sh asserts the two agree.
+        #
+        # `reject` rather than `drop`: a child's activity that tries to reach
+        # the network should fail fast with "no route" rather than hang for 2
+        # minutes on a TCP timeout. The counter makes an unexpected attempt
+        # visible in `nft list ruleset` for debugging.
+        #
+        # KNOWN GAP (documented in docs/spikes/lockdown.md): skuid matches the
+        # *effective* UID of the socket owner, so a setuid-root helper started
+        # by kid would appear as uid 0 and escape this rule. The image ships no
+        # such network-capable helper today; `ping` is capability-based, not
+        # setuid, on Fedora 44.
+        meta skuid 1000 counter reject with icmpx type admin-prohibited
+    }
+}
