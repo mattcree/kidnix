@@ -53,8 +53,11 @@ session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
 - [x] Journal: auto-import of Tux Paint saves; thumbnails; Today/Yesterday
 - [ ] "Show a grown-up" shared folder
 - [x] End-to-end scenario test (QMP input + screenshots) — `just test-e2e`
-- [ ] Fix: "Finish this one" re-presents the offer; unavailable activities
+- [x] Fix: "Finish this one" re-presents the offer; unavailable activities
       must not fail silently; kid-facing tile names
+- [x] Checkpoint 1: adherence audit + gap sweep; band over activities (two
+      toplevels + gnome-kiosk window-config); What's-next-after; sinking sun;
+      put-away never destroys work; progressive disclosure; GCompris shelf
 - [ ] First test with a real child; notes in `docs/design/testing-log.md`
 
 ## M3 — Activity breadth (priority order TBD by PRIORITIES.md)
