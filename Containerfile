@@ -20,11 +20,16 @@ COPY system_files/ /
 
 COPY build_files/ /tmp/build_files/
 
+# The activity shell is a source tree, not a package: build_files/60-shell.sh
+# installs it into the image's site-packages. .containerignore keeps the venv
+# and the caches out of the build context.
+COPY shell/ /tmp/shell/
+
 RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
     KIDNIX_VERSION="${KIDNIX_VERSION}" \
     KIDNIX_PRETTY_VERSION="${KIDNIX_PRETTY_VERSION}" \
     /tmp/build_files/build.sh && \
-    rm -rf /tmp/build_files && \
+    rm -rf /tmp/build_files /tmp/shell && \
     ostree container commit
 
 # The cache mount above keeps /var/cache/libdnf5 busy for the whole of that

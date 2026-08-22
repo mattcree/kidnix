@@ -1,0 +1,15 @@
+# The kidnix child session, as gnome-session sees it.
+#
+# `gnome-session --session=kidnix` needs this file to exist -- without it
+# gnome-session-manager@kidnix.service refuses to start and the whole session
+# is torn down. What it does NOT need is `RequiredComponents=`: since
+# GNOME 40 gnome-session runs under systemd, and the components of a session
+# are declared as unit dependencies in
+# /usr/lib/systemd/user/gnome-session@kidnix.target.d/session.conf instead.
+#
+# This is exactly the shape of the two reference sessions on the image:
+# /usr/share/gnome-session/sessions/gnome.session and (from
+# gnome-kiosk-script-session upstream) gnome-kiosk-script.session both carry a
+# Name and nothing else.
+[GNOME Session]
+Name=kidnix

@@ -1,0 +1,29 @@
+# kidnix session policy -- how long a child gets and how the session ends.
+#
+# Root-owned and read-only to the child on purpose (docs/design/shell-v0.1.md
+# section 6): the machine ends the session, and the child cannot argue with it.
+# It lives in /etc rather than /usr because a parent is meant to edit it; bootc
+# 3-way-merges /etc across upgrades, so local edits survive `bootc upgrade`.
+#
+# Read by kidnix_shell.session.load_policy(). Every key is optional and every
+# unparseable value falls back to the built-in default with a warning in the
+# journal -- a broken config must never stop a child logging in. The values
+# below ARE the built-in defaults, written out so a parent can see the whole
+# policy in one place. Numbers come from docs/research/SYNTHESIS.md section 3.
+
+# One sitting. SYNTHESIS section 3: 25 min default, 10-45 supported range.
+length_minutes = 25
+
+# Ceiling across the whole day, reset at 04:00 local.
+daily_budget_minutes = 60
+
+# The ending ritual, in minutes *before* the end of the session.
+# S5 "would you like to finish this?" then S6 "put your things away".
+ending_offer_minutes = 6
+put_away_minutes = 2
+
+# Outside this window the shell shows the Sleeping screen (S8) instead of
+# starting a session. A grown-up can still unlock it from the PIN sheet.
+# Set both to the same value to switch bedtime off entirely.
+bedtime_start = "19:00"
+bedtime_end = "07:00"

@@ -9,9 +9,11 @@ A cold run takes well under a minute against an already-built image.
     just build && just test-boot
 
 What it proves: the machine reaches graphical.target, GDM autologs `kid` in,
-that session is a *Wayland* session, and `gnome-kiosk` is actually running as
-`kid`. That is the whole point of kidnix, and none of it is visible to
-`just test-image`.
+that session is a *Wayland* session, `gnome-kiosk` is actually running as
+`kid`, kid's `graphical-session.target` is active (so the portals start), the
+activity shell is running and comes back when it is killed, and `kid` genuinely
+cannot reach the network while root can. That is the whole point of kidnix, and
+none of it is visible to `just test-image`.
 
 What it does NOT prove: anything about the bootloader, the composefs root,
 partitioning, or first-boot units gated on real hardware -- `bcvk ephemeral`
@@ -53,7 +55,20 @@ HEALTHY_SYSTEM_STATES = frozenset({"running", "degraded"})
 # Keep this list short and justified -- it is the place a real regression hides.
 EXPECTED_FAILED_UNITS = {
     "bootloader-update.service": "no ESP: bcvk ephemeral boots the kernel directly",
+    # Same root cause, one layer up: bcvk roots the VM on virtiofs and never
+    # mounts /boot, so greenboot's "am I allowed to mark this boot good"
+    # bookkeeping (`Failed to check boot mount state: Failed to read mount
+    # info`) cannot run. The health *checks* themselves pass -- the journal
+    # shows all three required.d scripts succeeding. A disk boot
+    # (`just test-boot-qcow2`) is where greenboot can actually be judged.
+    "greenboot-healthcheck.service": "no /boot mount: bcvk ephemeral roots on virtiofs",
+    "greenboot-set-rollback-trigger.service": "no /boot mount: bcvk ephemeral roots on virtiofs",
 }
+
+# How long the shell gets to come back after we kill it. kidnix-shell.service
+# is Restart=always / RestartSec=1, so this is generous by an order of
+# magnitude; it is a ceiling, not a target.
+SHELL_RESTART_BUDGET_SECONDS = 10
 
 # Runs inside the guest as root. Emits one key=value block we can parse, then
 # a human-readable dump for the log. Must not use `sudo` (it decorates output
@@ -65,21 +80,123 @@ export SYSTEMD_COLORS=0 SYSTEMD_PAGER=cat SYSTEMD_URLIFY=0 SYSTEMD_LESS=
 # Block until the boot transaction settles, bounded by our own caller timeout.
 systemctl is-system-running --wait >/dev/null 2>&1
 
-kid_session=""; kid_type=""; kid_active=""
-for s in $(loginctl list-sessions --no-legend --no-pager 2>/dev/null | awk '{print $1}'); do
-    name=$(loginctl show-session "$s" -p Name --value 2>/dev/null)
-    [ "$name" = "kid" ] || continue
-    type=$(loginctl show-session "$s" -p Type --value 2>/dev/null)
-    # Prefer a graphical session if the user also has a manager session.
-    if [ -z "$kid_session" ] || [ "$type" = "wayland" ]; then
-        kid_session="$s"; kid_type="$type"
-        kid_active=$(loginctl show-session "$s" -p Active --value 2>/dev/null)
-    fi
+# ...but `--wait` only covers the SYSTEM manager. Everything this probe cares
+# about lives in kid's per-user manager, which GDM starts afterwards, so wait
+# for the session to settle too. Without this every assertion below races the
+# login: plymouth holds the console for the first ~10 s, and gnome-session has
+# a great deal more to do than v0.1's `exec gnome-kiosk` did.
+uctl() { systemctl --user -M kid@ "$@" 2>/dev/null; }
+
+tries=0
+while [ "$tries" -lt 90 ]; do
+    [ "$(uctl is-active kidnix-shell.service)" = "active" ] && break
+    sleep 1
+    tries=$(( tries + 1 ))
+done
+
+scan_kid_session() {
+    kid_session=""; kid_type=""; kid_active=""
+    for s in $(loginctl list-sessions --no-legend --no-pager 2>/dev/null | awk '{print $1}'); do
+        name=$(loginctl show-session "$s" -p Name --value 2>/dev/null)
+        [ "$name" = "kid" ] || continue
+        type=$(loginctl show-session "$s" -p Type --value 2>/dev/null)
+        # Prefer a graphical session if the user also has a manager session.
+        if [ -z "$kid_session" ] || [ "$type" = "wayland" ]; then
+            kid_session="$s"; kid_type="$type"
+            kid_active=$(loginctl show-session "$s" -p Active --value 2>/dev/null)
+        fi
+    done
+}
+
+tries=0
+while [ "$tries" -lt 60 ]; do
+    scan_kid_session
+    [ "$kid_type" = "wayland" ] && [ "$kid_active" = "yes" ] && break
+    sleep 1
+    tries=$(( tries + 1 ))
 done
 
 kiosk_pid=$(pgrep -x gnome-kiosk 2>/dev/null | head -1)
 kiosk_user=""
 [ -n "$kiosk_pid" ] && kiosk_user=$(ps -o user= -p "$kiosk_pid" 2>/dev/null | tr -d ' ')
+
+# --- kid's own systemd user manager -----------------------------------------
+# `uctl` (defined above) is how root reaches kid's per-user manager; nothing
+# below is visible any other way. graphical-session.target being ACTIVE is the
+# whole point of routing the session through gnome-session: the portals carry
+# `Requisite=graphical-session.target`, which fails instantly if it is not.
+kid_graphical_session=$(uctl is-active graphical-session.target)
+kid_session_target=$(uctl is-active gnome-session@kidnix.target)
+kid_kiosk_target=$(uctl is-active org.gnome.Kiosk.target)
+kid_portal=$(uctl is-active xdg-desktop-portal.service)
+kid_portal_gnome=$(uctl is-active xdg-desktop-portal-gnome.service)
+kid_shell_unit=$(uctl is-active kidnix-shell.service)
+
+# --- the shell process -------------------------------------------------------
+# Ask systemd for the PID rather than pgrep. `pgrep -f kidnix-shell-app` also
+# matches THIS SCRIPT -- the probe text is the command line of the shell
+# running it -- and killing that instead of the real shell is a silent, total
+# failure (the probe dies before it prints anything). Learned the hard way.
+shell_main_pid() { uctl show kidnix-shell.service -p MainPID --value; }
+
+shell_pid=$(shell_main_pid)
+[ "$shell_pid" = "0" ] && shell_pid=""
+shell_user=""
+[ -n "$shell_pid" ] && shell_user=$(ps -o user= -p "$shell_pid" 2>/dev/null | tr -d ' ')
+# -u kid keeps the root-owned probe out of the match for the same reason.
+session_leader=$(pgrep -u kid -f 'gnome-session-service --session=kidnix' 2>/dev/null | head -1)
+
+# DCONF_PROFILE has to reach processes the *user manager* started, not merely
+# children of the session wrapper (docs/spikes/lockdown.md section 3, item 2).
+kiosk_dconf=""
+[ -n "$kiosk_pid" ] && kiosk_dconf=$(tr '\0' '\n' < "/proc/${kiosk_pid}/environ" 2>/dev/null \
+    | sed -n 's/^DCONF_PROFILE=//p' | head -1)
+shell_dconf=""
+[ -n "$shell_pid" ] && shell_dconf=$(tr '\0' '\n' < "/proc/${shell_pid}/environ" 2>/dev/null \
+    | sed -n 's/^DCONF_PROFILE=//p' | head -1)
+
+# --- egress (docs/spikes/lockdown.md section 3, item 3) ----------------------
+# The single most important boot assertion the lockdown spike asked for: prove
+# the nftables rule drops a real packet, not just that it loaded.
+nft_table=absent
+nft list table inet kidnix_egress >/dev/null 2>&1 && nft_table=loaded
+curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
+egress_root=$?
+runuser -u kid -- curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
+egress_kid=$?
+
+# --- crash recovery ----------------------------------------------------------
+# kidnix-shell.service is Restart=always/RestartSec=1, which replaced the bash
+# supervisor. Kill the shell and time how long the child would stare at an
+# empty compositor. Done last, because it perturbs the machine; `failed_units`
+# below is therefore measured after it has settled.
+shell_restart_pid=""
+shell_restart_seconds=""
+if [ -n "$shell_pid" ]; then
+    kill -9 "$shell_pid" 2>/dev/null
+    tries=0
+    while [ "$tries" -lt 40 ]; do
+        sleep 0.5
+        tries=$(( tries + 1 ))
+        candidate=$(shell_main_pid)
+        if [ -n "$candidate" ] && [ "$candidate" != "0" ] && [ "$candidate" != "$shell_pid" ]; then
+            shell_restart_pid="$candidate"
+            shell_restart_seconds=$(awk "BEGIN{printf \"%.1f\", ${tries}/2}")
+            break
+        fi
+    done
+fi
+
+# The unit passes through `deactivating` on its way back; wait for it to settle
+# rather than photographing the restart mid-flight.
+kid_shell_unit_after=""
+tries=0
+while [ "$tries" -lt 20 ]; do
+    kid_shell_unit_after=$(uctl is-active kidnix-shell.service)
+    [ "$kid_shell_unit_after" = "active" ] && break
+    sleep 0.5
+    tries=$(( tries + 1 ))
+done
 
 echo "KIDNIX_PROBE_BEGIN"
 echo "system_running=$(systemctl is-system-running 2>/dev/null)"
@@ -92,6 +209,23 @@ echo "kid_session_active=${kid_active}"
 echo "kiosk_pid=${kiosk_pid}"
 echo "kiosk_user=${kiosk_user}"
 echo "kiosk_cmdline=$(tr '\0' ' ' < /proc/${kiosk_pid:-0}/cmdline 2>/dev/null)"
+echo "kid_graphical_session=${kid_graphical_session}"
+echo "kid_session_target=${kid_session_target}"
+echo "kid_kiosk_target=${kid_kiosk_target}"
+echo "kid_portal=${kid_portal}"
+echo "kid_portal_gnome=${kid_portal_gnome}"
+echo "kid_shell_unit=${kid_shell_unit}"
+echo "kid_shell_unit_after=${kid_shell_unit_after}"
+echo "shell_pid=${shell_pid}"
+echo "shell_user=${shell_user}"
+echo "session_leader=${session_leader}"
+echo "kiosk_dconf=${kiosk_dconf}"
+echo "shell_dconf=${shell_dconf}"
+echo "shell_restart_pid=${shell_restart_pid}"
+echo "shell_restart_seconds=${shell_restart_seconds}"
+echo "nft_table=${nft_table}"
+echo "egress_root=${egress_root}"
+echo "egress_kid=${egress_kid}"
 echo "failed_units=$(systemctl list-units --state=failed --no-legend --plain \
     --no-pager 2>/dev/null | awk '{print $1}' | paste -sd, -)"
 echo "os_id=$(. /etc/os-release && echo "$ID")"
@@ -110,7 +244,11 @@ systemd-analyze blame --no-pager 2>/dev/null | head -10
 echo "--- loginctl ---"
 loginctl list-sessions --no-pager 2>/dev/null
 echo "--- processes owned by kid ---"
-ps -u kid -o pid,user,args --no-headers 2>/dev/null | head -20
+ps -u kid -o pid,user,args --no-headers 2>/dev/null | head -30
+echo "--- kid session units ---"
+uctl list-units --state=failed --no-legend --plain 2>/dev/null
+echo "--- the shell's own log ---"
+journalctl -b _SYSTEMD_USER_UNIT=kidnix-shell.service --no-pager 2>/dev/null | tail -25
 """
 
 
@@ -307,6 +445,106 @@ class Checks:
             print(f"  {mark}  {name}" + (f" -- {detail}" if detail else ""))
 
 
+def assert_session(probe: dict[str, str], checks: Checks) -> None:
+    """The gnome-session-shaped kid session, and the portals it finally allows.
+
+    v0.1 exec'd gnome-kiosk directly, so `graphical-session.target` never
+    activated and every `xdg-desktop-portal*` unit died on its
+    `Requisite=graphical-session.target`. Routing the session through
+    `gnome-session --session=kidnix` is the fix; these are the assertions that
+    say so. See docs/spikes/session-integration.md.
+    """
+    for key, unit in (
+        ("kid_graphical_session", "graphical-session.target"),
+        ("kid_session_target", "gnome-session@kidnix.target"),
+        ("kid_kiosk_target", "org.gnome.Kiosk.target"),
+        ("kid_portal", "xdg-desktop-portal.service"),
+        ("kid_portal_gnome", "xdg-desktop-portal-gnome.service"),
+    ):
+        state = probe.get(key, "")
+        checks.check(state == "active", f"kid's {unit} is active (got '{state or 'unknown'}')")
+
+    checks.check(
+        bool(probe.get("session_leader")),
+        "gnome-session is running the kidnix session",
+        "" if probe.get("session_leader") else "no `gnome-session-service --session=kidnix`",
+    )
+
+    # The child's dconf profile has to reach processes the *user manager*
+    # started, not merely children of /usr/bin/kidnix-shell. This is
+    # docs/spikes/lockdown.md section 3 item 2, which could not be proven
+    # anywhere but in a booted session.
+    for key, who in (("kiosk_dconf", "gnome-kiosk"), ("shell_dconf", "the shell")):
+        value = probe.get(key, "")
+        checks.check(value == "kid", f"DCONF_PROFILE=kid reached {who} (got '{value or 'unset'}')")
+
+
+def assert_shell(probe: dict[str, str], checks: Checks) -> None:
+    """The activity shell is up, is kid's, and comes back when it is killed."""
+    state = probe.get("kid_shell_unit", "")
+    checks.check(state == "active", f"kidnix-shell.service is active (got '{state or 'unknown'}')")
+
+    pid = probe.get("shell_pid", "")
+    checks.check(bool(pid), "the activity shell is running", "" if pid else "no kidnix-shell-app")
+    checks.check(
+        probe.get("shell_user") == "kid",
+        f"the activity shell runs as kid (got '{probe.get('shell_user') or 'nobody'}')",
+    )
+
+    # AGENTS.md non-negotiable 8, "crash-proof shell": SIGKILL the shell and
+    # watch systemd put it back. This is what replaced the bash supervisor.
+    restarted = probe.get("shell_restart_pid", "")
+    seconds = probe.get("shell_restart_seconds", "")
+    within = False
+    try:
+        within = bool(restarted) and float(seconds) <= SHELL_RESTART_BUDGET_SECONDS
+    except ValueError:
+        within = False
+    checks.check(
+        within,
+        f"the shell comes back within {SHELL_RESTART_BUDGET_SECONDS}s of being killed"
+        + (f" (took {seconds}s, pid {pid} -> {restarted})" if restarted else ""),
+        "" if restarted else "it never came back",
+    )
+
+    after = probe.get("kid_shell_unit_after", "")
+    checks.check(
+        after == "active",
+        f"kidnix-shell.service is active again after the kill (got '{after or 'unknown'}')",
+    )
+
+
+def assert_egress(probe: dict[str, str], checks: Checks) -> None:
+    """AGENTS.md non-negotiable 5: the child session has no network egress.
+
+    docs/spikes/lockdown.md section 3 item 3 called this "the single most
+    important boot-test assertion to add" -- the image tests can only prove the
+    ruleset *loads*, never that it drops a packet.
+    """
+    checks.check(
+        probe.get("nft_table") == "loaded",
+        f"nft table inet kidnix_egress is loaded (got '{probe.get('nft_table') or 'unknown'}')",
+    )
+
+    root_rc = probe.get("egress_root", "")
+    kid_rc = probe.get("egress_kid", "")
+
+    if root_rc != "0":
+        # No route out of the VM at all: the differential is meaningless and a
+        # "kid cannot reach the network" pass would be worthless. Say so.
+        print(
+            f"  \033[33mNOTE\033[0m  egress differential skipped -- root's own "
+            f"`curl http://1.1.1.1` exited {root_rc or '?'}, so this VM has no "
+            f"outbound network to be blocked from."
+        )
+        return
+
+    checks.check(
+        kid_rc not in ("", "0"),
+        f"kid cannot reach the network (curl exited {kid_rc or '?'}; root got out fine)",
+    )
+
+
 def assert_probe(probe: dict[str, str], checks: Checks) -> None:
     state = probe.get("system_running", "")
     checks.check(
@@ -345,6 +583,10 @@ def assert_probe(probe: dict[str, str], checks: Checks) -> None:
         probe.get("kiosk_user") == "kid",
         f"gnome-kiosk runs as kid (got '{probe.get('kiosk_user') or 'nobody'}')",
     )
+
+    assert_session(probe, checks)
+    assert_shell(probe, checks)
+    assert_egress(probe, checks)
 
     failed = [u for u in probe.get("failed_units", "").split(",") if u]
     unexpected = [u for u in failed if u not in EXPECTED_FAILED_UNITS]
@@ -442,6 +684,11 @@ def run_boot_test(args: argparse.Namespace) -> int:
         f"{probe.get('mem_total_mb', '?')} MiB"
     )
     print(f"kiosk      : {probe.get('kiosk_cmdline') or 'not running'}")
+    print(f"shell      : pid {probe.get('shell_pid') or '-'} as {probe.get('shell_user') or '-'}")
+    print(
+        f"kid session: graphical-session={probe.get('kid_graphical_session', '?')} "
+        f"portal={probe.get('kid_portal', '?')} shell={probe.get('kid_shell_unit', '?')}"
+    )
     print(f"console log: {output_dir / 'console.txt'}")
     if journal:
         print(f"journal    : {journal}")

@@ -1,0 +1,53 @@
+[Unit]
+Description=kidnix activity shell
+Documentation=https://github.com/mattcree/kidnix
+Documentation=file:///usr/share/kidnix/VERSION
+
+# Modelled on gnome-kiosk's own org.gnome.Kiosk.Script.service. `After=` (not
+# just `Wants=`) gnome-session.target is the load-bearing bit: by the time that
+# target is reached gnome-kiosk is up and has pushed WAYLAND_DISPLAY into the
+# systemd user manager's environment, so GTK4 finds a display server.
+BindsTo=gnome-session.target
+After=gnome-session.target
+
+# Read-aloud, socket-activated so speech-dispatcher lives in ITS OWN cgroup.
+# This is not a nicety. python3-speechd autospawns `speech-dispatcher --spawn`
+# when nothing is listening on $XDG_RUNTIME_DIR/speech-dispatcher/speechd.sock,
+# the spawned daemon then sits inside kidnix-shell.service's control group, and
+# it does not answer SIGTERM -- so every restart of the shell stalled in
+# `stop-sigterm` for the full TimeoutStopSec before systemd SIGABRTed it.
+# Measured in the VM: 11.4 s of empty compositor after a crash with the socket
+# inactive, 1.3 s with it active. A five-year-old notices eleven seconds.
+Wants=speech-dispatcher.socket
+After=speech-dispatcher.socket
+
+# Do not let a crash loop trip systemd's start rate limiter. A child cannot
+# recover from a black screen, and "give up after 5 tries" is exactly what
+# /usr/libexec/kidnix-app-supervisor existed to avoid. Restart=always plus
+# RestartSec=1 keeps the cost to one attempt a second, forever.
+StartLimitIntervalSec=0
+
+# The unit's own failure must not take the compositor with it.
+CollectMode=inactive-or-failed
+
+[Service]
+Slice=session.slice
+ExecStart=/usr/bin/kidnix-shell-app
+Restart=always
+RestartSec=1
+
+# The shell launches activities as its own children, so they live in this
+# cgroup: a restart takes the whole tree down with it, which is what we want
+# (a restarted shell must not inherit an orphaned Tux Paint).
+KillMode=control-group
+# Generous on purpose: the shell gives a running activity SIGTERM, five
+# seconds to autosave, then SIGKILL (spec section 7a). Cutting this shorter
+# would abort that ritual and lose a child's drawing. With speech-dispatcher
+# out of the cgroup (above) nothing else lingers, so the timeout is a ceiling
+# that is never reached.
+TimeoutStopSec=10
+
+# The dconf profile that carries the child lockdown. /usr/bin/kidnix-shell
+# pushes this into the user manager before gnome-session starts; setting it
+# here as well means the shell is correct even if that ever slips.
+Environment=DCONF_PROFILE=kid

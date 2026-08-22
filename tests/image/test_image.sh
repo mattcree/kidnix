@@ -62,7 +62,7 @@ section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 section "packages"
 for pkg in gdm gnome-kiosk gnome-kiosk-a11y malcontent malcontent-control \
-           speech-dispatcher gnome-text-editor flatpak systemd bootc; do
+           speech-dispatcher gnome-session flatpak systemd bootc; do
     assert_rpm "${pkg}"
 done
 
@@ -91,8 +91,8 @@ assert_grep '^Exec=/usr/bin/kidnix-shell$' \
     /usr/share/wayland-sessions/kidnix-shell.desktop "session Exec points at kidnix-shell"
 assert_grep '^X-GDM-CanRunHeadless=true$' \
     /usr/share/wayland-sessions/kidnix-shell.desktop "session can run headless (needed by test-boot)"
-# The placeholder payload must exist or the session dies instantly at boot.
-assert_exec /usr/bin/gnome-text-editor
+# The v0.1 gnome-text-editor placeholder is gone: the session now runs the real
+# shell through gnome-session. Everything about that lives in test_shell.sh.
 
 section "accounts (declarative -- created at first boot)"
 assert_file /usr/lib/sysusers.d/kidnix.conf

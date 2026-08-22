@@ -14,6 +14,13 @@ test -x /usr/bin/kidnix-shell
 test -x /usr/libexec/kidnix-boot-report
 grep -q '^Exec=/usr/bin/kidnix-shell$' /usr/share/wayland-sessions/kidnix-shell.desktop
 
+# GDM needs DesktopNames to match the gnome-session the wrapper starts, or
+# XDG_CURRENT_DESKTOP is wrong and OnlyShowIn=GNOME components are skipped.
+grep -q '^DesktopNames=GNOME-Kiosk;GNOME;$' /usr/share/wayland-sessions/kidnix-shell.desktop
+
+# The session's own pieces are installed and verified by 60-shell.sh, which
+# runs later; assert here only what 30-kiosk itself is responsible for.
+
 # Autologin is only meaningful if GDM can resolve the session name; the name is
 # the desktop file's basename, so keep the two in lockstep.
 grep -q '^XSession=kidnix-shell$' /usr/share/kidnix/accountsservice-kid

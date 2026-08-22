@@ -1,0 +1,15 @@
+# Keep the build context small and reproducible.
+#
+# The Containerfile copies `shell/` into the image (build_files/60-shell.sh
+# installs it), and `shell/` on a developer's machine also holds a ~90 MB uv
+# venv and several caches. None of that belongs in an OS image -- a stale
+# `__pycache__` compiled by a different Python would even be *imported* by the
+# image's Python 3.14.
+.git/
+output/
+**/.venv/
+**/__pycache__/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.pytest_cache/
+**/*.py[cod]

@@ -1,21 +1,31 @@
 #!/usr/bin/bash
-# kidnix kiosk session (v0.1 PLACEHOLDER).
+# kidnix kiosk session -- what GDM execs for the `kid` user.
 #
-# This is what GDM execs for the `kid` user. Today it starts gnome-kiosk as a
-# full Wayland display server with one fullscreen application on top, which is
-# enough for the boot test to prove the whole chain works: GDM -> autologin ->
-# wayland session -> compositor -> app.
+# This is a *wrapper around gnome-session*, not the shell itself. The chain is:
 #
-# The real kidnix shell replaces KIDNIX_KIOSK_APP. Nothing else here should
-# need to change.
+#   GDM  ->  /usr/share/wayland-sessions/kidnix-shell.desktop
+#        ->  /usr/bin/kidnix-shell            (this file: environment only)
+#        ->  gnome-session --session=kidnix
+#        ->  gnome-session@kidnix.target
+#              +-- org.gnome.Kiosk.target  -> gnome-kiosk (the compositor)
+#              +-- kidnix-shell.service    -> /usr/bin/kidnix-shell-app
+#
+# WHY gnome-session AT ALL, when v0.1 just exec'd gnome-kiosk directly:
+# xdg-desktop-portal.service and both its backends carry
+# `Requisite=graphical-session.target`, and `Requisite=` fails immediately
+# unless the target is *already active*. Only gnome-session raises
+# graphical-session.target (gnome-session.target BindsTo= it), so without
+# gnome-session the child's session has no portals -- no file chooser, no
+# screenshot, no Flatpak that needs one. gnome-kiosk's own units say the same
+# thing from the other side: org.gnome.Kiosk.target is
+# `Requisite=gnome-session-initialized.target`, so it cannot even start outside
+# a gnome-session. See docs/spikes/session-integration.md.
+#
+# Everything this script does is environment. The session's *structure* lives
+# in /usr/share/gnome-session/sessions/kidnix.session and
+# /usr/lib/systemd/user/gnome-session@kidnix.target.d/session.conf, where
+# systemd and gnome-session can both see it.
 set -euo pipefail
-
-KIDNIX_KIOSK_APP="${KIDNIX_KIOSK_APP:-/usr/bin/gnome-text-editor}"
-
-if [[ ! -x "${KIDNIX_KIOSK_APP}" ]]; then
-    echo "kidnix-shell: kiosk app '${KIDNIX_KIOSK_APP}' is missing or not executable" >&2
-    exit 1
-fi
 
 # Skip GNOME's first-run wizard; a 4-year-old cannot complete it.
 mkdir -p "${HOME}/.config"
@@ -25,15 +35,23 @@ mkdir -p "${HOME}/.config"
 
 # Select the child's dconf profile (/etc/dconf/profile/kid), which layers the
 # locked kidnix defaults under the user's own database. dconf reads this at
-# process start, so it must be exported BEFORE the compositor is launched.
+# process start, so it must be exported BEFORE anything in the session runs.
+#
+# It has to be done HERE and not in /usr/lib/environment.d/, because
+# environment.d applies to *every* user's systemd manager on the machine and
+# the parent must keep stock GNOME defaults (ADR-0005). A wrapper that only
+# the kid session executes is the narrowest place this can live.
 export DCONF_PROFILE=kid
 
-# Anything the session bus or the per-user systemd manager activates later
-# (portals, gsd helpers, activities) is started by processes that do NOT
-# inherit this script's environment, so push it into both. pam_systemd has
-# already started `systemd --user` by the time GDM execs us. Neither of these
-# is fatal if it fails -- a missing profile costs us the locked defaults, not
-# the session.
+# Almost everything in the session -- gnome-kiosk, the shell, the portals, the
+# gsd helpers -- is started by `systemd --user` or dbus activation, not as a
+# child of this script, so exporting is not enough. pam_systemd started the
+# user manager before GDM ever exec'd us, so both of these work here, and both
+# must happen before gnome-session starts anything.
+#
+# gnome-session does upload its own environment to systemd and D-Bus as it
+# starts, so this is belt-and-braces; neither failing is fatal (the cost is the
+# locked defaults, not the session).
 if command -v systemctl >/dev/null 2>&1; then
     systemctl --user set-environment DCONF_PROFILE=kid || true
 fi
@@ -41,16 +59,8 @@ if command -v dbus-update-activation-environment >/dev/null 2>&1; then
     dbus-update-activation-environment --systemd DCONF_PROFILE || true
 fi
 
-# Keep the payload alive: if the activity crashes, restart it in place rather
-# than letting gnome-kiosk exit and bounce the child through GDM.
-KIDNIX_SUPERVISOR=/usr/libexec/kidnix-app-supervisor
-if [[ -x "${KIDNIX_SUPERVISOR}" ]]; then
-    set -- "${KIDNIX_SUPERVISOR}" "${KIDNIX_KIOSK_APP}"
-else
-    echo "kidnix-shell: ${KIDNIX_SUPERVISOR} missing, running app unsupervised" >&2
-    set -- "${KIDNIX_KIOSK_APP}"
-fi
+# --- hand over ---------------------------------------------------------------
 
-# --display-server: we ARE the session's compositor (GDM is not running one
-# for us). --wayland without it would try to nest inside a parent compositor.
-exec /usr/bin/gnome-kiosk --wayland --display-server -- "$@"
+# `--session=kidnix` names /usr/share/gnome-session/sessions/kidnix.session,
+# which in turn names the systemd target gnome-session@kidnix.target.
+exec /usr/bin/gnome-session --session=kidnix

@@ -340,8 +340,14 @@ assert_cmd "getty@tty1.service still enabled (recovery console)" \
 
 section "kiosk resilience"
 assert_exec /usr/libexec/kidnix-app-supervisor
-assert_grep 'kidnix-app-supervisor' /usr/bin/kidnix-shell \
-    "kidnix-shell runs the payload under the supervisor"
+# The session no longer runs the payload under this bash supervisor: it runs
+# the shell as kidnix-shell.service with Restart=always, which is the
+# upstream-shaped version of the same promise (and the only shape that also
+# gives us an active graphical-session.target and therefore portals). See
+# docs/spikes/session-integration.md. The supervisor itself stays on the image
+# for now, still tested below, until the thinker signs off on deleting it.
+assert_grep '^Restart=always$' /usr/lib/systemd/user/kidnix-shell.service \
+    "the kid session restarts the shell if it dies"
 assert_cmd "kidnix-app-supervisor is valid bash" bash -n /usr/libexec/kidnix-app-supervisor
 # A supervisor that gives up leaves a child staring at a black screen.
 assert_grep 'while true' /usr/libexec/kidnix-app-supervisor \
