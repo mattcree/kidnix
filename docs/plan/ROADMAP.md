@@ -24,7 +24,7 @@
 - [x] `docs/BUILDING.md`
 - [x] Research docs 01–08 + `SYNTHESIS.md` + `PRIORITIES.md`
 - [x] CI build green on main (image pushed to ghcr + signed)
-- [ ] CI boot-test green on GitHub runners (bcvk ssh timeout — in progress)
+- [x] CI boot-test green on GitHub runners (bcvk; virtiofsd ≥ 1.11 needed on ubuntu-24.04)
 
 Exit reached locally: `just test-boot` boots the image into the kiosk
 session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
