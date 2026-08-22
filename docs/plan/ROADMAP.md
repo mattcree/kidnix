@@ -13,31 +13,34 @@
 3. Every milestone ends with something that can be booted in a VM by `just`
    and asserted by CI.
 
-## M0 — Day one infrastructure (in progress)
+## M0 — Day one infrastructure (done 2026-08-22, bar CI green on main)
 
-- [x] Repo, AGENTS.md, ADRs, licence
-- [ ] `Containerfile` on ublue base-main, `build_files/`, `system_files/`
-- [ ] `Justfile`: build / lint / test-image / build-qcow2 / vm / test-boot /
-      push-local / vm-upgrade / ci
-- [ ] GitHub repo + Actions: lint, build, push `ghcr.io/mattcree/kidnix`,
-      experimental boot test
-- [ ] `docs/BUILDING.md`
-- [ ] Research docs 01–08 + `SYNTHESIS.md` + `PRIORITIES.md`
+- [x] Repo, AGENTS.md, ADRs 0001–0005, 0009, licence
+- [x] `Containerfile` on ublue base-main:44, `build_files/`, `system_files/`
+- [x] `Justfile`: build / lint / test-image / test-boot (bcvk, rootless) /
+      build-qcow2(-rootless) / vm / push-local / vm-upgrade / ci
+- [x] GitHub repo (private) + Actions: lint, build, push
+      `ghcr.io/mattcree/kidnix`, cosign, bcvk boot test
+- [x] `docs/BUILDING.md`
+- [x] Research docs 01–08 + `SYNTHESIS.md` + `PRIORITIES.md`
+- [ ] CI green on main (push step fixed; awaiting run)
 
-Exit: `just ci` green locally and in GitHub; a qcow2 boots in qemu to a kiosk
-placeholder session for the `kid` user; `just vm-upgrade` swaps a running VM to
-a new build.
+Exit reached locally: `just test-boot` boots the image into the kiosk
+session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
 
-## M1 — Locked-down kiosk skeleton
+## M1 — Locked-down kiosk skeleton (image level done; VM verification next)
 
-- `kid` user: GDM autologin → gnome-kiosk (or cage) session that launches a
-  placeholder shell; no VT switch, no shortcuts to escape, shell auto-restarts
-- `parent` user: normal GNOME, admin
-- Child session: no network egress (nftables by UID) ; Flatpak remotes
-  disabled for `kid`; malcontent policy in place
-- Boot test asserts: kiosk session active for kid, no egress, shell process
-  alive, screenshot captured
-- First-boot idempotency and `bootc upgrade`/rollback tested
+- [x] `kid`: GDM autologin → gnome-kiosk; VT-switch keybindings blanked and
+      locked; app supervisor with backoff; logind NAutoVTs=0
+- [x] nftables per-UID egress reject; polkit deny set; dconf kid profile with
+      child input settings; Flatpak `--unshare=network`; greenboot checks;
+      auto-update timer masked; ALSA cap + soft-mixer
+- [ ] `parent`: stock GNOME session (ADR-0005) — in progress
+- [ ] Portals in the kid session: route through gnome-session so
+      `graphical-session.target` is reached (blocks Flatpak activities)
+- [ ] Boot test asserts: no egress from kid (`curl` fails) while parent
+      succeeds; keybinding mash test; shell restart after kill
+- [ ] First-boot idempotency and `bootc upgrade`/rollback tested in a VM
 
 ## M2 — Shell vertical slice ("one activity, end-to-end")
 
