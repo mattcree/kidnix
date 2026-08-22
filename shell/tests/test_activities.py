@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from kidnix_shell.activities import (
+    Availability,
     ManifestError,
     load_activities,
     load_directory,
     load_manifest,
     parse_manifest,
+    resolve_availability,
 )
 
 MINIMAL = """
@@ -176,3 +179,171 @@ def test_the_shipped_manifests_all_validate() -> None:
     result = load_directory(shipped, home=Path("/var/home/kid"))
     assert result.ok, [str(e) for e in result.errors]
     assert len(result.activities) >= 5
+
+
+# --- order (spec section 4: Home's grid, not the alphabet) ---------------
+
+
+def test_order_sorts_home_and_missing_order_goes_to_the_back(tmp_path: Path) -> None:
+    write(tmp_path, "zulu.toml", 'id = "z"\nname = "Z"\nexec = ["z"]\norder = 10\n')
+    write(tmp_path, "alpha.toml", 'id = "a"\nname = "A"\nexec = ["a"]\norder = 20\n')
+    write(tmp_path, "bravo.toml", 'id = "b"\nname = "B"\nexec = ["b"]\n')
+    result = load_activities([tmp_path])
+    assert [a.id for a in result.activities] == ["z", "a", "b"]
+
+
+def test_activities_without_an_order_fall_back_to_the_filename(tmp_path: Path) -> None:
+    for name in ("charlie", "alpha", "bravo"):
+        write(tmp_path, f"{name}.toml", f'id = "{name}"\nname = "{name}"\nexec = ["x"]\n')
+    result = load_activities([tmp_path])
+    assert [a.id for a in result.activities] == ["alpha", "bravo", "charlie"]
+
+
+def test_order_must_be_a_whole_number(tmp_path: Path) -> None:
+    with pytest.raises(ManifestError) as caught:
+        load_manifest(write(tmp_path, "a.toml", MINIMAL + '\norder = "first"\n'))
+    assert "order" in caught.value.message
+
+
+# --- availability (a tile that cannot work is worse than no tile) --------
+
+
+def installed(*programs: str) -> Callable[[str], str | None]:
+    return lambda program: f"/usr/bin/{program}" if program in programs else None
+
+
+def test_an_activity_whose_program_is_missing_is_unavailable() -> None:
+    activity = parse_manifest({"id": "a", "name": "A", "exec": ["nope"]}, Path("a.toml"))
+    assert Availability(which=installed("yes")).check(activity) is False
+
+
+def test_an_installed_program_is_available() -> None:
+    activity = parse_manifest({"id": "a", "name": "A", "exec": ["yes"]}, Path("a.toml"))
+    assert Availability(which=installed("yes")).check(activity) is True
+
+
+def test_a_flatpak_exec_also_has_to_be_installed() -> None:
+    """`flatpak` being on PATH says nothing about the app (e2e spike 3.1)."""
+    activity = parse_manifest(
+        {"id": "a", "name": "A", "exec": ["flatpak", "run", "org.example.App"]}, Path("a.toml")
+    )
+    assert activity.flatpak_ref == "org.example.App"
+    check = Availability(which=installed("flatpak"), flatpak=lambda ref: False)
+    assert check.check(activity) is False
+    assert Availability(which=installed("flatpak"), flatpak=lambda ref: True).check(activity)
+
+
+def test_flatpak_options_do_not_confuse_the_ref() -> None:
+    activity = parse_manifest(
+        {"id": "a", "name": "A", "exec": ["flatpak", "run", "--branch=stable", "org.example.App"]},
+        Path("a.toml"),
+    )
+    assert activity.flatpak_ref == "org.example.App"
+
+
+def test_a_plain_exec_has_no_flatpak_ref() -> None:
+    activity = parse_manifest({"id": "a", "name": "A", "exec": ["yes"]}, Path("a.toml"))
+    assert activity.flatpak_ref == ""
+
+
+def test_each_program_is_probed_once_per_boot() -> None:
+    seen: list[str] = []
+
+    def which(program: str) -> str | None:
+        seen.append(program)
+        return "/usr/bin/x"
+
+    check = Availability(which=which)
+    activities = [
+        parse_manifest({"id": f"a{i}", "name": "A", "exec": ["same"]}, Path("a.toml"))
+        for i in range(5)
+    ]
+    for activity in activities:
+        assert check.check(activity)
+    assert seen == ["same"]
+
+
+def test_resolve_availability_stamps_every_activity() -> None:
+    here = parse_manifest({"id": "here", "name": "H", "exec": ["yes"]}, Path("h.toml"))
+    gone = parse_manifest({"id": "gone", "name": "G", "exec": ["nope"]}, Path("g.toml"))
+    resolved = resolve_availability([here, gone], Availability(which=installed("yes")))
+    assert [a.available for a in resolved] == [True, False]
+
+
+def test_an_unavailable_activity_is_off_home_unless_it_asks_to_be_seen() -> None:
+    hidden = parse_manifest({"id": "a", "name": "A", "exec": ["nope"]}, Path("a.toml"))
+    shown = parse_manifest(
+        {"id": "b", "name": "B", "exec": ["nope"], "show_when_unavailable": True},
+        Path("b.toml"),
+    )
+    check = Availability(which=installed("yes"))
+    resolved = {a.id: a for a in resolve_availability([hidden, shown], check)}
+    assert resolved["a"].on_home is False
+    assert resolved["b"].on_home is True
+    # Anything installed is on Home whatever the flag says.
+    assert parse_manifest({"id": "c", "name": "C", "exec": ["x"]}, Path("c.toml")).on_home
+
+
+def test_show_when_unavailable_defaults_to_false(tmp_path: Path) -> None:
+    assert load_manifest(write(tmp_path, "a.toml", MINIMAL)).show_when_unavailable is False
+
+
+# --- the shipped set, as a child meets it --------------------------------
+
+#: What each tile is called, and what it says. Product names are not activities
+#: (SYNTHESIS B4, 05 section 3): a five-year-old is choosing what to *do*.
+SHIPPED_LABELS = {
+    "tuxpaint": ("Draw", "Draw"),
+    "ktuberling": ("Potato faces", "Make a potato face"),
+    "turbowarp": ("Make a game", "Make a game"),
+    "gcompris": ("Letters & numbers", "Letters and numbers"),
+    "klettres": ("Letter sounds", "Letter sounds"),
+    "tuxmath": ("Number game", "Number game"),
+    "blinken": ("Copy the lights", "Copy the lights"),
+    "kolf": ("Mini golf", "Mini golf"),
+    "supertux": ("Jump and run", "Jump and run"),
+    "kiwix": ("Library", "Library"),
+}
+
+
+def shipped_activities() -> list[object]:
+    directory = Path(__file__).resolve().parents[2] / "system_files/usr/share/kidnix/activities"
+    if not directory.is_dir():
+        pytest.skip("running outside the kidnix checkout")
+    result = load_activities([directory], home=Path("/var/home/kid"))
+    assert result.ok, [str(e) for e in result.errors]
+    return result.activities  # type: ignore[return-value]
+
+
+def test_the_shipped_tiles_are_named_for_what_the_child_does() -> None:
+    for activity in shipped_activities():
+        name, audio = SHIPPED_LABELS[activity.id]  # type: ignore[attr-defined]
+        assert activity.name == name  # type: ignore[attr-defined]
+        assert activity.speak_text == audio  # type: ignore[attr-defined]
+
+
+def test_no_shipped_tile_says_a_product_name() -> None:
+    """The label is a verb phrase, not a brand. "Library" is the one noun."""
+    banned = ("tux", "gcompris", "kde", "klettres", "kolf", "blinken", "turbowarp", "scratch")
+    for activity in shipped_activities():
+        spoken = f"{activity.name} {activity.speak_text}".lower()  # type: ignore[attr-defined]
+        for word in banned:
+            assert word not in spoken, f"{activity.id} still says {word!r}"  # type: ignore[attr-defined]
+
+
+def test_every_shipped_activity_has_an_order_and_a_goal() -> None:
+    for activity in shipped_activities():
+        assert activity.order is not None, activity.id  # type: ignore[attr-defined]
+        assert activity.goal, activity.id  # type: ignore[attr-defined]
+
+
+def test_draw_is_the_first_tile_on_home() -> None:
+    """The one a four-year-old gets furthest with unaided, first."""
+    assert shipped_activities()[0].id == "tuxpaint"  # type: ignore[attr-defined]
+
+
+def test_the_unshipped_flatpak_does_not_get_an_outline_tile() -> None:
+    """TurboWarp is not installed until an online boot has happened."""
+    turbowarp = next(a for a in shipped_activities() if a.id == "turbowarp")  # type: ignore[attr-defined]
+    assert turbowarp.show_when_unavailable is False  # type: ignore[attr-defined]
+    assert turbowarp.flatpak_ref == "org.turbowarp.TurboWarp"  # type: ignore[attr-defined]

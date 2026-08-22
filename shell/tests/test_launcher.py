@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import sys
 import time
+from datetime import timedelta
 from pathlib import Path
 
-from kidnix_shell.launcher import Launcher, Outcome, build_env
+from kidnix_shell.launcher import STDERR_TAIL_BYTES, Launcher, Outcome, build_env
 
 from .conftest import make_activity
 
@@ -166,3 +167,85 @@ def test_resume_passes_the_file_to_the_activity(tmp_path: Path) -> None:
     activity = make_activity(exec_argv=("draw",), exec_resume=("draw", "--open", "{file}"))
     launcher.launch(activity, resume_path=tmp_path / "picture.png")
     assert recorded["argv"] == ["draw", "--open", str(tmp_path / "picture.png")]
+
+
+# --- a launch that failed is not a launch (e2e spike section 3.1) --------
+
+
+def _wait_for_exit(launcher: Launcher) -> None:
+    for _ in range(100):
+        if launcher.check() is not None:
+            return
+        time.sleep(0.05)
+    raise AssertionError("the activity never exited")
+
+
+def test_a_missing_flatpak_looks_like_a_failure_to_open(tmp_path: Path) -> None:
+    """The exact shape of the TurboWarp bug: exits 1 in well under a second."""
+    script = tmp_path / "nope.py"
+    script.write_text(
+        "import sys\n"
+        "print('error: app/org.example.App/x86_64/master not installed', file=sys.stderr)\n"
+        "sys.exit(1)\n",
+        encoding="utf-8",
+    )
+    launcher = Launcher(tmp_path)
+    seen: list[tuple[bool, str]] = []
+    launcher.on_exit = lambda running, code: seen.append(
+        (running.failed_to_open(code), running.stderr_tail())
+    )
+    launcher.launch(make_activity(exec_argv=(sys.executable, str(script))))
+    _wait_for_exit(launcher)
+
+    (failed, tail) = seen[0]
+    assert failed is True
+    assert "not installed" in tail
+
+
+def test_a_child_quitting_normally_is_not_a_failure(tmp_path: Path) -> None:
+    launcher = Launcher(tmp_path)
+    seen: list[bool] = []
+    launcher.on_exit = lambda running, code: seen.append(running.failed_to_open(code))
+    launcher.launch(make_activity(exec_argv=("/bin/true",)))
+    _wait_for_exit(launcher)
+    assert seen == [False]
+
+
+def test_a_long_run_that_crashes_at_the_end_is_not_a_failure_to_open(tmp_path: Path) -> None:
+    """An app that ran for ten minutes and then fell over did open."""
+    launcher = Launcher(tmp_path)
+    running = launcher.launch(make_activity(exec_argv=("/bin/true",)))
+    assert running is not None
+    running.started_at -= timedelta(minutes=10)
+    _wait_for_exit(launcher)
+    assert running.failed_to_open(1) is False
+
+
+def test_stderr_is_captured_to_a_file_not_a_pipe(tmp_path: Path) -> None:
+    """A pipe nobody reads would block a chatty activity mid-drawing."""
+    script = tmp_path / "noisy.py"
+    script.write_text("import sys\nsys.stderr.write('x' * 200000)\nsys.exit(1)\n", encoding="utf-8")
+    launcher = Launcher(tmp_path)
+    tails: list[str] = []
+    launcher.on_exit = lambda running, code: tails.append(running.stderr_tail())
+    launcher.launch(make_activity(exec_argv=(sys.executable, str(script))))
+    _wait_for_exit(launcher)
+    assert len(tails[0]) == STDERR_TAIL_BYTES  # tail only, not the whole novel
+
+
+def test_the_stderr_file_is_closed_after_the_callback(tmp_path: Path) -> None:
+    launcher = Launcher(tmp_path)
+    kept: list[object] = []
+    launcher.on_exit = lambda running, code: kept.append(running)
+    launcher.launch(make_activity(exec_argv=("/bin/true",)))
+    _wait_for_exit(launcher)
+    assert kept[0].stderr_file is None  # type: ignore[attr-defined]
+    assert kept[0].stderr_tail() == ""  # type: ignore[attr-defined]
+
+
+def test_stopping_an_activity_also_closes_its_stderr(tmp_path: Path) -> None:
+    launcher = Launcher(tmp_path)
+    running = launcher.launch(make_activity(exec_argv=("/bin/sleep", "30")))
+    assert running is not None
+    launcher.stop(grace=2)
+    assert running.stderr_file is None

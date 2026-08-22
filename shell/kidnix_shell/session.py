@@ -235,6 +235,12 @@ class Session:
     ``granted`` is the session's own length in seconds -- the policy length,
     capped by whatever is left of today's budget, plus any grants the grown-up
     added mid-session.
+
+    ``offer_answered`` is the ending offer's one-shot latch (spec S5). The
+    offer is a *question*, and a question asked twice is not a ritual, it is
+    nagging: once the child has answered it, the shell must leave them alone
+    until Put away. A grown-up grant that pushes the hard stop back past a new
+    T-6 re-arms it, because that genuinely is a new ending to warn about.
     """
 
     policy: SessionPolicy
@@ -242,6 +248,7 @@ class Session:
     started_at: datetime | None = None
     granted: int = 0
     _ended: bool = False
+    _offer_answered: bool = False
 
     # -- lifecycle --
 
@@ -265,6 +272,7 @@ class Session:
         self.granted = min(wanted, self.usage.remaining(self.policy.daily_budget))
         self.started_at = now
         self._ended = False
+        self._offer_answered = False
         log.info("session started for %d s (budget leaves %d s)", self.granted, wanted)
         return True
 
@@ -276,6 +284,7 @@ class Session:
         self._ended = True
         self.started_at = None
         self.granted = 0
+        self._offer_answered = False
 
     def add_minutes(self, minutes: int, now: datetime) -> int:
         """Grown-up grant (+5/+15/+30). Returns the seconds actually added.
@@ -293,8 +302,27 @@ class Session:
             # A grant during Goodbye reopens the session rather than stranding
             # the child on the ending screen.
             self._ended = False
+        if added and self.remaining(now) > self.policy.ending_offer_at:
+            # The hard stop moved: there is a *new* T-6 coming, so the offer is
+            # armed again. A grant too small to clear the offer window leaves
+            # the latch alone -- re-asking inside the same warning would be the
+            # nagging this latch exists to prevent.
+            self._offer_answered = False
         log.info("granted %d s (elapsed %d s, now %d s)", added, spent, self.granted)
         return added
+
+    # -- the ending offer's one-shot latch (spec S5) --
+
+    @property
+    def offer_answered(self) -> bool:
+        """Has the child already answered this session's ending offer?"""
+        return self._offer_answered
+
+    def answer_offer(self) -> None:
+        """Record that the offer was answered. Idempotent."""
+        if not self._offer_answered:
+            log.info("the ending offer was answered; not asking again this session")
+        self._offer_answered = True
 
     # -- state --
 

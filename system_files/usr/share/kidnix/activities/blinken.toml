@@ -2,8 +2,10 @@
 schema = 1
 
 id = "blinken"
-name = "Blinken"
-audio_label = "Blinken. Watch the lights, then copy them."
+name = "Copy the lights"
+audio_label = "Copy the lights"
+goal = "Remembering a sequence. Colours and sounds only, no reading, and failing just stops the lights."
+order = 70
 icon = "blinken"
 icon_kind = "icon-name"
 exec = ["blinken"]

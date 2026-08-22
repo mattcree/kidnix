@@ -15,24 +15,41 @@ Two things matter here and are tested:
   with SIGTERM, waits the autosave grace of 5 s, then SIGKILL. The activity is
   started in its own process group so a misbehaving app that forks children
   cannot leave orphans on top of the shell.
+* **A launch that failed is not a launch.** An activity that exits non-zero
+  within :data:`FAST_FAIL_SECONDS` never really started; the child pressed a
+  button and the screen flickered
+  (`docs/spikes/e2e-scenario.md` section 3.1). Its stderr is captured to a
+  temporary file so the shell can put the tail in the parent's journal instead
+  of leaving the child with nothing at all.
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import signal
 import subprocess
+import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 log = logging.getLogger(__name__)
 
 #: Spec S6: SIGTERM, autosave grace, then SIGKILL.
 AUTOSAVE_GRACE_SECONDS = 5.0
+
+#: Under this, a non-zero exit means the program did not open. Generous: Tux
+#: Paint takes about a second to put a window up on the panel we ship on, and
+#: a missing Flatpak fails in well under a tenth of that.
+FAST_FAIL_SECONDS = 3.0
+
+#: How much of a failed activity's stderr the parent's journal gets. Enough for
+#: "app/... not installed"; not enough for a Mesa novel.
+STDERR_TAIL_BYTES = 2048
 
 #: Variables an activity legitimately needs to find the display, the session
 #: bus and the user's runtime dir. Everything else is dropped.
@@ -79,6 +96,7 @@ class RunningActivity:
     started_at: datetime
     resume_path: Path | None = None
     env: dict[str, str] = field(default_factory=dict, repr=False)
+    stderr_file: IO[bytes] | None = field(default=None, repr=False)
 
     @property
     def pid(self) -> int:
@@ -90,6 +108,35 @@ class RunningActivity:
     @property
     def running(self) -> bool:
         return self.poll() is None
+
+    def ran_for(self, now: datetime | None = None) -> float:
+        """Seconds between launch and ``now``."""
+        return ((now or datetime.now()) - self.started_at).total_seconds()
+
+    def failed_to_open(self, code: int, now: datetime | None = None) -> bool:
+        """Did this exit look like "the program is not there" rather than a quit?"""
+        return code != 0 and self.ran_for(now) < FAST_FAIL_SECONDS
+
+    def stderr_tail(self, limit: int = STDERR_TAIL_BYTES) -> str:
+        """The last few kilobytes the activity complained about, or ``""``."""
+        handle = self.stderr_file
+        if handle is None:
+            return ""
+        try:
+            handle.flush()
+            size = handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, size - limit))
+            return handle.read().decode("utf-8", "replace").strip()
+        except (OSError, ValueError) as exc:  # pragma: no cover - closed file
+            log.debug("could not read %s's stderr: %s", self.activity_id, exc)
+            return ""
+
+    def close_stderr(self) -> None:
+        """Drop the temporary file (it is unlinked already; this frees the fd)."""
+        if self.stderr_file is not None:
+            with contextlib.suppress(OSError):  # pragma: no cover
+                self.stderr_file.close()
+            self.stderr_file = None
 
 
 def build_env(
@@ -154,6 +201,19 @@ class Launcher:
         )
         env = build_env(self.home, self.parent_env, {"KIDNIX_ACTIVITY_ID": activity.id})
 
+        # An unnamed temporary file rather than a pipe: nobody is reading it
+        # while the activity runs, and a full pipe buffer would block a child's
+        # drawing program mid-stroke. It is unlinked at creation, so it cannot
+        # outlive the shell even if we crash.
+        stderr_file: IO[bytes] | None = None
+        try:
+            # The file deliberately outlives this block -- it is the
+            # activity's stderr for as long as the activity runs, and it is
+            # closed by _forget() or by check() after on_exit.
+            stderr_file = tempfile.TemporaryFile(prefix=f"kidnix-{activity.id}-")  # noqa: SIM115
+        except OSError as exc:  # pragma: no cover - a full /tmp
+            log.warning("no temporary file for %s's stderr (%s)", activity.id, exc)
+
         try:
             process = self._spawn(
                 argv,
@@ -163,9 +223,12 @@ class Launcher:
                 # activity spawned.
                 start_new_session=True,
                 stdin=subprocess.DEVNULL,
+                stderr=stderr_file,
             )
         except (OSError, ValueError) as exc:
             log.error("could not launch %s (%s): %s", activity.id, argv, exc)
+            if stderr_file is not None:
+                stderr_file.close()
             return None
 
         self.current = RunningActivity(
@@ -175,6 +238,7 @@ class Launcher:
             started_at=datetime.now(),
             resume_path=resume_path,
             env=env,
+            stderr_file=stderr_file,
         )
         log.info("launched %s as pid %s: %s", activity.id, self.current.pid, argv)
         return self.current
@@ -192,14 +256,14 @@ class Launcher:
         if running is None:
             return Outcome.NOT_RUNNING
         if running.poll() is not None:
-            self.current = None
+            self._forget(running)
             return Outcome.EXITED
 
         self._signal(running, signal.SIGTERM)
         try:
             running.process.wait(timeout=grace)
             log.info("%s exited after SIGTERM", running.activity_id)
-            self.current = None
+            self._forget(running)
             return Outcome.TERMINATED
         except subprocess.TimeoutExpired:
             pass
@@ -210,8 +274,12 @@ class Launcher:
             running.process.wait(timeout=2)
         except subprocess.TimeoutExpired:  # pragma: no cover - unkillable process
             log.error("%s survived SIGKILL", running.activity_id)
-        self.current = None
+        self._forget(running)
         return Outcome.KILLED
+
+    def _forget(self, running: RunningActivity) -> None:
+        running.close_stderr()
+        self.current = None
 
     def request_stop(self) -> bool:
         """Send SIGTERM and return immediately. Returns False if nothing ran.
@@ -233,7 +301,7 @@ class Launcher:
         if running is None:
             return Outcome.NOT_RUNNING
         if running.poll() is not None:
-            self.current = None
+            self._forget(running)
             return Outcome.TERMINATED
         log.warning("%s ignored SIGTERM; killing", running.activity_id)
         self._signal(running, signal.SIGKILL)
@@ -241,7 +309,7 @@ class Launcher:
             running.process.wait(timeout=2)
         except subprocess.TimeoutExpired:  # pragma: no cover
             log.error("%s survived SIGKILL", running.activity_id)
-        self.current = None
+        self._forget(running)
         return Outcome.KILLED
 
     @staticmethod
@@ -277,6 +345,11 @@ class Launcher:
             return None
         self.current = None
         log.info("%s exited with code %s", running.activity_id, code)
-        if self.on_exit is not None:
-            self.on_exit(running, code)
+        try:
+            # ``on_exit`` may want the stderr tail, so the file outlives the
+            # callback and not the other way round.
+            if self.on_exit is not None:
+                self.on_exit(running, code)
+        finally:
+            running.close_stderr()
         return code

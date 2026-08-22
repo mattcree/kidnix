@@ -2,8 +2,10 @@
 schema = 1
 
 id = "supertux"
-name = "SuperTux"
-audio_label = "SuperTux. Run and jump through the snow."
+name = "Jump and run"
+audio_label = "Jump and run"
+goal = "Just for fun -- a jump-and-run game with a game-over state."
+order = 90
 icon = "supertux2"
 icon_kind = "icon-name"
 # Note the binary is supertux2, not supertux -- the package is 'supertux'.

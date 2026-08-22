@@ -11,6 +11,12 @@ A tile the child has used recently carries a small thumbnail of the last thing
 they made there. A tile the parent has not allowed renders outline-only (never
 greyed out) and says "Ask a grown-up for this one".
 
+An activity whose program is **not installed** gets no tile at all by default:
+a button that flickers and returns you to Home is worse than an absent one
+(`docs/spikes/e2e-scenario.md` section 3.1). A manifest that would rather be
+seen than hidden sets ``show_when_unavailable = true`` and gets the same
+outline-only treatment with "This one isn't ready yet. Ask a grown-up."
+
 **The last tile is always "All done"** (spec 7a, SYNTHESIS D5): a moon, one
 tap, no confirmation, and the same ending ritual the clock would have run. A
 child who has had enough must be able to say so, and saying so must not need a
@@ -34,6 +40,12 @@ from ..widgets import ActivityTile, Pager, carousel_page, quiet_carousel  # noqa
 from . import Screen  # noqa: E402
 
 ALL_DONE_ID = "kidnix.all-done"
+
+#: SYNTHESIS G3: never a silent denial. Two different reasons, two different
+#: sentences -- a child told "ask a grown-up" about something that is simply
+#: not installed would be sent to ask for something nobody can give them.
+NOT_ALLOWED_LINE = "Ask a grown-up for this one."
+NOT_READY_LINE = "This one isn't ready yet. Ask a grown-up."
 
 
 @dataclass(frozen=True)
@@ -76,8 +88,9 @@ class HomeScreen(Screen):
     # -- content --
 
     def cells(self) -> list[Cell]:
-        """Everything on Home, in order. "All done" is always last (spec 7a)."""
-        return [*self.ctx.activities, ALL_DONE]
+        """Everything on Home, in manifest ``order``. "All done" is last (spec 7a)."""
+        shown = [a for a in self.ctx.activities if getattr(a, "on_home", True)]
+        return [*shown, ALL_DONE]
 
     def refresh(self) -> None:
         """Rebuild the grid. Cheap enough to do on every arrival at Home."""
@@ -116,22 +129,32 @@ class HomeScreen(Screen):
                 on_activate=self._all_done,
                 extra_css=("all-done",),
             )
-        allowed = self.ctx.config.is_allowed(cell.id)
+        denial = self._denial(cell)
         latest = self.ctx.journal.latest_for_activity(cell.id)
         return ActivityTile(
             cell,
             metrics,
             self.ctx.speech_ui,
-            on_activate=partial(self._activate, cell, allowed),
-            allowed=allowed,
+            on_activate=partial(self._activate, cell),
+            allowed=denial is None,
+            denial=denial or NOT_ALLOWED_LINE,
             thumbnail=latest.thumbnail if latest is not None else None,
         )
 
-    def _activate(self, activity: Activity, allowed: bool) -> None:
-        if not allowed:
+    def _denial(self, activity: Activity) -> str | None:
+        """Why this tile cannot be pressed, in the child's words -- or None."""
+        if not self.ctx.config.is_allowed(activity.id):
+            return NOT_ALLOWED_LINE
+        if not getattr(activity, "available", True):
+            return NOT_READY_LINE
+        return None
+
+    def _activate(self, activity: Activity) -> None:
+        denial = self._denial(activity)
+        if denial is not None:
             # SYNTHESIS G3: never a silent denial. v0.1 has no Ask queue yet,
             # so the honest thing is to say so and leave the child on Home.
-            self.ctx.speech.speak("Ask a grown-up for this one.")
+            self.ctx.speech.speak(denial)
             return
         self.ctx.host.launch(activity)
 

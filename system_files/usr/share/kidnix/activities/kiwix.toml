@@ -3,7 +3,9 @@ schema = 1
 
 id = "kiwix"
 name = "Library"
-audio_label = "Library. Look things up."
+audio_label = "Library"
+goal = "Looking things up in an offline encyclopedia a grown-up has added. Nothing to read until they do."
+order = 100
 # No icon ships with kiwix-tools (it is a server, not an app). Placeholder until
 # the shell has its own icon set.
 icon = "accessories-dictionary"

@@ -2,8 +2,10 @@
 schema = 1
 
 id = "klettres"
-name = "Letters and Sounds"
-audio_label = "Letters and sounds. Listen, then find the letter."
+name = "Letter sounds"
+audio_label = "Letter sounds"
+goal = "Letter sounds and names, with recorded human voices. Check it against your child's phonics scheme."
+order = 50
 icon = "klettres"
 icon_kind = "icon-name"
 exec = ["klettres"]

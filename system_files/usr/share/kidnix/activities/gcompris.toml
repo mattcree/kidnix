@@ -2,8 +2,10 @@
 schema = 1
 
 id = "gcompris"
-name = "GCompris"
-audio_label = "GCompris. Lots of little games to try."
+name = "Letters & numbers"
+audio_label = "Letters and numbers"
+goal = "About 190 small learning games. Not curated yet -- some are pitched well above five."
+order = 40
 icon = "gcompris-qt"
 icon_kind = "icon-name"
 exec = ["gcompris-qt"]

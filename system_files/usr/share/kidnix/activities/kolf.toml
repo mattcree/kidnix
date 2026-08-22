@@ -2,8 +2,10 @@
 schema = 1
 
 id = "kolf"
-name = "Mini Golf"
-audio_label = "Mini golf. Hit the ball into the hole."
+name = "Mini golf"
+audio_label = "Mini golf"
+goal = "Pointer practice -- aim, drag, judge the strength. No timer and no way to fail permanently."
+order = 80
 icon = "kolf"
 icon_kind = "icon-name"
 exec = ["kolf"]

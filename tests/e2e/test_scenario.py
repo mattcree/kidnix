@@ -37,7 +37,7 @@ from pixels import (
 #: activities sort by (category, name), so "make" follows "learn" and
 #: "Tux Paint" follows "TurboWarp". Asserted, not assumed: the shell's launcher
 #: log says which activity actually started.
-DRAW_ROW, DRAW_COLUMN = 1, 2
+DRAW_ROW, DRAW_COLUMN = 0, 0
 
 #: Tux Paint's own furniture, at 1280x800 fullscreen. Read off a screenshot of
 #: the real thing (docs/spikes/e2e-scenario.md); Tux Paint lays its tool column

@@ -434,3 +434,118 @@ through All done → Put away → Back → Home → All done → Goodbye.
 4. Q1, Q2 and Q4–Q7 of §5 above are answered by §7a and implemented here;
    **Q3 (DPI)** is answered by §9. Q2 (resume) is still open on the *manifest*
    side.
+
+---
+
+## 15. The two e2e bugs, and the manifest labels (second pass, 2026-08-22)
+
+Fixes for `docs/spikes/e2e-scenario.md` §3.1 and §3.2, plus the kid-facing
+naming the spec assumed but the manifests did not have.
+
+### 15.1 The ending offer asked twice (§3.2)
+
+`app._advance_ritual` recomputed the ritual from the clock on **every** 500 ms
+tick, so `DISMISS_OFFER` → HOME was immediately followed by
+`ENDING_OFFER_DUE` → ENDING_OFFER, for the whole four-minute window. A child
+answered the question and the machine asked it again, and "One last little
+thing" was indistinguishable from "Finish this one".
+
+The fix is two pieces, both testable without a display:
+
+- **A latch on the session.** `Session._offer_answered`, cleared by `start()`
+  and `end()`, set by `answer_offer()`, and **re-armed by `add_minutes()` only
+  when the grant pushes the remaining time back past `ending_offer_at`**. A
+  grown-up who adds fifteen minutes has created a new ending, and a new ending
+  deserves one warning; a grant of one minute inside the offer window has not,
+  and re-asking there would be the nagging the latch exists to stop.
+- **A pure decision.** New `kidnix_shell/ritual.py`: `next_action(phase, state,
+  offer_answered) -> RitualAction`. `_advance_ritual` is now four lines of
+  dispatch. The ritual's whole policy — including "never interrupt the grown-up
+  sheet" and "Put away happens regardless" — is one function with no clock, no
+  GTK and no I/O, and `tests/test_ritual.py` walks a fake shell through whole
+  sessions at 4 Hz asserting the offer count.
+
+`ENDING_OFFER → DISMISS_OFFER → _offer_return` already did the right thing for
+"stays where they were", so **the state machine did not change**. Home stays
+Home, so "one last little thing" is simply Home continuing to work; the test
+asserts `LAUNCH_ACTIVITY` is still available afterwards.
+
+One deviation from §7a as written: **"Ask for more time" now dismisses too.**
+It speaks the same honest line ("A grown-up can add more time. Go and ask
+them.") and then gets out of the way. A child who has gone to find an adult
+must not come back to the same question, and leaving the offer up made
+"ask" the only choice that did nothing.
+
+### 15.2 A tile that launches nothing (§3.1)
+
+Three layers, because the failure has three:
+
+1. **Not shown.** `Availability` (in `activities.py`) resolves `exec[0]` on
+   `PATH` and, for `flatpak run <ref>`, runs `flatpak info <ref>`. One probe per
+   *program*, cached for the boot, both injectable so tests never touch `PATH`.
+   `resolve_availability()` stamps `Activity.available`; `cli.main` calls it
+   once at startup. Unavailable activities stay in the list — the Journal must
+   still be able to name the activity an old entry came from — and
+   `Activity.on_home` is what Home filters on.
+2. **Or shown honestly.** `show_when_unavailable = true` keeps the tile,
+   outline-only, speaking *"This one isn't ready yet. Ask a grown-up."* — a
+   different sentence from the not-allowed *"Ask a grown-up for this one."*,
+   because sending a child to ask for something nobody can give them is not
+   G3, it is a runaround. `turbowarp.toml` sets it **false** until the Flatpak
+   is really installed by an online boot.
+3. **And if it still fails.** `RunningActivity.failed_to_open(code)` is true for
+   a non-zero exit inside `FAST_FAIL_SECONDS` (3 s). The shell then speaks
+   *"That one didn't open. Let's try something else."* — no error text, no code
+   — and logs the stderr tail at WARNING for the parent's journal. stderr is
+   captured to an **unnamed temporary file**, not a pipe: nobody reads it while
+   the activity runs and a full pipe buffer would block a child's drawing
+   program mid-stroke. It is closed after `on_exit`, and by `stop()`.
+
+Note that (1) means the child never *sees* (3) for a missing program; (3) is
+the backstop for the launch that fails for a reason a `which` cannot predict
+(a missing library, a broken config, a crash on the splash screen).
+
+### 15.3 Tiles are named for what the child does
+
+Every shipped manifest's `name`/`audio_label` is now the **activity**, not the
+product (SYNTHESIS B4, 05 §3): Draw, Potato faces, Make a game, Letters &
+numbers, Letter sounds, Number game, Copy the lights, Mini golf, Jump and run,
+Library. `audio_label` is the spoken form of the same label, which is why it
+differs in exactly two places ("Letters and numbers" because `&` does not
+speak; "Make a potato face" because the tile has room for two words and the ear
+has room for four). Every manifest also gained an honest one-line `goal` for
+the parent panel — the place where "a jump-and-run game with a game-over state"
+and "not curated yet — some are pitched well above five" belong.
+
+`order` (int, small first; no `order` sorts last, by filename) replaces the old
+`(category, name)` sort. Making comes first, then learning, then play, then the
+Library: Draw 10 → Library 100, with "All done" always last on its own rule.
+`--validate-manifests` now prints the grid in that order with the name and
+flags a manifest with no `goal`.
+
+**Consequences for other people's files:**
+
+- `tests/e2e/test_scenario.py` has `DRAW_ROW, DRAW_COLUMN = 1, 2` with a
+  comment about `(category, name)`. With `order` — and TurboWarp no longer
+  drawn at all — **Draw is row 0, column 0**. The step asserts
+  `launched tuxpaint` in the journal, so it fails loudly rather than silently,
+  but it needs the two constants changed.
+- The same file's open question "assert `speaking: Tux Paint. Draw a picture.`"
+  becomes `speaking: Draw`.
+- `docs/spikes/activities-packaging.md` documents the manifest schema and does
+  not yet mention `order`, `show_when_unavailable` or `goal`. Not edited here
+  (not this task's file).
+
+### 15.4 Still open after this pass
+
+1. **The two outline-only tiles look identical.** Not-allowed and not-installed
+   render with the same dashed outline and differ only in what they say. If the
+   distinction matters visually, it wants a second treatment — a taste call for
+   the human, not a code change.
+2. **`content_required` is still not implemented.** `kiwix.toml` sets it and
+   asks the shell to hide the Library until a ZIM exists; `kiwix-serve` is
+   installed, so availability alone leaves the tile up and the child opens an
+   empty library. Same shape as `available`; one predicate away.
+3. **`flatpak info` is run on the main thread at startup.** Five-second timeout,
+   one call for the one Flatpak we ship. If the Flatpak list grows this belongs
+   off the startup path.

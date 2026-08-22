@@ -2,8 +2,10 @@
 schema = 1
 
 id = "ktuberling"
-name = "Potato Guy"
-audio_label = "Potato Guy. Make a funny face."
+name = "Potato faces"
+audio_label = "Make a potato face"
+goal = "Drag-and-drop play. Every part is spoken aloud, so it needs no reading, and there is no way to lose."
+order = 20
 icon = "ktuberling"
 icon_kind = "icon-name"
 exec = ["ktuberling"]

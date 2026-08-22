@@ -26,6 +26,7 @@ from .context import ShellContext  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
 from .launcher import AUTOSAVE_GRACE_SECONDS, Launcher, RunningActivity  # noqa: E402
 from .metrics import Metrics, ScreenOverride, detect_metrics  # noqa: E402
+from .ritual import RitualAction, next_action  # noqa: E402
 from .screens import Screen  # noqa: E402
 from .screens.ending import EndingOfferScreen, PutAwayScreen  # noqa: E402
 from .screens.goodbye import GoodbyeScreen  # noqa: E402
@@ -399,29 +400,20 @@ class ShellWindow(Adw.ApplicationWindow):
             self.machine.try_fire(Event.WAKE)
 
     def _advance_ritual(self, phase: Phase) -> None:
-        state = self.machine.state
-        if state is State.GROWNUP:
-            return  # never yank the sheet out from under a parent mid-task
-        if phase is Phase.ENDING_OFFER and state in (
-            State.HOME,
-            State.IN_ACTIVITY,
-            State.JOURNAL,
-        ):
+        """One tick of the ending ritual. The policy is in :mod:`ritual`."""
+        action = next_action(phase, self.machine.state, offer_answered=self.session.offer_answered)
+        if action is RitualAction.PRESENT_OFFER:
             self._present_ending_offer()
-        elif phase is Phase.PUT_AWAY and state in (
-            State.HOME,
-            State.IN_ACTIVITY,
-            State.JOURNAL,
-            State.ENDING_OFFER,
-        ):
+        elif action is RitualAction.PUT_AWAY:
             self._begin_put_away()
-        elif phase is Phase.ENDED and state is State.PUT_AWAY:
+        elif action is RitualAction.GOODBYE:
             self.session.end(datetime.now())
             self.machine.try_fire(Event.GOODBYE_DUE)
 
     # -- the ending ritual --------------------------------------------
 
     def _present_ending_offer(self) -> None:
+        self._close_offer_window()
         self.machine.try_fire(Event.ENDING_OFFER_DUE)
         if not self.launcher.running:
             return
@@ -514,7 +506,20 @@ class ShellWindow(Adw.ApplicationWindow):
         log.info("%s finished (%s)", running.activity_id, code)
         self.present()
         kept = self.watcher.sweep_now()
-        if kept:
+        if running.failed_to_open(code):
+            # It never opened. The child pressed a button and the screen
+            # flickered; SYNTHESIS C3 says say something, in the child's words,
+            # and put the reason where the parent will find it instead.
+            tail = running.stderr_tail()
+            log.warning(
+                "%s exited %s after %.1fs -- it did not open. stderr tail:\n%s",
+                running.activity_id,
+                code,
+                running.ran_for(),
+                tail or "(nothing on stderr)",
+            )
+            self.speech.speak("That one didn't open. Let's try something else.")
+        elif kept:
             self.earcons.play(KEEP)
         if self.machine.state is State.IN_ACTIVITY:
             self.machine.try_fire(Event.ACTIVITY_EXITED)
@@ -541,7 +546,17 @@ class ShellWindow(Adw.ApplicationWindow):
         self.machine.try_fire(Event.CLOSE_GROWNUP)
 
     def dismiss_offer(self, one_last_thing: bool) -> None:
+        """S5: the child answered. The offer does not come back this session.
+
+        Both answers do the same thing to the machine -- return the child to
+        wherever they were and leave them alone until Put away. The difference
+        is in what it means on Home: "one last little thing" is permission to
+        open one more activity, which is simply Home continuing to work.
+        """
         self._close_offer_window()
+        # Latch first: the answer counts even if the transition is a no-op
+        # because a later tick already moved the child on.
+        self.session.answer_offer()
         if one_last_thing:
             self.speech.speak("One last little thing, then.")
         self.machine.try_fire(Event.DISMISS_OFFER)

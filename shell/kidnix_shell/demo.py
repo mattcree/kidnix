@@ -53,10 +53,16 @@ DEMO_ACTIVITIES: tuple[tuple[str, str, str, str, str, bool], ...] = (
     ("music", "Music", "Music. Play a tune.", "#e64a19", "make", True),
     ("photos", "Photos", "Photos. Take a picture.", "#5d4037", "make", True),
     ("sticky", "Sticky", "Sticky. This one is slow to put away.", "#455a64", "play", False),
+    ("notyet", "Not ready", "Not ready.", "#6a1b9a", "make", False),
 )
 
 #: Not in the parent's allow-list, so Home renders it outline-only (spec S2).
 NOT_ALLOWED = {"sticky"}
+
+#: Points at a program that does not exist, and asks to be shown anyway --
+#: the ``show_when_unavailable`` path, so a demo run exercises the
+#: "This one isn't ready yet" tile as well as the not-allowed one.
+NOT_INSTALLED = {"notyet"}
 
 #: "Sticky" ignores SIGTERM, so a --demo run exercises the SIGKILL path in
 #: Put away rather than only the happy one.
@@ -72,14 +78,16 @@ def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[st
     Returns ``(root, activities, allowed_ids)``. Using the real loader means
     ``--demo`` also smoke-tests manifest parsing on every run.
     """
-    from .activities import load_directory
+    from .activities import load_directory, resolve_availability
 
     base = root or Path(tempfile.mkdtemp(prefix="kidnix-demo-"))
     manifests = base / "manifests"
     manifests.mkdir(parents=True, exist_ok=True)
 
     script = Path(__file__).resolve()
-    for activity_id, name, audio, colour, category, resumable in DEMO_ACTIVITIES:
+    for index, (activity_id, name, audio, colour, category, resumable) in enumerate(
+        DEMO_ACTIVITIES
+    ):
         watch = base / "work" / activity_id
         watch.mkdir(parents=True, exist_ok=True)
         argv = [
@@ -95,6 +103,8 @@ def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[st
         ]
         if activity_id in STUBBORN:
             argv.append("--stubborn")
+        if activity_id in NOT_INSTALLED:
+            argv = [str(base / "nothing-here" / activity_id)]
         lines = [
             "schema = 1",
             f'id = "{activity_id}"',
@@ -104,12 +114,17 @@ def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[st
             'icon_kind = "icon-name"',
             "exec = [" + ", ".join(f'"{a}"' for a in argv) + "]",
             f'category = "{category}"',
+            # The demo grid is in the order the list above is written, which is
+            # also how the shipped manifests do it (spec section 4, `order`).
+            f"order = {(index + 1) * 10}",
             "age_min = 4",
             "network_required = false",
             f'journal_watch = ["{watch}"]',
             'journal_glob = "*.png"',
             f'goal = "A fake activity for demonstrating the shell ({category})."',
         ]
+        if activity_id in NOT_INSTALLED:
+            lines.append("show_when_unavailable = true")
         if resumable:
             resume = [*argv, "--open", "{file}"]
             lines.append("exec_resume = [" + ", ".join(f'"{a}"' for a in resume) + "]")
@@ -118,8 +133,9 @@ def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[st
     result = load_directory(manifests, home=base)
     for error in result.errors:
         log.error("demo manifest is broken: %s", error)
-    allowed = [a.id for a in result.activities if a.id not in NOT_ALLOWED]
-    return base, result.activities, allowed
+    activities = resolve_availability(sorted(result.activities, key=lambda a: a.sort_key))
+    allowed = [a.id for a in activities if a.id not in NOT_ALLOWED]
+    return base, activities, allowed
 
 
 # --- the fake activity itself (run as a subprocess) ----------------------

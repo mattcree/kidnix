@@ -421,3 +421,69 @@ def test_undo_is_honest_when_there_is_nothing_to_undo(tmp_path: Path) -> None:
         assert window.speech.last_utterance == "Nothing to undo."
     finally:
         window.shutdown()
+
+
+# --- Home and activities that cannot run --------------------------------
+
+
+def test_home_leaves_out_an_activity_that_is_not_installed(ctx: ShellContext) -> None:
+    """e2e spike 3.1: a tile that flickers and comes back is a button that lies."""
+    ctx.activities = [
+        make_activity("scribble"),
+        make_activity("ghost", available=False),
+    ]
+    cells = HomeScreen(ctx).cells()
+    assert [getattr(c, "id", "") for c in cells] == ["scribble", "kidnix.all-done"]
+
+
+def test_a_manifest_can_ask_to_be_shown_anyway(ctx: ShellContext) -> None:
+    ctx.activities = [make_activity("ghost", available=False, show_when_unavailable=True)]
+    screen = HomeScreen(ctx)
+    assert [getattr(c, "id", "") for c in screen.cells()] == ["ghost", "kidnix.all-done"]
+    tile = screen._tile(ctx.activities[0])
+    assert tile.has_css_class("not-allowed")  # outline-only, never greyed out
+    assert "isn't ready yet" in tile.speak_text
+
+
+def test_the_two_denials_do_not_say_the_same_thing(ctx: ShellContext) -> None:
+    """Not-allowed sends the child to a grown-up who can help; not-installed
+    should not send them to ask for something nobody can give them."""
+    from kidnix_shell.screens.home import NOT_ALLOWED_LINE, NOT_READY_LINE
+
+    ctx.activities = [make_activity("ghost", available=False, show_when_unavailable=True)]
+    ctx.config.allowed_activity_ids = []
+    screen = HomeScreen(ctx)
+    assert screen._denial(ctx.activities[0]) == NOT_ALLOWED_LINE  # forbidden wins
+    ctx.config.allowed_activity_ids = None
+    assert screen._denial(ctx.activities[0]) == NOT_READY_LINE
+    assert NOT_ALLOWED_LINE != NOT_READY_LINE
+
+
+def test_pressing_an_unavailable_tile_says_why_and_launches_nothing(
+    ctx: ShellContext,
+) -> None:
+    ctx.activities = [make_activity("ghost", available=False, show_when_unavailable=True)]
+    screen = HomeScreen(ctx)
+    screen._activate(ctx.activities[0])
+    assert "isn't ready yet" in ctx.speech.last_utterance
+    assert not any(name == "launch" for name, _ in ctx.host.calls)  # type: ignore[attr-defined]
+
+
+def test_home_honours_the_manifest_order(ctx: ShellContext) -> None:
+    ctx.activities = sorted(
+        [
+            make_activity("last", order=99),
+            make_activity("first", order=1),
+            make_activity("unordered"),
+        ],
+        key=lambda a: a.sort_key,
+    )
+    cells = HomeScreen(ctx).cells()
+    assert [getattr(c, "id", "") for c in cells[:-1]] == ["first", "last", "unordered"]
+
+
+def test_ask_for_more_time_dismisses_the_offer(ctx: ShellContext) -> None:
+    """S5: asking a grown-up is an answer; the child must not come back to it."""
+    screen = EndingOfferScreen(ctx)
+    screen._ask_for_more()
+    assert ("dismiss_offer", (False,)) in ctx.host.calls  # type: ignore[attr-defined]

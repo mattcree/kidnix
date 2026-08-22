@@ -2,8 +2,17 @@
 schema = 1
 
 id = "turbowarp"
-name = "TurboWarp"
-audio_label = "Turbo Warp. Make your own game."
+name = "Make a game"
+audio_label = "Make a game"
+goal = "Building something that runs, out of picture blocks. Realistically a six-plus activity."
+order = 30
+# The Flatpak is installed by kidnix-flatpaks-firstboot.service on the first
+# online boot, and until that has happened `flatpak run` exits 1 in under a
+# second. False means: no tile at all until it is really there. A tile that
+# flickers and returns the child to Home is worse than an absent one
+# (docs/spikes/e2e-scenario.md s3.1). Flip to true once the icon and the
+# install path are both proven, so the child at least gets an outline.
+show_when_unavailable = false
 icon = "org.turbowarp.TurboWarp"
 icon_kind = "icon-name"
 exec = ["flatpak", "run", "org.turbowarp.TurboWarp"]

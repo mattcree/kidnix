@@ -11,6 +11,19 @@ shell cannot work without: ``id``, ``name`` and a non-empty ``exec``.
 
 Invalid files are skipped with a log line. ``kidnix-shell --validate-manifests``
 exits non-zero if any file in a directory is invalid, so CI can gate on it.
+
+Two things beyond parsing live here because they are the same question --
+"should this be a tile?" -- asked at load time:
+
+* **Order.** ``order`` (an int, small first) is what the Home grid sorts by, so
+  the first thing a five-year-old sees is Draw and not whatever happens to sort
+  first alphabetically. Manifests without one fall to the back, in filename
+  order.
+* **Availability.** A tile for a program that is not installed is a button that
+  lies (`docs/spikes/e2e-scenario.md` section 3.1). :class:`Availability`
+  resolves ``exec[0]`` on ``PATH`` and asks ``flatpak info`` about
+  ``flatpak run <ref>`` execs, once per boot, and the unavailable ones are left
+  off Home unless the manifest says ``show_when_unavailable = true``.
 """
 
 from __future__ import annotations
@@ -18,14 +31,21 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
+import subprocess
 import tomllib
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 log = logging.getLogger(__name__)
 
 SYSTEM_ACTIVITY_DIR = Path("/usr/share/kidnix/activities")
+
+#: Manifests without an explicit ``order`` sort after every manifest that has
+#: one, among themselves by filename.
+DEFAULT_ORDER = 1000
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 CATEGORIES = frozenset({"make", "learn", "play"})
@@ -52,6 +72,8 @@ KNOWN_KEYS = frozenset(
         "journal_watch",
         "journal_glob",
         "goal",
+        "order",
+        "show_when_unavailable",
         "wayland_native",
         "content_required",
         "notes",
@@ -94,15 +116,47 @@ class Activity:
     journal_watch: tuple[Path, ...] = ()
     journal_glob: str = "*"
     goal: str = ""
+    order: int | None = None
+    show_when_unavailable: bool = False
     wayland_native: bool = True
     content_required: bool = False
     notes: str = ""
     package: str = ""
+    #: Set by :func:`resolve_availability` at startup, not by the manifest.
+    available: bool = True
 
     @property
     def speak_text(self) -> str:
         """What the shell reads aloud on focus/hover (spec section 3)."""
         return self.audio_label or self.name
+
+    @property
+    def sort_key(self) -> tuple[int, str, str]:
+        """Home's order: ``order`` first, then filename, then id."""
+        return (
+            DEFAULT_ORDER if self.order is None else self.order,
+            self.source_path.name,
+            self.id,
+        )
+
+    @property
+    def on_home(self) -> bool:
+        """Should this be a tile at all?
+
+        An activity whose program is missing is not shown -- a tile that cannot
+        work is worse than no tile -- unless the manifest asks for it, in which
+        case Home renders it outline-only and says so (SYNTHESIS G3: never a
+        silent denial, but also never a lie).
+        """
+        return self.available or self.show_when_unavailable
+
+    @property
+    def flatpak_ref(self) -> str:
+        """The ref behind a ``flatpak run <ref>`` exec, or ``""``."""
+        argv = list(self.exec_argv)
+        if len(argv) < 3 or Path(argv[0]).name != "flatpak" or argv[1] != "run":
+            return ""
+        return next((arg for arg in argv[2:] if not arg.startswith("-")), "")
 
     @property
     def supports_resume(self) -> bool:
@@ -221,6 +275,10 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
     if not isinstance(watch_raw, list) or not all(isinstance(w, str) for w in watch_raw):
         raise ManifestError(path, "'journal_watch' must be a list of strings")
 
+    order = data.get("order")
+    if order is not None and (isinstance(order, bool) or not isinstance(order, int)):
+        raise ManifestError(path, "'order' must be a whole number")
+
     age_min = _opt_int(data, "age_min", path)
     age_max = _opt_int(data, "age_max", path)
     if age_min is not None and age_max is not None and age_max < age_min:
@@ -243,6 +301,8 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
         journal_watch=tuple(_expand(w, home) for w in watch_raw),
         journal_glob=_opt_str(data, "journal_glob", path, "*") or "*",
         goal=_opt_str(data, "goal", path),
+        order=order,
+        show_when_unavailable=_opt_bool(data, "show_when_unavailable", path, False),
         wayland_native=_opt_bool(data, "wayland_native", path, True),
         content_required=_opt_bool(data, "content_required", path, False),
         notes=_opt_str(data, "notes", path),
@@ -292,7 +352,7 @@ def load_activities(directories: list[Path], home: Path | None = None) -> LoadRe
                     by_id[activity.id].source_path,
                 )
             by_id[activity.id] = activity
-    combined.activities = sorted(by_id.values(), key=lambda a: (a.category, a.name.lower()))
+    combined.activities = sorted(by_id.values(), key=lambda a: a.sort_key)
     return combined
 
 
@@ -302,3 +362,85 @@ def default_activity_dirs(data_home: Path | None = None) -> list[Path]:
     if data_home is not None:
         dirs.append(data_home / "kidnix" / "activities")
     return dirs
+
+
+# --- is the program actually there? --------------------------------------
+
+#: ``flatpak info`` on a machine with a cold system installation can take a
+#: moment; nothing child-facing waits on this, but the shell's startup does.
+FLATPAK_TIMEOUT_SECONDS = 5.0
+
+
+def _flatpak_installed(ref: str) -> bool:
+    """``flatpak info <ref>`` -- cheap, offline, and exits non-zero if absent."""
+    if shutil.which("flatpak") is None:
+        return False
+    try:
+        completed = subprocess.run(  # fixed argv, no shell
+            ["flatpak", "info", ref],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=FLATPAK_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.warning("could not ask flatpak about %s (%s); treating it as missing", ref, exc)
+        return False
+    return completed.returncode == 0
+
+
+class Availability:
+    """Which activities can actually run. Answers are cached for the boot.
+
+    Both probes are injectable so the tests never touch ``PATH`` or spawn
+    ``flatpak``.
+    """
+
+    def __init__(
+        self,
+        which: Callable[[str], str | None] | None = None,
+        flatpak: Callable[[str], bool] | None = None,
+    ) -> None:
+        self._which = which or shutil.which
+        self._flatpak = flatpak or _flatpak_installed
+        self._cache: dict[str, bool] = {}
+
+    def check(self, activity: Activity) -> bool:
+        if not activity.exec_argv:
+            return False
+        ref = activity.flatpak_ref
+        key = f"flatpak:{ref}" if ref else f"exec:{activity.exec_argv[0]}"
+        cached = self._cache.get(key)
+        if cached is None:
+            cached = self._resolve(activity.exec_argv[0], ref)
+            self._cache[key] = cached
+        return cached
+
+    def _resolve(self, program: str, ref: str) -> bool:
+        if self._which(program) is None:
+            return False
+        return self._flatpak(ref) if ref else True
+
+
+def resolve_availability(
+    activities: list[Activity], availability: Availability | None = None
+) -> list[Activity]:
+    """Stamp ``available`` on every activity, logging what is missing.
+
+    The unavailable ones stay in the list -- the Journal still has to be able
+    to name the activity an old entry came from -- and it is Home that decides
+    whether to draw a tile (:attr:`Activity.on_home`).
+    """
+    checker = availability or Availability()
+    resolved = []
+    for activity in activities:
+        available = checker.check(activity)
+        if not available:
+            log.warning(
+                "activity %r is not installed (%s); %s",
+                activity.id,
+                " ".join(activity.exec_argv),
+                "showing it outline-only" if activity.show_when_unavailable else "hiding its tile",
+            )
+        resolved.append(replace(activity, available=available))
+    return resolved

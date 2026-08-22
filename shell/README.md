@@ -53,10 +53,12 @@ kidnix-shell --validate-manifests [DIR]
 kidnix-shell --generate-earcons [DIR]
 ```
 
-- `--demo` — thirteen fake activities (a scribble window that autosaves PNGs)
+- `--demo` — fourteen fake activities (a scribble window that autosaves PNGs)
   and a three-minute session: ending offer at T−60 s, put away at T−20 s. The
   whole world lives in a temp directory; your real journal is never touched.
-  One demo activity is outside the allow-list (outline-only tile) and one
+  One demo activity is outside the allow-list (outline-only tile), one points
+  at a program that does not exist and asks to be shown anyway
+  (`show_when_unavailable`, the "This one isn't ready yet" tile), and one
   deliberately ignores `SIGTERM` so put-away has to escalate.
 - `--validate-manifests` — exits non-zero on any schema error, for CI.
 - `--windowed` — do not go fullscreen; use this on a normal desktop.
@@ -93,7 +95,8 @@ kidnix_shell/
   # pure logic, no GTK, fully unit-tested headless:
   theme.py        the runtime half of the theme: profile tint, type scale
   metrics.py      mm <-> px, DPI-aware sizing, and the fit-to-screen clamp
-  activities.py   manifest loading and validation (spec section 4)
+  activities.py   manifest loading, validation, order and availability (s4)
+  ritual.py       the ending ritual as one pure decision (spec S5-S7)
   journal.py      the Journal storage contract (spec section 5)
   session.py      session timing and policy (spec section 6)
   state.py        the navigation graph (spec section 2)

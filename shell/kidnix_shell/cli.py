@@ -13,7 +13,13 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .activities import LoadResult, default_activity_dirs, load_activities, load_directory
+from .activities import (
+    LoadResult,
+    default_activity_dirs,
+    load_activities,
+    load_directory,
+    resolve_availability,
+)
 from .metrics import ScreenOverride, parse_screen
 from .session import SessionPolicy, load_policy
 from .settings import ParentConfig, Paths
@@ -115,10 +121,18 @@ def validate_manifests(directory: str, paths: Paths) -> int:
         if not one.is_dir():
             print(f"  (no such directory: {one})")
 
-    for activity in sorted(total.activities, key=lambda a: a.id):
+    # Home order, not alphabetical: this listing is also how a human checks
+    # that the grid comes out the way they meant it to.
+    for activity in sorted(total.activities, key=lambda a: a.sort_key):
         resume = " resumable" if activity.supports_resume else ""
         watches = len(activity.journal_watch)
-        print(f"ok    {activity.id:<14} {activity.category:<6} {watches} watch dir(s){resume}")
+        order = "----" if activity.order is None else f"{activity.order:>4}"
+        print(
+            f"ok    {order}  {activity.id:<14} {activity.name:<18} "
+            f"{activity.category:<6} {watches} watch dir(s){resume}"
+        )
+        if not activity.goal:
+            print("      (no 'goal' line -- the parent panel will have nothing to show)")
     for error in total.errors:
         print(f"ERROR {error}", file=sys.stderr)
 
@@ -173,9 +187,13 @@ def main(argv: list[str] | None = None) -> int:
         result = load_activities(directories, home=paths.home)
         for error in result.errors:
             log.warning("ignoring manifest: %s", error)
-        activities = result.activities
+        # One PATH lookup (and at most one `flatpak info`) per program, at
+        # startup, so Home never draws a tile for something that cannot run.
+        activities = resolve_availability(result.activities)
         if not activities:
             log.warning("no activities found in %s", [str(d) for d in directories])
+        elif not any(a.on_home for a in activities):
+            log.warning("no activity on Home is installed; the child gets an empty grid")
 
     from .app import ShellApplication
 

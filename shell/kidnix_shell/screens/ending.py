@@ -75,8 +75,12 @@ class EndingOfferScreen(Screen):
 
     def _ask_for_more(self) -> None:
         # SYNTHESIS D7 wants a grant flow; v0.1 has no Ask queue, and pretending
-        # otherwise would be a promise to a five-year-old we cannot keep.
+        # otherwise would be a promise to a five-year-old we cannot keep. It is
+        # still an *answer*, so it dismisses the offer like the other two: a
+        # child who has gone to find a grown-up should not come back to the
+        # same question.
         self.ctx.speech.speak("A grown-up can add more time. Go and ask them.")
+        self.ctx.host.dismiss_offer(False)
 
     def on_enter(self) -> None:
         self.ctx.speech.speak("The sun is going down. Finish this one, or one last little thing?")

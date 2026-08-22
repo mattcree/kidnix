@@ -2,8 +2,10 @@
 schema = 1
 
 id = "tuxmath"
-name = "Tux Maths"
-audio_label = "Tux maths. Answer the sums to save the igloos."
+name = "Number game"
+audio_label = "Number game"
+goal = "Typed arithmetic practice. Needs number recognition and a keyboard, so it is the top of the age band."
+order = 60
 icon = "tuxmath"
 icon_kind = "icon-name"
 exec = ["tuxmath"]

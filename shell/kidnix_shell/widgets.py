@@ -238,12 +238,15 @@ class ActivityTile(ChildButton):
         on_activate: Callable[[], None],
         *,
         allowed: bool = True,
+        denial: str = "Ask a grown-up for this one.",
         thumbnail: Path | None = None,
         extra_css: tuple[str, ...] = (),
     ) -> None:
         speak = getattr(activity, "speak_text", "")
         if not allowed:
-            speak = f"{speak} Ask a grown-up for this one."
+            # Outline-only, never greyed out, and it always says why -- the
+            # reason is the caller's (not allowed, or not installed).
+            speak = f"{speak} {denial}"
         super().__init__(
             speak_text=speak,
             on_activate=on_activate,

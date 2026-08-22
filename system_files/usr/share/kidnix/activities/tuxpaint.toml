@@ -2,10 +2,14 @@
 schema = 1
 
 id = "tuxpaint"
-name = "Tux Paint"
-# Read aloud by the shell when the tile is focused. Written for a pre-reader:
-# what it is, then what you do with it. No brand voice, no verbs they can't do.
-audio_label = "Tux Paint. Draw a picture."
+name = "Draw"
+# Read aloud by the shell when the tile is focused. The label a pre-reader gets
+# is what they DO here, not what the program is called (SYNTHESIS B4, 05 s3):
+# 'Draw', never 'Tux Paint'. audio_label exists because the written label and
+# the spoken one sometimes have to differ ('Letters & numbers' does not speak).
+audio_label = "Draw"
+goal = "Making pictures -- no right answers. Autosaves; a child is never asked whether to save."
+order = 10
 icon = "tuxpaint"
 icon_kind = "icon-name"
 exec = ["tuxpaint"]
