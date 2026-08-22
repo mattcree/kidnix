@@ -36,7 +36,7 @@ session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
 - [x] nftables per-UID egress reject; polkit deny set; dconf kid profile with
       child input settings; Flatpak `--unshare=network`; greenboot checks;
       auto-update timer masked; ALSA cap + soft-mixer
-- [ ] `parent`: stock GNOME session (ADR-0005) — in progress
+- [x] `parent`: stock GNOME session (ADR-0005), Andika/Atkinson fonts
 - [x] Portals in the kid session via gnome-session (`kidnix.session`);
       shell as a Restart=always user service (back in ~1 s after SIGKILL)
 - [x] Boot test asserts: no egress from kid (`curl` exits 7) while root
