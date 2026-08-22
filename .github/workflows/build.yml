@@ -150,3 +150,16 @@ jobs:
           set -euo pipefail
           cosign sign --yes \
             "${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+
+      # Every push adds a ~7 GB version; keep the registry from growing
+      # without bound. Untagged versions are signature/attestation leftovers
+      # and sha-only builds; tagged `latest`/date tags are kept by the count.
+      - name: Prune old image versions
+        if: github.event_name != 'pull_request'
+        uses: actions/delete-package-versions@v5
+        continue-on-error: true
+        with:
+          package-name: ${{ env.IMAGE_NAME }}
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: false
