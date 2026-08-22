@@ -1,0 +1,93 @@
+#!/usr/bin/bash
+# Keep the kiosk payload alive.
+#
+# AGENTS.md non-negotiable #8: "crash-proof shell". gnome-kiosk launches
+# exactly one application and, when that application exits, gnome-kiosk exits
+# too -- which ends the Wayland session and bounces the child through a flash
+# of GDM back into a fresh login. That is a visible, frightening glitch for a
+# 5-year-old and it loses whatever they had on screen.
+#
+# WHY NOT the "supported" way: gnome-kiosk's documented recipe for a resilient
+# session is a gnome-session .session file with RequiredComponents plus a
+# systemd *user* unit carrying Restart=always. That is the right end state, but
+# it means routing the session through gnome-session, which changes how GDM
+# starts us and what the boot test asserts. This wrapper gets the same
+# behaviour today with one moving part, and is a drop-in replacement for
+# whatever the app is: gnome-kiosk sees a process that never exits, so the
+# session never ends.
+#
+# Invoked as:  kidnix-app-supervisor <command> [args...]
+set -uo pipefail
+
+readonly PROGNAME="kidnix-app-supervisor"
+
+# Backoff schedule, in seconds. A first crash restarts almost instantly (the
+# child barely notices); a persistent crash loop settles at one attempt every
+# 30 s so we neither spin the CPU nor ever give up and leave a black screen.
+# Giving up is not an option a child can recover from.
+readonly BACKOFF=(0 1 2 5 10 30)
+readonly BACKOFF_MAX_INDEX=$(( ${#BACKOFF[@]} - 1 ))
+
+# A run that lasted at least this long counts as "it worked", and the backoff
+# resets. Chosen so a genuine startup crash (which is fast) is distinguished
+# from a child closing the activity after using it.
+readonly HEALTHY_RUNTIME_SECONDS=60
+
+log() {
+    printf '%s: %s\n' "${PROGNAME}" "$*" >&2
+}
+
+if (( $# < 1 )); then
+    log "usage: ${PROGNAME} <command> [args...]"
+    exit 64
+fi
+
+if [[ ! -x "$1" ]] && ! command -v "$1" >/dev/null 2>&1; then
+    log "cannot execute '$1'"
+    exit 127
+fi
+
+child_pid=""
+
+# Pass a session shutdown straight through: when gnome-kiosk goes away we must
+# go away too, or the session hangs on logout.
+forward_signal() {
+    local sig="$1"
+    log "received SIG${sig}, forwarding to child and exiting"
+    if [[ -n "${child_pid}" ]]; then
+        kill -s "${sig}" "${child_pid}" 2>/dev/null || true
+        wait "${child_pid}" 2>/dev/null || true
+    fi
+    exit 0
+}
+trap 'forward_signal TERM' TERM
+trap 'forward_signal INT' INT
+trap 'forward_signal HUP' HUP
+
+attempt=0
+while true; do
+    started_at="${SECONDS}"
+    log "starting: $*"
+
+    "$@" &
+    child_pid=$!
+    wait "${child_pid}"
+    status=$?
+    child_pid=""
+
+    ran_for=$(( SECONDS - started_at ))
+
+    if (( ran_for >= HEALTHY_RUNTIME_SECONDS )); then
+        # It lived. Whatever happened now is a fresh problem, not a loop.
+        attempt=0
+    fi
+
+    index=${attempt}
+    (( index > BACKOFF_MAX_INDEX )) && index=${BACKOFF_MAX_INDEX}
+    delay="${BACKOFF[${index}]}"
+
+    log "exited with status ${status} after ${ran_for}s; restarting in ${delay}s"
+
+    (( delay > 0 )) && sleep "${delay}"
+    attempt=$(( attempt + 1 ))
+done

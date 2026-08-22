@@ -1,0 +1,17 @@
+[Unit]
+Description=Retry the kidnix Flatpak first-boot install until it succeeds
+Documentation=https://github.com/mattcree/kidnix
+ConditionPathExists=!/var/lib/kidnix/flatpaks-firstboot.done
+
+[Timer]
+# Late enough that NetworkManager has had a chance; not so late that a parent
+# doing setup has wandered off.
+OnBootSec=2min
+# A child's machine may be offline for days. Keep trying, quietly, and stop
+# costing anything once the stamp file appears.
+OnUnitActiveSec=30min
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

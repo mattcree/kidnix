@@ -1,0 +1,66 @@
+# kidnix child session: GNOME lockdown keys.
+#
+# Every key below was checked against the image's own schemas
+# (`gsettings list-keys org.gnome.desktop.lockdown` on Fedora 44 / GNOME 50) --
+# research doc 07 flagged most of these as UNVERIFIED, they are now verified.
+
+[org/gnome/desktop/lockdown]
+# No terminal, no "run a command" dialog, no Alt+F2.
+disable-command-line=true
+# gnome-kiosk has no lock screen anyway; make sure nothing else offers one.
+# A 5-year-old must never be able to lock themselves out of their own machine.
+disable-lock-screen=true
+# Logging out or switching user drops the child at GDM, which is a dead end
+# for a pre-reader.
+disable-log-out=true
+disable-user-switching=true
+# No printing, no print setup: nothing good comes of a child discovering the
+# printer, and the dialogs are text-heavy.
+disable-printing=true
+disable-print-setup=true
+# No user administration UI.
+user-administration-disabled=true
+# Do not let an activity hand a file off to an arbitrary registered handler --
+# that is the classic "open this .html in a browser" escape.
+disable-application-handlers=true
+# A USB stick a child plugs in is read-only. udisks mounting is separately
+# denied in polkit; this covers anything that gets past that.
+mount-removable-storage-devices-as-read-only=true
+
+[org/gnome/desktop/screensaver]
+# No password to type, ever. Idle *blanking* still happens (see
+# org/gnome/desktop/session idle-delay below); it just does not lock.
+lock-enabled=false
+idle-activation-enabled=false
+user-switch-enabled=false
+logout-enabled=false
+
+[org/gnome/desktop/session]
+# 15 minutes of no input blanks the screen. Deliberately not zero: a child who
+# wanders off should not leave the panel lit for an hour, and blanking is
+# reversible by any keypress. Not a lock.
+idle-delay=uint32 900
+
+[org/gnome/settings-daemon/plugins/power]
+# Dim before blanking, so the transition is gentle rather than sudden
+# (research 06 §7.4: no sudden anything).
+idle-dim=true
+# Never auto-suspend or auto-shutdown out from under a child mid-drawing.
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
+sleep-inactive-ac-timeout=0
+sleep-inactive-battery-timeout=0
+# The power button does nothing in the session; logind still handles a long
+# press at the firmware level, and the parent has a real account.
+power-button-action='nothing'
+
+[org/gnome/desktop/media-handling]
+# Inserting a USB stick or a camera must not pop anything up or run anything.
+automount=false
+automount-open=false
+autorun-never=true
+
+[org/gnome/desktop/notifications]
+# AGENTS.md non-negotiable #1: nothing appears that the child did not initiate.
+show-banners=false
+show-in-lock-screen=false

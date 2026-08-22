@@ -1,0 +1,16 @@
+# Flatpak application IDs installed on first boot by
+# kidnix-flatpaks-firstboot.service, one per line, '#' comments ignored.
+#
+# ONLY put things here that Fedora does not package. Everything a child opens
+# in the first wave is an RPM (see build_files/50-activities.sh): RPMs are in
+# /usr, covered by bootc rollback, and need no network after install. A Flatpak
+# needs the machine online once, on the parent's setup pass.
+#
+# Sizes and the evidence for each pick are in
+# docs/research/07-linux-stack.md §2.5 and docs/spikes/activities-packaging.md.
+
+# Offline Scratch 3. The reason this list exists at all: there is no supported
+# Linux ScratchJr, edu.mit.Scratch is abandoned on an EOL runtime, and Fedora
+# packages neither. TurboWarp is a live GPL-3.0 fork that works fully offline
+# once installed. 382 MB.
+org.turbowarp.TurboWarp

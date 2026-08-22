@@ -1,0 +1,63 @@
+#!/usr/bin/bash
+# Ask kidnix's polkit rules what they would decide, without restarting polkitd.
+#
+#   kidnix-polkit-check <user> <action-id> [expected]
+#
+# With two arguments it prints the verdict. With three it also exits non-zero
+# unless the verdict matches, which is what the build and the image test suite
+# use it for.
+#
+#   kidnix-polkit-check kid org.freedesktop.Flatpak.app-install NO
+#   kidnix-polkit-check parent org.freedesktop.Flatpak.app-install NOT_HANDLED
+#
+# See /usr/share/kidnix/polkit-eval.js for how it works and what it cannot
+# prove.
+set -uo pipefail
+
+readonly RULES="${KIDNIX_POLKIT_RULES:-/usr/share/polkit-1/rules.d/40-kidnix-kid.rules}"
+readonly EVAL_JS=/usr/share/kidnix/polkit-eval.js
+
+usage() {
+    echo "usage: $(basename "$0") <user> <action-id> [expected-result]" >&2
+}
+
+if (( $# < 2 || $# > 3 )); then
+    usage
+    exit 64
+fi
+
+user="$1"
+action="$2"
+expected="${3:-}"
+
+for required in "${RULES}" "${EVAL_JS}"; do
+    if [[ ! -r "${required}" ]]; then
+        echo "kidnix-polkit-check: ${required} is missing" >&2
+        exit 66
+    fi
+done
+
+if ! command -v gjs >/dev/null 2>&1; then
+    echo "kidnix-polkit-check: gjs is not installed" >&2
+    exit 69
+fi
+
+# gjs writes GLib warnings to stderr on some systems; only stdout carries the
+# verdict.
+if ! verdict="$(gjs "${EVAL_JS}" "${RULES}" "${user}" "${action}" 2>/dev/null)"; then
+    echo "kidnix-polkit-check: evaluating ${RULES} failed" >&2
+    gjs "${EVAL_JS}" "${RULES}" "${user}" "${action}" >/dev/null || true
+    exit 70
+fi
+
+if [[ -z "${expected}" ]]; then
+    printf '%s\n' "${verdict}"
+    exit 0
+fi
+
+if [[ "${verdict}" == "${expected}" ]]; then
+    exit 0
+fi
+
+echo "kidnix-polkit-check: ${user} + ${action} => ${verdict}, expected ${expected}" >&2
+exit 1

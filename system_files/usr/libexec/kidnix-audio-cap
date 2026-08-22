@@ -1,0 +1,87 @@
+#!/usr/bin/bash
+# Cap the hardware output volume once, at boot, on every sound card.
+#
+# The unbypassable half of kidnix's loudness safety. PipeWire has no
+# declarative max-volume setting and no built-in limiter (verified,
+# docs/research/07-linux-stack.md §2.4), and a Flatpak with `--socket=pulseaudio`
+# can very plausibly move the master sink. A ceiling set in the card's own
+# mixer, combined with `api.alsa.soft-mixer = true` (see
+# /usr/share/wireplumber/wireplumber.conf.d/50-kidnix-soft-mixer.conf) so
+# nothing in userspace moves it again, is the only cap a userspace process
+# cannot raise.
+#
+# DELIBERATELY BEST-EFFORT. A machine with no sound card, a card with no
+# `Master` control, or an alsactl that cannot write its state file must still
+# boot into the kiosk. A child with a slightly-too-loud laptop is a bad day; a
+# child with a computer that will not start is a broken promise.
+set -uo pipefail
+
+readonly PROGNAME="kidnix-audio-cap"
+
+# Percent of the hardware range. 70% is the research-backed starting point for
+# "loud enough to enjoy, quiet enough to be safe"; it is a ceiling, not a
+# volume -- PipeWire still attenuates below it, and the parent panel will make
+# this adjustable per machine.
+readonly CAP_PERCENT="${KIDNIX_AUDIO_CAP_PERCENT:-70}"
+
+# Controls worth capping, in the order we try them. Not every card has all of
+# these, and that is fine.
+readonly CONTROLS=(Master Speaker Headphone PCM Digital)
+
+readonly STATE_DIR=/var/lib/kidnix
+readonly STAMP="${STATE_DIR}/audio-cap-applied"
+
+log() { printf '%s: %s\n' "${PROGNAME}" "$*"; }
+
+if ! command -v amixer >/dev/null 2>&1; then
+    log "amixer not available; nothing to do"
+    exit 0
+fi
+
+if [[ ! -d /proc/asound ]]; then
+    log "no ALSA subsystem (/proc/asound absent); nothing to do"
+    exit 0
+fi
+
+mapfile -t cards < <(
+    # /proc/asound/cards lines look like: " 0 [PCH  ]: HDA-Intel - HDA Intel PCH"
+    awk '/^[[:space:]]*[0-9]+[[:space:]]*\[/ { print $1 }' /proc/asound/cards 2>/dev/null
+)
+
+if (( ${#cards[@]} == 0 )); then
+    log "no sound cards present; nothing to do"
+    exit 0
+fi
+
+applied=0
+for card in "${cards[@]}"; do
+    for control in "${CONTROLS[@]}"; do
+        # `amixer sset` on a control the card does not have is an error, not a
+        # crash; skip quietly and try the next name.
+        if amixer -c "${card}" sset "${control}" "${CAP_PERCENT}%" unmute \
+                >/dev/null 2>&1; then
+            log "card ${card}: ${control} capped at ${CAP_PERCENT}%"
+            applied=$(( applied + 1 ))
+        fi
+    done
+done
+
+if (( applied == 0 )); then
+    log "no cappable controls found on ${#cards[@]} card(s)"
+    exit 0
+fi
+
+# Persist so the cap survives a card re-probe, and so `alsactl restore` (run by
+# the alsa-state service on some configurations) restores the capped value
+# rather than a stale 100%.
+if command -v alsactl >/dev/null 2>&1; then
+    alsactl store >/dev/null 2>&1 \
+        && log "mixer state stored" \
+        || log "alsactl store failed (harmless; cap is applied in-memory)"
+fi
+
+mkdir -p "${STATE_DIR}" 2>/dev/null || true
+printf 'cap_percent=%s\napplied_controls=%s\n' "${CAP_PERCENT}" "${applied}" \
+    >"${STAMP}" 2>/dev/null || true
+
+exit 0

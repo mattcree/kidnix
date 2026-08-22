@@ -1,0 +1,26 @@
+# Seed for the system Flatpak installation's global override
+# (/var/lib/flatpak/overrides/global), copied into place on first boot by
+# /usr/lib/tmpfiles.d/kidnix-lockdown.conf.
+#
+# Byte-for-byte what `flatpak override --system --unshare=network` writes on
+# Fedora 44 with flatpak 1.18.1 -- verified by running that command in this
+# image and reading the result back.
+#
+# WHY A FILE AND NOT `flatpak override` AT BUILD TIME: Flatpak overrides live
+# inside the *installation* directory, and the system installation is
+# /var/lib/flatpak. In a bootc image /var is machine-local and thrown away at
+# install time (`bootc container lint` fails the build if we ship content
+# there), so anything written at build time simply would not exist on the
+# installed machine. tmpfiles' `C` verb copies it once, on first boot, and
+# never again -- so a parent who later edits the file keeps their edit.
+#
+# TRADE-OFF, deliberate: this is the *global* override, so it removes network
+# from every Flatpak on the machine, including any the parent installs, not
+# just the child's. That is the right default for a device whose whole purpose
+# is offline activities, and the nftables rule already makes it moot for `kid`.
+# A parent who genuinely needs a networked Flatpak can grant it back per-app
+# with `sudo flatpak override --share=network <app-id>`, which takes precedence
+# over the global default.
+
+[Context]
+shared=!network;

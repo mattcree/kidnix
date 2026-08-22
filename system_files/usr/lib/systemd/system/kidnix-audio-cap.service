@@ -1,0 +1,23 @@
+[Unit]
+Description=kidnix hardware output volume cap
+Documentation=https://github.com/mattcree/kidnix
+# Sound cards must exist before we can cap them, and PipeWire must not have
+# started restoring stream volumes yet -- sound.target is the ALSA-ready
+# synchronisation point and multi-user.target is well before any user session.
+After=sound.target local-fs.target
+Wants=sound.target
+Before=gdm.service
+ConditionPathExists=/usr/libexec/kidnix-audio-cap
+ConditionPathIsDirectory=/proc/asound
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/kidnix-audio-cap
+# Never let a missing mixer control keep a child off their computer.
+SuccessExitStatus=0 1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

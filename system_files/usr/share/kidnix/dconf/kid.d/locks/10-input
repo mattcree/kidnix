@@ -1,0 +1,27 @@
+# Input settings the child session may not change.
+#
+# text-scaling-factor and cursor-theme are deliberately NOT locked: they are
+# the two knobs a parent is most likely to want to turn for a specific child,
+# and a locked key cannot be changed even by the parent panel acting on the
+# child's behalf. cursor-size IS locked -- 48 px is the evidence-backed floor,
+# not a preference.
+
+/org/gnome/desktop/peripherals/mouse/double-click
+/org/gnome/desktop/peripherals/mouse/drag-threshold
+/org/gnome/desktop/peripherals/mouse/accel-profile
+/org/gnome/desktop/peripherals/mouse/middle-click-emulation
+
+/org/gnome/desktop/peripherals/touchpad/tap-and-drag
+/org/gnome/desktop/peripherals/touchpad/tap-and-drag-lock
+/org/gnome/desktop/peripherals/touchpad/disable-while-typing
+/org/gnome/desktop/peripherals/touchpad/disable-while-typing-timeout
+/org/gnome/desktop/peripherals/touchpad/accel-profile
+
+/org/gnome/desktop/interface/cursor-size
+/org/gnome/desktop/interface/enable-hot-corners
+/org/gnome/desktop/interface/gtk-enable-primary-paste
+/org/gnome/desktop/interface/toolkit-accessibility
+
+/org/gnome/desktop/a11y/keyboard/stickykeys-two-key-off
+
+/org/gnome/desktop/wm/preferences/num-workspaces

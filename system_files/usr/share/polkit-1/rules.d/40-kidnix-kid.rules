@@ -1,0 +1,168 @@
+// kidnix: what the `kid` account may not authorise.
+//
+// Image-owned (/usr/share, immutable) rather than /etc, so an upgrade always
+// reinstates it and there is no 3-way merge to lose.
+//
+// ORDERING: polkit reads every rules.d file in every directory in lexical
+// order by BASENAME and stops at the first rule that returns something other
+// than NOT_HANDLED. "40-" puts us ahead of Fedora's "50-default.rules" (which
+// grants the wheel group AUTH_ADMIN_KEEP) and ahead of the unnumbered vendor
+// files such as "org.freedesktop.NetworkManager.rules" (digits sort before
+// letters), so our denials win. It puts us *behind* "20-gdm.rules", which only
+// ever matches the `gdm` user.
+//
+// LANGUAGE: polkit 127 on Fedora 44 embeds **duktape** (verified:
+// `rpm -q --requires polkit` -> libduktape.so.207), i.e. ECMAScript 5.1. No
+// `let`, no arrow functions, no template literals, no Array#includes,
+// no String#startsWith. Keep this file ES5 or polkitd will refuse to load it
+// and *every* rule in it silently stops applying.
+//
+// SCOPE: this only constrains the `kid` account. `parent` is in wheel and gets
+// stock Fedora behaviour (password-prompted admin) -- see AGENTS.md
+// non-negotiable #6, the parent is a participant, not a warden.
+//
+// This is a *usability* boundary as much as a security one. polkit is not a
+// MAC system; the structural guarantees come from nftables (egress), the
+// immutable image (no package installs that survive), and the shell only
+// knowing about the activities we ship.
+
+(function () {
+    "use strict";
+
+    var KID = "kid";
+
+    // Whole subsystems the child may never authorise anything in.
+    var DENIED_PREFIXES = [
+        // Networking: no joining Wi-Fi, no editing connections, no disabling
+        // the very thing our nftables rules assume is present.
+        "org.freedesktop.NetworkManager.",
+        "org.freedesktop.ModemManager1.",
+        "org.fedoraproject.FirewallD1.",
+
+        // Flatpak: no installing, updating, uninstalling, or adding remotes.
+        // Covers .app-install / .configure-remote / .modify-repo and, crucially,
+        // .override-parental-controls.
+        "org.freedesktop.Flatpak.",
+
+        // OS mutation: rpm-ostree and (should it ever gain a polkit surface)
+        // bootc. bootc 1.x has no .policy file on F44 -- it is root-only via
+        // sudo, and kid is not in wheel -- but the prefix costs nothing.
+        "org.projectatomic.rpmostree1.",
+        "org.fedoraproject.bootc.",
+        "org.freedesktop.packagekit.",
+        "org.freedesktop.sysupdate1.",
+
+        // Power / session control. Deny reboot, power-off, halt, hibernate,
+        // suspend, chvt (VT switching!), lock-sessions and set-wall-message.
+        // DECISION: suspend is denied too. The shell's ending ritual owns
+        // "we're finished now"; a child suspending mid-activity looks
+        // identical to a crash. Power actions will be routed through a
+        // parent-blessed helper later. Lid-close suspend is unaffected --
+        // logind handles that itself as root, not via polkit.
+        // (The inhibit-* carve-out below keeps normal session plumbing alive.)
+        "org.freedesktop.login1.",
+
+        // systemd: no starting/stopping/enabling units.
+        "org.freedesktop.systemd1.",
+
+        // Accounts: no changing usernames, avatars, passwords, autologin, and
+        // no user administration.
+        "org.freedesktop.accounts.",
+        "org.gnome.controlcenter.",
+        "org.gnome.displaymanager.",
+
+        // Storage: no mounting USB sticks, no formatting, no loop-mounting an
+        // image someone handed the child. (Both spellings -- UDisks2 ships
+        // lowercase action ids under an uppercase .policy filename.)
+        "org.freedesktop.udisks2.",
+        "org.freedesktop.UDisks2.",
+        "org.gtk.vfs.file-operations.",
+
+        // Machine identity and clock.
+        "org.freedesktop.hostname1.",
+        "org.freedesktop.locale1.",
+        "org.freedesktop.timedate1.",
+        "org.freedesktop.timesync1.",
+        "org.freedesktop.home1.",
+        "org.freedesktop.machine1.",
+        "org.freedesktop.portable1.",
+
+        // Firmware and hardware.
+        "org.freedesktop.fwupd.",
+        "org.freedesktop.bolt.",
+
+        // polkit itself, which is what `pkexec` asks for.
+        "org.freedesktop.policykit.",
+
+        // Parental controls: the child must not be able to edit or extend its
+        // own policy. The ".ReadOwn" carve-out below keeps the *advisory*
+        // read path working so malcontent-aware apps behave.
+        "com.endlessm.ParentalControls.",
+        "org.freedesktop.Malcontent."
+    ];
+
+    // Explicitly still allowed for kid, checked before the deny list.
+    //
+    //  * login1.inhibit-*  -- ordinary session plumbing (gnome-settings-daemon
+    //    takes handle-power-key / handle-lid-switch inhibitors; an activity may
+    //    take block-idle while reading a story aloud). Denying these does not
+    //    make the machine safer, it hands the power key straight back to
+    //    logind's default HandlePowerKey=poweroff.
+    //  * *.ReadOwn -- reading your own malcontent policy.
+    var ALLOWED_PREFIXES = [
+        "org.freedesktop.login1.inhibit-"
+    ];
+    var ALLOWED_SUFFIXES = [
+        ".ReadOwn"
+    ];
+
+    function hasPrefix(s, p) {
+        return s.indexOf(p) === 0;
+    }
+
+    function hasSuffix(s, p) {
+        return s.length >= p.length && s.indexOf(p, s.length - p.length) !== -1;
+    }
+
+    function anyPrefix(s, list) {
+        var i;
+        for (i = 0; i < list.length; i += 1) {
+            if (hasPrefix(s, list[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function anySuffix(s, list) {
+        var i;
+        for (i = 0; i < list.length; i += 1) {
+            if (hasSuffix(s, list[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    polkit.addRule(function (action, subject) {
+        if (subject.user !== KID) {
+            return polkit.Result.NOT_HANDLED;
+        }
+
+        var id = action.id;
+
+        if (anyPrefix(id, ALLOWED_PREFIXES) || anySuffix(id, ALLOWED_SUFFIXES)) {
+            return polkit.Result.NOT_HANDLED;
+        }
+
+        if (anyPrefix(id, DENIED_PREFIXES)) {
+            // Denials should be rare enough that logging each one is a signal,
+            // not noise -- if this shows up in the journal during normal use,
+            // the shell is asking for something it should not need.
+            polkit.log("kidnix: denied " + id + " for user " + KID);
+            return polkit.Result.NO;
+        }
+
+        return polkit.Result.NOT_HANDLED;
+    });
+}());

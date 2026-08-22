@@ -1,0 +1,28 @@
+# Keys the child session may not change, no matter what writes to the user db.
+# A locked key is reported as non-writable by gsettings and the value in the
+# compiled system database always wins.
+
+/org/gnome/desktop/lockdown/disable-command-line
+/org/gnome/desktop/lockdown/disable-lock-screen
+/org/gnome/desktop/lockdown/disable-log-out
+/org/gnome/desktop/lockdown/disable-user-switching
+/org/gnome/desktop/lockdown/disable-printing
+/org/gnome/desktop/lockdown/disable-print-setup
+/org/gnome/desktop/lockdown/user-administration-disabled
+/org/gnome/desktop/lockdown/disable-application-handlers
+/org/gnome/desktop/lockdown/mount-removable-storage-devices-as-read-only
+
+/org/gnome/desktop/screensaver/lock-enabled
+/org/gnome/desktop/screensaver/idle-activation-enabled
+/org/gnome/desktop/screensaver/user-switch-enabled
+/org/gnome/desktop/screensaver/logout-enabled
+
+/org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type
+/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type
+/org/gnome/settings-daemon/plugins/power/power-button-action
+
+/org/gnome/desktop/media-handling/automount
+/org/gnome/desktop/media-handling/automount-open
+/org/gnome/desktop/media-handling/autorun-never
+
+/org/gnome/desktop/notifications/show-banners

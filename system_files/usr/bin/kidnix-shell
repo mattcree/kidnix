@@ -21,6 +21,36 @@ fi
 mkdir -p "${HOME}/.config"
 : >"${HOME}/.config/gnome-initial-setup-done"
 
+# --- lockdown (see docs/spikes/lockdown.md) ----------------------------------
+
+# Select the child's dconf profile (/etc/dconf/profile/kid), which layers the
+# locked kidnix defaults under the user's own database. dconf reads this at
+# process start, so it must be exported BEFORE the compositor is launched.
+export DCONF_PROFILE=kid
+
+# Anything the session bus or the per-user systemd manager activates later
+# (portals, gsd helpers, activities) is started by processes that do NOT
+# inherit this script's environment, so push it into both. pam_systemd has
+# already started `systemd --user` by the time GDM execs us. Neither of these
+# is fatal if it fails -- a missing profile costs us the locked defaults, not
+# the session.
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user set-environment DCONF_PROFILE=kid || true
+fi
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    dbus-update-activation-environment --systemd DCONF_PROFILE || true
+fi
+
+# Keep the payload alive: if the activity crashes, restart it in place rather
+# than letting gnome-kiosk exit and bounce the child through GDM.
+KIDNIX_SUPERVISOR=/usr/libexec/kidnix-app-supervisor
+if [[ -x "${KIDNIX_SUPERVISOR}" ]]; then
+    set -- "${KIDNIX_SUPERVISOR}" "${KIDNIX_KIOSK_APP}"
+else
+    echo "kidnix-shell: ${KIDNIX_SUPERVISOR} missing, running app unsupervised" >&2
+    set -- "${KIDNIX_KIOSK_APP}"
+fi
+
 # --display-server: we ARE the session's compositor (GDM is not running one
 # for us). --wayland without it would try to nest inside a parent compositor.
-exec /usr/bin/gnome-kiosk --wayland --display-server -- "${KIDNIX_KIOSK_APP}"
+exec /usr/bin/gnome-kiosk --wayland --display-server -- "$@"

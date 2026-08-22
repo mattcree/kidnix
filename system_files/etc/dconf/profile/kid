@@ -1,0 +1,17 @@
+# dconf profile for the child account. Selected by DCONF_PROFILE=kid, which
+# /usr/bin/kidnix-shell exports before it execs the compositor.
+#
+# ORDER MATTERS AND IS COUNTER-INTUITIVE: the first line is the *writable*
+# database and each subsequent line is a lower-priority read-only default.
+# So `user-db:user` first means the child's own gsettings writes still stick
+# for anything we have NOT locked, and the file-db supplies defaults for
+# everything else. Keys listed in the compiled db's locks section ignore
+# user-db entirely and are reported as non-writable. This is the same shape as
+# gnome-kiosk's own /usr/share/dconf/profile/gnomekiosk.
+#
+# The compiled database is image-owned under /usr; only this two-line selector
+# lives in /etc (dconf also searches $XDG_DATA_DIRS/dconf/profile, but /etc is
+# the documented and unconditional location, and a static two-line file is a
+# harmless 3-way merge).
+user-db:user
+file-db:/usr/share/kidnix/dconf/kid.compiled

@@ -178,12 +178,57 @@ cites its evidence; AGENTS.md §3 is the short form.
 | Reference device | refurbished ThinkPad T480, £150–320; floor 4 GB/64 GB, rec 8 GB/128 GB | 06 |
 | Activity disk budget | ~3.4 GB for the full wave; plan core vs full images | 07 §4.12 |
 
-## 4. Learning science (from 05) — **pending; will be merged when 05 lands**
+## 4. Learning science → activity design (from 05)
 
-Placeholder. Expected to add: literacy (synthetic phonics alignment, read-aloud
-with word highlighting, decodable text), keyboarding (when/how for 5–8s),
-early-number apps, ScratchJr-style computational thinking, arts, Hirsh-Pasek
-four pillars + learning goal, feedback/adaptive difficulty, what to avoid.
+Headline: **match the school, don't compete with it.** UK statutory documents
+(EYFS ELGs, KS1 programmes of study, validated SSP phonics schemes, DfE
+screen-use guidance now referenced by the EYFS framework) are specific enough
+to design against. kidnix's job is practice, application and pleasure — not
+first teaching. Apps move *constrained* skills (phonics, key location, number
+bonds; Kim et al. 2021 g ≈ 0.31, shrinking under standardised outcomes), not
+unconstrained ones (comprehension, composition) — so never claim "teaches
+reading", cognitive transfer from music (ḡ ≈ 0) or coding.
+
+Per-activity rules (05 §3):
+- **Draw/paint**: big canvas, ≤ 8 tools visible, finger/mouse first; **caption
+  field + "tell me about it" voice recorder on every drawing** (cheapest
+  literacy win); stamps one level down; no grading.
+- **GCompris**: a **curated shelf of 12–20 activities** mapped to EYFS/KS1,
+  grouped by what the child *does*; en-GB; check letter activities against a UK
+  phonics progression before exposing; never "100 activities!".
+- **Keyboard game**: *find the key that makes this sound* — lowercase
+  graphemes, phoneme or letter-name mode, any finger, no posture scolding, no
+  WPM, no streaks; tell parents it does not replace handwriting. No home-row
+  touch typing at 5–7 (no RCT below 8; d = 0.27).
+- **Story-maker**: picture first, words second; three caption routes (type /
+  record voice / grown-up scribes); never silently correct spelling; "say your
+  sentence out loud first"; **finish by publishing to somebody**.
+- **Music**: no notation; pentatonic/Orff set so nothing sounds wrong; 4/8-beat
+  loops; 3–5 layers; instant sound; save to Journal; claim joy, not IQ.
+- **Block coding**: pictorial blocks, 3–8 blocks is a program; sandbox over
+  level ladder; celebrate the debugging loop, never a red error; paint editor
+  inside; **printable unplugged companions** (physicality g = 0.72 vs 0.44;
+  unplugged g = 1.03).
+- **Photos**: one enormous shutter, instant Polaroid-style result into the
+  Journal, caption/narrate; prompt cards; no face detection/auto-tagging.
+- **Letters to family**: **the strongest activity in the list** (purpose +
+  audience is the EEF's named mechanism). Real named recipient with photo;
+  picture + caption + voice; **the reply must come back into the Journal**;
+  invented spelling untouched.
+- **Offline library**: two shelves — *Books I can read* (decodable, phonics
+  phase set once by parent) and *Books to me* (rich language, narrated with
+  congruent illustration and optional word highlighting). **Zero hotspots,
+  mini-games or tap-a-word dictionaries** (Takacs, Swart & Bus 2015 — the
+  clearest negative finding); no "books read" counter.
+- **Add** (evidence-supported, missing from the original list): *read-to-me /
+  I-read-to-you recording loop*; *subitising & number bonds to 5/10 built to
+  the ELG*; *printable unplugged companions*; *dialogic prompt layer over the
+  library*; *oral storytelling recorder with picture prompts* (developmentally
+  ahead of a typing-based story tool at 5).
+- General: **guidance/scaffolding helps most for the youngest** (d ≈ 0.5–0.7)
+  — scaffold heavily, fade deliberately, don't design for struggle; no
+  over-engineered adaptivity; no background music under narration; never
+  position kidnix as a way to occupy or calm a child (DfE guidance forbids).
 
 ## 5. Decisions taken (ADRs) and pending
 

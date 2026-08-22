@@ -1,0 +1,25 @@
+[Unit]
+Description=Install kidnix's Flatpak activities (first boot, needs network once)
+Documentation=https://github.com/mattcree/kidnix
+Wants=network-online.target
+After=network-online.target flatpak-system-helper.service
+# Once every ID in flatpaks.txt is installed the helper drops this stamp and the
+# unit stops being work. The timer keeps firing harmlessly; this makes it cheap.
+ConditionPathExists=!/var/lib/kidnix/flatpaks-firstboot.done
+ConditionPathExists=/usr/share/kidnix/flatpaks.txt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/kidnix-flatpak-firstboot
+# A machine that is offline (the normal state for a child's computer) must not
+# show a red failed unit. The helper exits 75 (EX_TEMPFAIL) when it could not
+# reach Flathub, and the timer will try again later.
+SuccessExitStatus=0 75
+TimeoutStartSec=1800
+# Flatpak wants real network and a lot of disk; nothing else about the boot
+# should wait on it.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

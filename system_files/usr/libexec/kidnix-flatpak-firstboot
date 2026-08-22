@@ -1,0 +1,103 @@
+#!/usr/bin/bash
+# Install the Flatpak activities Fedora does not package (/usr/share/kidnix/flatpaks.txt)
+# into the system installation, once, on a boot where the machine has network.
+#
+# This is the *secondary* activity path. Everything a five-year-old opens in the
+# first wave is an RPM baked into /usr by build_files/50-activities.sh. Flatpak
+# exists here only for apps Fedora has no package for -- today just TurboWarp.
+#
+# Exit codes: 0 = everything in the list is installed (stamp written),
+#             75 = EX_TEMPFAIL, no network or Flathub unreachable; the timer
+#                  will call us again. This is the expected state on a machine
+#                  that is deliberately kept offline, so it must not look broken.
+set -euo pipefail
+
+readonly LIST_FILE="${KIDNIX_FLATPAK_LIST:-/usr/share/kidnix/flatpaks.txt}"
+readonly STAMP_DIR="${KIDNIX_STATE_DIR:-/var/lib/kidnix}"
+readonly STAMP_FILE="${STAMP_DIR}/flatpaks-firstboot.done"
+readonly FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
+readonly EX_TEMPFAIL=75
+
+log() { printf 'kidnix-flatpak-firstboot: %s\n' "$*"; }
+
+wanted_ids() {
+    # Strip comments and blank lines; whatever is left is an app ID.
+    sed -e 's/#.*$//' -e 's/[[:space:]]//g' "${LIST_FILE}" | grep -v '^$' || true
+}
+
+is_installed() {
+    flatpak info --system "$1" >/dev/null 2>&1
+}
+
+main() {
+    if [[ ! -r "${LIST_FILE}" ]]; then
+        log "no list at ${LIST_FILE}, nothing to do"
+        return 0
+    fi
+
+    mapfile -t ids < <(wanted_ids)
+    if [[ "${#ids[@]}" -eq 0 ]]; then
+        log "list is empty, nothing to do"
+        mkdir -p "${STAMP_DIR}" && : >"${STAMP_FILE}"
+        return 0
+    fi
+
+    # Fast path: if they are all already here we never touch the network, which
+    # matters because this unit runs on every boot until the stamp exists.
+    local pending=()
+    local id
+    for id in "${ids[@]}"; do
+        if is_installed "${id}"; then
+            log "already installed: ${id}"
+        else
+            pending+=("${id}")
+        fi
+    done
+
+    if [[ "${#pending[@]}" -eq 0 ]]; then
+        log "all ${#ids[@]} application(s) present"
+        mkdir -p "${STAMP_DIR}" && : >"${STAMP_FILE}"
+        return 0
+    fi
+
+    # base-main ships flatpak but not necessarily the remote.
+    if ! flatpak remotes --system --columns=name | grep -qx flathub; then
+        log "adding flathub remote"
+        if ! flatpak remote-add --system --if-not-exists flathub "${FLATHUB_URL}"; then
+            log "cannot reach flathub -- will retry on the next timer tick"
+            return "${EX_TEMPFAIL}"
+        fi
+    fi
+
+    local failed=0
+    for id in "${pending[@]}"; do
+        log "installing ${id}"
+        # --noninteractive so a missing runtime is resolved rather than prompted
+        # for; there is no console to answer on a kiosk.
+        if flatpak install --system --noninteractive --assumeyes flathub "${id}"; then
+            log "installed ${id}"
+        else
+            log "failed to install ${id}"
+            failed=1
+        fi
+    done
+
+    if [[ "${failed}" -ne 0 ]]; then
+        log "some installs failed -- will retry on the next timer tick"
+        return "${EX_TEMPFAIL}"
+    fi
+
+    mkdir -p "${STAMP_DIR}" && : >"${STAMP_FILE}"
+    log "done; ${#pending[@]} application(s) installed"
+
+    # The child session must not be able to talk to the network through a
+    # Flatpak. The global override that enforces this is owned by the lockdown
+    # work (/usr/share/kidnix/flatpak/overrides-global, copied to
+    # /var/lib/flatpak/overrides/global on first boot); assert it rather than
+    # duplicating the policy here, so a regression is visible in the journal.
+    if [[ ! -e /var/lib/flatpak/overrides/global ]]; then
+        log "WARNING: no global flatpak override present; newly installed apps may have network"
+    fi
+}
+
+main "$@"

@@ -1,0 +1,27 @@
+[Unit]
+Description=kidnix child-account network egress lockdown
+Documentation=https://github.com/mattcree/kidnix
+Documentation=man:nft(8)
+# Load before anything can route a packet. DefaultDependencies=no keeps us out
+# of the basic.target ordering cycle so we can genuinely be first.
+DefaultDependencies=no
+After=sysinit.target
+Wants=network-pre.target
+Before=network-pre.target network.target shutdown.target
+Conflicts=shutdown.target
+ConditionPathExists=/usr/lib/kidnix/nftables/kidnix-egress.nft
+ConditionPathExists=/usr/sbin/nft
+# `kid` is created by systemd-sysusers, but the ruleset matches uid 1000
+# numerically, so this unit deliberately does NOT need to wait for it.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /usr/lib/kidnix/nftables/kidnix-egress.nft
+ExecReload=/usr/sbin/nft -f /usr/lib/kidnix/nftables/kidnix-egress.nft
+# `-` so a stop with the table already gone is not a failure.
+ExecStop=-/usr/sbin/nft delete table inet kidnix_egress
+
+[Install]
+WantedBy=multi-user.target
+WantedBy=graphical.target
