@@ -8,6 +8,10 @@ from pathlib import Path
 import pytest
 
 from kidnix_shell.activities import (
+    DEFAULT_QUIT_GRACE,
+    MAX_QUIT_GRACE,
+    QUIT_CONFIRM,
+    QUIT_SIGNAL,
     Activity,
     Availability,
     ManifestError,
@@ -133,6 +137,12 @@ def test_resume_without_exec_resume_is_a_plain_launch(tmp_path: Path) -> None:
         ('id = "a"\nname = "A"\nexec = ["a"]\njournal_watch = "x"\n', "journal_watch"),
         ('id = "a"\nname = "A"\nexec = ["a"]\nnetwork_required = "yes"\n', "true or false"),
         ('id = "a"\nname = "A"\nexec = ["a"]\nschema = 99\n', "newer than this shell"),
+        ('id = "a"\nname = "A"\nexec = ["a"]\nquit = "kill"\n', "quit"),
+        ('id = "a"\nname = "A"\nexec = ["a"]\nquit = true\n', "must be a string"),
+        ('id = "a"\nname = "A"\nexec = ["a"]\nquit_grace = 0\n', "more than zero"),
+        ('id = "a"\nname = "A"\nexec = ["a"]\nquit_grace = -5\n', "more than zero"),
+        ('id = "a"\nname = "A"\nexec = ["a"]\nquit_grace = 600\n', "not be more than"),
+        ('id = "a"\nname = "A"\nexec = ["a"]\nquit_grace = "30s"\n', "number of seconds"),
         ("this is not toml [[[", "not valid TOML"),
     ],
 )
@@ -547,3 +557,60 @@ def test_a_six_to_eight_year_old_gets_the_number_game_back() -> None:
     band = (6, 8)
     out = [a.id for a in shipped_activities() if not in_age_band(a, band)]
     assert out == []
+
+
+# --- the quit contract (spec 7c) ------------------------------------------
+#
+# The shell has to know, before it asks an activity to finish, whether SIGTERM
+# ends the program or makes the program ask the *child* a question. Getting
+# this wrong is not a cosmetic bug: it is a deleted drawing (§19.3).
+
+
+def test_quit_defaults_to_signal_and_five_seconds(tmp_path: Path) -> None:
+    activity = load_manifest(write(tmp_path, "a.toml", MINIMAL))
+    assert activity.quit == QUIT_SIGNAL
+    assert activity.quit_grace == DEFAULT_QUIT_GRACE[QUIT_SIGNAL] == 5.0
+    assert activity.asks_before_quitting is False
+
+
+def test_confirm_gets_the_longer_default_grace(tmp_path: Path) -> None:
+    """The thing being waited for is a five-year-old with a mouse."""
+    text = MINIMAL + '\nquit = "confirm"\n'
+    activity = load_manifest(write(tmp_path, "a.toml", text))
+    assert activity.quit == QUIT_CONFIRM
+    assert activity.quit_grace == DEFAULT_QUIT_GRACE[QUIT_CONFIRM] == 30.0
+    assert activity.asks_before_quitting is True
+
+
+def test_an_explicit_grace_wins_over_the_default(tmp_path: Path) -> None:
+    text = MINIMAL + '\nquit = "confirm"\nquit_grace = 12\n'
+    assert load_manifest(write(tmp_path, "a.toml", text)).quit_grace == 12.0
+
+
+def test_a_fractional_grace_is_allowed(tmp_path: Path) -> None:
+    text = MINIMAL + "\nquit_grace = 2.5\n"
+    assert load_manifest(write(tmp_path, "a.toml", text)).quit_grace == 2.5
+
+
+def test_the_grace_is_bounded_by_the_put_away_window(tmp_path: Path) -> None:
+    """Put away is two minutes wide; a grace longer than MAX_QUIT_GRACE would
+    mean the shell never got to ask a second time before the hard stop."""
+    assert MAX_QUIT_GRACE <= 120
+    text = MINIMAL + f"\nquit_grace = {MAX_QUIT_GRACE}\n"
+    assert load_manifest(write(tmp_path, "a.toml", text)).quit_grace == MAX_QUIT_GRACE
+
+
+def test_draw_is_the_one_shipped_activity_that_asks_the_child() -> None:
+    """Measured, not assumed (§19.2): Tux Paint answers SIGTERM with a tick and
+    a cross and autosaves only when the tick is pressed."""
+    asking = {a.id: a for a in shipped_activities() if a.asks_before_quitting}
+    assert list(asking) == ["tuxpaint"]
+    assert asking["tuxpaint"].quit_grace == 30.0
+
+
+def test_every_other_shipped_activity_goes_on_the_signal() -> None:
+    for activity in shipped_activities():
+        if activity.id == "tuxpaint":
+            continue
+        assert activity.quit == QUIT_SIGNAL, activity.id
+        assert activity.quit_grace == 5.0, activity.id

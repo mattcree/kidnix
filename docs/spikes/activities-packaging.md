@@ -358,6 +358,8 @@ base-main), so validation costs nothing at build time or in tests.
 | `icon` | str | Icon name or path. |
 | `icon_kind` | str | `icon-name` or `path`. |
 | `exec` | list[str] | argv. Not a shell string — no quoting bugs, no shell. |
+| `quit` | str | Optional, default `signal`. How the program answers SIGTERM: `signal` = it exits; `confirm` = it puts its **own** question on the child's screen and waits (Tux Paint's tick/cross). The shell must not cover or kill a `confirm` activity before the session's hard stop — spec §7c, shell notes §20. |
+| `quit_grace` | number | Optional, seconds (0 < g ≤ 90). How long the shell waits before asking once more. Default 5 (`signal`) / 30 (`confirm`). |
 | `category` | str | `make` / `learn` / `play`. Drives the shell's grouping; "making over consuming" is a non-negotiable, so the split is structural. |
 | `age_min`, `age_max` | int | Band this is right for. |
 | `oars_rating` | str | OARS 1.1 string, or `none`. |

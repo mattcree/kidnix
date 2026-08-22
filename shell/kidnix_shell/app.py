@@ -52,10 +52,15 @@ from .band import Band, BandActions  # noqa: E402
 from .context import ShellContext  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
 from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
-from .launcher import AUTOSAVE_GRACE_SECONDS, Launcher, RunningActivity  # noqa: E402
+from .launcher import Launcher, RunningActivity  # noqa: E402
 from .metrics import Metrics, ScreenOverride, detect_metrics  # noqa: E402
 from .next_after import NextAfter  # noqa: E402
-from .ritual import RitualAction, back_delay_seconds, next_action  # noqa: E402
+from .ritual import (  # noqa: E402
+    RitualAction,
+    back_delay_seconds,
+    next_action,
+    put_away_line,
+)
 from .screens import Screen  # noqa: E402
 from .screens.ending import EndingOfferScreen, PutAwayScreen  # noqa: E402
 from .screens.goodbye import GoodbyeScreen  # noqa: E402
@@ -271,7 +276,6 @@ class ShellWindow(Adw.ApplicationWindow):
         self.machine = StateMachine(State.CHOOSING, on_change=self._on_state_change)
         self._sheet: GrownupSheet | None = None
         self._showing_handle: int | None = None
-        self._kill_handle: int | None = None
         self._goodbye_handle: int | None = None
         self._band_offer_handle: int | None = None
         self._content_handle: int | None = None
@@ -289,6 +293,19 @@ class ShellWindow(Adw.ApplicationWindow):
         #: My Things pressed inside an activity: open the Journal once the
         #: activity has actually finished.
         self._journal_after_activity = False
+        #: v0.1.6, spec 7c: Put away has asked a running activity to finish and
+        #: is waiting for it to actually go. The child is still looking at
+        #: their own program -- nothing is raised over it -- so the state does
+        #: not move, and this is what stops the tick asking again.
+        self._put_away_pending = False
+        #: Which event takes the child to S6 when the activity finally goes:
+        #: the clock's, or "All done"/"End session now".
+        self._put_away_event = Event.PUT_AWAY_DUE
+        #: The one re-ask, scheduled for the activity's own ``quit_grace``.
+        self._reask_handle: int | None = None
+        #: "All done" while an activity was still finishing: Goodbye is timed
+        #: from S6's arrival, not from the press.
+        self._goodbye_after_put_away = False
         #: Set once the compositor has answered the band window with the strip
         #: it asked for -- not when GTK mapped it. See :func:`kiosk.placed`.
         self._band_placed = False
@@ -901,11 +918,14 @@ class ShellWindow(Adw.ApplicationWindow):
             self.machine.state,
             offer_answered=self.session.offer_answered,
             offer_shown=self._offer_on_band,
+            put_away_asked=self._put_away_pending,
         )
         if action is RitualAction.PRESENT_OFFER:
             self._present_ending_offer()
         elif action is RitualAction.PUT_AWAY:
             self._begin_put_away()
+        elif action is RitualAction.HARD_STOP:
+            self._hard_stop()
         elif action is RitualAction.GOODBYE:
             self.session.end(datetime.now())
             self.machine.try_fire(Event.GOODBYE_DUE)
@@ -969,35 +989,148 @@ class ShellWindow(Adw.ApplicationWindow):
         self.band.set_offer_mode(False)
 
     def _begin_put_away(self, event: Event = Event.PUT_AWAY_DUE) -> None:
+        """S6, T-2. Two shapes, and neither of them destroys a drawing.
+
+        Until v0.1.5.1 this raised the content window over whatever the child
+        was doing, sent SIGTERM and SIGKILLed five seconds later. For Tux Paint
+        that meant the child could not see the tick they had to press --  the
+        shell was in front of it -- so they did not press it, so
+        "Let's keep that." was followed by the drawing being deleted (§19.3).
+        Spec 7c's ruling, and this method:
+
+        * **on a shell surface**, nothing has changed: S6 is a screen, the work
+          flies into My Things, and anything still running is asked to go;
+        * **inside an activity**, the shell asks and then *waits*
+          (:meth:`_ask_activity_to_finish`). The content window stays where it
+          is, behind the activity. S6 appears when the activity has actually
+          gone, which is the moment "Let's keep that" becomes true.
+        """
         self._clear_band_offer()
-        if not self.machine.try_fire(event) and self.machine.state is not State.PUT_AWAY:
+        if self.launcher.running:
+            self._ask_activity_to_finish(event)
             return
+        self._enter_put_away(event)
+
+    def _enter_put_away(self, event: Event) -> None:
+        """Show S6. Only ever called with the screen actually free."""
+        if not self.machine.try_fire(event) and self.machine.state is not State.PUT_AWAY:
+            self._goodbye_after_put_away = False
+            return
+        self.band.set_finishing_mode(False)
         # Spec 7a: three seconds of dead Back, so the ritual is not undone by a
         # child drumming on the band -- and then Back works again.
         self._back_locked_until = time.monotonic() + PUT_AWAY_BACK_LOCK_SECONDS
-        self.present()  # take the screen back from the activity
+        self.present()  # take the screen back
         # Sweep first so the thing the child just made is in the Journal before
         # the animation claims to have put it there.
         self.watcher.sweep_now()
-        if self.launcher.request_stop():
-            self._kill_handle = GLib.timeout_add(
-                int(AUTOSAVE_GRACE_SECONDS * 1000), self._force_kill
-            )
-        self.earcons.play(KEEP, speaking=True)
+        if not self.ctx.work_lost:
+            self.earcons.play(KEEP, speaking=True)
+        if self._goodbye_after_put_away:
+            # "All done" or "End session now" -- the clock is not driving this
+            # ending, so Goodbye is timed from here rather than from the press,
+            # which may have been a whole quit dialogue ago.
+            self._goodbye_after_put_away = False
+            self._schedule_goodbye()
 
-    def _force_kill(self) -> bool:
-        """Put away's SIGKILL. The hard stop is the hard stop (spec S6)."""
-        self._kill_handle = None
-        was_running = self.launcher.running
-        self.launcher.force_stop()
+    def _ask_activity_to_finish(self, event: Event) -> None:
+        """Ask, say so, and wait. The child's program keeps the screen.
+
+        The band loses everything except Back, the sun and the Ear
+        (:meth:`Band.set_finishing_mode`) -- there is one thing to do and the
+        band should not offer a second. What the shell *says* depends on the
+        manifest's quit contract: an activity that answers SIGTERM with its own
+        question needs the child told that the question is theirs, because
+        nothing on that screen says so to a pre-reader.
+        """
+        self._put_away_pending = True
+        self._put_away_event = event
+        self._journal_after_activity = False
+        self.band.set_finishing_mode(True)
+        self.band.set_journal_sensitive(False)
+        # Sweep first: whatever has already been autosaved is in My Things
+        # before the shell says a word about keeping it.
         self.watcher.sweep_now()
-        if was_running:
-            # `force_stop()` reaps the process itself, so the 500 ms poll in
-            # `Launcher.check()` never sees it go and `on_exit` would never
-            # fire -- which left the shell stuck in IN_ACTIVITY with nothing on
-            # screen but the band. Measured in the VM.
-            self._activity_finished()
+        self.launcher.request_stop()
+        grace = self.launcher.grace_seconds
+        log.info(
+            "put-away: asked %s to finish (quit=%s, grace %.0fs); waiting, not killing",
+            self.launcher.current.activity_id if self.launcher.current else "?",
+            "confirm" if self.launcher.asks_before_quitting else "signal",
+            grace,
+        )
+        self._say_put_away_line()
+        self._cancel_reask()
+        self._reask_handle = GLib.timeout_add(int(grace * 1000), self._reask_once)
+
+    def _say_put_away_line(self) -> None:
+        """The band's half of S6 (spec 7c), and the earcon that goes with it.
+
+        The sentence depends on the manifest: an activity in ``confirm`` mode
+        has just put its own tick and cross on screen, and nothing there tells
+        a pre-reader that the question is theirs to answer -- so the shell
+        says it. The keep earcon *is* the sound of something being kept, so it
+        does not play when there is nothing to keep.
+        """
+        lost = self.ctx.work_lost
+        if not lost:
+            self.earcons.play(KEEP, speaking=True)
+        mode = "confirm" if self.launcher.asks_before_quitting else "signal"
+        self.speech.speak(put_away_line(mode, lost=lost))
+
+    def _reask_now(self) -> None:
+        """Back, during the wait: ask again, and repeat the line."""
+        if not self.launcher.running:
+            return
+        self.earcons.play(BACK)
+        self.launcher.request_stop()
+        self._say_put_away_line()
+
+    def _reask_once(self) -> bool:
+        """The grace ran out. Ask again -- once -- and then keep waiting.
+
+        Not a SIGKILL: a child who has not found the tick yet has not lost
+        their drawing, they are five. The second SIGTERM is for the activity
+        that missed the first one, and the repeated line is for the child who
+        missed the first one. The only kill is :meth:`_hard_stop`.
+        """
+        self._reask_handle = None
+        if not self._put_away_pending or not self.launcher.running:
+            return False
+        log.info("put-away: no answer after the grace; asking once more")
+        self.launcher.request_stop()
+        self._say_put_away_line()
         return False
+
+    def _cancel_put_away_wait(self) -> None:
+        """Stop waiting for an activity to finish, and give the band back."""
+        self._put_away_pending = False
+        self._goodbye_after_put_away = False
+        self._cancel_reask()
+        self.band.set_finishing_mode(False)
+        self.band.set_journal_sensitive(self.machine.state is State.IN_ACTIVITY)
+
+    def _cancel_reask(self) -> None:
+        if self._reask_handle is not None:
+            GLib.source_remove(self._reask_handle)
+            self._reask_handle = None
+
+    def _hard_stop(self) -> None:
+        """T-0 with the activity still on screen. The only SIGKILL (spec 7c).
+
+        The hard stop is still the hard stop. What changes is that it is now
+        the *whole* of the kill path rather than a five-second timer, and that
+        it is honest about what it cost: the launcher logs the loss for the
+        parent, and :attr:`ShellContext.work_lost` stops S6 and S7 claiming to
+        have kept something they did not.
+        """
+        self._cancel_reask()
+        if self.launcher.running:
+            self.ctx.work_lost = True
+            self.launcher.hard_stop()
+        self._put_away_pending = False
+        self.watcher.sweep_now()
+        self._enter_put_away(self._put_away_event)
 
     # -- ShellHost ----------------------------------------------------
 
@@ -1015,8 +1148,10 @@ class ShellWindow(Adw.ApplicationWindow):
             return
         self.session.start(now)
         # A new sitting: last time's answer to "what's next after?" is not this
-        # time's, and Goodbye must not show a picture nobody chose today.
+        # time's, and Goodbye must not show a picture nobody chose today. Nor
+        # is last time's lost work this time's.
         self.ctx.next_after = None
+        self.ctx.work_lost = False
         if profile.skip_next_choice:
             log.info("%s skips S1b (skip_next_choice)", profile.id)
             self.machine.try_fire(Event.SKIP_NEXT_CHOICE)
@@ -1063,10 +1198,11 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _on_activity_exit(self, running: RunningActivity, code: int) -> None:
         log.info("%s finished (%s)", running.activity_id, code)
-        if self._kill_handle is not None:
-            GLib.source_remove(self._kill_handle)
-            self._kill_handle = None
-        self.present()
+        self._cancel_reask()
+        if not self._put_away_pending:
+            # Put away has to keep the content window where it is until S6 is
+            # actually on screen; `_enter_put_away` presents it itself.
+            self.present()
         kept = self.watcher.sweep_now()
         if running.failed_to_open(code):
             # It never opened. The child pressed a button and the screen
@@ -1095,6 +1231,15 @@ class ShellWindow(Adw.ApplicationWindow):
         if self._nag_handle is not None:
             GLib.source_remove(self._nag_handle)
             self._nag_handle = None
+        self._cancel_reask()
+        if self._put_away_pending:
+            # The child answered the activity's question (or it went quietly).
+            # *Now* the shell may have the screen back, and only now is
+            # "Let's keep that" a true sentence (spec 7c).
+            self._put_away_pending = False
+            self._journal_after_activity = False
+            self._enter_put_away(self._put_away_event)
+            return
         if self.machine.state is State.IN_ACTIVITY:
             self.machine.try_fire(Event.ACTIVITY_EXITED)
         if self._journal_after_activity:
@@ -1147,7 +1292,7 @@ class ShellWindow(Adw.ApplicationWindow):
             if self._nag_handle is not None:
                 GLib.source_remove(self._nag_handle)
             self._nag_handle = GLib.timeout_add(
-                int(AUTOSAVE_GRACE_SECONDS * 1000), self._activity_is_asking
+                int(self.launcher.grace_seconds * 1000), self._activity_is_asking
             )
 
     def _activity_is_asking(self) -> bool:
@@ -1186,6 +1331,12 @@ class ShellWindow(Adw.ApplicationWindow):
         self.machine.try_fire(Event.BACK)
 
     def open_journal(self) -> None:
+        if self._put_away_pending:
+            # My Things is not on the band during the wait; if anything else
+            # reaches this, it must not send a second SIGTERM behind the
+            # child's back. Say where they are instead.
+            self._say_put_away_line()
+            return
         if self.machine.state is State.IN_ACTIVITY:
             # My Things during an activity: end the activity, then open the
             # Journal (v0.1.5). Opening it *underneath* a running program would
@@ -1235,9 +1386,11 @@ class ShellWindow(Adw.ApplicationWindow):
         the same path. The clock is not involved, so Goodbye has to be timed
         here rather than waiting for :class:`Phase.ENDED`.
         """
+        self._goodbye_after_put_away = True
         self._begin_put_away(Event.IM_FINISHED)
-        if self.machine.state is not State.PUT_AWAY:
-            return
+
+    def _schedule_goodbye(self) -> None:
+        """S6 -> S7, when the clock is not the thing doing the ending."""
         if self._goodbye_handle is not None:
             GLib.source_remove(self._goodbye_handle)
         self._goodbye_handle = GLib.timeout_add_seconds(PUT_AWAY_SECONDS, self._goodbye_now)
@@ -1270,6 +1423,7 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def start_session(self, minutes: int | None = None) -> None:
         now = datetime.now()
+        self.ctx.work_lost = False
         length = None if minutes is None else minutes * 60
         if not self.session.start(now, length):
             self._refuse(self.session.may_start(now))
@@ -1277,7 +1431,16 @@ class ShellWindow(Adw.ApplicationWindow):
         self.machine.try_fire(Event.START_SESSION)
 
     def add_minutes(self, minutes: int) -> None:
-        added = self.session.add_minutes(minutes, datetime.now())
+        now = datetime.now()
+        added = self.session.add_minutes(minutes, now)
+        if added and self._put_away_pending and self.session.phase(now) is Phase.RUNNING:
+            # A grown-up moved the hard stop while the shell was waiting for an
+            # activity to finish. The ending is off; the activity has already
+            # been asked and may still go, in which case the child simply comes
+            # back to Home. What must not happen is S6 arriving in the middle
+            # of a session that was just extended.
+            log.info("put-away: the ending was called off; the child carries on")
+            self._cancel_put_away_wait()
         if added and self.machine.state in (State.GOODBYE, State.PUT_AWAY, State.SLEEPING):
             self.machine.try_fire(Event.START_SESSION)
 
@@ -1311,6 +1474,13 @@ class ShellWindow(Adw.ApplicationWindow):
         """
         if self.machine.state is State.HOME:
             self.speech.speak("You're home.")
+            return
+        if self._put_away_pending:
+            # Put away is already asking (spec 7c). Back means the same thing
+            # here as it does anywhere else in an activity -- "I'm finished" --
+            # so it asks again rather than contradicting the shell's own
+            # request, and it says the line again for a child who missed it.
+            self._reask_now()
             return
         if self.machine.state is State.IN_ACTIVITY:
             # v0.1.5: the band is on screen during an activity, so Back is the
@@ -1488,19 +1658,19 @@ class ShellWindow(Adw.ApplicationWindow):
         for handle in (
             self._tick_handle,
             self._showing_handle,
-            self._kill_handle,
             self._goodbye_handle,
             self._band_offer_handle,
             self._content_handle,
             self._band_handle,
             self._nag_handle,
+            self._reask_handle,
         ):
             if handle is not None:
                 GLib.source_remove(handle)
         self._tick_handle = None
         self._showing_handle = None
-        self._kill_handle = None
         self._goodbye_handle = None
+        self._reask_handle = None
         self._band_offer_handle = None
         self._content_handle = None
         self._band_handle = None

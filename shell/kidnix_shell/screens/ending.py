@@ -9,7 +9,14 @@ S5 at T-6: "The sun is going down", two big choices, and a small "Ask for more
 time" that in v0.1 honestly says a grown-up can add time from the gate.
 
 S6 at T-2: no buttons at all. The work animates into My Things with the keep
-earcon and the line "Let's keep that." The activity is asked to quit.
+earcon and the line "Let's keep that."
+
+Since v0.1.6 (spec 7c) this screen is not what *asks* the activity to quit and
+it is not raised over one: the shell asks from the band and this appears only
+once the activity has actually gone, which is the moment "Let's keep that"
+becomes a true sentence. When the hard stop had to kill the activity instead,
+it is not true, and the screen says something else
+(:func:`kidnix_shell.ritual.put_away_line`).
 """
 
 from __future__ import annotations
@@ -22,6 +29,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
+from ..ritual import KEEP_LINE, put_away_line  # noqa: E402
 from ..sound import KEEP  # noqa: E402
 from ..theme import points_for  # noqa: E402
 from ..widgets import ChildButton, big_label, icon_image, page_label_fit  # noqa: E402
@@ -142,21 +150,31 @@ class PutAwayScreen(Screen):
         self._picture.set_size_request(metrics.mm(45), metrics.mm(45))
         self._travel.put(self._picture, metrics.mm(38), 0)
 
-        self.append(big_label("Let's keep that."))
+        self.headline = big_label(KEEP_LINE)
+        self.append(self.headline)
         self._animation: Adw.TimedAnimation | None = None
 
     def on_enter(self) -> None:
         metrics = self.ctx.metrics
+        # The words have to be true (spec 7c). If put away had to kill the
+        # activity at the hard stop then nothing was kept, nothing flies into
+        # My Things, and the keep earcon -- which *is* the sound of something
+        # being kept -- does not play either.
+        lost = self.ctx.work_lost
+        line = put_away_line("signal", lost=lost)
+        self.headline.set_label(line)
+
         latest = next(iter(self.ctx.journal.entries), None)
         thumb = latest.thumbnail if latest is not None else None
-        if thumb is not None:
+        if thumb is not None and not lost:
             self._picture.set_filename(str(thumb))
             self._picture.set_visible(True)
         else:
             self._picture.set_visible(False)
 
-        self.ctx.speech.speak("Let's keep that.")
-        self.ctx.earcons.play(KEEP, speaking=True)
+        self.ctx.speech.speak(line)
+        if not lost:
+            self.ctx.earcons.play(KEEP, speaking=True)
 
         if not self._picture.get_visible():
             return

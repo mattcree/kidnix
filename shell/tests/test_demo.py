@@ -45,6 +45,11 @@ def test_one_demo_activity_refuses_to_quit_politely(tmp_path: Path) -> None:
     stubborn = [a for a in activities if a.id in STUBBORN]
     assert stubborn
     assert "--stubborn" in stubborn[0].exec_argv
+    # ...and it declares the quit contract that goes with ignoring SIGTERM, so
+    # --demo walks spec 7c's whole put-away conversation rather than the
+    # happy path (ask, wait, one re-ask, hard stop).
+    assert stubborn[0].asks_before_quitting is True
+    assert stubborn[0].quit_grace == 8
 
 
 def test_every_demo_activity_watches_its_own_directory(tmp_path: Path) -> None:

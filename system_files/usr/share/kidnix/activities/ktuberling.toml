@@ -10,6 +10,17 @@ icon = "ktuberling"
 icon_kind = "icon-name"
 exec = ["ktuberling"]
 
+# Spec 7c. "signal", and this one is the honest edge of the contract: KTuberling
+# is a Qt/KDE application, KF6 installs handlers only for the crash signals
+# (KCrash: SIGSEGV/SIGBUS/SIGFPE/SIGILL/SIGABRT), and nothing anywhere catches
+# SIGTERM -- so it dies on the signal and an unsaved potato dies with it. That
+# is not a reason to declare "confirm": "confirm" means *the program asks the
+# child*, and KTuberling does not. Declaring it would leave the shell waiting
+# thirty seconds for a dialogue that never appears and then killing it anyway.
+# The real fix is a `journal_watch` and a save path; until then the loss is
+# recorded here and in the implementation notes rather than papered over.
+quit = "signal"
+
 category = "make"
 age_min = 3
 age_max = 7

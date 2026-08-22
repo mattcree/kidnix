@@ -29,6 +29,20 @@ Spec S5, restated as rules:
 * Only a grown-up grant that pushes the hard stop past a new T-6 re-arms it
   (see :meth:`kidnix_shell.session.Session.add_minutes`).
 
+Spec S6, as re-ruled in 7c (v0.1.6) -- **put away never destroys work**:
+
+* At T-2 the shell **asks** the activity to finish and, if the child is inside
+  one, does not cover it. The content window stays where it is; the band
+  speaks. See :func:`put_away_line` for what it says.
+* ``put_away_asked`` is the latch that stops the tick asking again -- the same
+  shape as ``offer_shown``, and for the same reason, except that here a repeat
+  would be another SIGTERM every half second.
+* If the activity is still there when the grace runs out the shell asks
+  **once** more (that is the app's timer, not this module's: it is measured
+  from the ask, not from the clock).
+* :attr:`RitualAction.HARD_STOP` is the only SIGKILL, at T-0, and it is a
+  logged loss. The words change with it: see :data:`LOST_LINE`.
+
 No GTK, no clock, no I/O: everything here is an argument.
 """
 
@@ -36,6 +50,7 @@ from __future__ import annotations
 
 from enum import Enum
 
+from .activities import QUIT_CONFIRM
 from .session import Phase
 from .state import State
 
@@ -46,6 +61,7 @@ class RitualAction(Enum):
     NOTHING = "nothing"
     PRESENT_OFFER = "present_offer"  # S5, once per session
     PUT_AWAY = "put_away"  # S6, T-2, unconditional
+    HARD_STOP = "hard_stop"  # S6's SIGKILL: T-0 with the activity still there
     GOODBYE = "goodbye"  # S7, the hard stop
 
 
@@ -105,6 +121,7 @@ def next_action(
     *,
     offer_answered: bool,
     offer_shown: bool = False,
+    put_away_asked: bool = False,
 ) -> RitualAction:
     """The ritual's whole policy, in one pure function.
 
@@ -119,6 +136,12 @@ def next_action(
     every other surface the offer is a screen in the content window and the
     state change is still what stops the repeat; passing ``True`` there as well
     is harmless and says the same thing.
+
+    ``put_away_asked`` is v0.1.6's equivalent for S6. The shell sets it when it
+    has asked a running activity to finish and is waiting for it to go; the
+    state does not change while it waits (the child is still looking at their
+    own program, which is the entire point of spec 7c), so this is what stops
+    the tick asking -- and re-signalling -- twice a second.
     """
     if state is State.GROWNUP:
         # Never yank the sheet out from under a parent mid-task; the tick after
@@ -129,7 +152,55 @@ def next_action(
             return RitualAction.NOTHING
         return RitualAction.PRESENT_OFFER
     if phase is Phase.PUT_AWAY and state in PUT_AWAY_FROM:
+        # v0.1.6: inside an activity, PUT_AWAY is a *question* and the shell
+        # then waits in IN_ACTIVITY for the answer. IN_ACTIVITY is in
+        # PUT_AWAY_FROM, so without this latch the shell would ask again on
+        # every 500 ms tick -- the offer-loop bug, in a new place, and this
+        # time each repeat is another SIGTERM.
+        if put_away_asked:
+            return RitualAction.NOTHING
         return RitualAction.PUT_AWAY
-    if phase is Phase.ENDED and state is State.PUT_AWAY:
-        return RitualAction.GOODBYE
+    if phase is Phase.ENDED:
+        if state is State.PUT_AWAY:
+            return RitualAction.GOODBYE
+        if state is State.IN_ACTIVITY:
+            # The clock ran out with the activity still on screen: it either
+            # never answered the signal or the child never answered *it*. This
+            # is the only SIGKILL in the ritual and it is a loss, logged as
+            # one (:meth:`kidnix_shell.launcher.Launcher.hard_stop`).
+            return RitualAction.HARD_STOP
     return RitualAction.NOTHING
+
+
+# --- what Put away says, and why it is not always the same sentence ------
+
+
+#: The line the whole ritual is named after. True whenever the activity has
+#: gone quietly, or has been given the chance to save and taken it.
+KEEP_LINE = "Let's keep that."
+
+#: The ``confirm`` version. Tux Paint is now showing its own tick and cross and
+#: nothing on that screen tells a pre-reader that the question is theirs, so
+#: the band says so. Two sentences rather than spec 7c's dash: an em dash is a
+#: comma to espeak and the pause is what makes "press the tick" an instruction.
+CONFIRM_LINE = "Let's keep that. Press the tick."
+
+#: And the honest one. If the hard stop had to SIGKILL, whatever was on that
+#: canvas is gone, and "Let's keep that" would be the worst sentence in the
+#: shell (§19.3's option 3, which is exactly why the ruling rejected it). The
+#: shell says something true instead and does not pretend the loss away.
+LOST_LINE = "Time to stop now."
+
+
+def put_away_line(quit_mode: str, *, lost: bool = False) -> str:
+    """What Put away says out loud, given who it is talking about.
+
+    Pure, and separate from the screen and the band, because "the words must be
+    true" is a rule about the *policy*, not about a widget: both surfaces say
+    the same sentence and one test can hold both of them to it.
+    """
+    if lost:
+        return LOST_LINE
+    if quit_mode == QUIT_CONFIRM:
+        return CONFIRM_LINE
+    return KEEP_LINE

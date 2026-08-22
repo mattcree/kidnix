@@ -148,6 +148,12 @@ class GoodbyeScreen(Screen):
 
     def on_enter(self) -> None:
         metrics = self.ctx.metrics
+        # **What is on this screen is what is in the Journal, and nothing
+        # else** (spec 7c). If put away had to kill an activity at the hard
+        # stop, whatever was on its canvas was never imported, so it is not
+        # counted here, has no thumbnail here, and is not claimed as kept --
+        # the count is a fact about the Journal rather than about the sitting,
+        # which is exactly what makes it safe to say out loud.
         made = self.ctx.journal.made_on_today()
         headline = f"You made {count_phrase(len(made))} today"
         if not made:

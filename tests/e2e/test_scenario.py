@@ -81,6 +81,12 @@ def canvas_white_box(band: int) -> tuple:
     return (300, band + int(content * 0.08), 1000, band + int(content * 0.62))
 
 
+def _journal_entries(vm) -> list:
+    """Every ``entry.json`` in the kid's Journal, sorted. Never raises."""
+    found = vm.out(f"find {JOURNAL_GLOB} -name entry.json 2>/dev/null | sort || true", check=False)
+    return found.splitlines()
+
+
 def _stroke(box: tuple) -> list:
     """A zig-zag inside ``box`` -- something a three-year-old would draw."""
     left, top, right, bottom = box
@@ -369,7 +375,8 @@ def test_05_my_things_shows_the_drawing(scenario):
 
 
 def test_06_the_session_ends_on_its_own(scenario):
-    """S5 -> S6 -> S7 -> S8. The ending ritual, from inside an activity.
+    """S5 -> S6 -> S7 -> S8. The ending ritual, from inside an activity, with
+    unsaved strokes on the canvas.
 
     The shipped session is 25 minutes, which is the right number for a child
     and the wrong one for a test. The policy is root-owned, so the harness
@@ -379,23 +386,31 @@ def test_06_the_session_ends_on_its_own(scenario):
     Since v0.1.5 this step deliberately runs the ritual **with Tux Paint on
     screen**, because that is the case the whole band change is for. The offer
     used to be raised as a fullscreen window over the child's drawing (the CCI
-    audit's 02 #4, "a consequence of the band gap rather than a choice"); it is
-    now two buttons in the band, and the drawing is never covered.
+    audit's 02 #4); it is now two buttons in the band.
 
-    Two and a half minutes: offer at T-90 s, put away at T-30 s. Slack on
-    purpose -- Tux Paint takes ten to fifteen seconds to put a window up, and a
-    test that raced it would fail for a reason that is not the code.
+    Since v0.1.6 it also runs it with **work that is not saved yet**, because
+    that is the case spec 7c is for. Put away asks Tux Paint to finish and then
+    *waits*: Tux Paint answers SIGTERM with its own tick and cross, the shell
+    says "Let's keep that. Press the tick." out loud, and the content window
+    stays behind the drawing until the child has answered. The old ritual
+    covered that dialogue with "Let's keep that." and SIGKILLed the drawing
+    five seconds later (implementation notes 19.3) -- and the old scenario
+    never caught it, because it always quit Tux Paint by hand first.
+
+    Three minutes: offer at T-90 s, put away at T-45 s, hard stop at T-0. The
+    45 s put-away window is not slack, it is the contract: ``quit_grace`` for
+    Tux Paint is 30 s, so the shell's one re-ask has to fit before the kill.
     """
     vm = scenario.vm
     band = scenario.band_height
-    vm.write_session_policy(session_policy(length=2.5, ending_offer=1.5, put_away=0.5))
+    vm.write_session_policy(session_policy(length=3, ending_offer=1.5, put_away=0.75))
     cursor = vm.restart_shell()
 
     blob = scenario.wait_until(
         lambda image: dark_centroid(image, (300, 250, 980, 740)),
         what="Who's here? after the restart",
     )
-    scenario.shot("restarted", "S1 again, on a two-and-a-half-minute session")
+    scenario.shot("restarted", "S1 again, on a three-minute session")
     vm.click(blob[0], blob[1])
     scenario.expect_log("state choosing -> next_choice (choose_profile)", since=cursor)
     started = time.monotonic()
@@ -410,6 +425,8 @@ def test_06_the_session_ends_on_its_own(scenario):
     next_after_id = chosen.rsplit(":", 1)[-1].strip()
     scenario.expect_log("state next_choice -> home (choose_next_after)", since=cursor)
 
+    before_entries = _journal_entries(vm)
+
     # Into the activity, so the offer has something to *not* cover.
     vm.click(*centre(scenario.draw_tile))
     scenario.expect_log("state home -> in_activity (launch_activity)", since=cursor, timeout=40)
@@ -419,7 +436,12 @@ def test_06_the_session_ends_on_its_own(scenario):
             break
         time.sleep(1)
     time.sleep(8)  # let it finish laying out under the band
+
+    # ...and something on the canvas that only Tux Paint's own tick can save.
+    vm.drag(_stroke(canvas_box(band)), step_delay=0.08)
+    time.sleep(1.5)
     before = scenario.shot("in-activity", "S3 drawing again, band above")
+    assert dark_fraction(before, canvas_ink_box(band)) > 0.005, "nothing was drawn to lose"
 
     # --- S5, in the band ---------------------------------------------------
     scenario.expect_log("ending offer, in the band", timeout=120, since=cursor)
@@ -447,11 +469,58 @@ def test_06_the_session_ends_on_its_own(scenario):
         "the offer was presented more than once"
     )
 
-    # --- S6, S7, S8 --------------------------------------------------------
-    scenario.expect_log("-> put_away (put_away_due)", timeout=120, since=cursor)
+    # --- S6: put away asks, and waits (spec 7c) ----------------------------
+    scenario.expect_log("put-away: asked tuxpaint to finish", timeout=120, since=cursor)
+    spoken = [
+        line
+        for line in scenario.journal(cursor).splitlines()
+        if "speaking: " in line and "Let's keep that" in line
+    ]
+    assert spoken, "the band never said 'Let's keep that' when put away began"
+    assert "Press the tick" in spoken[-1], (
+        f"tuxpaint declares quit = 'confirm', so the line has to tell the child "
+        f"whose question it is: {spoken[-1]!r}"
+    )
+    print(f"  band said: {spoken[-1].split('speaking: ', 1)[-1]}")
+
+    # THE POINT OF v0.1.6: the shell has not taken the screen. Tux Paint's own
+    # tick is still there to be pressed, which is the only thing that saves the
+    # drawing -- and the shell has not navigated to S6 behind it either.
+    time.sleep(3)
+    asking = scenario.shot("put-away-asking", "S6 asking: Tux Paint's tick, not the shell's screen")
+    assert "-> put_away" not in scenario.journal(cursor), (
+        "the shell raised 'Let's keep that' over a drawing that was not saved yet"
+    )
+    tick = colour_centroid(asking, (0, band, 1280, 800), is_tuxpaint_green)
+    assert tick is not None, (
+        "Tux Paint's quit prompt is not on screen. Either the shell covered it "
+        "(the v0.1.5 data-loss bug) or it was killed on the signal grace."
+    )
+    print(f"  the tick is at ({tick[0]}, {tick[1]}), {tick[2]} px of green")
+    assert vm.out("pgrep -u kid -x tuxpaint || true", check=False), "put away killed the activity"
+
+    # The child answers it. *Now* "Let's keep that" is a true sentence.
+    vm.click(tick[0], tick[1])
+    scenario.expect_log("state in_activity -> put_away (put_away_due)", timeout=60, since=cursor)
     time.sleep(2)
     scenario.shot("put-away", "S6 Let's keep that")
+    assert "with unsaved work possible" not in scenario.journal(cursor), (
+        "the drawing was killed rather than kept"
+    )
 
+    after_entries = before_entries
+    deadline = time.monotonic() + 40
+    while time.monotonic() < deadline:
+        after_entries = _journal_entries(vm)
+        if len(after_entries) > len(before_entries):
+            break
+        time.sleep(2)
+    assert len(after_entries) > len(before_entries), (
+        f"the drawing never reached the Journal: {before_entries} -> {after_entries}"
+    )
+    print(f"  journal grew from {len(before_entries)} to {len(after_entries)} entries")
+
+    # --- S7, S8 ------------------------------------------------------------
     scenario.expect_log("state put_away -> goodbye (goodbye_due)", timeout=90, since=cursor)
     time.sleep(2)
     goodbye = scenario.shot("goodbye", "S7 Goodbye")

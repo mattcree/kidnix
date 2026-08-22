@@ -17,16 +17,34 @@ icon_kind = "icon-name"
 # tuxpaint RPM owns that path as a %config file and the dnf transaction would
 # clobber an overlay copy).
 #
-# The line that matters for this manifest is `noquit=yes`, which hides Tux
-# Paint's own Quit tool and disables its [Escape] binding, retiring ADR-0010 #5:
-# that dialogue ("Do you really want to quit?", two lines of text a pre-reader
-# cannot read) only existed because the child had no other way out. Since v0.1.5
-# the band stays on screen over an activity, so **Back in the band is the way
-# out** -- it sends SIGTERM, SDL turns that into a quit event, Tux Paint
-# autosaves (`autosave=yes`) and the Journal keeps the drawing. One exit, always
-# in the same place, in the shell's chrome rather than in each activity.
-# An adult still has Alt+F4 and Shift+Ctrl+Escape, per tuxpaint(1).
+# `quit=yes` is what ships, and ADR-0010 #5 therefore stands. v0.1.5 tried
+# `noquit=yes` on the theory that the band's Back had replaced Tux Paint's own
+# exit; measured on the image, that theory was false in the worst possible way
+# (implementation notes 19.2). What Tux Paint actually does with SIGTERM --
+# SDL turns it into SDL_QUIT -- is put *its own* "Do you really want to quit?"
+# on screen, a green tick and a pink cross, and wait. Only the tick makes
+# `autosave=yes` write the picture. With `noquit=yes` the request is swallowed
+# whole: nothing appears, nothing happens, and a SIGKILL after the grace would
+# have deleted the drawing every single time.
+#
+# Hence `quit = "confirm"` below.
 exec = ["tuxpaint"]
+
+# How this one answers "please finish" (spec 7c, shell v0.1.6).
+#
+# "confirm": SIGTERM does not end Tux Paint, it makes Tux Paint ask the child a
+# question -- so the shell must not cover it up, must not kill it on the signal
+# grace, and must tell the child out loud that the tick is theirs to press
+# ("Let's keep that. Press the tick."). Measured, on the image: SIGTERM and
+# SIGINT are both caught (SigCgt bits 2 and 15) and both produce the dialogue;
+# only SIGHUP kills it outright, in about 115 ms, with ~/.tuxpaint/saved empty.
+#
+# 30 seconds because the thing being waited for is a five-year-old finding a
+# tick with a mouse, not a program flushing a buffer. The shell asks once more
+# at the end of it and only ever SIGKILLs at the session's hard stop, where it
+# logs the loss.
+quit = "confirm"
+quit_grace = 30
 
 category = "make"
 age_min = 3

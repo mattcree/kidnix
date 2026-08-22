@@ -11,10 +11,16 @@ Two things matter here and are tested:
   environment with XDG directories under the kid home. Nothing from the
   shell's own environment leaks -- no ``KIDNIX_*`` internals, no inherited
   developer variables, no secrets.
-* **A termination path that always terminates.** Put away (S6) asks nicely
-  with SIGTERM, waits the autosave grace of 5 s, then SIGKILL. The activity is
-  started in its own process group so a misbehaving app that forks children
-  cannot leave orphans on top of the shell.
+* **A termination path that always terminates -- and never earlier than it
+  has to.** Every activity declares how it answers "please finish"
+  (:data:`kidnix_shell.activities.QUIT_MODES`, spec 7c): ``signal`` means
+  SIGTERM ends it, ``confirm`` means SIGTERM puts a *question* on the child's
+  screen and waits for them. :meth:`Launcher.request_stop` asks and returns;
+  :meth:`Launcher.force_stop` is the SIGKILL, and since v0.1.6 it is reached
+  only at the session's hard stop, because the alternative is deleting a
+  drawing while saying "Let's keep that" (§19.3). The activity is started in
+  its own process group so a misbehaving app that forks children cannot leave
+  orphans on top of the shell.
 * **A launch that failed is not a launch.** An activity that exits non-zero
   within :data:`FAST_FAIL_SECONDS` never really started; the child pressed a
   button and the screen flickered
@@ -37,9 +43,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import IO, Any
 
+from .activities import QUIT_CONFIRM, QUIT_SIGNAL
+
 log = logging.getLogger(__name__)
 
-#: Spec S6: SIGTERM, autosave grace, then SIGKILL.
+#: The fallback grace for a stop with no activity behind it (the shell's own
+#: shutdown, and test doubles that are not manifests). Per-activity graces come
+#: from the manifest -- :data:`kidnix_shell.activities.DEFAULT_QUIT_GRACE`.
 AUTOSAVE_GRACE_SECONDS = 5.0
 
 #: Under this, a non-zero exit means the program did not open. Generous: Tux
@@ -95,6 +105,13 @@ class RunningActivity:
     process: Any  # subprocess.Popen, or a test double
     started_at: datetime
     resume_path: Path | None = None
+    #: From the manifest (spec 7c): "signal" or "confirm".
+    quit_mode: str = QUIT_SIGNAL
+    #: From the manifest: how long to wait after asking, before asking again.
+    quit_grace: float = AUTOSAVE_GRACE_SECONDS
+    #: How many times the shell has asked this activity to finish. The second
+    #: ask is the re-ask at the end of the grace; there is never a third.
+    asked: int = 0
     env: dict[str, str] = field(default_factory=dict, repr=False)
     stderr_file: IO[bytes] | None = field(default=None, repr=False)
 
@@ -108,6 +125,11 @@ class RunningActivity:
     @property
     def running(self) -> bool:
         return self.poll() is None
+
+    @property
+    def asks_before_quitting(self) -> bool:
+        """Does SIGTERM put a question on the child's screen instead of ending it?"""
+        return self.quit_mode == QUIT_CONFIRM
 
     def ran_for(self, now: datetime | None = None) -> float:
         """Seconds between launch and ``now``."""
@@ -231,26 +253,48 @@ class Launcher:
                 stderr_file.close()
             return None
 
+        # `getattr` rather than attribute access: the tests (and the demo's
+        # older manifests) hand in doubles that are not full Activities, and a
+        # missing quit contract is the conservative one -- "signal", 5 s.
+        quit_mode = str(getattr(activity, "quit", QUIT_SIGNAL))
+        quit_grace = float(getattr(activity, "quit_grace", AUTOSAVE_GRACE_SECONDS))
         self.current = RunningActivity(
             activity_id=activity.id,
             argv=argv,
             process=process,
             started_at=datetime.now(),
             resume_path=resume_path,
+            quit_mode=quit_mode,
+            quit_grace=quit_grace,
             env=env,
             stderr_file=stderr_file,
         )
-        log.info("launched %s as pid %s: %s", activity.id, self.current.pid, argv)
+        log.info(
+            "launched %s as pid %s (quit=%s, grace %.0fs): %s",
+            activity.id,
+            self.current.pid,
+            quit_mode,
+            quit_grace,
+            argv,
+        )
         return self.current
 
     # -- stopping --
 
-    def stop(self, grace: float = AUTOSAVE_GRACE_SECONDS) -> str:
+    def stop(self, grace: float | None = None) -> str:
         """Ask the activity to quit, then insist. Blocks for at most ``grace``.
 
-        Called from Put away (S6). It is deliberately synchronous: the child is
-        watching an animation and the shell has nothing better to do for five
-        seconds.
+        The **shell's own shutdown** path, and nothing else: it is the one
+        moment when there is no child to ask and no screen left to ask on. Put
+        away goes through :meth:`request_stop` and waits (spec 7c); it reaches
+        :meth:`force_stop` only at the session's hard stop.
+
+        ``grace`` therefore defaults to :data:`AUTOSAVE_GRACE_SECONDS` and
+        deliberately **not** to the activity's own ``quit_grace``: a confirm
+        activity's thirty seconds are for a five-year-old finding a tick, and
+        there is no longer a shell on screen for them to find it under. A
+        logout that hung for half a minute per activity would be a worse bug
+        than the one being avoided.
         """
         running = self.current
         if running is None:
@@ -258,6 +302,8 @@ class Launcher:
         if running.poll() is not None:
             self._forget(running)
             return Outcome.EXITED
+        if grace is None:
+            grace = AUTOSAVE_GRACE_SECONDS
 
         self._signal(running, signal.SIGTERM)
         try:
@@ -284,16 +330,51 @@ class Launcher:
     def request_stop(self) -> bool:
         """Send SIGTERM and return immediately. Returns False if nothing ran.
 
-        Put away (S6) uses this rather than :meth:`stop` so the keep animation
-        keeps running while the activity autosaves; the caller schedules
-        :meth:`force_stop` after the grace period.
+        This is *asking*, and since v0.1.6 asking is all Put away does until
+        the hard stop: an activity in ``confirm`` mode is now showing the child
+        its own question, and killing it would answer that question for them,
+        wrongly (spec 7c). Safe to call twice -- the second call is the re-ask
+        at the end of the grace, and :attr:`RunningActivity.asked` counts them.
         """
         running = self.current
         if running is None or running.poll() is not None:
             return False
-        log.info("asking %s to quit (SIGTERM)", running.activity_id)
+        running.asked += 1
+        log.info(
+            "asking %s to quit (SIGTERM, quit=%s, ask %d)",
+            running.activity_id,
+            running.quit_mode,
+            running.asked,
+        )
         self._signal(running, signal.SIGTERM)
         return True
+
+    @property
+    def asks_before_quitting(self) -> bool:
+        """Is the activity on screen one that answers SIGTERM with a question?"""
+        return self.current is not None and self.current.asks_before_quitting
+
+    @property
+    def grace_seconds(self) -> float:
+        """How long to wait for the current activity before asking again."""
+        return AUTOSAVE_GRACE_SECONDS if self.current is None else self.current.quit_grace
+
+    def hard_stop(self) -> str:
+        """The session's hard stop: SIGKILL, and say out loud what it may cost.
+
+        The only route to a SIGKILL during the ending ritual (spec 7c). It is
+        separate from :meth:`force_stop` because the *log line* is the point:
+        an activity that was still asking the child a question when the clock
+        ran out has probably lost whatever was on its canvas, and the one place
+        that can be said honestly is the parent's journal. The shell's words to
+        the child change too -- it does not claim to have kept anything it
+        did not keep (:func:`kidnix_shell.ritual.put_away_line`).
+        """
+        running = self.current
+        if running is None or running.poll() is not None:
+            return self.force_stop()
+        log.warning("put-away: killed %s with unsaved work possible", running.activity_id)
+        return self.force_stop()
 
     def force_stop(self) -> str:
         """SIGKILL whatever is still there. Safe to call when nothing is."""

@@ -30,6 +30,12 @@ Two things beyond parsing live here because they are the same question --
   activity outside the band is simply **not there** -- not outlined, not
   spoken. ``tuxmath.toml``'s own comment says "the shell should not show this
   to a four-year-old", and until v0.1.3 the shell showed it.
+* **Quitting.** ``quit = "signal" | "confirm"`` and ``quit_grace`` (spec 7c).
+  The shell has to know, *before* it asks, whether SIGTERM ends a program or
+  makes it put a question on the child's screen -- because the answer decides
+  whether Put away may cover the activity, how long it waits, and whether a
+  SIGKILL would destroy a drawing. Defaults: ``signal`` and
+  :data:`DEFAULT_QUIT_GRACE` (5 s for ``signal``, 30 s for ``confirm``).
 * **Content.** An *installed* program with nothing to open is the same button
   telling the same lie through a different door: ``kiwix-serve`` is on ``PATH``
   on every image, and until a parent copies a ZIM onto the machine the Library
@@ -65,6 +71,32 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 CATEGORIES = frozenset({"make", "learn", "play"})
 ICON_KINDS = frozenset({"icon-name", "path"})
 
+#: The two ways a program answers "please finish" (spec 7c).
+#:
+#: ``signal`` -- SIGTERM ends it. Either it saves on the way out or it had
+#: nothing to save. The shell can ask and expect an answer in seconds.
+#:
+#: ``confirm`` -- SIGTERM makes it put a *question* on screen and wait for the
+#: child. Tux Paint is the case that forced this into the schema (§19.2): SDL
+#: turns SIGTERM into ``SDL_QUIT``, and Tux Paint answers that with its own
+#: tick/cross, autosaving only when the tick is pressed. A shell that killed
+#: such an activity after the signal grace would destroy the drawing *and* say
+#: "Let's keep that" while doing it.
+QUIT_SIGNAL = "signal"
+QUIT_CONFIRM = "confirm"
+QUIT_MODES = frozenset({QUIT_SIGNAL, QUIT_CONFIRM})
+
+#: How long to wait after asking, when the manifest does not say. Five seconds
+#: is spec 7a's autosave grace -- enough for a program that is going to go. An
+#: activity that asks the *child* is waiting on a five-year-old finding a tick
+#: with a mouse, which is a different order of number entirely.
+DEFAULT_QUIT_GRACE = {QUIT_SIGNAL: 5.0, QUIT_CONFIRM: 30.0}
+
+#: A grace longer than this is a manifest bug: put away is two minutes wide and
+#: a grace that outlasts it would mean the shell never re-asks before the hard
+#: stop.
+MAX_QUIT_GRACE = 90.0
+
 #: ``"4-5"``, ``"6-8"``, or a bare ``"5"``. Used by both the profile
 #: (kidnix_shell.settings.Profile.age_band) and the manifest shorthand.
 AGE_BAND_RE = re.compile(r"^\s*(\d{1,2})\s*(?:[-\u2013]\s*(\d{1,2})\s*)?$")
@@ -82,6 +114,8 @@ KNOWN_KEYS = frozenset(
         "icon_kind",
         "exec",
         "exec_resume",
+        "quit",
+        "quit_grace",
         "category",
         "age_band",
         "age_min",
@@ -127,6 +161,11 @@ class Activity:
     icon: str = ""
     icon_kind: str = "icon-name"
     exec_resume: tuple[str, ...] = ()
+    #: How this activity answers "please finish": see :data:`QUIT_MODES`.
+    quit: str = QUIT_SIGNAL
+    #: Seconds to wait after asking before asking again. Resolved at parse
+    #: time from :data:`DEFAULT_QUIT_GRACE`, so it is never ``None`` here.
+    quit_grace: float = DEFAULT_QUIT_GRACE[QUIT_SIGNAL]
     category: str = "play"
     age_min: int | None = None
     age_max: int | None = None
@@ -190,6 +229,16 @@ class Activity:
         if len(argv) < 3 or Path(argv[0]).name != "flatpak" or argv[1] != "run":
             return ""
         return next((arg for arg in argv[2:] if not arg.startswith("-")), "")
+
+    @property
+    def asks_before_quitting(self) -> bool:
+        """Does SIGTERM put a question on the child's screen rather than end it?
+
+        The one thing the shell has to know at Put away: an activity that asks
+        may not be covered up, may not be killed on the signal grace, and needs
+        the band to tell the child that the question is theirs to answer.
+        """
+        return self.quit == QUIT_CONFIRM
 
     @property
     def supports_resume(self) -> bool:
@@ -299,6 +348,20 @@ def _opt_int(data: dict[str, Any], key: str, path: Path) -> int | None:
     return value
 
 
+def _opt_seconds(data: dict[str, Any], key: str, path: Path) -> float | None:
+    """A duration in seconds: a positive number, bounded, or absent."""
+    value = data.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ManifestError(path, f"{key!r} must be a number of seconds")
+    if value <= 0:
+        raise ManifestError(path, f"{key!r} must be more than zero seconds")
+    if value > MAX_QUIT_GRACE:
+        raise ManifestError(path, f"{key!r} must not be more than {MAX_QUIT_GRACE:.0f} seconds")
+    return float(value)
+
+
 def _argv(data: dict[str, Any], key: str, path: Path, *, required: bool) -> tuple[str, ...]:
     value = data.get(key)
     if value is None:
@@ -356,6 +419,13 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
         raise ManifestError(path, "'content_required' must be a list of path globs")
     content_required = tuple(str(_expand(c, home)) for c in content_raw if c.strip())
 
+    quit_mode = _opt_str(data, "quit", path, QUIT_SIGNAL) or QUIT_SIGNAL
+    if quit_mode not in QUIT_MODES:
+        raise ManifestError(path, f"quit {quit_mode!r} must be one of {sorted(QUIT_MODES)}")
+    quit_grace = _opt_seconds(data, "quit_grace", path)
+    if quit_grace is None:
+        quit_grace = DEFAULT_QUIT_GRACE[quit_mode]
+
     order = data.get("order")
     if order is not None and (isinstance(order, bool) or not isinstance(order, int)):
         raise ManifestError(path, "'order' must be a whole number")
@@ -383,6 +453,8 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
         icon=_opt_str(data, "icon", path),
         icon_kind=icon_kind,
         exec_resume=_argv(data, "exec_resume", path, required=False),
+        quit=quit_mode,
+        quit_grace=quit_grace,
         category=category,
         age_min=age_min,
         age_max=age_max,

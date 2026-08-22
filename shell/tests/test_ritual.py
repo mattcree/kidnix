@@ -15,13 +15,17 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
+from kidnix_shell.activities import QUIT_CONFIRM, QUIT_SIGNAL
 from kidnix_shell.ritual import (
     BACK_DELAY_SECONDS,
+    KEEP_LINE,
+    LOST_LINE,
     PUT_AWAY_BACK_LOCK_SECONDS,
     RitualAction,
     all_done_delay_seconds,
     back_delay_seconds,
     next_action,
+    put_away_line,
 )
 from kidnix_shell.session import DailyUsage, Phase, Session, SessionPolicy
 from kidnix_shell.state import Event, State, StateMachine
@@ -401,3 +405,186 @@ def test_all_done_reaches_put_away_in_one_event_from_every_child_surface() -> No
     for start in (State.HOME, State.IN_ACTIVITY, State.JOURNAL, State.NEXT_CHOICE):
         machine = StateMachine(start)
         assert machine.fire(Event.IM_FINISHED) is State.PUT_AWAY
+
+
+# --- put away never destroys work (spec 7c, v0.1.6) ----------------------
+#
+# §19.3, as a policy: at T-2 the shell *asks* a running activity to finish and
+# then waits inside IN_ACTIVITY, because covering a child's drawing is what
+# stopped them answering Tux Paint's tick and is therefore what destroyed it.
+# The latch below is what stops the tick asking again -- and every repeat of
+# that question would be another SIGTERM, so it is more load-bearing than the
+# offer's.
+
+
+class PutAwayShell(FakeShell):
+    """The v0.1.6 route: S6 asks, and the state does not move until it is answered.
+
+    Models the three things ``ShellWindow`` does: set ``put_away_asked`` when it
+    has asked, clear it (and navigate) when the activity has actually gone, and
+    SIGKILL at the hard stop -- which is the only kill in the ritual.
+    """
+
+    def __init__(self, session: Session, *, grace: float = 30.0) -> None:
+        super().__init__(session, State.IN_ACTIVITY)
+        self.asked = 0
+        self.reasks = 0
+        self.killed = 0
+        self.put_away_asked = False
+        self.activity_running = True
+        self.grace = grace
+        self.asked_at: datetime | None = None
+        self.work_lost = False
+
+    def tick(self, now: datetime) -> RitualAction:
+        action = next_action(
+            self.session.phase(now),
+            self.machine.state,
+            offer_answered=self.session.offer_answered,
+            offer_shown=False,
+            put_away_asked=self.put_away_asked,
+        )
+        if action is RitualAction.PUT_AWAY:
+            self.ask(now)
+        elif action is RitualAction.HARD_STOP:
+            self.hard_stop()
+        elif action is RitualAction.GOODBYE:
+            self.session.end(now)
+            self.machine.try_fire(Event.GOODBYE_DUE)
+        # The re-ask is a timer on the ask, not on the clock -- but a tick is
+        # where a fake shell notices that the timer would have fired.
+        if (
+            self.put_away_asked
+            and self.activity_running
+            and self.reasks == 0
+            and self.asked_at is not None
+            and (now - self.asked_at).total_seconds() >= self.grace
+        ):
+            self.reasks += 1
+            self.asked += 1
+        return action
+
+    def ask(self, now: datetime) -> None:
+        self.asked += 1
+        self.asked_at = now
+        self.put_away_asked = True
+
+    def activity_exits(self) -> None:
+        """The child answered the tick (or the program just went)."""
+        self.activity_running = False
+        self.put_away_asked = False
+        self.machine.try_fire(Event.PUT_AWAY_DUE)
+
+    def hard_stop(self) -> None:
+        if self.activity_running:
+            self.killed += 1
+            self.work_lost = True
+            self.activity_running = False
+        self.put_away_asked = False
+        self.machine.try_fire(Event.PUT_AWAY_DUE)
+
+
+def test_put_away_asks_once_and_then_waits(live: Session) -> None:
+    """The whole ruling: no second SIGTERM twice a second, and no screen
+    raised over the child's drawing while they answer it."""
+    shell = PutAwayShell(live)
+    shell.run(0, 18.4)  # T-2 is at minute 18
+    assert shell.asked == 1
+    assert shell.killed == 0
+    assert state_of(shell) is State.IN_ACTIVITY, "S6 covered the activity"
+
+
+def test_the_grace_buys_one_more_ask_and_only_one(live: Session) -> None:
+    shell = PutAwayShell(live, grace=30.0)
+    shell.run(0, 19.6)  # a minute and a half past T-2
+    assert shell.reasks == 1
+    assert shell.asked == 2
+    assert shell.killed == 0, "the grace is not a countdown to a kill"
+
+
+def test_a_short_grace_still_only_re_asks_once(live: Session) -> None:
+    shell = PutAwayShell(live, grace=5.0)
+    shell.run(0, 19.9)
+    assert shell.asked == 2
+
+
+def test_answering_takes_the_child_to_s6_and_nothing_is_lost(live: Session) -> None:
+    shell = PutAwayShell(live)
+    shell.run(0, 18.4)
+    shell.activity_exits()
+    assert state_of(shell) is State.PUT_AWAY
+    assert shell.work_lost is False
+    shell.run(18.5, 20.5)
+    assert state_of(shell) is State.GOODBYE
+    assert shell.killed == 0
+
+
+def test_the_hard_stop_kills_once_and_the_ritual_still_finishes(live: Session) -> None:
+    """T-0 with the activity still asking. The hard stop is the hard stop --
+    and it is the only SIGKILL left in the ritual."""
+    shell = PutAwayShell(live)
+    shell.run(0, 19.9)  # still inside the activity, still asking
+    assert shell.killed == 0
+    assert state_of(shell) is State.IN_ACTIVITY
+
+    assert shell.tick(at(20.0)) is RitualAction.HARD_STOP
+    assert shell.killed == 1
+    assert shell.work_lost is True
+    assert state_of(shell) is State.PUT_AWAY
+
+    shell.run(20.1, 21.0)  # and the ending finishes as it always did
+    assert state_of(shell) is State.GOODBYE
+    assert shell.killed == 1, "it is killed once, not once per tick"
+
+
+def test_hard_stop_is_only_reachable_from_inside_an_activity() -> None:
+    """Nowhere else can there be a process to kill, and a HARD_STOP anywhere
+    else would be a SIGKILL aimed at nothing."""
+    for state in State:
+        action = next_action(Phase.ENDED, state, offer_answered=True, put_away_asked=True)
+        if state is State.IN_ACTIVITY:
+            assert action is RitualAction.HARD_STOP
+        elif state is State.PUT_AWAY:
+            assert action is RitualAction.GOODBYE
+        else:
+            assert action is RitualAction.NOTHING, state
+
+
+def test_put_away_asked_suppresses_put_away_and_nothing_else() -> None:
+    """The same discipline as ``offer_shown``: one flag, one effect."""
+    for phase in Phase:
+        for state in State:
+            asked = next_action(phase, state, offer_answered=True, put_away_asked=True)
+            fresh = next_action(phase, state, offer_answered=True, put_away_asked=False)
+            if fresh is RitualAction.PUT_AWAY:
+                assert asked in (RitualAction.NOTHING, RitualAction.HARD_STOP), (phase, state)
+            elif fresh is RitualAction.HARD_STOP:
+                assert asked is RitualAction.HARD_STOP
+            else:
+                assert asked is fresh, (phase, state)
+
+
+# --- the words have to be true -------------------------------------------
+
+
+def test_a_confirming_activity_is_told_to_the_child_as_an_instruction() -> None:
+    """Tux Paint's tick is on screen and nothing on it says, to a pre-reader,
+    that the question is theirs."""
+    assert put_away_line(QUIT_CONFIRM) == "Let's keep that. Press the tick."
+    assert "tick" in put_away_line(QUIT_CONFIRM)
+
+
+def test_an_ordinary_activity_gets_the_ritual_line_it_always_had() -> None:
+    assert put_away_line(QUIT_SIGNAL) == KEEP_LINE == "Let's keep that."
+
+
+def test_nothing_claims_to_have_kept_what_the_hard_stop_destroyed() -> None:
+    """§19.3's option 3 -- "accept the loss and change the words" -- is the one
+    the ruling refused for the *ordinary* case, and the one it requires here:
+    "Let's keep that" over a deleted drawing is the worst sentence in the shell.
+    """
+    for mode in (QUIT_SIGNAL, QUIT_CONFIRM):
+        line = put_away_line(mode, lost=True)
+        assert line == LOST_LINE
+        assert "keep" not in line.lower()
+        assert line.endswith(".")

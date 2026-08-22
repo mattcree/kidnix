@@ -1267,13 +1267,13 @@ def _sleeper():  # type: ignore[no-untyped-def]
     return make_activity("sleeper", name="Sleeper", exec_argv=("/bin/sleep", "30"))
 
 
-def _start_an_activity(window):  # type: ignore[no-untyped-def]
+def _start_an_activity(window, activity=None):  # type: ignore[no-untyped-def]
     """Walk a fresh window to IN_ACTIVITY with a real child process running."""
     window.choose_profile(window.ctx.profile)
     if window.machine.state is State.NEXT_CHOICE:
         window.choose_next_after(window.ctx.config.next_after[0])
     assert _state(window) is State.HOME
-    activity = _sleeper()
+    activity = _sleeper() if activity is None else activity
     window.ctx.activities.append(activity)
     window.launch(activity)
     assert _state(window) is State.IN_ACTIVITY
@@ -1532,7 +1532,7 @@ def test_back_asks_the_activity_rather_than_killing_it(tmp_path: Path) -> None:
     try:
         _start_an_activity(window)
         window.on_back()
-        assert window._kill_handle is None, "Back must not schedule a SIGKILL"
+        assert window._reask_handle is None, "Back is not the ritual; it schedules nothing"
         assert window._nag_handle is not None, "Back must notice if nothing happens"
     finally:
         window.shutdown()
@@ -1546,8 +1546,174 @@ def test_a_killed_activity_still_leaves_in_activity(tmp_path: Path) -> None:
     window = build_window(tmp_path)
     try:
         _start_an_activity(window)
-        window._force_kill()
-        assert _state(window) is State.HOME
+        window._hard_stop()
+        assert _state(window) is State.PUT_AWAY
         assert not window.launcher.running
+    finally:
+        window.shutdown()
+
+
+# --- put away never destroys work (spec 7c, v0.1.6) ----------------------
+#
+# The §19.3 bug, as tests: at T-2 the shell used to raise the content window
+# over the activity, SIGTERM, and SIGKILL five seconds later -- so a child
+# could not see Tux Paint's tick, did not press it, and "Let's keep that" was
+# followed by the drawing being deleted. Everything below is about the shell
+# *not* doing that.
+
+
+def _confirming_sleeper(tmp_path: Path):  # type: ignore[no-untyped-def]
+    """An activity that models Tux Paint: SIGTERM makes it *ask*, not exit.
+
+    A real child process that installs a SIGTERM handler and keeps running, so
+    "the shell did not kill it" is a fact about a process table rather than
+    about a mock.
+    """
+    import sys
+
+    script = tmp_path / "asker.py"
+    script.write_text(
+        "import signal, time\nsignal.signal(signal.SIGTERM, lambda *a: None)\ntime.sleep(60)\n",
+        encoding="utf-8",
+    )
+    return make_activity(
+        "asker",
+        name="Asker",
+        exec_argv=(sys.executable, str(script)),
+        quit="confirm",
+        quit_grace=30.0,
+    )
+
+
+def test_put_away_inside_an_activity_does_not_take_the_screen(tmp_path: Path) -> None:
+    """The whole ruling in one assertion: the child keeps looking at their own
+    program until it has actually finished."""
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window, _confirming_sleeper(tmp_path))
+        time.sleep(0.4)  # let the handler be installed
+        window._begin_put_away()
+        assert _state(window) is State.IN_ACTIVITY, "S6 covered the child's activity"
+        assert window._put_away_pending is True
+        assert window.launcher.running, "put away must not kill on the signal grace"
+        assert window.stack.get_visible_child_name() != "put_away"
+    finally:
+        window.shutdown()
+
+
+def test_put_away_speaks_the_confirm_line_and_strips_the_band(tmp_path: Path) -> None:
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window, _confirming_sleeper(tmp_path))
+        time.sleep(0.4)  # let the handler be installed
+        window._begin_put_away()
+        assert window.speech.last_utterance == "Let's keep that. Press the tick."
+        assert window.band.finishing is True
+        assert window.band.undo.get_visible() is False
+        assert window.band.my_things.get_visible() is False
+        assert window.band.finish_this.get_visible() is False
+        assert window.band.back.get_visible() is True, "Back is the way to finish"
+    finally:
+        window.shutdown()
+
+
+def test_put_away_speaks_the_plain_line_for_a_signal_activity(tmp_path: Path) -> None:
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window)  # the plain sleeper: quit = "signal"
+        window._begin_put_away()
+        assert window.speech.last_utterance == "Let's keep that."
+    finally:
+        window.shutdown()
+
+
+def test_back_during_put_away_asks_again_rather_than_navigating(tmp_path: Path) -> None:
+    """ "Back is the same as finish in this phase" -- it may not contradict the
+    thing the shell has just asked for."""
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window, _confirming_sleeper(tmp_path))
+        time.sleep(0.4)  # let the handler be installed
+        window._begin_put_away()
+        window.speech.speak("something else")
+        window.on_back()
+        assert _state(window) is State.IN_ACTIVITY
+        assert window.launcher.running
+        assert window.speech.last_utterance == "Let's keep that. Press the tick."
+    finally:
+        window.shutdown()
+
+
+def test_s6_appears_only_when_the_activity_has_really_gone(tmp_path: Path) -> None:
+    """The child answered the tick: *now* "Let's keep that" is true."""
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window, _confirming_sleeper(tmp_path))
+        time.sleep(0.4)  # let the handler be installed
+        window._begin_put_away()
+        assert _state(window) is State.IN_ACTIVITY
+        window.launcher.force_stop()  # the child pressed the tick
+        window._activity_finished()
+        assert _state(window) is State.PUT_AWAY
+        assert window._put_away_pending is False
+        assert window.band.finishing is False
+        assert window.ctx.work_lost is False
+    finally:
+        window.shutdown()
+
+
+def test_the_grace_really_does_ask_again_on_a_real_timer(tmp_path: Path) -> None:
+    """The re-ask is a GLib timeout, so a unit test that never spins the main
+    loop would prove nothing about it. This one spins it."""
+    from gi.repository import GLib
+
+    window = build_window(tmp_path)
+    try:
+        activity = _confirming_sleeper(tmp_path)
+        activity = replace(activity, quit_grace=0.5)
+        _start_an_activity(window, activity)
+        time.sleep(0.4)  # let the handler be installed
+        window._begin_put_away()
+        assert window.launcher.current is not None
+        assert window.launcher.current.asked == 1
+
+        context = GLib.MainContext.default()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and window.launcher.current.asked < 2:
+            context.iteration(False)
+            time.sleep(0.02)
+
+        assert window.launcher.current.asked == 2, "the grace never produced a second ask"
+        assert window.launcher.running, "the grace is not a countdown to a SIGKILL"
+
+        # ...and only one. A shell that re-asked on a repeating timer would be
+        # a SIGTERM every half second at the worst possible moment.
+        deadline = time.monotonic() + 1.5
+        while time.monotonic() < deadline:
+            context.iteration(False)
+            time.sleep(0.02)
+        assert window.launcher.current.asked == 2
+    finally:
+        window.shutdown()
+
+
+def test_the_hard_stop_is_the_only_kill_and_it_says_so(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """T-0 with the activity still asking. The words change with the outcome."""
+    import logging
+
+    window = build_window(tmp_path)
+    try:
+        _start_an_activity(window, _confirming_sleeper(tmp_path))
+        time.sleep(0.4)  # let the handler be installed
+        window._begin_put_away()
+        with caplog.at_level(logging.WARNING):
+            window._hard_stop()
+        assert "with unsaved work possible" in caplog.text
+        assert window.ctx.work_lost is True
+        assert not window.launcher.running
+        assert _state(window) is State.PUT_AWAY
+        assert window.screens["put_away"].headline.get_label() == "Time to stop now."
     finally:
         window.shutdown()

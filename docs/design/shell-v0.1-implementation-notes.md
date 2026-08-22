@@ -1750,3 +1750,192 @@ above a child's drawing and the ending offer in the band over that drawing.
    proves the row fits, but the CSS drop-shadow has nowhere to go. Cosmetic.
 5. **Everything in §18.9 that was not about the band's placement still stands**
    — multi-monitor, the wordless offer buttons, the keep animation.
+
+---
+
+## 20. v0.1.6 — put away never destroys work (2026-08-22)
+
+> Implementer's fifth report, and the answer to §19.3, the P0 this build has
+> been carrying since the band landed. The ruling is spec §7c; it picked
+> *both* of §19.3's first two options — don't cover the activity, **and** put
+> the quit contract in the manifest — and rejected the third ("change the
+> words") for the ordinary case while requiring it for the one case where the
+> loss is real. Everything in §§1–19 stands except spec S6, which §7c
+> supersedes and this section implements.
+
+### 20.1 The contract: `quit` and `quit_grace`
+
+`kidnix_shell/activities.py` gains two fields, both optional and both resolved
+at parse time so the rest of the shell never sees a `None`:
+
+| field | values | default |
+|---|---|---|
+| `quit` | `"signal"` \| `"confirm"` | `"signal"` |
+| `quit_grace` | seconds, `0 < g ≤ 90` | 5 (`signal`), 30 (`confirm`) |
+
+`signal` means SIGTERM ends the program. `confirm` means SIGTERM makes the
+program put a **question on the child's screen** and wait for them — which is a
+completely different thing for the shell to be doing, and the whole reason the
+field exists. `Activity.asks_before_quitting` is the one predicate the rest of
+the code asks. Invalid values are manifest errors, so `just validate-manifests`
+(and CI) reject them; that listing now also prints `asks (30s)` next to an
+activity that answers back, because it is the field a human most needs to see
+before shipping a tile.
+
+**What each shipped manifest declares, and what it was checked against:**
+
+| activity | `quit` | how it was established |
+|---|---|---|
+| `tuxpaint` | **confirm, 30 s** | Measured on the image in §19.2: `SigCgt` has bits 2 and 15 set, SIGTERM/SIGINT both produce the tick/cross dialogue and are *not* fatal, only SIGHUP kills it (~115 ms) and does so with `~/.tuxpaint/saved` empty. `autosave=yes` writes only when the tick is pressed. `README.txt` §g: no option skips the prompt. |
+| `gcompris` | signal, 5 s | Read upstream `src/core/main.cpp` (master, KDE Invent): no `signal()`, no `sigaction`, no `QSocketNotifier` self-pipe, and no `aboutToQuit` save — Qt installs no SIGTERM handler of its own, so the default disposition stands and the process dies. `journal_watch = []`: progress lives in its own config, so there is nothing unsaved to protect. `exitConfirmation=false` in `gcompris-qt.conf` is about GCompris's own exit button, not about signals; `--launch` and `kiosk=true` do not change signal handling. |
+| `ktuberling` | signal, 5 s | KF6 installs handlers only for the crash signals (KCrash: SIGSEGV/SIGBUS/SIGFPE/SIGILL/SIGABRT); nothing catches SIGTERM, so it dies on the signal — and an unsaved potato dies with it. **Declared `signal` anyway, deliberately**: `confirm` means *the program asks the child*, and KTuberling does not. Declaring `confirm` would buy a thirty-second wait for a dialogue that never appears and then the same kill. The manifest says so in a comment. The real fix is a `journal_watch` and a save path, which is §20.6 #2. |
+| everything else | signal, 5 s (implicit) | None of `blinken`, `klettres`, `kolf`, `supertux`, `tuxmath`, `kiwix` or `turbowarp` declares a `journal_watch`, so none of them has a document to lose; they take the default and the default is the conservative one. TurboWarp (Electron) is the one to re-check when it gets a `journal_watch`. |
+
+Not verified by running the program under SIGTERM in the booted image, for
+anything except Tux Paint. That is the honest limit of this pass: GCompris and
+KTuberling are source-and-documentation reads, and the e2e only drives Tux
+Paint. §20.6 #1.
+
+### 20.2 Put away, as it now happens
+
+`ritual.next_action` gains `put_away_asked` (the exact shape of `offer_shown`,
+and for the same reason: the shell stays in `IN_ACTIVITY` while it waits, and
+`IN_ACTIVITY` is in `PUT_AWAY_FROM`, so without the latch the tick would re-ask
+twice a second — and every repeat is another SIGTERM). It also gains a fourth
+action, `HARD_STOP`, for `Phase.ENDED` in `IN_ACTIVITY`.
+
+At T−2, with the child inside an activity:
+
+1. **Nothing is raised.** `_begin_put_away` no longer calls `present()` on that
+   path; the content window stays behind the activity. The child keeps looking
+   at their own program, which is the entire ruling.
+2. The Journal is swept, then `Launcher.request_stop()` sends **one** SIGTERM.
+3. The band goes into `set_finishing_mode(True)`: the offer buttons go (the
+   offer is over), Undo and My Things go (there is nothing else to do), and
+   **Back stays and means finish** — it re-asks and repeats the line rather
+   than contradicting the request the shell has just made. Nothing moves; the
+   sun and the Ear stay where a hand already knows they are.
+4. The shell **speaks**: `ritual.put_away_line()` — "Let's keep that." for a
+   `signal` activity, "Let's keep that. Press the tick." for a `confirm` one.
+   (Spec §7c writes that with an em dash. Two sentences instead: an em dash is
+   a comma to espeak, and the pause is what makes "press the tick" land as an
+   instruction rather than a subordinate clause.)
+5. After `quit_grace` the shell **asks once more** — a second SIGTERM and the
+   same line, for the program that missed the first and the child who missed
+   the first. Once. Never a repeating timer.
+6. `on_exit` → `_activity_finished()` → `_enter_put_away()`: the S6 screen
+   appears only **now**, which is the moment "Let's keep that" is true.
+7. At T−0, if it is still there, `RitualAction.HARD_STOP` →
+   `Launcher.hard_stop()`, which logs
+   `put-away: killed <id> with unsaved work possible` at WARNING and then
+   SIGKILLs. The hard stop is still the hard stop; it is simply the *whole* of
+   the kill path now, rather than a five-second timer.
+
+`_force_kill` and `_kill_handle` are gone: there is no longer any timer in the
+shell whose job is to kill an activity. On a shell surface (Home, My Things,
+S1b, the offer screen) S6 is exactly what it was.
+
+**Two smaller wirings that follow from the same rule.** Back-in-an-activity's
+"is asking if you're done" nag now waits the *activity's* grace rather than a
+hard-coded five seconds, so Tux Paint gets thirty. And `Launcher.stop()` — the
+shell's own shutdown — deliberately does **not** use the activity's grace: a
+logout must not hang for thirty seconds per activity waiting for a child who is
+no longer looking at a screen. It keeps the 5 s fallback and the comment says
+why.
+
+### 20.3 The words have to be true
+
+`ctx.work_lost` is set only by `_hard_stop()` and cleared when a session
+starts. When it is set:
+
+* S6's headline and spoken line become **"Time to stop now."**;
+* the keep earcon does not play and the work does not fly into My Things,
+  because nothing flew anywhere;
+* Goodbye is unchanged and that is the point — "You made *n* things today"
+  counts `journal.made_on_today()`, so a drawing that was never imported is
+  never claimed. The comment in `goodbye.py` now says that this is load-bearing
+  rather than incidental.
+
+`ritual.put_away_line()` is pure and is where all three sentences live, so one
+headless test holds the band and the screen to the same words.
+
+### 20.4 Tests
+
+**Headless** (`just test-headless`: **729 passed, 1 skipped**, up from 700):
+
+* `tests/test_ritual.py` — a `PutAwayShell` walking a whole session at 4 Hz:
+  asked once and then waited (state never leaves `IN_ACTIVITY`), the grace
+  buys exactly one more ask at two different grace lengths, answering reaches
+  S6 with nothing lost, the hard stop kills **once** and the ritual still ends
+  in Goodbye, `HARD_STOP` is unreachable from anywhere but `IN_ACTIVITY`, and
+  `put_away_asked` suppresses `PUT_AWAY` **and nothing else** across every
+  phase × state. Plus the three sentences, including "nothing claims to have
+  kept what the hard stop destroyed".
+* `tests/test_launcher.py` — the contract is recorded at launch and read back
+  (`asks_before_quitting`, `grace_seconds`), the defaults, asking twice is two
+  signals and no kill, `hard_stop()` logs the loss line (and does *not* log it
+  when the activity had already gone), and shutdown does not wait a confirm
+  activity's whole grace.
+* `tests/test_activities.py` — defaults, the confirm default of 30 s, an
+  explicit and a fractional grace, the `MAX_QUIT_GRACE` bound, six new
+  rejection cases, and two assertions about the shipped set: Draw is the only
+  activity that asks, and every other one is `signal`/5 s.
+* `tests/test_demo.py` — "Sticky" now declares `confirm`/8 s, so a `--demo` run
+  walks the whole conversation (ask, wait, re-ask, hard stop) instead of only
+  the old SIGKILL.
+
+**GTK smoke** (skipped without a display; **853 passed** with one): put away
+inside an activity does not take the screen and does not kill on the grace; the
+confirm line and the plain line; the band strips to Back/sun/Ear; Back during
+the wait re-asks instead of navigating; S6 appears only once the activity has
+really gone; the grace produces a second ask **on a real GLib timer** and only
+one; and the hard stop logs the WARNING, sets `work_lost` and puts "Time to
+stop now." on the screen.
+
+Both paths were also driven live, with a real main loop and a real child
+process, on a 40-second session — a `confirm` activity that ignores SIGTERM
+(ask → re-ask at the grace → `put-away: killed sticky with unsaved work
+possible` → "Time to stop now." → Goodbye, `work_lost=True`) and a `signal` one
+(ask → exit → "Let's keep that." → Goodbye, `work_lost=False`).
+
+**e2e** — step 6 only, minimally, and **not run here** (no disk image in this
+worktree; the thinker runs `just test-e2e`). It now draws a stroke before the
+ritual, so there is unsaved work to lose, and then asserts the ruling: the band
+line is spoken with "Press the tick" in it, `-> put_away` has **not** appeared
+in the journal, Tux Paint's green tick is still findable below the band and
+`pgrep tuxpaint` still finds the process — then taps the tick and asserts
+`in_activity -> put_away`, no "unsaved work possible" line, and that the
+Journal grew by an entry. The session policy moved to length 3 min / offer
+1.5 min / put away 0.75 min: the 45-second put-away window is not slack, it is
+the contract, since Tux Paint's 30 s grace and its one re-ask have to fit
+before the hard stop.
+
+### 20.5 What a reviewer should look at first
+
+The `finish_now` path. "All done" and the gate's "End session now" now set
+`_goodbye_after_put_away` and let `_enter_put_away` time Goodbye, because the
+press and S6's arrival can be a whole quit dialogue apart. And `add_minutes`
+cancels a pending wait if a grown-up's grant pushes the phase back to
+`RUNNING`, so an extended session cannot land on S6 the moment the activity
+happens to exit.
+
+### 20.6 Still open after this pass
+
+1. **Only Tux Paint's SIGTERM behaviour is measured.** GCompris and KTuberling
+   are source reads (§20.1). The cheap check is `pkill -TERM` against each on
+   the booted image with a screenshot three seconds later — the same method
+   §19.2 used — and it would turn two inferences into two facts.
+2. **KTuberling can still lose a potato**, and the manifest says so out loud.
+   It needs a `journal_watch` and a save path, not a quit mode.
+3. **A `confirm` activity that asks something the shell cannot see.** The shell
+   trusts the manifest: if a program declares `confirm` and then exits silently
+   on SIGTERM, the child gets a line about a tick that is not there. Nothing
+   detects that, and nothing can without reading the activity's window.
+4. **`work_lost` is per-session, not per-item.** If a child made three things
+   and only the last was destroyed, S6 still says "Time to stop now." rather
+   than naming what survived. True, but coarser than it could be.
+5. **The put-away wait has no visible sign in the band.** The line is spoken
+   and the band is stripped back, but a child who missed the audio sees only
+   that two buttons went away. Audit 01 #20's keep animation (§18.9 #7) is the
+   place this belongs.
+6. Everything still open in §18.9 and §19.5 that this pass did not touch.

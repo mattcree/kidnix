@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import time
 from datetime import timedelta
 from pathlib import Path
 
-from kidnix_shell.launcher import STDERR_TAIL_BYTES, Launcher, Outcome, build_env
+import pytest
+
+from kidnix_shell.launcher import (
+    AUTOSAVE_GRACE_SECONDS,
+    STDERR_TAIL_BYTES,
+    Launcher,
+    Outcome,
+    build_env,
+)
 
 from .conftest import make_activity
 
@@ -249,3 +258,99 @@ def test_stopping_an_activity_also_closes_its_stderr(tmp_path: Path) -> None:
     assert running is not None
     launcher.stop(grace=2)
     assert running.stderr_file is None
+
+
+# --- the quit contract (spec 7c, v0.1.6) ---------------------------------
+#
+# Every activity declares how it answers "please finish". The shell has to know
+# *before* it asks, because the answer decides whether the ritual may cover the
+# activity, how long it waits, and whether a SIGKILL would delete a drawing.
+
+
+def _stubborn(tmp_path: Path) -> str:
+    """A program that catches SIGTERM and carries on -- Tux Paint, modelled."""
+    script = tmp_path / "stubborn-asker.py"
+    script.write_text(
+        "import signal, time\nsignal.signal(signal.SIGTERM, lambda *a: None)\ntime.sleep(60)\n",
+        encoding="utf-8",
+    )
+    return str(script)
+
+
+def test_the_launcher_remembers_the_quit_contract(tmp_path: Path) -> None:
+    launcher = Launcher(tmp_path)
+    running = launcher.launch(
+        make_activity(exec_argv=("/bin/sleep", "5"), quit="confirm", quit_grace=30.0)
+    )
+    assert running is not None
+    assert running.quit_mode == "confirm"
+    assert running.quit_grace == 30.0
+    assert launcher.asks_before_quitting is True
+    assert launcher.grace_seconds == 30.0
+    launcher.stop(grace=1)
+
+
+def test_an_ordinary_activity_defaults_to_signal_and_five_seconds(tmp_path: Path) -> None:
+    launcher = Launcher(tmp_path)
+    launcher.launch(make_activity(exec_argv=("/bin/sleep", "5")))
+    assert launcher.asks_before_quitting is False
+    assert launcher.grace_seconds == AUTOSAVE_GRACE_SECONDS
+    launcher.stop(grace=1)
+
+
+def test_nothing_running_answers_the_conservative_way(tmp_path: Path) -> None:
+    launcher = Launcher(tmp_path)
+    assert launcher.asks_before_quitting is False
+    assert launcher.grace_seconds == AUTOSAVE_GRACE_SECONDS
+
+
+def test_asking_twice_is_two_signals_and_no_kill(tmp_path: Path) -> None:
+    """Put away's re-ask. The second SIGTERM is for the program that missed the
+    first one; the child who has not found the tick yet has lost nothing."""
+    launcher = Launcher(tmp_path)
+    launcher.launch(make_activity(exec_argv=(sys.executable, _stubborn(tmp_path)), quit="confirm"))
+    time.sleep(0.5)  # let the handler be installed
+    assert launcher.request_stop() is True
+    assert launcher.request_stop() is True
+    assert launcher.current is not None
+    assert launcher.current.asked == 2
+    assert launcher.running, "asking is not insisting"
+    launcher.force_stop()
+
+
+def test_the_hard_stop_says_what_it_may_have_cost(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The parent's journal is the only place this can be said honestly."""
+    launcher = Launcher(tmp_path)
+    launcher.launch(
+        make_activity("draw", exec_argv=(sys.executable, _stubborn(tmp_path)), quit="confirm")
+    )
+    time.sleep(0.5)
+    launcher.request_stop()
+    with caplog.at_level(logging.WARNING):
+        assert launcher.hard_stop() == Outcome.KILLED
+    assert "put-away: killed draw with unsaved work possible" in caplog.text
+    assert not launcher.running
+
+
+def test_a_hard_stop_on_an_activity_that_already_went_reports_no_loss(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    launcher = Launcher(tmp_path)
+    launcher.launch(make_activity(exec_argv=("/bin/true",)))
+    time.sleep(0.3)
+    with caplog.at_level(logging.WARNING):
+        launcher.hard_stop()
+    assert "unsaved work possible" not in caplog.text
+
+
+def test_shutdown_does_not_wait_a_confirm_activitys_whole_grace(tmp_path: Path) -> None:
+    """``stop()`` is the shell going away, and thirty seconds of it are for a
+    child finding a tick under a shell that is no longer there."""
+    launcher = Launcher(tmp_path)
+    launcher.launch(make_activity(exec_argv=(sys.executable, _stubborn(tmp_path)), quit="confirm"))
+    time.sleep(0.5)
+    started = time.monotonic()
+    assert launcher.stop() == Outcome.KILLED
+    assert time.monotonic() - started < AUTOSAVE_GRACE_SECONDS + 4

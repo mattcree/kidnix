@@ -137,11 +137,14 @@ def validate_manifests(directory: str, paths: Paths) -> int:
     # that the grid comes out the way they meant it to.
     for activity in sorted(total.activities, key=lambda a: a.sort_key):
         resume = " resumable" if activity.supports_resume else ""
+        # Spec 7c: the one field that decides whether Put away may cover this
+        # activity, so it is on the line a human reads before shipping.
+        asks = f" asks ({activity.quit_grace:.0f}s)" if activity.asks_before_quitting else ""
         watches = len(activity.journal_watch)
         order = "----" if activity.order is None else f"{activity.order:>4}"
         print(
             f"ok    {order}  {activity.id:<14} {activity.name:<18} "
-            f"{activity.category:<6} {watches} watch dir(s){resume}"
+            f"{activity.category:<6} {watches} watch dir(s){resume}{asks}"
         )
         if not activity.goal:
             print("      (no 'goal' line -- the parent panel will have nothing to show)")

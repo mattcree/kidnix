@@ -83,3 +83,9 @@ class ShellContext:
     #: asked. Set when they pick, cleared when a new session starts, and read
     #: by S7 -- which falls back to the generated suggestion when it is None.
     next_after: NextAfter | None = None
+    #: **Set when Put away had to SIGKILL an activity at the hard stop.** The
+    #: words the shell uses have to be true (spec 7c): a session that ended
+    #: this way does not get "Let's keep that" on S6 and does not get the keep
+    #: earcon or the fly-into-My-Things animation on either S6 or S7, because
+    #: nothing flew anywhere. Cleared when a new session starts.
+    work_lost: bool = False

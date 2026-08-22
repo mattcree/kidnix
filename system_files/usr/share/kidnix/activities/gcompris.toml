@@ -10,6 +10,16 @@ icon = "gcompris-qt"
 icon_kind = "icon-name"
 exec = ["gcompris-qt"]
 
+# Spec 7c. "signal": SIGTERM ends it, and there is nothing to lose if it does.
+# Checked rather than assumed: upstream `src/core/main.cpp` installs no POSIX
+# signal handler (no signal(), no sigaction, no QSocketNotifier pipe) and Qt
+# installs none of its own, so SIGTERM keeps its default disposition and the
+# process dies. GCompris also keeps its progress in its own config file rather
+# than in documents -- `journal_watch` below is empty -- so there is no unsaved
+# work for the ritual to protect. `exitConfirmation=false` in gcompris-qt.conf
+# is about its *own* exit button, not about signals.
+quit = "signal"
+
 category = "learn"
 age_min = 3
 age_max = 10

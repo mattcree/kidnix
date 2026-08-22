@@ -73,9 +73,17 @@ TOO_OLD = {"maze"}
 #: "This one isn't ready yet" tile as well as the not-allowed one.
 NOT_INSTALLED = {"notyet"}
 
-#: "Sticky" ignores SIGTERM, so a --demo run exercises the SIGKILL path in
-#: Put away rather than only the happy one.
+#: "Sticky" ignores SIGTERM and its manifest says ``quit = "confirm"``, so a
+#: --demo run exercises the whole of spec 7c's put-away conversation -- the
+#: ask, the wait with the band stripped back, the one re-ask at the end of the
+#: grace, and finally the hard stop's SIGKILL -- rather than only the happy
+#: path. It is the demo's stand-in for Tux Paint's tick.
 STUBBORN = {"sticky"}
+
+#: The demo session is three minutes and put away is twenty seconds before the
+#: end (`SessionPolicy.demo`), so the grace has to be short enough that the
+#: re-ask happens on screen and the kill still lands at the hard stop.
+STUBBORN_GRACE_SECONDS = 8
 
 
 # --- building the demo world (used by the shell) -------------------------
@@ -133,6 +141,9 @@ def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[st
             'journal_glob = "*.png"',
             f'goal = "A fake activity for demonstrating the shell ({category})."',
         ]
+        if activity_id in STUBBORN:
+            lines.append('quit = "confirm"')
+            lines.append(f"quit_grace = {STUBBORN_GRACE_SECONDS}")
         if activity_id in NEEDS_CONTENT:
             empty = base / "content" / activity_id
             empty.mkdir(parents=True, exist_ok=True)

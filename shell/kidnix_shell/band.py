@@ -306,6 +306,7 @@ class Band(Gtk.Box):
             left.append(widget)
         row.set_start_widget(left)
         self._offer_mode = False
+        self._finishing = False
 
         # Centre: the sun -- and it is a target, not a picture (08 section 4.6).
         self.sun = Sun(metrics)
@@ -424,7 +425,48 @@ class Band(Gtk.Box):
         if on == self._offer_mode:
             return
         self._offer_mode = on
+        self._show_left()
+
+    # -- put away, in the band (v0.1.6) --
+
+    @property
+    def finishing(self) -> bool:
+        """Is the session being put away while the child is in an activity?"""
+        return self._finishing
+
+    def set_finishing_mode(self, on: bool) -> None:
+        """Leave Back, the sun and the Ear; take everything else away.
+
+        Put away at T-2 while the child is inside an activity (spec 7c): the
+        shell has asked the program to finish and is waiting for it -- or for
+        the child to answer *its* question. For those few seconds there is
+        exactly one thing to do, and the band says so by having nothing else
+        on it:
+
+        * the two **offer** buttons go: the offer is over, and "one last little
+          thing" is not on the table any more;
+        * **Undo** and **My Things** go: Undo has never worked inside an
+          activity (it speaks), and My Things would ask the activity to finish
+          a second time, which is a second SIGTERM at the worst moment;
+        * **Back stays, and it means finish** -- the same thing the shell has
+          already asked for, so a child who presses it gets the question asked
+          again rather than a contradiction. Spec 7b's no-friction rule is
+          intact: Back is never delayed, it just cannot mean "go somewhere
+          else" while a program is deciding whether to save.
+
+        Nothing moves: the buttons that go were already in fixed places and the
+        sun stays where it is, so the band does not re-flow under a hand.
+        """
+        if on == self._finishing:
+            return
+        self._finishing = on
+        self._show_left()
+
+    def _show_left(self) -> None:
+        """Who is on the left of the band right now. One rule, one place."""
+        offer = self._offer_mode and not self._finishing
+        ordinary = not offer and not self._finishing
         for widget in (self.undo, self.my_things):
-            widget.set_visible(not on)
+            widget.set_visible(ordinary)
         for widget in (self.finish_this, self.one_more):
-            widget.set_visible(on)
+            widget.set_visible(offer)
