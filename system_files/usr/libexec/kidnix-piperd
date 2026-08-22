@@ -1,0 +1,376 @@
+#!/usr/bin/python3
+"""Resident Piper synthesiser for the child session.
+
+WHY THIS EXISTS
+---------------
+Piper's CLI loads the voice model on every invocation. Measured on 2026-08-22
+(docs/spikes/tts.md), `en_GB-cori-high` costs ~250 ms to load and ~0.12x
+real-time to infer, so a one-shot `piper` per utterance is ~500-780 ms from
+keystroke to sound on a fast desktop and proportionally worse on the reference
+ThinkPad T480. The shell speaks on a 300 ms hover dwell
+(``shell/kidnix_shell/speech.py``); half a second of silence after that is the
+difference between "the computer is talking to me" and "the computer is
+broken".
+
+So one `piper` process stays alive with the model loaded and this server feeds
+it lines. Warm utterances then cost ~100-300 ms (high) or ~25-50 ms (medium).
+
+SHAPE
+-----
+A socket-activated **user** service. The socket is a UNIX socket in
+``$XDG_RUNTIME_DIR`` -- deliberately not a TCP port on loopback, even though
+``docs/spikes/lockdown.md`` §1.1 leaves ``lo`` open: a filesystem socket with
+mode 0600 in a per-user tmpfs is access-controlled by the kernel, needs no
+port, and cannot be reached by a Flatpak that does not have the runtime dir.
+
+One request per connection, strictly sequential:
+
+    ->  one line of JSON: {"text": "...", "length_scale": 1.1}
+    <-  a complete RIFF/WAVE stream, then EOF
+    <-  (on any failure) EOF with no bytes -- the caller falls back to espeak-ng
+
+Sequential is not a limitation, it is the utterance policy: ADR-0008 says a new
+utterance cancels the old one, so there is never a second thing to say.
+
+RATE
+----
+The 2023 piper binary ignores ``length_scale`` in ``--json-input`` lines
+(verified: three requests at 2.0, 0.5 and default produced 1.198 s, 1.187 s and
+1.164 s of audio). It only honours the ``--length_scale`` *command-line* flag.
+So a change of speaking rate restarts the child process, at the cost of one
+model load. In practice the shell asks for the same rate for a whole session,
+so this happens once. Requests are quantised to 0.05 so a client that jitters
+its rate cannot thrash the model.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import selectors
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+
+PROGNAME = "kidnix-piperd"
+
+# systemd socket activation: the listening fd is always 3 when LISTEN_FDS=1.
+SD_LISTEN_FDS_START = 3
+
+DEFAULT_BIN = "/usr/lib/kidnix/piper/piper"
+DEFAULT_MODEL = "/usr/share/kidnix/voices/en_GB-cori-high.onnx"
+DEFAULT_ESPEAK_DATA = "/usr/share/espeak-ng-data"
+
+#: 06 section 7.5 #30 asks for 300-500 ms between sentences. Piper's own
+#: default is 200 ms, which is adult-paced.
+DEFAULT_SENTENCE_SILENCE = "0.35"
+
+#: Exit after this long with nothing to say and let socket activation bring us
+#: back. The model is ~110-170 MB resident; a child who spends twenty minutes
+#: painting should not be paying for it. The cost of coming back is one model
+#: load (~250-380 ms) on the next utterance.
+DEFAULT_IDLE_EXIT = 900.0
+
+#: How long to wait for piper to finish one utterance before deciding it is
+#: wedged. Generously above the worst case (a 4000-character chunk at RTF 0.5).
+SYNTH_TIMEOUT = 30.0
+
+#: speech-dispatcher chunks long text itself; this is a backstop so a runaway
+#: client cannot hand piper a megabyte.
+MAX_TEXT = 4000
+
+LENGTH_SCALE_QUANTUM = 0.05
+
+
+def log(message: str) -> None:
+    print(f"{PROGNAME}: {message}", file=sys.stderr, flush=True)
+
+
+def env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ[name])
+    except (KeyError, ValueError):
+        return default
+
+
+class Piper:
+    """One long-lived `piper` process, restarted when the rate changes."""
+
+    def __init__(self, binary: str, model: str, espeak_data: str, outdir: str) -> None:
+        self.binary = binary
+        self.model = model
+        self.espeak_data = espeak_data
+        self.outdir = outdir
+        self.debug = os.environ.get("KIDNIX_PIPER_DEBUG") == "1"
+        self.sentence_silence = os.environ.get(
+            "KIDNIX_PIPER_SENTENCE_SILENCE", DEFAULT_SENTENCE_SILENCE
+        )
+        self._proc: subprocess.Popen[bytes] | None = None
+        self._length_scale: float | None = None
+
+    # -- process lifecycle --
+
+    def _spawn(self, length_scale: float) -> None:
+        self.stop()
+        argv = [
+            self.binary,
+            "--model",
+            self.model,
+            "--espeak_data",
+            self.espeak_data,
+            "--output_dir",
+            self.outdir,
+            "--length_scale",
+            f"{length_scale:.3f}",
+            "--sentence_silence",
+            self.sentence_silence,
+        ]
+        if not self.debug:
+            argv.append("--quiet")
+        self._proc = subprocess.Popen(  # noqa: S603 -- fixed argv, no shell
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=None,
+            close_fds=True,
+        )
+        self._length_scale = length_scale
+        # The model is not loaded yet -- piper does that lazily on its first
+        # line of input, so the cost shows up in the next "spoke" line rather
+        # than here.
+        log(
+            f"piper spawned: model={os.path.basename(self.model)} "
+            f"length_scale={length_scale:.3f}"
+        )
+
+    def stop(self) -> None:
+        proc, self._proc = self._proc, None
+        self._length_scale = None
+        if proc is None:
+            return
+        try:
+            if proc.stdin is not None:
+                proc.stdin.close()
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:  # noqa: BLE001 -- teardown must never raise
+            try:
+                proc.kill()
+            except Exception:  # noqa: BLE001, S110
+                pass
+
+    def _ensure(self, length_scale: float) -> subprocess.Popen[bytes]:
+        alive = self._proc is not None and self._proc.poll() is None
+        if not alive or self._length_scale != length_scale:
+            self._spawn(length_scale)
+        assert self._proc is not None  # noqa: S101 -- _spawn either sets it or raises
+        return self._proc
+
+    # -- synthesis --
+
+    def synth(self, text: str, length_scale: float) -> bytes:
+        """Return a complete WAV, or b"" if piper could not produce one."""
+        # Piper is line-oriented on stdin, so a newline inside the utterance
+        # would be read as a second utterance and desynchronise the protocol.
+        flat = " ".join(text.split())[:MAX_TEXT]
+        if not flat:
+            return b""
+
+        try:
+            proc = self._ensure(length_scale)
+        except OSError as exc:
+            log(f"cannot start piper: {exc}")
+            return b""
+
+        assert proc.stdin is not None and proc.stdout is not None  # noqa: S101
+        try:
+            proc.stdin.write(flat.encode("utf-8") + b"\n")
+            proc.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            log(f"piper stdin died ({exc}); will respawn")
+            self.stop()
+            return b""
+
+        # --output_dir makes piper print the path of each finished WAV on its
+        # own line. That line is the completion signal; without it there is no
+        # frame boundary in a raw PCM stream.
+        line = _read_line(proc.stdout, SYNTH_TIMEOUT)
+        if not line:
+            log("piper produced no output line; respawning")
+            self.stop()
+            return b""
+
+        path = line.strip()
+        try:
+            with open(path, "rb") as handle:
+                data = handle.read()
+        except OSError as exc:
+            log(f"piper named {path!r} but it could not be read: {exc}")
+            return b""
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+        if not data.startswith(b"RIFF"):
+            log(f"piper wrote {len(data)} bytes that are not a WAV")
+            return b""
+        return data
+
+
+def _read_line(stream, timeout: float) -> str:
+    """readline() with a deadline, so a wedged piper cannot wedge the session."""
+    selector = selectors.DefaultSelector()
+    selector.register(stream, selectors.EVENT_READ)
+    try:
+        if not selector.select(timeout):
+            return ""
+        raw = stream.readline()
+    finally:
+        selector.close()
+    return raw.decode("utf-8", "replace") if raw else ""
+
+
+def listening_socket() -> socket.socket:
+    """The systemd-passed socket, or our own if we were started by hand."""
+    if os.environ.get("LISTEN_PID") == str(os.getpid()) and os.environ.get("LISTEN_FDS") == "1":
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, fileno=SD_LISTEN_FDS_START)
+        sock.setblocking(False)
+        return sock
+
+    path = os.environ.get("KIDNIX_PIPER_SOCKET")
+    if not path:
+        runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+        path = os.path.join(runtime, "kidnix", "piper.sock")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.exists(path):
+        os.unlink(path)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(path)
+    os.chmod(path, 0o600)
+    sock.listen(8)
+    sock.setblocking(False)
+    log(f"listening on {path}")
+    return sock
+
+
+def serve_one(conn: socket.socket, piper: Piper) -> None:
+    conn.settimeout(10.0)
+    buffer = b""
+    while b"\n" not in buffer and len(buffer) < 1 << 20:
+        try:
+            chunk = conn.recv(65536)
+        except (TimeoutError, OSError):
+            return
+        if not chunk:  # the client half-closed instead of sending a newline
+            break
+        buffer += chunk
+
+    line = buffer.split(b"\n", 1)[0]
+    if not line:
+        return
+    try:
+        request = json.loads(line.decode("utf-8", "replace"))
+        text = str(request.get("text", ""))
+        length_scale = float(request.get("length_scale", 1.0))
+    except (ValueError, TypeError) as exc:
+        log(f"bad request: {exc}")
+        return
+
+    length_scale = min(2.0, max(0.5, length_scale))
+    length_scale = round(length_scale / LENGTH_SCALE_QUANTUM) * LENGTH_SCALE_QUANTUM
+
+    started = time.monotonic()
+    wav = piper.synth(text, length_scale)
+    if not wav:
+        return
+    log(f"spoke {len(text)} chars in {(time.monotonic() - started) * 1000:.0f} ms")
+    try:
+        conn.sendall(wav)
+    except OSError:
+        # The client gave up (speech-dispatcher cancelled the utterance).
+        pass
+
+
+def main() -> int:
+    binary = os.environ.get("KIDNIX_PIPER_BIN", DEFAULT_BIN)
+    model = os.environ.get("KIDNIX_PIPER_MODEL", DEFAULT_MODEL)
+    espeak_data = os.environ.get("KIDNIX_PIPER_ESPEAK_DATA", DEFAULT_ESPEAK_DATA)
+    idle_exit = env_float("KIDNIX_PIPER_IDLE_EXIT", DEFAULT_IDLE_EXIT)
+
+    if not os.access(binary, os.X_OK):
+        log(f"{binary} is not executable; nothing to serve")
+        return 1
+    if not os.path.exists(model):
+        log(f"voice model {model} is missing; nothing to serve")
+        return 1
+
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    outdir = tempfile.mkdtemp(prefix="kidnix-piper-", dir=runtime)
+    piper = Piper(binary, model, espeak_data, outdir)
+
+    stopping = False
+
+    # A self-pipe, not just a flag. Python retries an interrupted select() with
+    # the *full* timeout again (PEP 475), so a bare SIGTERM handler that only
+    # sets a flag would leave us asleep for the rest of the idle timeout --
+    # `systemctl --user stop kidnix-piper` would hang until TimeoutStopSec and
+    # then SIGKILL. Writing a byte into a pipe the selector is watching is what
+    # actually wakes the loop.
+    wake_read, wake_write = os.pipe()
+    os.set_blocking(wake_read, False)
+    os.set_blocking(wake_write, False)
+    signal.set_wakeup_fd(wake_write)
+
+    def on_signal(_signum: int, _frame: object) -> None:
+        nonlocal stopping
+        stopping = True
+
+    signal.signal(signal.SIGTERM, on_signal)
+    signal.signal(signal.SIGINT, on_signal)
+
+    sock = listening_socket()
+    selector = selectors.DefaultSelector()
+    selector.register(sock, selectors.EVENT_READ)
+    selector.register(wake_read, selectors.EVENT_READ)
+
+    try:
+        while not stopping:
+            events = selector.select(timeout=idle_exit if idle_exit > 0 else None)
+            if not events:
+                log(f"idle for {idle_exit:.0f}s; exiting (socket activation will bring me back)")
+                break
+            if any(key.fd == wake_read for key, _ in events):
+                try:
+                    os.read(wake_read, 4096)
+                except BlockingIOError:
+                    pass
+                if stopping:
+                    break
+                continue
+            try:
+                conn, _ = sock.accept()
+            except (BlockingIOError, OSError):
+                continue
+            with conn:
+                try:
+                    serve_one(conn, piper)
+                except Exception as exc:  # noqa: BLE001 -- one bad request must not kill the voice
+                    log(f"request failed: {exc}")
+    finally:
+        signal.set_wakeup_fd(-1)
+        selector.close()
+        os.close(wake_read)
+        os.close(wake_write)
+        piper.stop()
+        shutil.rmtree(outdir, ignore_errors=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

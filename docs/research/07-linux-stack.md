@@ -1207,3 +1207,11 @@ Plus `bootc usroverlay` for a transient writable `/usr` when debugging on-device
 **Unreachable during research** (Anubis anti-bot; routed around via mirrors):
 `gitlab.freedesktop.org/pwithnall/malcontent`, `gitlab.freedesktop.org/libinput/libei`,
 `docs.fedoraproject.org/en-US/bootc/`, `wiki.archlinux.org`.
+
+---
+
+**Erratum (2026-08-22, TTS spike):** §2.4 says onnxruntime is not packaged
+for Fedora 44 — it is (`python3-onnxruntime` 1.22.2), but pulling it costs
+256 MiB–1 GiB of dependencies. kidnix vendors the archived MIT `rhasspy/piper`
+2023.11.14-2 binary (22 MiB, relinked against Fedora's espeak-ng) with
+`en_GB-cori-{high,medium}` (public domain); see `docs/spikes/tts.md`.

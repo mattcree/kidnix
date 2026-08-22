@@ -1,0 +1,18 @@
+[Unit]
+Description=kidnix Piper text-to-speech socket
+Documentation=https://github.com/mattcree/kidnix
+Documentation=file:///usr/share/doc/kidnix
+
+# A UNIX socket, not a TCP port on loopback. docs/spikes/lockdown.md 1.1 leaves
+# `lo` open for exactly this, but a 0600 socket in the per-user tmpfs is
+# access-controlled by the kernel, needs no port, survives the nftables rules
+# entirely, and is invisible to a Flatpak without the runtime dir.
+[Socket]
+ListenStream=%t/kidnix/piper.sock
+SocketMode=0600
+# The directory is created (and removed) with the socket, so nothing is left
+# behind in /run/user when the session ends.
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

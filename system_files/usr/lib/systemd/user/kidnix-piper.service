@@ -1,0 +1,55 @@
+[Unit]
+Description=kidnix Piper text-to-speech server
+Documentation=https://github.com/mattcree/kidnix
+# The socket must exist before the server can be handed it, and starting the
+# service on its own must pull the socket in rather than racing it.
+Requires=kidnix-piper.socket
+After=kidnix-piper.socket
+
+# Nothing to serve without the voice on disk. A session with a broken image
+# should fall back to espeak-ng silently rather than log a failed unit at a
+# parent every boot.
+ConditionPathExists=/usr/lib/kidnix/piper/piper
+ConditionPathExists=/etc/kidnix/tts.env
+
+[Service]
+Type=simple
+# Defaults live in the script; /etc/kidnix/tts.env is the one file a parent (or
+# a Pi image) edits to change voice, rate floor or idle timeout.
+EnvironmentFile=/etc/kidnix/tts.env
+ExecStart=/usr/libexec/kidnix-piperd
+
+# The server exits by itself after KIDNIX_PIPER_IDLE_EXIT seconds of silence
+# and socket activation brings it straight back, so a clean exit is success and
+# must not be restarted into a loop. A *crash* is worth one retry a second.
+Restart=on-failure
+RestartSec=1
+SuccessExitStatus=0
+
+# It reads two files and writes WAVs into its own runtime directory. Nothing
+# else is needed, so nothing else is allowed.
+#
+# ReadWritePaths=%t is load-bearing, not decoration: in a *user* unit
+# ProtectHome=read-only remounts /home, /root **and /run/user** read only, so
+# without it the server dies on its first mkdtemp with
+# "[Errno 30] Read-only file system: /run/user/1000/kidnix-piper-XXXX".
+# Found the hard way in a bcvk VM; see docs/spikes/tts.md 6.1.
+ProtectHome=read-only
+ReadWritePaths=%t
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# The model is 110-170 MB resident (docs/spikes/tts.md). This ceiling is well
+# clear of that and well clear of trouble on a 4 GB machine: if piper ever
+# leaks, the child loses the good voice and keeps espeak-ng, rather than the
+# machine losing the session to the OOM killer.
+MemoryMax=512M
+
+[Install]
+# Deliberately NOT default.target or gnome-session.target: that would load a
+# 114 MB model in the parent's ordinary GNOME session too. Bound to the child's
+# shell instead, so the voice is warm by the time the first tile is spoken and
+# absent everywhere else.
+WantedBy=kidnix-shell.service

@@ -99,11 +99,59 @@ complete.
 | GNOME 50 (Shell, Session, Settings, Nautilus, Ptyxis, gnome-kiosk) | 50.x | GPL-2.0-or-later / LGPL | Fedora | throughout | yes |
 | `gnome-backgrounds` wallpapers | 50.0 | CC-BY-SA-3.0 / CC-BY-2.0 (per image) | Fedora | `/usr/share/backgrounds/gnome/` | yes — attribution is in the package |
 
-## 6. Planned — decide before downloading
+## 6. Read-aloud (text-to-speech)
+
+Owned by `build_files/65-tts.sh` and `docs/spikes/tts.md`. This is the one part
+of the image where kidnix **vendors prebuilt binaries and model weights from
+outside Fedora**, so it gets the most detail. Every artefact below is pinned by
+SHA-256 in the build script and re-checked by `tests/image/test_tts.sh`; a CDN
+rotation fails the build rather than shipping an unreviewed voice to a child.
 
 | Item | Version | Licence | Source | Where in the image | Redistribution OK? |
 |---|---|---|---|---|---|
-| Text-to-speech voices (espeak-ng is the current fallback; a neural voice is wanted for pre-readers) | — | **TBD** | Piper voices (MIT/CC0/CC-BY mixed, per voice) · Mimic 3 | `/usr/share/kidnix/voices/` | **planned** — many Piper voices are trained on datasets with non-commercial or attribution terms; each voice must be checked individually |
+| `speech-dispatcher`, `speech-dispatcher-espeak-ng`, `python3-speechd` | 0.12.1-6.fc44 | GPL-2.0-or-later / LGPL-2.1-or-later | Fedora | `/usr/bin/spd-say`, `/usr/lib64/speech-dispatcher-modules/` | yes |
+| espeak-ng (the guaranteed fallback voice, and Piper's phonemiser) | 1.52.0-3.fc44 | GPL-3.0-or-later | Fedora | `/usr/lib64/libespeak-ng.so.1`, `/usr/share/espeak-ng-data/` | yes — Fedora carries the source |
+| **piper** (CLI) | `rhasspy/piper` 2023.11.14-2 (archived Oct 2025) | **MIT** | <https://github.com/rhasspy/piper/releases/tag/2023.11.14-2> · tarball sha256 `a50cb45f355b7af1f6d758c1b360717877ba0a398cc8cbe6d2a7a3a26e225992` (x86_64), `fea0fd2d87c54dbc7078d0f878289f404bd4d6eea6e7444a77835d1537ab88eb` (aarch64) | `/usr/lib/kidnix/piper/piper` | yes, with notice — licence text at `/usr/share/licenses/kidnix-piper/LICENSE.piper.md` |
+| **libpiper_phonemize.so.1.2.0** | bundled in the same tarball | **MIT** | <https://github.com/rhasspy/piper-phonemize> | `/usr/lib/kidnix/piper/` | yes, with notice |
+| **libonnxruntime.so.1.14.1** | 1.14.1, bundled in the same tarball | **MIT** | <https://github.com/microsoft/onnxruntime/tree/v1.14.1> | `/usr/lib/kidnix/piper/` | yes, with notice |
+| **Voice: `en_GB-cori-high`** | piper-voices, retrieved 2026-08-22 | **public domain** (training data: LibriVox, ~24 h) — stated by the voice's own `MODEL_CARD` | <https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high> · trained by <https://brycebeattie.com/files/tts/> | `/usr/share/kidnix/voices/en_GB-cori-high.onnx` (114,219,352 B, sha256 `470b4dd634c98f8a4850d7626ffc3dfc90774628eeef6605a6dd8f88f30a5903`); config sha256 `9e7fb5b5671612c22f3c81cbe46c1ae87b031a4632bcb509e499dad6f1e2adec` | yes — public domain, no attribution obligation |
+| **Voice: `en_GB-cori-medium`** | same | **public domain**, same dataset and card | <https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/medium> | `/usr/share/kidnix/voices/en_GB-cori-medium.onnx` (63,531,379 B, sha256 `1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d`); config sha256 `e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36` | yes |
+
+**Why `cori` and nothing else.** *docs/research/07 §2.4* lists eleven en_GB
+Piper voices. Their `MODEL_CARD` licences were re-read on 2026-08-22: `alba`,
+`aru` and `vctk` are CC-BY-4.0 (attribution we would have to carry into the
+image and the docs); `northern_english_male` and `southern_english_female` are
+CC-BY-SA-4.0; `jenny_dioco` requires attribution; **`semaine` is
+CC-BY-NC-SA-4.0 — non-commercial, and therefore disqualified outright by
+AGENTS.md §5**; `alan`'s card says only "See URL", which is not a licence.
+`cori` is the only en_GB voice whose card states **public domain**, and it
+happens to be the only one available at the `high` tier. Both tiers of it ship;
+`/etc/kidnix/tts.env` picks which one loads.
+
+**Two things we deliberately do *not* redistribute.**
+
+1. Upstream's piper tarball bundles a prebuilt `libespeak-ng.so.1.52.0.1` and
+   19 MB of `espeak-ng-data`. espeak-ng is **GPL-3.0-or-later**, and shipping
+   someone else's prebuilt GPL binary means owing its corresponding source.
+   `build_files/65-tts.sh` deletes both and links against Fedora's espeak-ng
+   instead — verified byte-identical output (`--noise_scale 0 --noise_w 0`
+   produces the same WAV either way), so this costs nothing and removes the
+   obligation. Fedora carries espeak-ng's source; we carry none.
+2. `libtashkeel_model.ort` (10 MB, Arabic diacritisation) is dropped as unused
+   weight.
+
+**A caveat worth writing down.** Piper's own README says its voice models are
+"intended for personal use and text-to-speech research only". That sentence is
+about the *project's* model collection as a whole, and it is not a licence — the
+per-voice `MODEL_CARD` is, and cori's says public domain. For a personally-built
+image this is settled. If kidnix images are ever published as a product, get a
+real answer on that sentence before shipping, the same way open question #1
+below treats codecs.
+
+## 7. Planned — decide before downloading
+
+| Item | Version | Licence | Source | Where in the image | Redistribution OK? |
+|---|---|---|---|---|---|
 | Offline reference content (Kiwix ZIM files: Wikipedia for Schools, Wiktionary) | — | CC-BY-SA-3.0/4.0 for Wikimedia content | <https://library.kiwix.org/> | `/usr/share/kidnix/zim/` | **planned** — CC-BY-SA requires carrying attribution and licence; ZIMs embed it, but the image must not strip it |
 | First-party activity art and sounds | — | Apache-2.0 or CC-BY-SA-4.0 (decide by ADR) | ours | `/usr/share/kidnix/activities/` | **planned** |
 | Icon set for the child shell | — | **TBD** | candidates: Adwaita (already present), Papirus (GPL-3.0) | `/usr/share/icons/` | **planned** |
@@ -120,10 +168,10 @@ complete.
    base-image revisit.
 2. **Firefox.** In the image, unused by kidnix, unreachable by the child.
    Remove, or keep for the parent? A decision, not an accident.
-3. **Voices are the hard one.** The most useful pre-reader voices are the
-   neural ones, and their training-data licences are the least clear part of
-   the whole stack. Budget real time for this before M3, and prefer a voice
-   whose licence is stated per-voice in a machine-readable manifest.
+3. ~~**Voices are the hard one.**~~ **Resolved for en_GB** — see §6. The
+   shipped voice is public domain and pinned by SHA-256. Still open for other
+   languages: the Welsh TTS that *docs/research/06 §7.5 #31* asks for has no
+   public-domain Piper voice, so it is espeak-ng only for now.
 4. **Automation.** This table is hand-maintained, which means it will drift.
    A `just licenses` recipe that walks `/usr/share/licenses/` in the built
    image and diffs against this file would make drift a build failure. Not

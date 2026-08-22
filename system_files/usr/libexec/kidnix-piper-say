@@ -1,0 +1,288 @@
+#!/usr/bin/python3
+"""Speak one utterance. What speech-dispatcher's generic module actually runs.
+
+Reads the text on stdin, asks the resident Piper server
+(``/usr/libexec/kidnix-piperd``) for a WAV, and plays it. If Piper cannot be
+reached -- server not up, model missing, wrong language -- it falls back to
+espeak-ng, because ADR-0008 is explicit that a child's session is never mute.
+That fallback is inside *this* program on purpose: speech-dispatcher's own
+module fallback is "the module failed, say nothing", which is exactly the
+outcome we are not allowed to have.
+
+Invoked from /etc/speech-dispatcher/modules/kidnix-piper.conf as
+
+    printf %s '$DATA' | /usr/libexec/kidnix-piper-say -r '$RATE' -v '$VOLUME' -l '$LANGUAGE'
+
+so it is also the thing to run by hand when read-aloud is misbehaving:
+
+    echo "hello" | /usr/libexec/kidnix-piper-say
+"""
+
+from __future__ import annotations
+
+import argparse
+import array
+import io
+import json
+import os
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import wave
+
+PROGNAME = "kidnix-piper-say"
+
+CONNECT_TIMEOUT = 3.0
+READ_TIMEOUT = 30.0
+
+#: speechd rate is -100..100 with 0 as "the voice's natural pace". Piper's
+#: length_scale is a duration multiplier, so it runs the other way: bigger is
+#: slower. -100 -> 1.5 (half again as long), 0 -> 1.0, +100 -> 0.5.
+#: Linear and monotone, which is all a child's rate slider needs.
+RATE_TO_LENGTH_SCALE = 0.005
+
+#: Players in order of preference. pw-play is PipeWire's own and is what the
+#: rest of the image speaks; paplay and aplay are there because a VM or a
+#: recovery boot may have only one of them.
+PLAYERS = ("pw-play", "paplay", "aplay")
+
+#: espeak-ng's own default is 175 wpm.
+ESPEAK_BASE_WPM = 175
+
+#: What a client sends when it has no locale of its own. Found in a bcvk VM
+#: (docs/spikes/tts.md 6.1): `spd-say` with no `-l` sends `SET SELF LANGUAGE C`,
+#: which is *not* a language -- it is "I have no opinion". Treating it as
+#: "not English" routed every default-module utterance past Piper and into
+#: `espeak-ng -v c`, which exits non-zero, so the child heard nothing and
+#: speech-dispatcher then wedged on "Continuing because already speaking".
+#: An opinionless client gets the language the image speaks.
+LOCALE_UNSET = frozenset({"", "c", "posix", "none", "default", "-"})
+
+#: Matches /etc/speech-dispatcher/speechd.conf's DefaultLanguage.
+DEFAULT_LANGUAGE = "en-GB"
+
+
+def log(message: str) -> None:
+    print(f"{PROGNAME}: {message}", file=sys.stderr, flush=True)
+
+
+def socket_path() -> str:
+    explicit = os.environ.get("KIDNIX_PIPER_SOCKET")
+    if explicit:
+        return explicit
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    return os.path.join(runtime, "kidnix", "piper.sock")
+
+
+def ask_piper(text: str, length_scale: float) -> bytes:
+    """One request/response against the resident server. b"" means "no."."""
+    path = socket_path()
+    request = json.dumps({"text": text, "length_scale": round(length_scale, 3)})
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(CONNECT_TIMEOUT)
+            sock.connect(path)
+            sock.sendall(request.encode("utf-8") + b"\n")
+            sock.shutdown(socket.SHUT_WR)
+            sock.settimeout(READ_TIMEOUT)
+            chunks: list[bytes] = []
+            while True:
+                chunk = sock.recv(1 << 16)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+    except (OSError, TimeoutError) as exc:
+        log(f"piper server unavailable ({exc}); falling back to espeak-ng")
+        return b""
+    return b"".join(chunks)
+
+
+def espeak(text: str, rate: int, language: str) -> bytes:
+    """The guaranteed voice. Robotic, always there (ADR-0008).
+
+    ``-w FILE`` rather than ``--stdout``: espeak-ng's stdout WAV carries a
+    streaming header whose declared data length is a placeholder, which makes
+    ``wave`` report nonsense durations and leaves each player to guess. A file
+    gets a correct header, and the file is a few tens of KB in tmpfs.
+    """
+    wpm = max(80, min(400, ESPEAK_BASE_WPM + rate))
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+    handle, path = tempfile.mkstemp(prefix="kidnix-espeak-", suffix=".wav", dir=runtime)
+    os.close(handle)
+    # An unknown voice makes espeak-ng exit non-zero without writing anything.
+    # The second attempt is the point of the list: whatever the client asked
+    # for, a child ends up hearing the sentence.
+    voices = [(language or "").lower(), DEFAULT_LANGUAGE.lower()]
+    try:
+        for voice in voices:
+            if not voice:
+                continue
+            result = subprocess.run(  # noqa: S603 -- fixed argv, no shell
+                ["espeak-ng", "-v", voice, "-s", str(wpm), "-w", path, "--", text],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=30,
+                check=False,
+            )
+            if result.returncode != 0:
+                log(f"espeak-ng does not know the voice {voice!r}")
+                continue
+            with open(path, "rb") as sink:
+                data = sink.read()
+            if data:
+                return data
+        return b""
+    except (OSError, subprocess.SubprocessError) as exc:
+        log(f"espeak-ng failed too: {exc}")
+        return b""
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def attenuate(wav: bytes, volume: int) -> bytes:
+    """Apply speechd's volume, downwards only.
+
+    speechd volume is -100..100 with 0 as normal. We never amplify: loudness
+    safety on this machine is a hardware ceiling plus PipeWire
+    (/usr/libexec/kidnix-audio-cap), and a TTS client that can push past unity
+    gain would be a hole in it. Positive volumes therefore mean "unchanged".
+    """
+    if volume >= 0 or not wav:
+        return wav
+    gain = max(0.0, (100 + volume) / 100.0)
+
+    try:
+        with wave.open(io.BytesIO(wav), "rb") as source:
+            params = source.getparams()
+            frames = source.readframes(params.nframes)
+    except (wave.Error, EOFError, ValueError):
+        return wav
+    if params.sampwidth != 2:
+        return wav
+
+    samples = array.array("h")
+    samples.frombytes(frames)
+    for index, value in enumerate(samples):
+        samples[index] = int(value * gain)
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as sink:
+        sink.setnchannels(params.nchannels)
+        sink.setsampwidth(params.sampwidth)
+        sink.setframerate(params.framerate)
+        sink.writeframes(samples.tobytes())
+    return out.getvalue()
+
+
+def play(wav: bytes) -> int:
+    """Play a WAV via the first available player.
+
+    Written to a file in the runtime tmpfs rather than piped: every one of the
+    three players parses a WAV *file* header without argument, while their
+    handling of a WAV on stdin differs between them and between versions.
+    A ~100 KB write to tmpfs costs nothing and removes that whole class of bug.
+    """
+    player = next((p for p in PLAYERS if shutil.which(p)), None)
+    if player is None:
+        log("no audio player found (pw-play/paplay/aplay)")
+        return 1
+
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+    handle, path = tempfile.mkstemp(prefix="kidnix-say-", suffix=".wav", dir=runtime)
+    proc: subprocess.Popen[bytes] | None = None
+
+    def on_signal(_signum: int, _frame: object) -> None:
+        # speech-dispatcher cancels an utterance by killing this process group.
+        # Take the player down with us so the child hears the cut immediately.
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, on_signal)
+    signal.signal(signal.SIGINT, on_signal)
+
+    try:
+        with os.fdopen(handle, "wb") as sink:
+            sink.write(wav)
+        proc = subprocess.Popen(  # noqa: S603 -- argv from a fixed allow-list
+            [player, path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return proc.wait()
+    except (OSError, subprocess.SubprocessError) as exc:
+        log(f"{player} failed: {exc}")
+        return 1
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Speak stdin with Piper, or espeak-ng.")
+    parser.add_argument("-r", "--rate", default="0", help="speechd rate, -100..100")
+    parser.add_argument("-v", "--volume", default="0", help="speechd volume, -100..100")
+    parser.add_argument("-l", "--language", default="en-GB", help="language tag")
+    parser.add_argument("--stdout", action="store_true", help="write the WAV instead of playing it")
+    parser.add_argument("text", nargs="*", help="text to speak (default: read stdin)")
+    args = parser.parse_args(argv)
+
+    def as_int(raw: str) -> int:
+        try:
+            return max(-100, min(100, int(float(raw))))
+        except (TypeError, ValueError):
+            return 0
+
+    rate = as_int(args.rate)
+    volume = as_int(args.volume)
+    language = (args.language or "").strip()
+    if language.lower() in LOCALE_UNSET:
+        language = DEFAULT_LANGUAGE
+
+    text = " ".join(args.text) if args.text else sys.stdin.read()
+    text = " ".join(text.split())
+    if not text:
+        return 0
+
+    # The shipped voice is English. Anything else -- a Welsh phonics activity,
+    # a bilingual household (06 section 4.7) -- goes straight to espeak-ng,
+    # which has every language, rather than being read in an English accent.
+    if language.lower().startswith("en"):
+        wav = ask_piper(text, 1.0 - rate * RATE_TO_LENGTH_SCALE)
+    else:
+        wav = b""
+
+    if not wav:
+        wav = espeak(text, rate, language)
+    if not wav:
+        # Deliberately not a failure exit. speech-dispatcher's generic module
+        # decides the utterance is finished when this process ends; a non-zero
+        # exit was observed to leave the server stuck on "already speaking",
+        # which silences *every subsequent* utterance. A lost sentence is bad;
+        # a permanently mute computer is much worse.
+        log(f"no voice could produce audio for language {language!r}")
+        return 0
+
+    wav = attenuate(wav, volume)
+
+    if args.stdout:
+        sys.stdout.buffer.write(wav)
+        sys.stdout.buffer.flush()
+        return 0
+    return play(wav)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
