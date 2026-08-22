@@ -1,0 +1,212 @@
+---
+name: e2e
+
+# The pixels-and-input scenario test (tests/e2e/, docs/spikes/e2e-scenario.md).
+#
+# TWO JOBS, DELIBERATELY UNEQUAL IN COST:
+#
+#   harness   runs on every push and PR. No VM, no disk image, no KVM -- it
+#             byte-compiles the harness and unit-tests the pixel geometry
+#             helpers against synthetic screenshots. Seconds.
+#
+#   scenario  boots a real disk image and drives the shell with a synthetic
+#             mouse. It needs `just build` (~10 min) and
+#             `just build-qcow2-rootless` (~5 min) before it can start, so it
+#             is manual (workflow_dispatch) and nightly rather than per-PR.
+#             `just test-boot` stays the gate; this is the deeper, slower one.
+#
+# Everything the runner needs is the same as boot-test.yml, minus bcvk's
+# virtiofsd (this test runs QEMU directly, not through bcvk) and plus OVMF,
+# because a bootc disk image is UEFI-only.
+on:
+  push:
+    branches: [main, 'ci/**']
+  pull_request:
+  schedule:
+    # 03:20 UTC. Nothing waits on this; it is a slow soak, not a gate.
+    - cron: '20 3 * * *'
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: "Image to install to disk (default: build it from this checkout)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: kidnix
+  BCVK_VERSION: "0.18.0"
+
+jobs:
+  harness:
+    name: e2e harness self-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Byte-compile the harness
+        run: python3 -m py_compile tests/e2e/*.py
+
+      - name: Unit-test the pixel geometry helpers
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check pytest
+          PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/e2e/test_geometry.py -q
+
+      # The scenario tests skip cleanly with no disk image; proving that here
+      # means a missing qcow2 can never turn into a mysterious red build.
+      - name: The scenario skips without a disk image
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/e2e/test_scenario.py -q 2>&1 | tee /tmp/skip.log
+          grep -q "skipped" /tmp/skip.log
+
+  scenario:
+    name: drive the shell in a VM
+    # Per-PR this would cost ~20 minutes of runner for a test `just test-boot`
+    # already covers the boot half of. Nightly and on demand is the right price.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check for KVM
+        id: kvm
+        run: |
+          set -euo pipefail
+          if [[ -e /dev/kvm ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::KVM is available; running the scenario."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::/dev/kvm is not available on this runner. \
+            Skipping: a TCG boot of GNOME plus Tux Paint cannot finish in any \
+            sane timeout. Run 'just test-e2e' locally instead."
+          fi
+
+      # A qcow2 is 20 GB sparse and the container image is another 6 GB.
+      - name: Free disk space
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}" \
+                      /usr/local/share/powershell /usr/share/swift || true
+          sudo docker image prune --all --force || true
+          df -h / | tail -1
+
+      - uses: actions/checkout@v7
+        if: steps.kvm.outputs.available == 'true'
+
+      - name: Install just
+        if: steps.kvm.outputs.available == 'true'
+        uses: extractions/setup-just@v4
+
+      - name: Install podman, qemu, OVMF and virtiofsd
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # ovmf: bootc images are UEFI-only, and the harness refuses to start
+          # without firmware. virtiofsd is for bcvk, which builds the disk.
+          sudo apt-get install -y --no-install-recommends \
+            podman qemu-system-x86 qemu-utils ovmf virtiofsd python3-pytest
+          ls -l /usr/share/OVMF/ || true
+
+      # See boot-test.yml: noble's virtiofsd 1.10 does not know --allow-mmap
+      # and bcvk 0.18 passes it unconditionally.
+      - name: Install virtiofsd 1.14
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          deb=virtiofsd_1.14.0-3_amd64.deb
+          curl -fsSL --retry 3 -o "/tmp/${deb}" \
+            "http://archive.ubuntu.com/ubuntu/pool/universe/r/rust-virtiofsd/${deb}"
+          echo "1bd9cff8d6d6d6a5a0e615a985805431ce4760f35cc35969165492421f92cdb9  /tmp/${deb}" \
+            | sha256sum -c -
+          sudo dpkg -i "/tmp/${deb}"
+          /usr/libexec/virtiofsd --help | grep -q -- --allow-mmap
+
+      - name: Install bcvk
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          just bcvk-install "${BCVK_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare the virtualisation host
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          sudo chmod 0666 /dev/kvm
+          sudo modprobe vhost_vsock || true
+          sudo chmod 0666 /dev/vhost-vsock || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          qemu-system-x86_64 --version | head -1
+
+      - name: Build image
+        if: steps.kvm.outputs.available == 'true' && inputs.image_ref == ''
+        run: just build
+
+      - name: Log in to ghcr.io
+        if: steps.kvm.outputs.available == 'true' && inputs.image_ref != ''
+        uses: redhat-actions/podman-login@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        if: steps.kvm.outputs.available == 'true' && inputs.image_ref != ''
+        run: |
+          set -euo pipefail
+          podman pull "${{ inputs.image_ref }}"
+          podman tag "${{ inputs.image_ref }}" "localhost/${IMAGE_NAME}:latest"
+
+      - name: Install the image to a disk
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          just build-qcow2-rootless
+          ls -lh output/qcow2/
+          # The image layers are 6 GB we no longer need, and the scenario VM
+          # wants room for its -snapshot overlay in /tmp.
+          podman image prune --all --force || true
+          df -h / | tail -1
+
+      - name: Run the scenario
+        if: steps.kvm.outputs.available == 'true'
+        run: just test-e2e
+
+      - name: Report
+        if: always() && steps.kvm.outputs.available == 'true'
+        run: |
+          set +e
+          echo "--- serial console (tail) ---"
+          tail -60 output/e2e/serial.log 2>/dev/null
+          echo "--- qemu ---"
+          cat output/e2e/qemu.log 2>/dev/null
+          echo "--- artefacts ---"
+          ls -l output/e2e/ 2>/dev/null
+
+      - name: Upload artefacts
+        if: always() && steps.kvm.outputs.available == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ github.run_id }}
+          path: |
+            output/e2e/*.png
+            output/e2e/serial.log
+            output/e2e/qemu.log
+            output/e2e/qemu-command.txt
+            output/e2e/guest-setup.sh
+          if-no-files-found: warn
+          retention-days: 7

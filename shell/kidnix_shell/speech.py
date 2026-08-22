@@ -374,6 +374,10 @@ class SpeechManager:
         if not self.enabled:
             self.last_utterance = text
             return False
+        # The one INFO line the read-aloud path emits. It is what makes the
+        # voice observable from outside the machine (tests/e2e/), and it is
+        # the shell's own UI text -- never anything the child typed or made.
+        log.info("speaking: %s", text)
         self.backend.speak(text)
         self.last_utterance = text
         self._start_highlight(key, text)

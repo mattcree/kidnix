@@ -2,19 +2,21 @@
 
 Three layers, deliberately very different in cost. None of them needs `sudo`.
 
-| | `tests/image/` | `tests/boot/bcvk_boot_test.py` | `tests/boot/boot_test.py` |
-|---|---|---|---|
-| Runs | `podman run` inside the built image | the image as a VM, via `bcvk` | the real qcow2, under QEMU |
-| Needs | rootless podman | `bcvk` + `/dev/kvm` | a qcow2 + `/dev/kvm` + OVMF |
-| Takes | ~2 seconds | ~30 seconds | ~2 minutes plus the disk build |
-| Proves | the right files and packages are present | the machine boots into the kiosk | …and that the bootloader and composefs root work |
-| Command | `just test-image` | `just test-boot` | `just test-boot-qcow2` |
+| | `tests/image/` | `tests/boot/bcvk_boot_test.py` | `tests/boot/boot_test.py` | `tests/e2e/` |
+|---|---|---|---|---|
+| Runs | `podman run` inside the built image | the image as a VM, via `bcvk` | the real qcow2, under QEMU | …and then uses it |
+| Needs | rootless podman | `bcvk` + `/dev/kvm` | a qcow2 + `/dev/kvm` + OVMF | the same, plus `pytest` |
+| Takes | ~2 seconds | ~30 seconds | ~2 minutes plus the disk build | ~3 minutes |
+| Proves | the right files and packages are present | the machine boots into the kiosk | …and that the bootloader and composefs root work | …and that a child can actually use it |
+| Command | `just test-image` | `just test-boot` | `just test-boot-qcow2` | `just test-e2e` |
 
 `test-image` is cheap enough to run on every save and catches almost every
 packaging mistake. `test-boot` is cheap enough to run on every commit and is the
 only thing that can prove the *session* comes up. `test-boot-qcow2` is the one
 that exercises everything a real install does, and the only one that produces a
-screenshot — run it before believing an image will install.
+screenshot — run it before believing an image will install. `test-e2e` is the
+only one that touches the machine: it moves a mouse, clicks tiles, draws in Tux
+Paint and sits through the ending ritual.
 
 ## `tests/image/`
 
@@ -191,3 +193,82 @@ it for the `build-qcow2` path.
 firmware, KVM and command construction — including that `-snapshot` is still
 present, because losing it would silently start corrupting the developer's disk
 image. Run it in CI on every PR; it costs nothing.
+
+## `tests/e2e/` — `just test-e2e`
+
+The scenario test. It boots the same qcow2 `test-boot-qcow2` boots, then plays
+one child's session through it from **outside** the VM: QEMU's
+`input-send-event` for the mouse and keyboard, `screendump` for pixels, and ssh
+for every assertion. Nothing is installed in the guest and the image under test
+is the image we ship — there is no instrumentation build.
+
+```sh
+just test-e2e               # ~2.5 minutes, needs a qcow2
+just test-e2e-offline       # the pixel-geometry unit tests only, no VM
+just test-e2e -k tuxpaint   # one step (they share a VM, so mind the order)
+```
+
+Seven steps, in order, on one VM:
+
+| | what it does | what it asserts |
+|---|---|---|
+| 1 | boots | `KIDNIX_BOOT_OK`, `kidnix-shell.service` active, 1280×800, a paper surface with one big dark shape (the avatar) on it |
+| 2 | clicks the avatar | `state choosing -> home`, a session started, a 4×4×3 grid of tiles |
+| 3 | rests on the Draw tile | ≥ 20% of that tile repaints (the speaking highlight), speech-dispatcher ran |
+| 4 | clicks Draw, draws, quits | `launched tuxpaint`, a white canvas, ink on it, `state in_activity -> home`, an `entry.json` in the Journal |
+| 5 | clicks My Things | `state home -> journal`, a card on screen |
+| 6 | shortens the session and restarts the shell | `ending_offer` → `put_away` → `goodbye` → `sleeping`, each screenshotted |
+| 7 | — | every step left a screenshot |
+
+Artefacts land in `output/e2e/`: `NN-name.png` per step, `contact-sheet.png`
+(also copied to `docs/design/screenshots/`), the serial console, the QEMU
+command line and the setup script injected into the guest.
+
+### How it gets in
+
+`build-qcow2-rootless` applies no blueprint, so the disk has no passwords and
+no authorised keys. Adding one would mean testing a disk we do not ship, so
+instead the harness passes **systemd system credentials over SMBIOS**:
+
+```
+-smbios type=11,value=io.systemd.credential.binary:systemd.extra-unit.kidnix-e2e.service=<base64>
+```
+
+`systemd-debug-generator` turns that into a real unit, ordered before sshd and
+gdm, which drops an ephemeral public key into `/root/.ssh` and writes the
+session policy the scenario needs. The key is regenerated per run into
+`output/e2e/` and the guest filesystem is a `-snapshot` overlay, so nothing
+survives. `docs/spikes/e2e-scenario.md` records the two easier-looking routes
+that do not work.
+
+### Finding things on screen
+
+The shell has no debug endpoint and does not log widget geometry, and computing
+it from the metrics it *does* log gets the columns wrong — `Gtk.Grid` columns
+are not homogeneous, so "Letters and Sounds" is 275 px wide where "Library" is
+186. `tests/e2e/pixels.py` reads the screenshot instead: every child-facing box
+in `theme.css` has a thin top border and a thick bottom one, which makes rows
+and columns findable without a single hard-coded coordinate.
+`tests/e2e/test_geometry.py` unit-tests that against synthetic screenshots and
+needs no VM at all.
+
+### Driving a VM by hand
+
+The same rig, held open, for when you want to poke at something:
+
+```sh
+just vm-qmp                   # leave this running
+just vm-qmp-shot              # -> output/e2e/qmp-shot.png
+just vm-qmp-move 803 464      # hover the Draw tile
+just vm-qmp-click 803 464
+just vm-qmp-key esc
+```
+
+### In CI
+
+`.github/workflows/e2e.yml`. The `harness` job runs on every push and PR and
+needs no VM: it byte-compiles the harness, unit-tests the geometry helpers, and
+proves the scenario *skips* cleanly with no disk image. The `scenario` job
+builds an image, installs it to a disk and runs the whole thing; that is ~20
+minutes of runner, so it is nightly and on demand rather than per-PR.
+`just test-boot` remains the gate.

@@ -15,6 +15,7 @@ base_tag := "44"
 output_dir := justfile_directory() / "output"
 disk_config := output_dir / "config.toml"
 qcow2 := output_dir / "qcow2/disk.qcow2"
+e2e_dir := output_dir / "e2e"
 
 # Local registry used by the push-local / vm-upgrade fast loop.
 local_registry_port := "5000"
@@ -285,6 +286,71 @@ test-boot-qcow2 *ARGS: _require-qcow2
         --ssh-port {{ vm_ssh_port }} \
         --memory {{ vm_ram }} --cpus {{ vm_cpus }} \
         {{ ARGS }}
+
+# --- end-to-end scenario -----------------------------------------------------
+
+# Boots the qcow2 with a QMP socket and an ABSOLUTE pointer, then plays one
+# child's session through it: click the avatar, hover a tile until the shell
+# speaks, open Tux Paint, draw a stroke, quit, look at My Things, and sit
+# through the ending ritual on a shortened session. Every step screenshots and
+# asserts something the guest can be asked about over ssh.
+#
+# Nothing is installed in the guest. Root gets an ephemeral SSH key through a
+# systemd credential passed over SMBIOS; see docs/spikes/e2e-scenario.md.
+# THE scenario test: drive the shell with a fake mouse and keyboard (~2.5 min).
+test-e2e *ARGS: _require-qcow2
+    @mkdir -p "{{ e2e_dir }}"
+    @# pytest comes from the system where Fedora ships it, and from a throwaway
+    @# uv environment where it does not. Nothing is installed into the repo.
+    @if python3 -c 'import pytest' 2>/dev/null; then \
+        runner=(python3 -m pytest); \
+    elif command -v uv >/dev/null 2>&1; then \
+        runner=(uv run --no-project --with pytest python -m pytest); \
+    else \
+        echo "error: neither python3 -m pytest nor uv is available" >&2; exit 1; \
+    fi; \
+    PYTHONDONTWRITEBYTECODE=1 "${runner[@]}" tests/e2e -x -q -s -p no:cacheprovider {{ ARGS }}
+
+# The pixel-geometry helpers on their own: no VM, no disk image, milliseconds.
+test-e2e-offline *ARGS:
+    @if python3 -c 'import pytest' 2>/dev/null; then \
+        runner=(python3 -m pytest); \
+    else \
+        runner=(uv run --no-project --with pytest python -m pytest); \
+    fi; \
+    PYTHONDONTWRITEBYTECODE=1 "${runner[@]}" tests/e2e/test_geometry.py -q -p no:cacheprovider {{ ARGS }}
+
+# --- driving a VM by hand over QMP -------------------------------------------
+#
+# The same rig the scenario test uses, held open so a human can poke at it.
+# Leave `just vm-qmp` running in one terminal and use the helpers from another.
+
+# Boot the qcow2 headless with a QMP socket + absolute pointer, and hold it.
+vm-qmp *ARGS: _require-qcow2
+    @mkdir -p "{{ e2e_dir }}"
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/e2e/vm.py \
+        --qcow2 "{{ qcow2 }}" --output-dir "{{ e2e_dir }}" \
+        --memory {{ vm_ram }} --cpus {{ vm_cpus }} {{ ARGS }}
+
+# Screendump the VM `just vm-qmp` is holding open.
+vm-qmp-shot name="qmp-shot.png":
+    @PYTHONDONTWRITEBYTECODE=1 python3 tests/e2e/qmp.py \
+        --socket "{{ e2e_dir }}/qmp.sock" shot "{{ e2e_dir }}/{{ name }}"
+
+# Click at guest pixel X Y (1280x800).
+vm-qmp-click x y:
+    @PYTHONDONTWRITEBYTECODE=1 python3 tests/e2e/qmp.py \
+        --socket "{{ e2e_dir }}/qmp.sock" click {{ x }} {{ y }}
+
+# Move the pointer to guest pixel X Y without clicking (hover).
+vm-qmp-move x y:
+    @PYTHONDONTWRITEBYTECODE=1 python3 tests/e2e/qmp.py \
+        --socket "{{ e2e_dir }}/qmp.sock" move {{ x }} {{ y }}
+
+# Press QEMU qcodes together, e.g. `just vm-qmp-key alt f4` or `just vm-qmp-key esc`.
+vm-qmp-key +KEYS:
+    @PYTHONDONTWRITEBYTECODE=1 python3 tests/e2e/qmp.py \
+        --socket "{{ e2e_dir }}/qmp.sock" key {{ KEYS }}
 
 # --- disk images -------------------------------------------------------------
 
