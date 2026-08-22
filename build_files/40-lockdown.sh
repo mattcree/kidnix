@@ -93,8 +93,12 @@ test -f "${POLKIT_RULES}" || die "${POLKIT_RULES} is missing from system_files/"
 # rejects, and a rules file duktape cannot parse is silently ignored -- which
 # fails OPEN. Grep for the ES6+ constructs that are easy to write by accident.
 log "checking ${POLKIT_RULES} for ES6 syntax duktape cannot parse"
-if grep -nE '=>|\blet\b|\bconst\b|`|\.\.\.|\.includes\(|\bclass\b|\bfor[[:space:]]*\([^;]*\bof\b' \
-        "${POLKIT_RULES}"; then
+# `sed 's://.*::'` strips line comments first -- the prose above the rules
+# talks about `let` and backticks, and we are checking the code, not the
+# commentary. Safe here because the file contains no string literal with "//"
+# in it (an action id never does).
+if sed 's://.*::' "${POLKIT_RULES}" \
+        | grep -nE '=>|\blet\b|\bconst\b|`|\.\.\.|\.includes\(|\bclass\b|\bfor[[:space:]]*\([^;]*\bof\b'; then
     die "${POLKIT_RULES} uses ES6+ syntax; polkitd's duktape engine is ES5.1"
 fi
 
@@ -310,19 +314,16 @@ grep -q '^shared=!network;$' "${FLATPAK_OVERRIDE}" \
 grep -q '/var/lib/flatpak/overrides/global' /usr/lib/tmpfiles.d/kidnix-lockdown.conf \
     || die "nothing seeds /var/lib/flatpak/overrides/global on first boot"
 
-# The seed must be byte-identical to what flatpak itself writes, so a parent
-# running `flatpak override --show` sees something it recognises. Generating it
-# here and diffing is how we find out when the format changes.
+# The seed must say exactly what flatpak itself would write, so a parent
+# running `flatpak override --show` sees something it recognises and a future
+# `flatpak override` edit round-trips cleanly. Generating it here and diffing
+# is how we find out when the format changes under us.
+log "checking the flatpak override seed against flatpak's own output"
 flatpak override --system --unshare=network
-if ! diff -u "${FLATPAK_OVERRIDE}" /var/lib/flatpak/overrides/global \
-        | grep -v '^[-+][-+][-+]' | grep -q '^[-+]' \
-        || diff <(grep -v '^#' "${FLATPAK_OVERRIDE}" | grep -v '^$') \
-                <(grep -v '^$' /var/lib/flatpak/overrides/global) >/dev/null; then
-    log "flatpak global override matches what flatpak itself writes"
-else
-    diff -u <(grep -v '^#' "${FLATPAK_OVERRIDE}" | grep -v '^$') \
-            /var/lib/flatpak/overrides/global >&2 || true
-    die "${FLATPAK_OVERRIDE} no longer matches flatpak's own output"
+strip_comments() { grep -vE '^[[:space:]]*(#|$)' "$1"; }
+if ! diff -u <(strip_comments "${FLATPAK_OVERRIDE}") \
+             <(strip_comments /var/lib/flatpak/overrides/global); then
+    die "${FLATPAK_OVERRIDE} no longer matches what 'flatpak override --system --unshare=network' writes"
 fi
 # /var is machine-local and 90-cleanup.sh wipes it; the tmpfiles rule is what
 # actually puts this on the installed machine.
