@@ -122,7 +122,7 @@ jobs:
       - name: Push to ghcr.io
         id: push
         if: github.event_name != 'pull_request'
-        uses: redhat-actions/push-to-registry@v2
+        uses: redhat-actions/push-to-registry@v3
         with:
           image: ${{ env.IMAGE_NAME }}
           tags: latest ${{ steps.meta.outputs.date_tag }} ${{ steps.meta.outputs.sha_tag }}
