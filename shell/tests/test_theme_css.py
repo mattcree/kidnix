@@ -19,12 +19,21 @@ and a font family list is a string.
 
 from __future__ import annotations
 
+import itertools
+import math
 import re
 from pathlib import Path
 
 import pytest
 
-from kidnix_shell.settings import PROFILE_COLOURS
+from kidnix_shell.access import CAPTION_MIN_PT, CAPTION_PT
+from kidnix_shell.settings import PROFILE_BADGES, PROFILE_COLOURS
+from kidnix_shell.sun import (
+    SUN_EDGE_INNER,
+    SUN_EDGE_OUTER,
+    SUN_FILL,
+    SUN_WARM_FILL,
+)
 
 THEME = Path(__file__).resolve().parents[1] / "kidnix_shell" / "theme.css"
 
@@ -257,6 +266,14 @@ def test_the_highlight_is_still_the_only_reserved_colour() -> None:
         ":focus-visible",
         "button:focus-visible",
         ".tile:focus-visible",
+        # The same ring, painted by the shell rather than by GTK. It has to
+        # exist because focus is per-toplevel and the band is a toplevel of its
+        # own: `:focus-visible` stops drawing on whichever of the two windows
+        # the compositor has not focused, which is exactly the half a keyboard
+        # user has just tabbed into (kidnix_shell.keyboard).
+        ".kid-focus",
+        "button.kid-focus",
+        ".tile.kid-focus",
         ".hold-progress progress",
         ".band button.offer.kid-new",
     }
@@ -301,3 +318,222 @@ def test_the_shipped_font_packages_still_match_the_stylesheet() -> None:
     for family in ("Andika", "Atkinson Hyperlegible Next"):
         assert f'check_family "{family}"' in installed, family
         assert f'"{family}"' in css(), family
+
+
+# --- the focus ring, on both surfaces (M1) --------------------------------
+#
+# The accessibility review recomputed every literal on the band and found four
+# failures in a row, all of them the same mistake: a colour checked against the
+# cream content window and never against the teal band it also lands on.
+
+
+def strokes(selector: str) -> list[str]:
+    """Every solid colour in a rule's ``box-shadow``, resolved to hex."""
+    try:
+        value = declaration(selector, "box-shadow")
+    except AssertionError:
+        return []
+    return [resolved(token) for token in re.findall(r"@[\w-]+", value)]
+
+
+def test_the_focus_ring_has_a_stroke_that_clears_three_to_one_on_the_band() -> None:
+    """The failure was 2.90:1 -- yellow on teal, with nothing behind it.
+
+    ``outline-offset: 2px`` put the reserved yellow *outside* the control, so
+    on the content window it had the control's ink border beside it and on the
+    band it had the tint. The ring is three layers now, and this is the layer
+    that answers 1.4.11 on the band: it has to clear 3:1 against **all four**
+    profile primaries, which is what rules ``@kid-ink`` out (1.34:1 on the navy
+    profile) and what ``@kid-paper`` clears.
+    """
+    palette = colours()
+    outer = strokes(".kid-focus")
+    assert outer, "the focus ring declares no box-shadow stroke"
+    for primary, _secondary in PROFILE_COLOURS:
+        assert any(contrast(colour, primary) >= NON_TEXT_MIN for colour in outer), (
+            primary,
+            outer,
+        )
+    # ...and the inner edge is what carries it on the cream window.
+    edge = resolved(declaration(".kid-focus", "border-color"))
+    assert contrast(edge, palette["kid-paper"]) >= NON_TEXT_MIN
+
+
+def test_the_focus_ring_sits_inside_the_control_it_is_on() -> None:
+    """A negative offset is the whole fix: the yellow lands on the control."""
+    for selector in (".kid-focus", ":focus-visible"):
+        offset = declaration(selector, "outline-offset")
+        assert offset.strip().startswith("-"), (selector, offset)
+
+
+def test_a_focused_band_control_has_a_fill_for_the_ring_to_sit_on() -> None:
+    """The sun and the gate draw no chrome; while focused they borrow some.
+
+    Without it the ring on the sun would be yellow directly on the tint, which
+    is the failure this whole section exists for.
+    """
+    fill = resolved(declaration(".band button:focus-visible", "background-color"))
+    for primary, _secondary in PROFILE_COLOURS:
+        assert contrast(fill, primary) >= NON_TEXT_MIN, primary
+
+
+def test_the_band_button_has_no_margin_eating_its_target() -> None:
+    """m1: 69 x 77 px measured against a 72 px request, i.e. 17.2 mm.
+
+    A CSS margin comes off the widget's own allocation, so ``margin: 0 4px``
+    on a band button is 8 mm... 8 *px* off the hit area, which put it 4% under
+    the floor. The gap is the container's ``spacing`` now.
+    """
+    assert "margin" not in block(".band button")
+
+
+# --- the sun, in every phase (M1) -----------------------------------------
+
+
+def test_the_sun_is_outlined_against_every_band_colour() -> None:
+    """No yellow can clear 3:1 on teal, so the *outline* carries 1.4.11.
+
+    A fill bright enough would need a relative luminance of about 0.75, which
+    is nearly white and is not a sun. Both the ordinary and the warm sun are
+    checked, because the measured failure was worst exactly when it mattered
+    most: 1.99:1 in the last six minutes of the session.
+    """
+    for fill in (SUN_FILL, SUN_WARM_FILL):
+        # The outer stroke separates the sun from the band...
+        for primary, _secondary in PROFILE_COLOURS:
+            assert contrast(SUN_EDGE_OUTER, primary) >= NON_TEXT_MIN, (fill, primary)
+        # ...and the inner one separates it from the sun.
+        assert contrast(SUN_EDGE_INNER, fill) >= NON_TEXT_MIN, fill
+
+
+def test_the_warm_sun_is_warmer_and_no_darker_than_it_was() -> None:
+    """Warm, never red, and no longer the darkest thing on the band."""
+    assert luminance(SUN_WARM_FILL) > luminance("#fa9e30")  # the measured 1.99:1
+    assert luminance(SUN_WARM_FILL) < luminance(SUN_FILL)  # still a change of light
+
+
+def test_the_ghost_outline_and_the_horizon_are_the_same_two_strokes() -> None:
+    """They were white at 30% and 55% -- 1.59:1 and 2.30:1.
+
+    The ghost is the reference that makes the shrinking legible as *loss*
+    rather than as a picture that happens to be small today, so it is the last
+    thing that should be invisible. Both are drawn in the sun's own outer
+    stroke now, which is checked above.
+    """
+    assert colours()["kid-paper"] == SUN_EDGE_OUTER
+    assert colours()["kid-ink"] == SUN_EDGE_INNER
+
+
+# --- colour is whose it is, and so is shape (M2) --------------------------
+#
+# Vienot, Brettel & Mollon (1999): simulate a dichromat's view by projecting
+# linear RGB onto the plane the missing cone cannot separate. The old palette's
+# pairs 2 and 4 came out #6d6d35 and #757500 -- the same colour.
+
+
+def _to_linear(value: int) -> float:
+    return _channel(value)
+
+
+def _from_linear(value: float) -> int:
+    value = max(0.0, min(1.0, value))
+    srgb = 12.92 * value if value <= 0.0031308 else 1.055 * value ** (1 / 2.4) - 0.055
+    return round(255 * srgb)
+
+
+PROTANOPIA = (
+    (0.152286, 1.052583, -0.204868),
+    (0.114503, 0.786281, 0.099216),
+    (-0.003882, -0.048116, 1.051998),
+)
+DEUTERANOPIA = (
+    (0.367322, 0.860646, -0.227968),
+    (0.280085, 0.672501, 0.047413),
+    (-0.011820, 0.042940, 0.968881),
+)
+
+
+def simulate(colour: str, matrix: tuple[tuple[float, ...], ...]) -> str:
+    linear = [_to_linear(channel) for channel in rgb(colour)]
+    out = [sum(row[index] * linear[index] for index in range(3)) for row in matrix]
+    red, green, blue = (_from_linear(value) for value in out)
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def separation(first: str, second: str) -> float:
+    """Distance in linear RGB, weighted towards the channels an eye trusts."""
+    one = [_to_linear(channel) for channel in rgb(first)]
+    two = [_to_linear(channel) for channel in rgb(second)]
+    return math.sqrt(
+        2 * (one[0] - two[0]) ** 2 + 4 * (one[1] - two[1]) ** 2 + 3 * (one[2] - two[2]) ** 2
+    )
+
+
+#: What the old green/rust pair scored under deuteranopia. Anything at or below
+#: this is "the same colour" to the ~8% of boys who are colour-blind.
+COLLAPSED = 0.11
+#: The bar the new palette clears, on every pair, under both simulations.
+CVD_MIN = 0.35
+
+
+@pytest.mark.parametrize(
+    "simulation", [DEUTERANOPIA, PROTANOPIA], ids=["deuteranopia", "protanopia"]
+)
+def test_no_two_profile_colours_collapse_under_colour_blindness(
+    simulation: tuple[tuple[float, ...], ...],
+) -> None:
+    primaries = [primary for primary, _secondary in PROFILE_COLOURS]
+    for first, second in itertools.combinations(primaries, 2):
+        distance = separation(simulate(first, simulation), simulate(second, simulation))
+        assert distance > COLLAPSED, (first, second, distance)
+        assert distance >= CVD_MIN, (first, second, distance)
+
+
+def test_four_colours_cannot_be_three_to_one_apart_and_that_is_arithmetic() -> None:
+    """Why :data:`PROFILE_BADGES` exists, written down as a calculation.
+
+    The reviewer asked for every pair of profile colours to be >= 3:1 apart in
+    luminance. Four colours pairwise 3:1 apart span 27:1, and the band's own
+    rule -- a paper button must clear 3:1 against the tint -- caps every
+    primary at a relative luminance of 0.267, which is a span of 6.3:1. It is
+    not an oversight, it is impossible, so identity gets a *shape* as well.
+    """
+    ceiling = (luminance("#fbf7ef") + 0.05) / 3 - 0.05
+    for primary, _secondary in PROFILE_COLOURS:
+        assert luminance(primary) <= ceiling + 0.001, primary
+    span = (ceiling + 0.05) / 0.05
+    assert span < 3**3, span
+
+
+def test_every_profile_has_a_shape_of_its_own_and_the_shell_ships_it() -> None:
+    """Colour = whose it is; shape = whose it is too, when colour cannot be."""
+    assert len(set(PROFILE_BADGES)) == len(PROFILE_BADGES)
+    assert len(PROFILE_BADGES) >= len(PROFILE_COLOURS)
+    icons = Path(__file__).resolve().parents[1] / "kidnix_shell" / "data" / "icons"
+    for badge in PROFILE_BADGES:
+        assert (icons / f"kidnix-badge-{badge}.svg").is_file(), badge
+
+
+# --- captions (B2) --------------------------------------------------------
+
+
+def test_the_caption_strip_is_ink_on_paper_and_big_enough_to_read() -> None:
+    palette = colours()
+    assert contrast(resolved(declaration(".kid-captions", "color")), palette["kid-paper"]) >= (
+        CHILD_TEXT_MIN
+    )
+    points = float(declaration(".kid-captions", "font-size").rstrip("pt"))
+    assert points >= CAPTION_MIN_PT
+    # And the stylesheet and the band's height budget say the same number: a
+    # caption drawn bigger than it was budgeted is a band window the
+    # compositor cannot place.
+    assert points == CAPTION_PT
+
+
+def test_the_dim_surfaces_recolour_all_of_their_typography() -> None:
+    """Not just ``.big-line`` and ``.screen-title``: a Resting screen that
+    showed a ``.quiet-line`` drew near-black ink on a dim surface."""
+    body = css()
+    for surface in (".sleeping", ".resting"):
+        for kind in (".quiet-line", ".tile-label", ".kid-captions"):
+            assert f"{surface} {kind}" in body, (surface, kind)

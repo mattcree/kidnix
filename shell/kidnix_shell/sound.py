@@ -60,9 +60,11 @@ import random
 import struct
 import time
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
+
+from .access import AccessConfig
 
 log = logging.getLogger(__name__)
 
@@ -75,8 +77,28 @@ SAMPLE_RATE = 44_100
 #: noise burst and a sine sit at the same loudness without anyone guessing.
 PEAK = 0.45
 FADE_MS = 6.0  # a click at the edge of a 90 ms sound is the whole sound
-#: 08 section 3.6, and now without the exception v0.1.3 carved for ``sleep``.
-MAX_EARCON_MS = 400.0
+
+#: **Every earcon fades in over at least this long** (06 section 7.4 #26, panel
+#: ruling 7d #7, forum #39). Sudden unexpected sound is the most frequently
+#: identified auditory sensory trigger for autistic children (06 section 4.3),
+#: and until 2026-08-23 four of the five earcons attacked in **0.4-4.0 ms**.
+#:
+#: This is not free and the cost should not be hidden: an attack floor turns a
+#: *tap* from a transient into a small swell, and a tap is press feedback, so
+#: the child now hears the confirmation arrive over 150 ms rather than at once.
+#: Sesame's own guidance would put press feedback under 100 ms. The ruling is
+#: explicit and unconditional ("all earcons gain >= 150 ms fade-in regardless
+#: of calm"), so it is implemented as written, and the trade is recorded here
+#: and in the implementation notes rather than quietly softened: **if a child
+#: test finds the tap now reads as laggy, the exception belongs to `tap` and
+#: nothing else**, because a tap is the one sound the child themselves caused.
+ATTACK_FLOOR_MS = 150.0
+#: The tail an earcon keeps after its attack, so the fade-in is a fade-in and
+#: not the whole sound.
+MIN_TAIL_MS = 60.0
+#: 08 section 3.6 said 400 ms. :data:`ATTACK_FLOOR_MS` has to fit inside a
+#: sound before it can be a fade-in of one, so the ceiling moves with it.
+MAX_EARCON_MS = 600.0
 
 KEEP = "keep"
 TAP = "tap"
@@ -334,6 +356,34 @@ def _one_pole(samples: list[float], cutoff_hz: float, sample_rate: int) -> list[
     return out
 
 
+def with_attack_floor(earcon: Earcon, floor_ms: float = ATTACK_FLOOR_MS) -> Earcon:
+    """The same earcon, with every layer given a >= ``floor_ms`` fade-in.
+
+    Applied to the *layers* rather than to the mixed buffer, and that is the
+    only honest way to do it: ramping a finished 70 ms sound over 150 ms would
+    be 80 ms of silence followed by a fragment, which is a delay, not a fade.
+    So a short layer is lengthened enough to have 150 ms of its own material
+    to fade in, and its decay is relaxed in proportion so the tail does not
+    eat the attack it now has.
+    """
+    if floor_ms <= 0:
+        return earcon
+    layers = []
+    for layer in earcon.layers:
+        if layer.attack_ms >= floor_ms:
+            layers.append(layer)
+            continue
+        wanted = floor_ms + MIN_TAIL_MS
+        length = max(layer.milliseconds, wanted)
+        # A decay constant is per-sound, not per-millisecond: stretching the
+        # sound without stretching the curve would leave it as short as it was.
+        curve = layer.curve * (layer.milliseconds / length) if length > 0 else layer.curve
+        layers.append(
+            replace(layer, attack_ms=floor_ms, milliseconds=length, curve=max(0.8, curve))
+        )
+    return replace(earcon, layers=tuple(layers))
+
+
 def mix(earcon: Earcon, sample_rate: int = SAMPLE_RATE) -> list[float]:
     """Every layer, summed onto one timeline and **normalised**.
 
@@ -342,6 +392,7 @@ def mix(earcon: Earcon, sample_rate: int = SAMPLE_RATE) -> list[float]:
     ear should not hear "back" as half the loudness of "keep" because of an
     arithmetic accident. The peak lands on ``PEAK * earcon.level`` exactly.
     """
+    earcon = with_attack_floor(earcon)
     rng = random.Random(earcon.seed)
     total = max(1, int(sample_rate * earcon.milliseconds / 1000.0))
     buffer = [0.0] * total
@@ -408,6 +459,14 @@ class GstPlayer:
         self._gst: Any = None
         self._players: dict[str, Any] = {}
         self._broken = False
+        self._volume = 1.0
+
+    def set_volume(self, volume: float) -> None:
+        """``playbin``'s own volume, 0.0-1.0. Under the hardware ceiling."""
+        self._volume = max(0.0, min(1.0, volume))
+        for player in self._players.values():
+            with contextlib.suppress(Exception):
+                player.set_property("volume", self._volume)
 
     def _init_gst(self) -> Any:
         if self._gst is not None or self._broken:
@@ -437,6 +496,7 @@ class GstPlayer:
                 if player is None:
                     raise RuntimeError("playbin is not installed")
                 player.set_property("uri", path.as_uri())
+                player.set_property("volume", self._volume)
                 bus = player.get_bus()
                 bus.add_signal_watch()
                 bus.connect("message::eos", self._on_finished, player)
@@ -480,6 +540,10 @@ class NullPlayer:
 
     def __init__(self) -> None:
         self.played: list[Path] = []
+        self.volume = 1.0
+
+    def set_volume(self, volume: float) -> None:
+        self.volume = volume
 
     def play(self, path: Path) -> bool:
         self.played.append(path)
@@ -503,11 +567,17 @@ class Earcons:
         cache_dir: Path | None = None,
         enabled: bool = True,
         player: Any = None,
+        access: AccessConfig | None = None,
     ) -> None:
         self.directory = directory or package_sounds_dir()
         self.cache_dir = cache_dir
         self.enabled = enabled
+        #: ``[access]``: the volume, the mute and calm mode's shorter set.
+        #: The image's 70% hardware ceiling is underneath all of it and is not
+        #: reachable from here -- this is the *control* the ceiling is not.
+        self.access = access or AccessConfig()
         self.player = player if player is not None else GstPlayer()
+        self.set_volume(self.access.effective_volume)
         self._last = 0.0
         self._paths: dict[str, Path] = {}
         self._warned = False
@@ -557,13 +627,31 @@ class Earcons:
 
     # -- playing --
 
+    def set_access(self, access: AccessConfig) -> None:
+        """Take a new ``[access]`` -- the grown-up sheet's volume row does this."""
+        self.access = access
+        self.set_volume(access.effective_volume)
+
+    def set_volume(self, volume: float) -> None:
+        setter = getattr(self.player, "set_volume", None)
+        if setter is not None:
+            setter(max(0.0, min(1.0, volume)))
+
     def play(self, name: str, *, speaking: bool = False) -> bool:
         """Play ``name``. Returns whether a sound actually started.
 
         ``speaking=True`` means the shell is talking: earcons duck under the
         voice rather than competing with it.
+
+        Calm mode keeps :data:`kidnix_shell.access.CALM_EARCONS` and drops the
+        rest, and a muted or zero-volume shell plays nothing at all. Both
+        answers come from :meth:`~kidnix_shell.access.AccessConfig.
+        earcon_allowed`, so "which sounds are on" is one pure function with a
+        headless test rather than a condition spread over five call sites.
         """
         if not self.enabled or speaking:
+            return False
+        if not self.access.earcon_allowed(name):
             return False
         now = time.monotonic()
         if now - self._last < MIN_GAP_SECONDS:

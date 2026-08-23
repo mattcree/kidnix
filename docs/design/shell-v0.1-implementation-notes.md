@@ -2163,3 +2163,272 @@ screenshot is the refusal a child would really get.
    both say it needs to show the *activity continuing*, or a sand timer with a
    little left. `kidnix-finish.svg` was redrawn in this pass; this one was not.
 6. Everything still open in §§18.9, 19.5 and 20.6 that this pass did not touch.
+
+## 22. v0.1.8 — the accessibility wave (2026-08-23)
+
+> Implementer's seventh report. The accessibility and inclusive-design
+> specialist's review (`docs/design/reviews/2026-08-23-accessibility-
+> specialist.md`) is a **conditional fail for a disabled child's first
+> session**, and its three blockers were all the same shape: a thing the shell
+> had decided not to have. There was no key controller, no caption, no calm
+> switch — so there was nothing to fix, only something to build. Spec §7d #7
+> and ADR-0011 are what this implements.
+>
+> It opens with a regression that had nothing to do with accessibility and
+> everything to do with why the accessibility numbers were wrong: **the shell
+> did not know what a point was.**
+
+### 22.0 The geometry regression, and the assumption under it
+
+`just test-e2e -k test_01` against the wave-A image failed with the shell's own
+line:
+
+```
+shell geometry WRONG: band 0,0 1280x92 (wanted 1280x92),
+                      content 0,92 1280x790 (wanted 1280x708)
+```
+
+Diagnosed in the VM, hot-patched over `bootc usr-overlay`, in four layers:
+
+1. **`labels.FONT_DPI = 96` was false on the image.** Its own dconf sets
+   `text-scaling-factor=1.3` (`system_files/usr/share/kidnix/dconf/kid.d/
+   10-input`), so GTK reports **124.8 dpi** and every point size in
+   `theme.css` is drawn 30% larger than the layout budgets for. The shell's
+   type scale is *already* the accessibility decision — an 18 pt floor, a
+   40 pt headline, all of it floored in `Metrics.child_points` — so the
+   session's factor was being applied to it a second time.
+   `metrics.pin_font_dpi()` now draws the shell's own points at the density
+   they are specified at and leaves the session setting alone, so every other
+   program in the child's session keeps the larger text the image asked for.
+   It logs both numbers. `Metrics.font_dpi` is measured either way, so the
+   arithmetic is right even where the pin cannot run.
+2. **`LINE_SPACING` was 1.45; Andika's real line box is 1.62 em** (measured
+   against Pango on the image at 18–40 pt). The two-line label box a tile
+   reserves therefore never fitted two real lines, `fit_label` fell through to
+   its *unbounded* last-resort branch, and every tile came out 34 px taller
+   than the grid had budgeted. **The symptom was not a clipped label** — the
+   no-cut rule held — it was a content window 100 px taller than its strip,
+   with every headless test green.
+3. **`Metrics.required_size()` modelled only Home.** The shell has three
+   shapes: an untitled grid (Home), a titled grid (What's next after) and the
+   chooser (Who's here). The other two are taller, so the measured backstop was
+   left to discover them on every boot — and could not close the gap.
+   `choice_size()` and `chooser_size()` are the fix, and What's next after now
+   pages at `choice_per_page` (one row fewer than Home), which is also
+   SYNTHESIS B2's "at most five choices on a choice screen".
+4. **The backstop itself stalled.** `Metrics.shrunk_by` spent `chrome_fit`
+   until it reached the last `CHROME_STEPS` value, on the assumption that
+   spending chrome always buys pixels. It does not: the gap, the band and the
+   pager bottom out at their own floors long before that, and seven passes of
+   "shrinking by 0.874" changed nothing. It asks `chrome_is_spent()` now, and
+   `ShellWindow._check_measured_fit` tells it outright when a pass measured
+   exactly what the last one did. Exhausting the attempts is an **ERROR** with
+   the metrics in it, and `_tallest_screen()` names which surface is the
+   problem — finding that out used to mean editing the shell and reflashing.
+
+Verified in the VM, on the real compositor, with the whole wave applied:
+
+```
+shell geometry ok: band 0,0 1280x154 (wanted 1280x154),
+                   content 0,154 1280x646 (wanted 1280x646)
+```
+
+first pass, no shrinking, 42.5 mm tiles, 20.0 mm band buttons.
+
+> **`just test-e2e` still needs an image rebuild** to go green from a clean
+> boot: `output/qcow2/disk.qcow2` is built from wave A. The verification above
+> is the same code, hot-patched into the same VM.
+
+### 22.1 B1 — the shell is operable without a pointer
+
+`kidnix_shell/keyboard.py`, `access.FocusRing`, `band.HoldButton`.
+
+The finding, in the reviewer's words: "there is no keyboard route to Back,
+Undo, My Things, the Ear, the sun or the gate, **ever**", and the gate's
+promised keyboard route was `self.connect("clicked", lambda _b: None)` — a
+literal no-op, so a parent with a tremor or one hand could not open the sheet
+at all. Nothing called `grab_focus()`, so a fresh Home had zero `FOCUSED`
+nodes in the AT-SPI tree.
+
+Four decisions, and the second is the load-bearing one:
+
+* **One `Gtk.EventControllerKey`, attached to both toplevels**, in the capture
+  phase. Tab cannot cross a Wayland toplevel boundary and `40-lockdown.sh`
+  blanks all 102 mutter keybindings; whichever window the compositor focused,
+  the key arrives at the same handler.
+* **The shell owns the focus, not GTK.** Keyboard focus is per-toplevel, so
+  `:focus-visible` stops drawing on whichever of the two windows the
+  compositor has *not* focused — precisely the half a child has just tabbed
+  into. So the ring is kept in `FocusRing`, the indicator is a class the shell
+  adds itself (`.kid-focus`, the same three layers as `:focus-visible`), and
+  **activation is dispatched by us**. We deliberately do *not* `present()` the
+  content window to chase the ring: that would raise it over the child's
+  drawing, which is the one thing the band exists to avoid.
+* **Tab is one cycle, band first**, and the arrows do the same thing. Band
+  first because it is the half that never changes: a child navigating by
+  position meets the same controls in the same order on every surface. A
+  carousel contributes only the page that is showing.
+* **Escape is Back** — the shell's own Back, so it cannot mean anything Back
+  does not, including the three dead seconds on Put away.
+
+The gate keeps its own grammar: Enter or Space **held for three seconds** (the
+same three the pointer hold is — a gate that is easier by keyboard is not a
+gate), *or* **five presses inside three seconds**, because a switch is a button
+and cannot say "and keep it down".
+
+`Keyboard.key()` is an ordinary method, which is what makes this testable:
+`test_a_whole_session_without_touching_the_mouse` drives Who's here → What's
+next after → Home → an activity → Back → All done → Goodbye with nothing but
+key values.
+
+### 22.2 B2 — nothing essential is audio-only
+
+`band.CaptionStrip`, `SpeechManager.on_caption`.
+
+AGENTS.md §3.4 says "nothing essential is text-only". The inverse was nowhere,
+and was being violated systematically: 13 messages in `app.py` with no
+on-screen counterpart, of which the one that costs most is
+`"{name} is asking if you're done."` — the moment a deaf child either presses
+the activity's tick or loses the drawing.
+
+A strip under the band mirrors **every** spoken line for four seconds, at 20 pt
+ink on paper (16.6:1). Two things make it a real answer rather than a widget:
+
+* **The hook is inside `SpeechManager.speak`, before the "is speech enabled?"
+  check.** There is no code path that says something without showing it —
+  including the path where speech-dispatcher is dead, which is exactly when a
+  caption is worth most. `tests/test_access.py` walks the package's AST and
+  fails on any `.speak(` whose receiver is not the manager, and asserts
+  `backend.speak(` appears in exactly one module.
+* **It is in the band *window*.** The lines that matter most — put-away, the
+  ending offer — are said while an activity covers the content window. The
+  compositor gives the band window one rectangle and both live in it
+  (`Metrics.band_window_height`), so the caption can never cover content:
+  `content_height` is what is left.
+
+`captions = true` is the default. One line at the 18 pt floor is ~57
+characters on the narrowest panel we ship for and the longest thing the shell
+says is 50, which is asserted headlessly against the package's own literals.
+
+### 22.3 B3 — calm mode, and a volume control that is not a ceiling
+
+`kidnix_shell/access.py`, `[access]` in both `parent.toml` copies, and four
+rows on the grown-up sheet.
+
+`calm = true` is **one switch**, because the children it serves — autistic,
+ADHD, sensory-defensive, anxious — are not four settings: reduced motion (the
+stack cuts instead of sliding, the offer arrives without its scale-in, the
+put-away flight is skipped), only the `keep` earcon, and a slightly slower
+voice. Reduced motion is *also* honoured from `gtk-enable-animations`, which
+the image sets and the shell had never read (WCAG 2.2 SC 2.3.3).
+
+`sound_volume` and `mute` are the control the 70% hardware ceiling is not.
+Mute is safe *because* captions default on: a muted shell still shows every
+line, so it is quiet rather than broken.
+
+**Earcon attacks are ≥ 150 ms**, unconditionally (06 §7.4 #26, forum #39: four
+of the five attacked in 0.4–4.0 ms, and sudden unexpected sound is the most
+frequently identified auditory trigger). It is applied to the *layers*
+(`sound.with_attack_floor`) rather than to the mixed buffer, because ramping a
+finished 70 ms sound over 150 ms is 80 ms of silence, not a fade.
+**This has a cost and it should not be hidden:** `tap` is press feedback, and a
+tap that swells over 150 ms is 150 ms of latency on the confirmation a child
+caused. The ruling is explicit and unconditional so it is implemented as
+written — but if a child test finds the tap reads as laggy, the exception
+belongs to `tap` and to nothing else.
+
+### 22.4 M1/M2 — the contrast, recomputed
+
+Every failure the reviewer found was the same mistake: a colour checked against
+the cream content window and never against the teal band it also lands on.
+
+| | was | now |
+|---|---|---|
+| focus ring on the band | 2.90:1 | paper outer stroke, **3.91:1** worst tint |
+| the sun | 2.98:1 | paper outer stroke + ink inner stroke |
+| the **warm** sun | 1.99:1 | `#ffc14d`, and the outline carries 1.4.11 |
+| ghost start outline | 1.59:1 | solid paper, same stroke as the sun |
+| horizon line | 2.30:1 | solid paper |
+
+The ring is **three layers** and each does a different job on a different
+surface: the reserved yellow carries the meaning and can never be a boundary
+(1.35:1 on paper, 2.90:1 on teal); an ink border is the boundary on cream
+(16.6:1); a **paper** outer stroke is the boundary on the band. Paper, not ink
+— ink is only 1.34:1 against the navy profile. `outline-offset` is negative so
+the yellow lands *on* the control, which is the actual bug: it was `+2px`.
+
+No yellow can clear 3:1 against a teal band — it would need a relative
+luminance of 0.75, which is nearly white and is not a sun — so on the sun the
+**outline** carries 1.4.11 and the fill is free to mean "the light has
+changed".
+
+`PROFILE_COLOURS` was rechosen under Viénot 1999 simulation: green and rust
+were 0.11 apart under deuteranopia (the same colour); every pair is now ≥ 0.40
+apart under both deuteranopia and protanopia. And **four colours cannot be made
+pairwise 3:1 apart in luminance** — four need a 27:1 span and "a paper button
+must clear 3:1 against the tint" caps the span at 6.3:1. That is arithmetic,
+not an oversight, which is why identity now has a **shape** as well:
+`PROFILE_BADGES` (star, leaf, moon, wave), drawn in the corner of the child's
+own face on Who's here. All of it is recomputed in `tests/test_theme_css.py`.
+
+### 22.5 ADR-0011 — 20 mm, measured
+
+`MIN_TARGET_MM` is 20, the band clamp is 80–136, and the icon's floor is 45% of
+the tile. The band button's `margin: 0 4px` is **gone**: a CSS margin comes off
+the widget's own allocation, which is why the reviewer measured 69×77 px
+against a 72 px request — 17.2 mm, 4% under the old floor. The gap is the
+container's `spacing` now, and `test_gtk_smoke` asserts the *measured* width in
+millimetres rather than the number we asked for.
+
+What it costs, named rather than tolerated (`tests/test_metrics.TIGHT_PANELS`):
+1280×800 keeps its 42.3 mm tile; 1280×800@118 falls to 37.2 mm and
+1280×720@113/2 to 20 mm; the latter has no fitting layout at all
+(`OUT_OF_HEIGHT`) and says so with an ERROR rather than shipping a window that
+overhangs the panel. Who's here gave up one gap of dead space above and below
+its faces to pay for the rest — its floors (a 30 mm face, a 20 mm corner tile,
+a 40 pt headline) cannot be traded, so its *spacing* is what gives way.
+
+### 22.6 Tests
+
+New: `tests/test_access.py` (30 headless tests: the `[access]` schema, calm's
+earcon set, the caption invariant and its two AST walks, the switch pattern,
+the ring's order and its skips). Extended: `test_theme_css.py` (the three-layer
+ring, the sun's strokes, CVD simulation, the badge set), `test_metrics.py`
+(the 20 mm floors, the tight panels, the chrome-is-spent predicate),
+`test_gtk_smoke.py` (focus on every arrival, Tab and Shift-Tab, Escape,
+**a whole session on the keyboard alone**, the real key-hold and the switch
+pattern, band buttons measured in millimetres, the caption strip mirroring
+speech and surviving mute, calm mode, the dim surfaces on the *windows*, and a
+fit budget for **every** ritual screen at two panels — S5 and S8 had never been
+measured).
+
+`just lint` and `just test-headless` are green. Screenshots at 1280x800@102:
+`demo-a11y-home.png` (captions + the focus ring), `demo-a11y-offer.png` (the
+band offer wearing the reserved ring), `demo-a11y-resting.png` (the whole
+window dim, with the refusal captioned).
+
+### 22.7 Still open after this pass
+
+1. **The tap's 150 ms attack.** §22.3. The ruling was unconditional; the cost
+   is real; a child test should settle it.
+2. **`text-scaling-factor = 1.3` in the image's dconf is now inert for the
+   shell** and live for everything else. That is the right split, but it is a
+   *shell* decision about a *system* file: the thinker should say whether the
+   shell's type scale is the accessibility decision (it is what §22.0 assumes)
+   or whether the two should compose.
+3. **1280×720 at scale 2 does not fit.** Every floor kidnix has adds up to more
+   than 720 logical pixels. Recorded in `OUT_OF_HEIGHT` rather than dropped, so
+   changing it is deliberate.
+4. **The ring does not scan.** 06 §4.4 says a two-switch scan follows for free
+   once everything is keyboard-reachable, and it now is — but the scan itself
+   (a timer walking the ring, one switch to advance, one to select) is not
+   written. It is ~20 lines on top of `FocusRing` and belongs with a real
+   switch user in the room.
+5. **Orca is still half-supported.** The AT-SPI tree is good and the review's
+   question 2 stands: claim it, decline it, or test it once and publish the
+   result.
+6. **The parent panel owns none of this yet.** `[access]` is four keys in a
+   root-owned file and four rows on the grown-up sheet that hold for one boot.
+7. Everything still open in §§18.9, 19.5, 20.6 and 21.10 that this pass did not
+   touch — in particular `kidnix-one-more.svg`, which still does not depict
+   anything.

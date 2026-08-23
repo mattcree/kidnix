@@ -2,8 +2,9 @@
 
 ``[Back] [Undo] [My Things] ...... [sun] ...... [Ear] [Grown-up]``
 
-96 design px at the top of the screen, clamped to 80-128 px so it can never
-grow past the panel (spec 7a). It never hides, never scrolls, never reorders,
+96 design px at the top of the screen, clamped to 80-136 px so it can never
+grow past the panel (spec 7a, as revised by ADR-0011's 20 mm target floor).
+Under it, in the same window, is the caption strip (:class:`CaptionStrip`). It never hides, never scrolls, never reorders,
 and it is tinted in the active child's colours. It is the only piece of chrome
 in the shell and the child's fixed point in it.
 
@@ -39,24 +40,50 @@ instrument: how often a child asks the sun is a number worth having.
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
+from .access import (  # noqa: E402
+    CAPTION_PT,
+    CAPTION_SECONDS,
+    HOLD_SECONDS,
+    SWITCH_PRESSES,
+    SWITCH_WINDOW_SECONDS,
+    SwitchHold,
+)
 from .metrics import BAND_CHROME_PX, Metrics  # noqa: E402
 from .session import NOT_RUNNING  # noqa: E402
-from .sun import SunGeometry, sun_geometry  # noqa: E402
+from .sun import (  # noqa: E402
+    SUN_EDGE_INNER,
+    SUN_EDGE_INNER_PX,
+    SUN_EDGE_OUTER,
+    SUN_EDGE_OUTER_PX,
+    SUN_FILL,
+    SUN_WARM_FILL,
+    SunGeometry,
+    sun_geometry,
+)
 from .widgets import ChildButton, SpeechUI, icon_image, next_key  # noqa: E402
 
 #: Spec section 2 / SYNTHESIS G2: the grown-up gate is a three-second hold.
 #: Sesame's rule -- a hold is only ever appropriate as a deliberate barrier,
 #: which is exactly what this is. No child control anywhere uses one.
-HOLD_SECONDS = 3.0
+#: :data:`kidnix_shell.access.HOLD_SECONDS` is the number; it is shared with
+#: the keyboard route so the two can never drift.
 HOLD_TICK_MS = 50
+
+
+def _rgb(colour: str) -> tuple[float, float, float]:
+    """``#rrggbb`` to cairo's 0-1 triple."""
+    text = colour.lstrip("#")
+    return tuple(int(text[i : i + 2], 16) / 255.0 for i in (0, 2, 4))  # type: ignore[return-value]
+
 
 #: Spec 7a: hide Ask until the flow exists. Flip to True the day it does --
 #: :class:`BandActions` and the icon are both still here.
@@ -146,17 +173,39 @@ class Sun(Gtk.DrawingArea):
         return sun_geometry(self.fraction, width, height)
 
     def _draw(self, _area: Gtk.DrawingArea, cr: object, width: int, height: int) -> None:
+        """Every shape twice: an ink line inside, a paper line outside.
+
+        The outline is what carries WCAG 1.4.11 here, not the fill. No yellow
+        clears 3:1 against a teal band -- it would have to be nearly white --
+        so the boundary is a stroke that does, and paper is the only colour in
+        the palette that clears 3:1 against all four profile primaries. See
+        :mod:`kidnix_shell.sun` for the four measured failures this replaces.
+        """
         ctx = cr  # cairo.Context
         geometry = self.geometry(width, height)
         margin = self._metrics.design(12)
+        inner = _rgb(SUN_EDGE_INNER)
+        outer = _rgb(SUN_EDGE_OUTER)
+
+        def circle(
+            centre_y: float, radius: float, colour: tuple[float, float, float], line: float
+        ) -> None:
+            ctx.set_source_rgb(*colour)  # type: ignore[attr-defined]
+            ctx.set_line_width(line)  # type: ignore[attr-defined]
+            ctx.arc(geometry.centre_x, centre_y, max(0.5, radius), 0, 2 * math.pi)  # type: ignore[attr-defined]
+            ctx.stroke()  # type: ignore[attr-defined]
 
         # Where the sun started, and how big it was: the part that has gone.
-        ctx.set_line_width(2.5)  # type: ignore[attr-defined]
-        ctx.set_source_rgba(1, 1, 1, 0.30)  # type: ignore[attr-defined]
-        ctx.arc(  # type: ignore[attr-defined]
-            geometry.centre_x, geometry.start_centre_y, geometry.start_radius, 0, 2 * math.pi
+        # It was white at 30% -- 1.59:1 -- and it is the reference that makes
+        # the shrinking legible as *loss* rather than as a picture that happens
+        # to be small today, so it is the last thing that should be invisible.
+        circle(geometry.start_centre_y, geometry.start_radius, outer, SUN_EDGE_OUTER_PX)
+        circle(
+            geometry.start_centre_y,
+            geometry.start_radius - SUN_EDGE_OUTER_PX,
+            inner,
+            SUN_EDGE_INNER_PX * 0.6,
         )
-        ctx.stroke()  # type: ignore[attr-defined]
 
         # The sun itself, clipped at the horizon so "sinking" is sinking and
         # not a disc sliding over a line.
@@ -164,24 +213,23 @@ class Sun(Gtk.DrawingArea):
         ctx.rectangle(0, 0, width, geometry.horizon_y)  # type: ignore[attr-defined]
         ctx.clip()  # type: ignore[attr-defined]
         # Warm, never red, never pulsing (08 section 4.6).
-        if self.warm:
-            ctx.set_source_rgb(0.98, 0.62, 0.19)  # type: ignore[attr-defined]
-        else:
-            ctx.set_source_rgb(1.0, 0.84, 0.31)  # type: ignore[attr-defined]
+        ctx.set_source_rgb(*_rgb(SUN_WARM_FILL if self.warm else SUN_FILL))  # type: ignore[attr-defined]
         ctx.arc(  # type: ignore[attr-defined]
             geometry.centre_x, geometry.centre_y, geometry.radius, 0, 2 * math.pi
         )
         ctx.fill()  # type: ignore[attr-defined]
-        ctx.set_source_rgba(0, 0, 0, 0.25)  # type: ignore[attr-defined]
-        ctx.set_line_width(2.5)  # type: ignore[attr-defined]
-        ctx.arc(  # type: ignore[attr-defined]
-            geometry.centre_x, geometry.centre_y, geometry.radius, 0, 2 * math.pi
+        circle(geometry.centre_y, geometry.radius, inner, SUN_EDGE_INNER_PX)
+        circle(
+            geometry.centre_y,
+            geometry.radius + SUN_EDGE_INNER_PX / 2 + SUN_EDGE_OUTER_PX / 2,
+            outer,
+            SUN_EDGE_OUTER_PX,
         )
-        ctx.stroke()  # type: ignore[attr-defined]
         ctx.restore()  # type: ignore[attr-defined]
 
-        # The horizon it sinks behind, drawn last so it sits on top.
-        ctx.set_source_rgba(1, 1, 1, 0.55)  # type: ignore[attr-defined]
+        # The horizon it sinks behind, drawn last so it sits on top. White at
+        # 55% was 2.30:1; solid paper is 3.91:1 on the worst of the four tints.
+        ctx.set_source_rgb(*outer)  # type: ignore[attr-defined]
         ctx.set_line_width(4)  # type: ignore[attr-defined]
         ctx.move_to(margin, geometry.horizon_y)  # type: ignore[attr-defined]
         ctx.line_to(width - margin, geometry.horizon_y)  # type: ignore[attr-defined]
@@ -236,17 +284,61 @@ class HoldButton(Gtk.Button):
         motion.connect("leave", self._on_pointer_left)
         self.add_controller(motion)
 
-        # Keyboard route to the same gate: an adult should not have to hold a
-        # mouse button to reach it, but a child pressing Enter should not open
-        # it either -- so the keyboard route is the hold's full duration too.
-        self.connect("clicked", lambda _b: None)
+        # **The keyboard route, for real.** This line used to be
+        # ``self.connect("clicked", lambda _b: None)`` under a comment
+        # promising a keyboard hold: a literal no-op, so a parent with a
+        # tremor, a switch or one hand could not open the grown-up sheet by any
+        # route at all (accessibility review, B1). Two routes now, and the
+        # shell's key controller drives both -- see :meth:`key_pressed`,
+        # :meth:`key_released` and :meth:`switch_press`.
+        self._switch = SwitchHold(SWITCH_PRESSES, SWITCH_WINDOW_SECONDS)
+        self._key_down = False
 
     def _on_pointer_left(self, _c: Gtk.EventControllerMotion) -> None:
         # Sliding off the gate mid-hold cancels it: a hold has to be deliberate.
         self._stop()
 
-    def _start(self, gesture: Gtk.GestureClick) -> None:
-        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+    # -- without a pointer (accessibility review B1) --
+
+    def key_pressed(self) -> bool:
+        """Enter or Space went down on the gate. Start the same three seconds.
+
+        Auto-repeat sends this many times while a key is held, so the second
+        and later presses are ignored rather than restarting the clock.
+        Returns True if a hold is now running.
+        """
+        if self._key_down:
+            return True
+        self._key_down = True
+        self._begin_hold()
+        return True
+
+    def key_released(self) -> bool:
+        """Let go. A hold that has not finished is a hold that did not happen.
+
+        The press is *also* offered to :class:`~kidnix_shell.access.SwitchHold`
+        on the way out: a switch cannot say "and keep it down", so five
+        deliberate presses inside three seconds mean the same thing. Returns
+        True when that pattern completed and the gate should open.
+        """
+        if not self._key_down:
+            return False
+        self._key_down = False
+        completed = self._elapsed >= self._hold_seconds
+        self._stop()
+        if completed:
+            return False  # the tick already opened it
+        opened = self._switch.press(time.monotonic())
+        if opened:
+            self._on_hold()
+        return opened
+
+    @property
+    def switch_presses(self) -> int:
+        """How far through the switch pattern we are. For the progress bar."""
+        return self._switch.pending
+
+    def _begin_hold(self) -> None:
         if self._tick is not None:
             return
         self._elapsed = 0.0
@@ -254,6 +346,10 @@ class HoldButton(Gtk.Button):
         self._progress.set_visible(True)
         self._progress.set_fraction(0.0)
         self._tick = GLib.timeout_add(HOLD_TICK_MS, self._on_tick)
+
+    def _start(self, gesture: Gtk.GestureClick) -> None:
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        self._begin_hold()
 
     def _on_tick(self) -> bool:
         self._elapsed += HOLD_TICK_MS / 1000.0
@@ -274,13 +370,110 @@ class HoldButton(Gtk.Button):
         self._progress.set_visible(False)
 
 
+class CaptionStrip(Gtk.Box):
+    """What the shell just said, written down, for about four seconds.
+
+    **Nothing essential is audio-only.** AGENTS.md section 3.4 says "nothing
+    essential is text-only" and the inverse was nowhere, so it was being
+    violated systematically: thirteen messages in ``app.py`` had no on-screen
+    counterpart, and the one that costs most -- "{name} is asking if you're
+    done." -- is the moment a deaf child either presses the activity's tick or
+    loses their drawing. ~1 in 1,000 UK children is deaf and far more have glue
+    ear at five, which is intermittent and undiagnosed for months.
+
+    It is driven from :attr:`kidnix_shell.speech.SpeechManager.on_caption`,
+    which is called by ``speak()`` itself *before* the "is speech even
+    enabled?" check. That is the whole design: there is no code path that can
+    say something without showing it, including the path where
+    speech-dispatcher is dead. It also serves a noisy room, a broken voice and
+    an emerging reader.
+
+    It lives in the **band** window, under the controls, because the lines that
+    matter most are said while an activity is covering the content window. Its
+    height is reserved (:attr:`kidnix_shell.metrics.Metrics.caption_height`)
+    whether a caption is up or not, so the band never moves; when there is
+    nothing to say it is simply empty.
+    """
+
+    def __init__(self, metrics: Metrics, seconds: float = CAPTION_SECONDS) -> None:
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
+        self.add_css_class("kid-caption-strip")
+        self._seconds = seconds
+        self._handle: int | None = None
+        self.set_size_request(-1, metrics.caption_height)
+
+        self.label = Gtk.Label()
+        self.label.add_css_class("kid-captions")
+        self.label.set_hexpand(True)
+        self.label.set_halign(Gtk.Align.CENTER)
+        self.label.set_valign(Gtk.Align.CENTER)
+        self.label.set_wrap(True)
+        self.label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        self.label.set_ellipsize(Pango.EllipsizeMode.NONE)
+        self.label.set_justify(Gtk.Justification.CENTER)
+        # 18 pt floor like every other child-facing size, restated here because
+        # the strip's height was budgeted from it.
+        self.label.set_attributes(_points(metrics.child_points(CAPTION_PT)))
+        self.append(self.label)
+        # A live region: an assistive technology should hear about a caption
+        # the same way a child sees it, and it is announcement, not a control.
+        self.label.set_accessible_role(Gtk.AccessibleRole.STATUS)
+
+    @property
+    def text(self) -> str:
+        """What is showing. The test hook."""
+        return self.label.get_label() or ""
+
+    def show_caption(self, text: str) -> None:
+        """Put ``text`` up, and take it down again after a few seconds."""
+        text = (text or "").strip()
+        self._cancel()
+        self.label.set_label(text)
+        if not text:
+            return
+        self.label.update_property([Gtk.AccessibleProperty.LABEL], [text])
+        self._handle = GLib.timeout_add(int(self._seconds * 1000), self._expire)
+
+    def clear(self) -> None:
+        self._cancel()
+        self.label.set_label("")
+
+    def _expire(self) -> bool:
+        self._handle = None
+        self.label.set_label("")
+        return False
+
+    def _cancel(self) -> None:
+        if self._handle is not None:
+            GLib.source_remove(self._handle)
+            self._handle = None
+
+
+def _points(points: float) -> Pango.AttrList:
+    attributes = Pango.AttrList.new()
+    attributes.insert(Pango.attr_size_new(max(1, int(points * Pango.SCALE))))
+    return attributes
+
+
 class Band(Gtk.Box):
     """The persistent strip. Present on every child-facing surface."""
 
-    def __init__(self, metrics: Metrics, speech_ui: SpeechUI, actions: BandActions) -> None:
+    def __init__(
+        self,
+        metrics: Metrics,
+        speech_ui: SpeechUI,
+        actions: BandActions,
+        reduced_motion: bool = False,
+    ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.add_css_class("band")
         self._metrics = metrics
+        #: Calm mode, or the desktop's own animations setting. The offer's
+        #: scale-in is the only motion the band has, and it is exactly the
+        #: kind SC 2.3.3 is about -- so it is skipped and the two controls
+        #: simply *are* there, still wearing the highlight ring, which is the
+        #: half of the arrival that carries the meaning.
+        self.reduced_motion = reduced_motion
         self.set_size_request(-1, metrics.band_height)
 
         row = Gtk.CenterBox()
@@ -404,6 +597,29 @@ class Band(Gtk.Box):
         button.set_child(icon_image(icon, "icon-name", icon_px))
         return button
 
+    # -- the focus ring (accessibility review B1) --
+
+    def controls(self) -> list[Gtk.Widget]:
+        """Every band control a keyboard or a switch can land on, **in order**.
+
+        Left to right, exactly as they are drawn, because a child navigating
+        by position is the child this exists for. The grown-up gate is last
+        and is still not voiced: an assistive technology can find it, the ring
+        can reach it, and nothing about it invites a five-year-old in.
+
+        Invisible and insensitive controls are filtered by
+        :func:`kidnix_shell.access.reachable`, not here, so the band keeps one
+        rule about what is showing (:meth:`_show_left`).
+        """
+        controls: list[Gtk.Widget] = [self.back, self.undo, self.my_things]
+        controls += [self.finish_this, self.one_more]
+        controls.append(self.sun_button)
+        controls.append(self.ear)
+        if self.ask is not None:
+            controls.append(self.ask)
+        controls.append(self.grownup)
+        return controls
+
     # -- state --
 
     def set_progress(self, fraction: float, warm: bool, words: str = NOT_RUNNING) -> None:
@@ -486,6 +702,15 @@ class Band(Gtk.Box):
         self._cancel_offer_highlight()
         for widget in (self.finish_this, self.one_more):
             widget.add_css_class("kid-new")
+        if self.reduced_motion:
+            # No scale-in. The ring stays: it is not motion, it is the one
+            # reserved colour saying "this, now", and a child who cannot have
+            # the animation still needs the event.
+            self._offer_highlight_handle = GLib.timeout_add_seconds(
+                OFFER_HIGHLIGHT_SECONDS, self._end_offer_highlight
+            )
+            return
+        for widget in (self.finish_this, self.one_more):
             widget.set_opacity(OFFER_ARRIVE_FROM_OPACITY)
         self._set_offer_scale(OFFER_ARRIVE_FROM_SCALE)
         self._offer_fade_step = 0

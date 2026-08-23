@@ -133,7 +133,13 @@ def test_01_boots_to_whos_here(scenario):
     geometry = shell_geometry(line)
     assert geometry["verdict"] == "ok", line
     band = geometry["wbh"]
-    assert 80 <= band <= 128, line  # spec 7a's clamp
+    # The band *window* is spec 7a's clamp -- 80-136 px since ADR-0011 raised
+    # the target floor to 20 mm -- **plus the caption strip under it**, which
+    # is one 20 pt line and its padding (kidnix_shell.access). It is one
+    # window because gnome-kiosk gives it one rectangle, and the captions have
+    # to be in it: the lines that matter most are said while an activity is
+    # covering the content window.
+    assert 80 <= band <= 200, line
     # ...and the height the *layout* settled on is the height the compositor
     # was asked for. Deliberately the last such line and not the first: the
     # measured-fit backstop relays out two or three times in the first second

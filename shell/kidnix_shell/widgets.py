@@ -32,6 +32,8 @@ from .labels import (  # noqa: E402
     approx_char_px,
     fit_label,
     line_height_px,
+    step_points,
+    wrap_estimate,
 )
 from .metrics import (  # noqa: E402
     TILE_CHROME_PX,
@@ -185,22 +187,49 @@ def fit_gtk_label(
             line_height=line_height,
         )
 
-    label.set_label(text)
-    label.set_wrap(True)
+    # **Inside a box, the wrapping is ours.** :func:`fit_label` has already
+    # chosen where the lines break, with Pango, at the size we are about to
+    # set, inside the width we were given -- so the label is handed the text
+    # with those breaks in it and asked not to wrap again. Left to itself a
+    # ``Gtk.Label`` wraps at ``max-width-chars``, which GTK converts to pixels
+    # with the *style* font (24 pt) rather than the size the text is actually
+    # set at, and the two answers are not the same: "With someone" fitted as
+    # two lines came out as three, 34 px taller than the box the grid had
+    # budgeted, on the panel we ship for.
+    #
+    # Nothing is cut either way -- ``ellipsize`` stays ``NONE`` -- and
+    # ``fit.lines`` is the same text with the same words in the same order, so
+    # the accessible name and the spoken string are untouched.
+    boxed = height is not None
+    label.set_label("\n".join(fit.lines) if boxed else text)
+    label.set_wrap(not boxed)
     label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
     label.set_justify(Gtk.Justification.CENTER)
     label.set_ellipsize(Pango.EllipsizeMode.NONE)
     label.set_lines(-1)
     label.set_single_line_mode(False)
-    label.set_max_width_chars(_chars_across(label, width, base_pt))
+    if not boxed:
+        label.set_max_width_chars(_chars_across(label, width, base_pt))
 
     attributes = Pango.AttrList.new()
     attributes.insert(Pango.attr_size_new(max(1, int(fit.points * Pango.SCALE))))
     label.set_attributes(attributes)
-    # Height only: the reserved label box is what stops the grid from jumping.
-    # Requesting the *width* too would make every label a minimum-width demand
-    # on its parent, which is how a heading pushes a page wider than the panel.
-    label.set_size_request(-1, height if height is not None else -1)
+    # **Both**, and only when the caller named a box.
+    #
+    # The reserved label box is what stops the grid from jumping between a page
+    # of short names and a page of long ones, and it is a *box*: a wrapping
+    # `Gtk.Label` otherwise reports a minimum width of its widest single word
+    # (39 px for "Outside"), so the tile it lives in could be laid out at a
+    # width the label was never fitted to. Asking for the width as well is safe
+    # precisely because `height is not None` means a caller with a box -- a
+    # tile, an avatar -- whose button already requests at least this much.
+    #
+    # A headline in open space passes no height, keeps no request at all, and
+    # so still cannot push a page wider than the panel.
+    if height is not None:
+        label.set_size_request(width, height)
+    else:
+        label.set_size_request(-1, -1)
     return fit
 
 
@@ -254,22 +283,33 @@ def page_label_fit(
       icon instead of leaving an empty second line under every tile.
     """
     wrap, line_height = _measurers(widget) if widget is not None else (None, line_height_px)
-    points = base_pt
-    fits = []
-    for text in texts:
-        fit = fit_label(
-            text,
-            width,
-            base_pt=base_pt,
-            floor_pt=floor_pt,
-            height=height,
-            wrap=wrap,
-            line_height=line_height,
-        )
-        fits.append(fit)
-        points = min(points, fit.points)
-    lines = max((fit.line_count for fit in fits), default=1)
-    return points, max(1, lines) * line_height(points)
+    wrapper = wrap or wrap_estimate
+    names = [text for text in texts if text] or [""]
+
+    # **One size that every name on the page fits the box at.** Choosing the
+    # size per name and then taking the smallest was subtly wrong: a name whose
+    # own fit was two lines at 18 pt can need *three* at the 23 pt the page
+    # settled on, and the re-wrap at the common size never checked. "Copy the
+    # lights" came out three lines tall inside a two-line box that way. So the
+    # sizes are walked once, for the whole page, and a size is only accepted if
+    # every name clears the width **and** the box at it.
+    for points in step_points(base_pt, floor_pt):
+        counts = []
+        for text in names:
+            lines, widest = wrapper(text, points, width)
+            if widest > width:
+                break
+            counts.append(len(lines))
+        else:
+            tall = max(counts) * line_height(points)
+            if height is None or tall <= height:
+                return points, tall
+
+    # Nothing fits the box, so the floor takes a third line -- the documented
+    # last resort, and the one case where the tile is allowed to grow.
+    floor = round(min(base_pt, floor_pt), 1)
+    tallest = max(len(wrapper(text, floor, width)[0]) for text in names)
+    return floor, tallest * line_height(floor)
 
 
 class SpeechUI:

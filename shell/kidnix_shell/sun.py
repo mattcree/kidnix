@@ -31,6 +31,48 @@ from dataclasses import dataclass
 
 from .state import State
 
+# --- the colours the sun is drawn in ---------------------------------------
+#
+# Stated here, as literals, for the same reason theme.css states its edges as
+# hex rather than rgba: **a ratio you cannot compute is a ratio nobody
+# computed**, and the accessibility review computed these and found four
+# failures in a row. Everything the sun draws was a white or black alpha over
+# the band tint, so nothing was checkable and nothing had been checked:
+#
+#     focus ring #ffd23f on the default band   2.90:1   needs 3
+#     the sun    #ffd64f on the band           2.98:1   needs 3
+#     the WARM sun #fa9e30, the last six min   1.99:1   needs 3
+#     the "ghost" start outline, white @30%    1.59:1   needs 3
+#     the horizon line, white @55%             2.30:1   needs 3
+#
+# and the timer became least visible at the exact moment it mattered most.
+#
+# No yellow can clear 3:1 against the teal band: it would need a relative
+# luminance of 0.75, which is nearly white, and then it is not a sun. So the
+# *fill* is not what carries 1.4.11 -- the **outline** is. Every shape the sun
+# draws is stroked twice: an ink line against the sun's own fill, and a paper
+# line against the band. Paper is the one colour in the palette that clears
+# 3:1 against all four profile primaries (3.91 / 12.39 / 7.50 / 5.24), which
+# is why it and not ink is the outer stroke.
+#
+# ``tests/test_theme_css.py`` recomputes all of it from these names.
+
+#: The sun for most of the session.
+SUN_FILL = "#ffd64f"
+#: And in the last window, when it warms. #fa9e30 was 1.99:1 on the band;
+#: this is 2.59:1 and still unmistakably *warmer* than :data:`SUN_FILL` --
+#: the 3:1 is carried by the outline either way, so the hue is free to be the
+#: thing it is for, which is "the light has changed", not "danger".
+SUN_WARM_FILL = "#ffc14d"
+#: The inner stroke: against the sun's own fill. @kid-ink.
+SUN_EDGE_INNER = "#16181d"
+#: The outer stroke: against the band, whatever the child's colours are.
+#: @kid-paper.
+SUN_EDGE_OUTER = "#fbf7ef"
+#: Stroke widths, in device pixels. Wide enough to be a boundary at 20 mm.
+SUN_EDGE_INNER_PX = 3.0
+SUN_EDGE_OUTER_PX = 2.5
+
 #: Where the horizon sits in the widget, as a fraction of its height. The sun
 #: needs room to sink *to*, and the line needs room under it to read as ground.
 HORIZON_FRACTION = 0.80

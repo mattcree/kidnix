@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Star</title>
+  <!-- A profile's shape badge (settings.PROFILE_BADGES). Colour says whose it
+       is and collapses under colour blindness; shape says it too and does not.
+       Drawn as a filled silhouette with a paper rim, so it reads at 6 mm in a
+       tile corner, on the cream page and on any of the four band tints. -->
+  <circle cx="32" cy="32" r="30" fill="#fbf7ef"/>
+  <path d="M32 8 L39.4 24.6 L57.4 26.6 L44 38.8 L47.7 56.5 L32 47.4
+           L16.3 56.5 L20 38.8 L6.6 26.6 L24.6 24.6 Z"
+        fill="#16181d" stroke="#16181d" stroke-width="3" stroke-linejoin="round"/>
+</svg>

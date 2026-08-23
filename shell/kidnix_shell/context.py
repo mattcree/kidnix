@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .access import AccessConfig
     from .activities import Activity
     from .journal import Entry, Journal
     from .metrics import Metrics
@@ -59,6 +60,8 @@ class ShellHost(Protocol):
 
     def speak(self, text: str) -> None: ...
 
+    def set_access(self, access: AccessConfig) -> None: ...
+
 
 @dataclass
 class ShellContext:
@@ -79,6 +82,10 @@ class ShellContext:
     #: which is the clock progressive disclosure runs on (spec 7b).
     kid_state: KidState
     demo: bool = False
+    #: ``[access] calm``, or the desktop's own ``gtk-enable-animations``.
+    #: Screens read it instead of asking GTK, so a headless test can set it.
+    #: WCAG 2.2 SC 2.3.3: interaction-triggered motion must be disableable.
+    reduced_motion: bool = False
     #: **This sitting's state, not the config's.** What the child said they
     #: would do next on S1b, or ``None`` if they skipped it or were never
     #: asked. Set when they pick, cleared when a new session starts, and read

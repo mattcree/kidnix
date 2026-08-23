@@ -79,6 +79,13 @@ name = "Me"
 colour_primary = "#0f8a8a"
 colour_secondary = "#f06292"
 avatar = "face-smile"
+# **Shape is the other half of identity.** Colour says whose computer this is;
+# under deuteranopia or protanopia two of the four palettes used to simulate to
+# the same colour, and ~8% of boys are colour-blind with about 40% leaving
+# school not knowing it. So each child also owns a silhouette, drawn in the
+# corner of their own face on "Who's here?".
+# One of: star, leaf, moon, wave.
+badge = "star"
 # The child's age band, "LOW-HIGH" (or a single year). Home hides any activity
 # whose age_min/age_max does not overlap it -- "4-5" is why a four-to-five-year-
 # old does not see tuxmath, which is banded 6-10 and needs a keyboard and
@@ -88,6 +95,47 @@ age_band = "4-5"
 # Whether this child is asked "What's next after?" before Home. False (the
 # default) means they are.
 skip_next_choice = false
+
+# --- ACCESS -----------------------------------------------------------------
+#
+# The four switches the accessibility review of 2026-08-23 found missing
+# (docs/design/reviews/2026-08-23-accessibility-specialist.md, blockers B2 and
+# B3). The defaults here are the ones a household that never opens this file
+# gets, and they are chosen for the child who needs them most.
+[access]
+
+# **Every spoken line, also written down**, in a strip under the band, for
+# about four seconds. On by default and it should stay on: read-aloud is the
+# shell's whole accessibility strategy and it had no fallback at all for a
+# child who cannot hear it. About one in a thousand UK children is deaf, and
+# far more have glue ear at five -- intermittent, and undiagnosed for months.
+# The line that costs most is "Draw is asking if you're done." at put-away:
+# without a caption, a deaf child does not know the question is theirs to
+# answer, does not press the activity's tick, and loses the drawing.
+#
+# It costs a strip of the screen, which is why it is a key at all. Turning it
+# off takes effect at the next start: the compositor decides the band window's
+# height when the band is created and it cannot be changed underneath it.
+captions = true
+
+# **One switch for a hard day.** Reduced motion (no scale-ins, screens cut
+# rather than slide, the put-away flight is skipped), only the "kept it" sound,
+# and a slightly slower voice. It serves autistic, ADHD, sensory-defensive and
+# anxious children, which is one setting and not four.
+#
+# Reduced motion is *also* honoured from the desktop's own
+# org.gnome.desktop.interface enable-animations, so a parent who turned motion
+# off system-wide does not have to find this as well.
+calm = false
+
+# **The shell's own volume, 0.0 to 1.0.** There is a genuine unbypassable 70%
+# ceiling in hardware (usr/libexec/kidnix-audio-cap); this is the control the
+# ceiling is not. It applies to the earcons and to read-aloud together.
+sound_volume = 1.0
+
+# Silence. Safe *because* captions are on: a muted shell still shows every
+# line it would have said, so it is quiet rather than broken.
+mute = false
 
 # --- HOW FAST HOME GROWS (progressive disclosure) --------------------------
 #

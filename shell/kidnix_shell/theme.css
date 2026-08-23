@@ -66,9 +66,17 @@ window.kidnix,
   border-bottom-width: 5px;
   border-radius: 18px;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
-  margin: 0 4px;
   padding: 6px;
 }
+
+/* NO MARGIN HERE. A CSS margin comes off the widget's own allocation, so
+ * `margin: 0 4px` on a button whose size request is `metrics.band_target`
+ * makes the *hit area* 8 px narrower than the target we computed: the
+ * accessibility review measured 69 x 77 px, 17.2 x 19.2 mm, against a 20 mm
+ * floor and a 72 px request. The gap between band buttons is the container's
+ * `spacing` now (kidnix_shell.band), which is dead space rather than target,
+ * and `tests/test_gtk_smoke.py` asserts the *measured* width in millimetres
+ * rather than the number we asked for. */
 
 .band button:hover {
   background-color: #ffffff;
@@ -145,14 +153,65 @@ window.kidnix.resting,
   color: #4a3f33;
 }
 
+/* **All of the typography, not two classes of it.** `.big-line` and
+ * `.screen-title` were the only two that changed colour, so a Resting screen
+ * that ever showed a `.quiet-line` or a tile label drew near-black ink on a
+ * dim surface. The rule is the surface's, so it names the surface's text. */
 .sleeping .big-line,
-.sleeping .screen-title {
+.sleeping .screen-title,
+.sleeping .quiet-line,
+.sleeping .tile-label,
+.sleeping .day-heading,
+.sleeping .shelf-heading,
+.sleeping label,
+.sleeping .kid-captions {
   color: #d8def0;
 }
 
 .resting .big-line,
-.resting .screen-title {
+.resting .screen-title,
+.resting .quiet-line,
+.resting .tile-label,
+.resting .day-heading,
+.resting .shelf-heading,
+.resting label,
+.resting .kid-captions {
   color: #4a3f33;
+}
+
+/* The caption strip carries the surface's colour too, so the band and the
+ * screen under it read as one dim surface rather than as a lit strip. */
+.sleeping .kid-caption-strip {
+  background-color: #10131f;
+  border-top-color: rgba(216, 222, 240, 0.35);
+}
+
+.resting .kid-caption-strip {
+  background-color: #e4d6c1;
+  border-top-color: rgba(74, 63, 51, 0.35);
+}
+
+/* --- captions (B2: nothing essential is audio-only) --------------------- */
+
+/* Under the band, across the whole panel, for about four seconds after every
+ * spoken line. It is in the *band* window and not in the content window,
+ * because the lines that matter most -- "Draw is asking if you're done.", the
+ * ending offer -- are said while an activity is covering the content window.
+ *
+ * Ink on paper: 16.62:1, and it is the same paper as everything else the child
+ * reads, so a caption is legible as *the shell talking* rather than as a
+ * notification. It never covers content: the compositor gives the band window
+ * the strip that includes it, and `Metrics.content_height` is what is left. */
+.kid-caption-strip {
+  background-color: @kid-paper;
+  border-top: 2px solid @kid-edge;
+  padding: 4px 16px;
+}
+
+.kid-captions {
+  color: @kid-ink;
+  font-size: 20pt;
+  font-weight: 600;
 }
 
 /* The sun is a target, not a picture (08 section 4.6): tapping it says how
@@ -216,14 +275,52 @@ window.kidnix.resting,
   outline: 6px solid @kid-highlight;
   outline-offset: -3px;
   border-color: @kid-ink;
+  box-shadow: 0 0 0 3px @kid-paper;
 }
 
+/* Three layers, and each one is doing a different job on a different surface.
+ *
+ * The yellow is the *reserved* colour and carries the meaning; it is 1.35:1 on
+ * paper and 2.90:1 on the default band, so it can never be the boundary. The
+ * ink border is the boundary on the cream content window (16.62:1). The paper
+ * outer stroke is the boundary on the band, where ink is only 1.34:1 against
+ * the navy profile and 2.22:1 against the violet one -- paper clears 3:1
+ * against all four primaries (3.91 / 12.39 / 7.50 / 5.24) and is the only
+ * colour in the palette that does.
+ *
+ * `outline-offset` is negative so the yellow sits *inside* the control, on its
+ * own fill, rather than on whatever is behind it -- which is the bug: the old
+ * rule put `outline-offset: 2px`, i.e. yellow directly on teal.
+ *
+ * `.kid-focus` is the same ring applied by the shell itself. It has to exist
+ * because focus lives per-toplevel: the band and the content window are two
+ * toplevels, only one of them has the compositor's keyboard focus at a time,
+ * and `:focus-visible` therefore stops drawing on the other one -- which is
+ * exactly the half of the ring a keyboard user has just tabbed into. */
 :focus-visible,
 button:focus-visible,
-.tile:focus-visible {
+.tile:focus-visible,
+.kid-focus,
+button.kid-focus,
+.tile.kid-focus {
   outline: 6px solid @kid-highlight;
-  outline-offset: 2px;
+  outline-offset: -3px;
   border-color: @kid-ink;
+  box-shadow:
+    0 0 0 3px @kid-paper,
+    0 4px 0 rgba(0, 0, 0, 0.14);
+}
+
+/* On the band a control has to *have* a fill for the ring to sit inside, and
+ * two of them deliberately do not: the sun is drawn with no button chrome at
+ * all and the grown-up gate is translucent. While focused they get the paper
+ * plate and the ink edge every other band button already has, so the ring is
+ * the same ring everywhere and the boundary against the tint is paper. */
+.band button:focus-visible,
+.band button.kid-focus {
+  background-color: @kid-paper;
+  border: 2px solid @kid-ink;
+  border-bottom-width: 5px;
 }
 
 /* --- tiles (S2 Home) --------------------------------------------------- */

@@ -101,6 +101,9 @@ kidnix_shell/
   screens/        S1 who's here, S1b what's next after, S2 home,
                   S4 my things, S5/S6 ending, S7 goodbye, S8 sleeping,
                   S9 grown-up sheet
+  access.py       captions, calm mode, volume/mute, the focus ring's order
+                  (pure; no GTK)
+  keyboard.py     one key controller across both toplevels, one focus ring
   theme.css       the reserved highlight colour, flat-with-depth, tints
   data/icons/     representational fallback icons (SVG)
   data/sounds/    the five earcons (generated, never committed)
@@ -161,8 +164,9 @@ inside that clamp. On a genuinely small panel Home drops to 4×2 tiles rather
 than shrinking twelve of them past 128 px.
 
 Since v0.1.5 there are **two budgets, not one**, because there are two windows:
-the band gets `W × band_height` and the content window gets
-`W × (H − band_height)` — `Metrics.content_height`. gnome-kiosk gives each of
+the band window gets `W × band_window_height` — the row of controls *and* the
+caption strip under it — and the content window gets what is left,
+`Metrics.content_height`. gnome-kiosk gives each of
 them exactly that and nothing more, so a content tree measured against the full
 monitor height would have fitted the old single window and been clipped in the
 new one.
@@ -261,3 +265,28 @@ exception and exists for development.
 The PIN is stored as a PBKDF2-SHA256 hash. Changing settings from the grown-up
 sheet holds for the current boot; making them permanent means writing
 `/etc/kidnix/parent.toml` as root, which is the parent panel's job.
+
+## Accessible without a pointer
+
+Since v0.1.8 (`keyboard.py`, `access.py`; implementation notes §22, spec §7d #7).
+Everything below is what an automated test drives, not what it hopes for.
+
+- **One key controller across both toplevels.** Tab cannot cross a Wayland
+  toplevel boundary and the band is a toplevel of its own, so the shell keeps
+  the focus ring itself, paints the indicator itself (`.kid-focus`) and
+  dispatches activation itself. Tab / Shift-Tab / arrows walk **one** ring —
+  the band first, because it is the half that never changes — Enter or Space
+  activates, and **Escape is Back**. Every screen puts focus on its own first
+  control when the child arrives, which is also free read-aloud.
+- **The grown-up gate really is a hold.** Enter or Space for three seconds, the
+  same three the pointer hold is, *or* five presses inside three seconds,
+  because a switch is a button and cannot say "and keep it down".
+- **Captions.** A strip under the band mirrors every spoken line for four
+  seconds. It is driven from inside `SpeechManager.speak`, *before* the "is
+  speech enabled?" check, so there is no code path that says something without
+  showing it — and a test walks the package's AST to keep it that way. On by
+  default (`[access] captions`).
+- **`[access] calm`.** One switch: reduced motion, only the "kept it" sound,
+  a slightly slower voice. `gtk-enable-animations` is honoured too.
+- **`[access] sound_volume` / `mute`.** The control the image's unbypassable
+  70% hardware ceiling is not. Muting is safe because captions are on.

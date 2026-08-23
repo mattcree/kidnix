@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Moon</title>
+  <!-- A profile's shape badge (settings.PROFILE_BADGES): a crescent, which is
+       the one outline here with a concave side. Not the Sleeping screen's
+       moon: this one never appears next to a session ending. -->
+  <circle cx="32" cy="32" r="30" fill="#fbf7ef"/>
+  <path d="M44 9 A26 26 0 1 0 44 55 A21 21 0 1 1 44 9 Z"
+        fill="#16181d" stroke="#16181d" stroke-width="3" stroke-linejoin="round"/>
+</svg>

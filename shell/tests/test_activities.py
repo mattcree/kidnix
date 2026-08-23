@@ -309,8 +309,8 @@ SHIPPED_LABELS = {
     "tuxpaint": ("Draw", "Draw"),
     "ktuberling": ("Potato faces", "Make a potato face"),
     "turbowarp": ("Make a game", "Make a game"),
-    "gcompris": ("Letters & numbers", "Letters and numbers"),
-    "klettres": ("Letter names", "Letter names"),
+    "gcompris": ("Letters & numbers", "Letters, counting and shapes. Choose a game."),
+    "klettres": ("Letter names", "Listen to the letter, then press it on the keyboard"),
     "tuxmath": ("Number game", "Number game"),
     "blinken": ("Copy the lights", "Copy the lights"),
     "kolf": ("Mini golf", "Mini golf"),
@@ -542,15 +542,16 @@ def test_a_nonsense_age_band_is_a_manifest_error(tmp_path: Path) -> None:
         load_manifest(write(tmp_path, "a.toml", "id='a'\nname='A'\nexec=['x']\nage_band='big'\n"))
 
 
-def test_the_default_profile_band_hides_the_two_six_plus_activities() -> None:
+def test_the_default_profile_band_hides_the_six_plus_activities() -> None:
     """The shipped set against the shipped 4-5 profile.
 
-    Both manifests say so in their own ``goal``: tuxmath is "typed arithmetic
-    ... the top of the age band" and TurboWarp is "realistically a six-plus
-    activity". Until v0.1.3 the shell showed both to a four-year-old.
+    Each manifest says so in its own ``goal``: tuxmath is typed arithmetic,
+    TurboWarp is "realistically a six-plus activity", and SuperTux was re-banded
+    to 7+ by the panel's ruling on the 4-6 band (spec 7d #8). Until v0.1.3 the
+    shell showed the first two to a four-year-old.
     """
     out = sorted(a.id for a in shipped_activities() if not in_age_band(a, (4, 5)))
-    assert out == ["turbowarp", "tuxmath"]
+    assert out == ["supertux", "turbowarp", "tuxmath"]
 
 
 def test_a_six_to_eight_year_old_gets_the_number_game_back() -> None:

@@ -47,13 +47,15 @@ gi.require_version("Gsk", "4.0")
 gi.require_version("Graphene", "1.0")
 from gi.repository import Adw, Gdk, GLib, Graphene, Gsk, Gtk  # noqa: E402
 
+from .access import AccessConfig  # noqa: E402
 from .activities import Activity  # noqa: E402
-from .band import Band, BandActions  # noqa: E402
+from .band import Band, BandActions, CaptionStrip  # noqa: E402
 from .context import ShellContext  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
+from .keyboard import Keyboard  # noqa: E402
 from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
 from .launcher import Launcher, RunningActivity  # noqa: E402
-from .metrics import Metrics, ScreenOverride, detect_metrics  # noqa: E402
+from .metrics import Metrics, ScreenOverride, detect_metrics, pin_font_dpi  # noqa: E402
 from .next_after import NextAfter  # noqa: E402
 from .resting import refusal_line  # noqa: E402
 from .ritual import (  # noqa: E402
@@ -124,7 +126,7 @@ MONITOR_CHECK_TICKS = 8
 #: budget. Each step spends a little chrome rather than shrinking everything, so
 #: closing a 1% overshoot genuinely takes several of them -- and stopping early
 #: leaves the overshoot on screen, which is the clipping this exists to prevent.
-MAX_FIT_ATTEMPTS = 7
+MAX_FIT_ATTEMPTS = 16
 #: Spec S5 in the band: how long the two ending choices stay in the band when
 #: the child is inside an activity and there is no shell surface to put them
 #: on. Long enough to notice and answer without looking up from a drawing;
@@ -221,8 +223,11 @@ class BandWindow(Adw.ApplicationWindow):
         no gnome-kiosk to place the window at all.
         """
         width = metrics.screen_width or 1280
-        self.set_size_request(width, metrics.band_height)
-        self.set_default_size(width, metrics.band_height)
+        # The band *window* is the row of controls plus the caption strip:
+        # gnome-kiosk gives it one rectangle and both live in it.
+        height = metrics.band_window_height
+        self.set_size_request(width, height)
+        self.set_default_size(width, height)
 
 
 class ShellWindow(Adw.ApplicationWindow):
@@ -249,7 +254,26 @@ class ShellWindow(Adw.ApplicationWindow):
         self.demo = demo
         self._screen_override = screen
         self._fit_attempts = 0
-        self.metrics: Metrics = detect_metrics(screen)
+        #: What the last measured-fit pass measured, so a pass that changed
+        #: nothing can be recognised as one (see ``_check_measured_fit``).
+        self._last_measured: dict[str, tuple[int, int]] | None = None
+        # Before anything measures anything: the shell's type scale is already
+        # the accessibility decision, and the session's text-scaling factor
+        # must not be applied to it a second time (see `metrics.pin_font_dpi`).
+        was = pin_font_dpi()
+        if was is not None and abs(was - self.metrics_font_dpi()) > 0.5:
+            log.info(
+                "the session draws text at %.0f dpi (text-scaling-factor %.2f); the shell "
+                "draws its own at %.0f, because its point sizes are already a child's",
+                was,
+                was / self.metrics_font_dpi(),
+                self.metrics_font_dpi(),
+            )
+        #: ``[access]`` (:mod:`kidnix_shell.access`), and the runtime copy the
+        #: grown-up sheet's volume row edits. Read before the metrics, because
+        #: whether captions are on decides how tall the band window is.
+        self.access: AccessConfig = config.access
+        self.metrics: Metrics = detect_metrics(screen, captions=self.access.captions)
         self._signature = _signature(self.metrics)
         log.info("display metrics: %s", self.metrics.describe())
 
@@ -273,10 +297,20 @@ class ShellWindow(Adw.ApplicationWindow):
             self.speech.backend.name,
             self.speech.dwell_ms,
         )
+        self.speech.set_rate(self.access.speech_rate)
+        self.speech.set_volume(self.access.effective_volume)
         self.speech_ui = SpeechUI(self.speech)
+        # **The captioned hook.** Nothing can be spoken without being shown:
+        # `SpeechManager.speak` calls this before it even asks whether speech
+        # is enabled (accessibility review B2).
+        self.speech.on_caption = self._on_caption
+        #: One key controller for both toplevels, one focus ring across them
+        #: (accessibility review B1). Escape is the shell's own Back, so it can
+        #: never mean something the band's Back does not.
+        self.keys = Keyboard(on_back=self.on_back)
         # /usr is read-only on the image, so the generated earcons land in the
         # child's cache when the package directory cannot be written.
-        self.earcons = Earcons(cache_dir=paths.sounds_cache)
+        self.earcons = Earcons(cache_dir=paths.sounds_cache, access=self.access)
 
         self.journal = Journal(paths.journal_root)
         self.journal.load()
@@ -366,6 +400,11 @@ class ShellWindow(Adw.ApplicationWindow):
         # A once, with the final numbers, and only then puts it on screen.
         self.band_window = BandWindow(application, self.metrics)
         self.band_window.connect("close-request", self._on_close)
+        # One controller, **both** toplevels: Tab cannot cross a Wayland
+        # toplevel boundary, so whichever window the compositor focused, the
+        # key arrives at the same handler and the same ring (review B1).
+        self.keys.attach(self)
+        self.keys.attach(self.band_window)
 
         self._build_content()
 
@@ -386,7 +425,8 @@ class ShellWindow(Adw.ApplicationWindow):
             # window now, so it comes back off.
             needed_width, needed_height = self.metrics.required_size()
             width = max(needed_width, 1366)
-            height = max(needed_height - self.metrics.band_height, 768 - self.metrics.band_height)
+            spare = self.metrics.band_window_height
+            height = max(needed_height - spare, 768 - spare)
             if self.metrics.screen_width and self.metrics.content_height:
                 width = min(width, self.metrics.screen_width)
                 height = min(height, self.metrics.content_height)
@@ -402,6 +442,68 @@ class ShellWindow(Adw.ApplicationWindow):
         # Render the earcons (about 13 ms) off the first frame rather than off
         # the first thing the child presses.
         GLib.idle_add(self._warm_earcons)
+
+    # -- access (captions, calm, volume) ------------------------------
+
+    @staticmethod
+    def animations_enabled() -> bool:
+        """``gtk-enable-animations``: the desktop's own reduced-motion answer.
+
+        The image's dconf sets it and the shell never read it. A parent who
+        turned motion off system-wide should not have to find a second switch.
+        """
+        try:  # pragma: no cover - requires a display
+            settings = Gtk.Settings.get_default()
+            if settings is None:
+                return True
+            return bool(settings.get_property("gtk-enable-animations"))
+        except Exception:  # pragma: no cover
+            return True
+
+    def _on_caption(self, text: str) -> None:
+        """Every spoken line, written down for four seconds (review B2)."""
+        if self.access.captions:
+            self.captions.show_caption(text)
+
+    def _calm_class(self) -> None:
+        """Mark both windows so the stylesheet and the tests can see calm mode."""
+        calm = self.access.reduced_motion(self.animations_enabled())
+        for window in (self, *(() if self._one_window else (self.band_window,))):
+            if calm:
+                window.add_css_class("calm")
+            else:
+                window.remove_css_class("calm")
+
+    def set_access(self, access: AccessConfig) -> None:
+        """Take a new ``[access]`` -- the grown-up sheet's rows call this.
+
+        Volume, mute and calm's soundscape apply at once. Captions changing
+        moves the band window's height, which the compositor decided at the
+        band's first configure (window-config R2), so that one waits for a
+        restart and says so rather than half-applying.
+        """
+        was_captions = self.access.captions
+        self.access = access
+        self.ctx.config.access = access
+        self.speech.set_rate(access.speech_rate)
+        self.speech.set_volume(access.effective_volume)
+        self.earcons.set_access(access)
+        self.stack.set_transition_duration(access.transition_ms(self.animations_enabled()))
+        self.captions.set_visible(access.captions)
+        if not access.captions:
+            self.captions.clear()
+        self._calm_class()
+        if access.captions != was_captions:
+            log.info(
+                "captions %s; the band keeps its strip until the shell restarts", access.captions
+            )
+
+    @staticmethod
+    def metrics_font_dpi() -> float:
+        """The density the shell's own point sizes are specified at."""
+        from .labels import FONT_DPI
+
+        return FONT_DPI
 
     # -- appearance ---------------------------------------------------
 
@@ -438,6 +540,7 @@ class ShellWindow(Adw.ApplicationWindow):
         """
         self.speech_ui.forget_all()
         self.ctx.metrics = self.metrics
+        self.ctx.reduced_motion = self.access.reduced_motion(self.animations_enabled())
         self._apply_tint(self.ctx.profile)
 
         self.band = Band(
@@ -454,15 +557,25 @@ class ShellWindow(Adw.ApplicationWindow):
                 on_finish_this=lambda: self.dismiss_offer(OfferAnswer.FINISH_THIS),
                 on_one_more=lambda: self.dismiss_offer(OfferAnswer.ONE_MORE),
             ),
+            reduced_motion=self.ctx.reduced_motion,
         )
+        self.captions = CaptionStrip(self.metrics)
+        self.captions.set_visible(self.access.captions)
+        band_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        band_box.append(self.band)
+        band_box.append(self.captions)
         if not self._one_window:
             self.band_window.set_size(self.metrics)
-            self.band_window.set_content(self.band)
+            self.band_window.set_content(band_box)
             if self._manage_kiosk:
                 self.set_content_size(self.metrics)
+        self._band_box = band_box
 
         self.stack = Gtk.Stack()
-        self.stack.set_transition_duration(400)
+        # Reduced motion, from `[access] calm` *or* from the desktop's own
+        # `gtk-enable-animations` -- which the image sets and nothing in the
+        # shell read until now (WCAG 2.2 SC 2.3.3; accessibility review B3).
+        self.stack.set_transition_duration(self.access.transition_ms(self.animations_enabled()))
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self.stack.set_vexpand(True)
         self.screens: dict[str, Screen] = {
@@ -480,12 +593,15 @@ class ShellWindow(Adw.ApplicationWindow):
         if self._one_window:
             # The fallback: v0.1.4's layout, band and surfaces in one window.
             root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            root.append(self.band)
+            root.append(band_box)
             root.append(self.stack)
             self._root = root
         else:
             self._root = self.stack
         self.set_content(self._root)
+        self.keys.forget()
+        self.keys.set_surfaces(self.band, None)
+        self._calm_class()
 
     def set_content_size(self, metrics: Metrics) -> None:
         """Ask for the area under the band, the same way the band asks for its strip.
@@ -519,7 +635,7 @@ class ShellWindow(Adw.ApplicationWindow):
         if not self._manage_kiosk:
             return
         self.window_config.band_phase(
-            self.metrics.screen_width, self.metrics.screen_height, self.metrics.band_height
+            self.metrics.screen_width, self.metrics.screen_height, self.metrics.band_window_height
         )
 
     def _write_activity_phase(self) -> None:
@@ -534,7 +650,7 @@ class ShellWindow(Adw.ApplicationWindow):
         if not self._manage_kiosk:
             return
         if self.window_config.activity_phase(
-            self.metrics.screen_width, self.metrics.screen_height, self.metrics.band_height
+            self.metrics.screen_width, self.metrics.screen_height, self.metrics.band_window_height
         ):
             log.info("window config: %s", self.window_config.describe())
 
@@ -591,7 +707,7 @@ class ShellWindow(Adw.ApplicationWindow):
         on it.
         """
         width, height = self.band_window.get_width(), self.band_window.get_height()
-        if placed(width, height, self.metrics.screen_width, self.metrics.band_height):
+        if placed(width, height, self.metrics.screen_width, self.metrics.band_window_height):
             self._band_handle = None
             self._band_placed = True
             log.info("band window placed at %dx%d", width, height)
@@ -607,7 +723,7 @@ class ShellWindow(Adw.ApplicationWindow):
             width,
             height,
             self.metrics.screen_width,
-            self.metrics.band_height,
+            self.metrics.band_window_height,
         )
         if self._band_attempts >= BAND_PLACE_ATTEMPTS:
             self._fall_back_to_one_window()
@@ -660,8 +776,8 @@ class ShellWindow(Adw.ApplicationWindow):
             self.band_window.get_width(),
             self.band_window.get_height(),
             self.metrics.screen_width,
-            self.metrics.band_height,
-            self.metrics.band_height,
+            self.metrics.band_window_height,
+            self.metrics.band_window_height,
             self.get_width(),
             self.get_height(),
             self.metrics.screen_width,
@@ -676,7 +792,8 @@ class ShellWindow(Adw.ApplicationWindow):
         assert application is not None
         self.band_window = BandWindow(application, self.metrics)
         self.band_window.connect("close-request", self._on_close)
-        self.band_window.set_content(self.band)
+        self.keys.attach(self.band_window)
+        self.band_window.set_content(self._band_box)
         if self.machine.state is State.SLEEPING:
             self.band_window.add_css_class("sleeping")
         old.destroy()
@@ -752,10 +869,21 @@ class ShellWindow(Adw.ApplicationWindow):
         """
         screen_width = self.metrics.screen_width
         content_height = self.metrics.content_height
-        band_height = self.metrics.band_height
+        band_height = self.metrics.band_window_height
         if not screen_width or not content_height:
             return
         if self._fit_attempts >= MAX_FIT_ATTEMPTS:
+            # Loud, because this is the state that produced "shell geometry
+            # WRONG" in the VM: a tree taller than its window is a *minimum
+            # size* GTK forwards to the compositor, and a minimum the
+            # compositor cannot satisfy is a window that ignores
+            # `lock-on-area` and overhangs the panel.
+            log.error(
+                "the layout still does not fit after %d passes; the content window will "
+                "overflow its strip. Last: %s",
+                MAX_FIT_ATTEMPTS,
+                self.metrics.describe(),
+            )
             return
         try:
             measured = {
@@ -770,8 +898,8 @@ class ShellWindow(Adw.ApplicationWindow):
             }
             if not self._one_window:
                 measured["band"] = (
-                    self.band.measure(Gtk.Orientation.HORIZONTAL, -1)[0],
-                    self.band.measure(Gtk.Orientation.VERTICAL, -1)[0],
+                    self._band_box.measure(Gtk.Orientation.HORIZONTAL, -1)[0],
+                    self._band_box.measure(Gtk.Orientation.VERTICAL, -1)[0],
                     screen_width,
                     band_height,
                 )
@@ -780,10 +908,14 @@ class ShellWindow(Adw.ApplicationWindow):
             return
 
         ratios = []
+        overflowing: dict[str, tuple[int, int]] = {}
         for what, (wanted_w, wanted_h, room_w, room_h) in measured.items():
             if wanted_w <= room_w and wanted_h <= room_h:
                 log.info("%s measures %dx%d, fits %dx%d", what, wanted_w, wanted_h, room_w, room_h)
                 continue
+            overflowing[what] = (wanted_w, wanted_h)
+            if what == "content":
+                log.warning("  the tallest surface is %s", self._tallest_screen())
             log.warning(
                 "%s measures %dx%d but its window is %dx%d",
                 what,
@@ -796,21 +928,51 @@ class ShellWindow(Adw.ApplicationWindow):
         if not ratios:
             return
 
+        # A pass that measured exactly what the last pass measured bought
+        # nothing, whatever it spent. Only this method can see that -- the
+        # metrics cannot know which of the sizes it moved the tallest screen
+        # actually uses -- so it is this method that tells `shrunk_by` to stop
+        # spending chrome and start spending `fit`. Without it the backstop
+        # loops on "shrinking by 0.984" until it runs out of attempts and
+        # leaves the overflow on screen (the v0.1.7 geometry regression).
+        stalled = overflowing == self._last_measured
+        self._last_measured = overflowing
+
         ratio = min(ratios) * 0.99
         self._fit_attempts += 1
-        log.warning("shrinking by %.3f", ratio)
-        self._apply_metrics(self.metrics.shrunk_by(ratio))
+        log.warning("shrinking by %.3f%s", ratio, " (chrome bought nothing)" if stalled else "")
+        self._apply_metrics(self.metrics.shrunk_by(ratio, force_fit=stalled))
         self._check_measured_fit()
+
+    def _tallest_screen(self) -> str:
+        """Which surface is setting the stack's minimum height, and by how much.
+
+        A ``Gtk.Stack`` measures as tall as its tallest child even when that
+        child is not visible, so "the content window does not fit" is always a
+        statement about *one* screen -- and until this line existed, finding
+        out which one meant editing the shell and re-flashing an image.
+        """
+        sizes: list[tuple[int, str]] = []
+        for name, screen in self.screens.items():
+            try:
+                height = screen.measure(Gtk.Orientation.VERTICAL, -1)[0]
+                width = screen.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+            except Exception:  # pragma: no cover - measuring must never fail
+                continue
+            sizes.append((height, f"{name} {width}x{height}"))
+        sizes.sort(reverse=True)
+        return ", ".join(row for _, row in sizes[:3])
 
     def _check_monitor(self) -> None:
         """The panel may change under us (a projector, a dock, a hotplug)."""
-        metrics = detect_metrics(self._screen_override)
+        metrics = detect_metrics(self._screen_override, captions=self.access.captions)
         signature = _signature(metrics)
         if signature == self._signature:
             return
         log.info("the monitor changed: %s", metrics.describe())
         self._signature = signature
         self._fit_attempts = 0
+        self._last_measured = None
         self._apply_metrics(metrics)
         self._check_measured_fit()
 
@@ -877,6 +1039,15 @@ class ShellWindow(Adw.ApplicationWindow):
         self.band.set_journal_sensitive(state in (State.HOME, State.JOURNAL, State.IN_ACTIVITY))
         if state is not State.IN_ACTIVITY:
             self.screens[name].on_enter()
+        # **Focus, on every arrival** (review B1: nothing called `grab_focus`
+        # anywhere, so a fresh Home had zero FOCUSED nodes in the AT-SPI tree).
+        # After `on_enter`, because that is what rebuilds Home's grid -- and
+        # `ChildButton` speaks on focus, so a child who tabs nowhere still
+        # hears where they have landed.
+        self.keys.set_surfaces(
+            self.band, None if state is State.IN_ACTIVITY else self.screens[name]
+        )
+        self.keys.focus_first()
 
     # -- the tick -----------------------------------------------------
 
@@ -1653,7 +1824,7 @@ class ShellWindow(Adw.ApplicationWindow):
         failing.
         """
         try:
-            band_height = self.metrics.band_height
+            band_height = self.metrics.band_window_height
             width = self.get_width() or self.metrics.screen_width or 1280
             height = self.get_height() or self.metrics.content_height or 800
             content = self._snapshot_node(self, width, height)

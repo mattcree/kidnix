@@ -19,11 +19,12 @@ the mm-based ideal is computed first, then shrunk uniformly until the band, the
 Home grid and the pager provably fit inside the monitor's geometry.
 
 v0.1.2 shrank the *floors* with it, which the CCI audit of 2026-08-22 called
-correctly: "a floor that moves is not a floor". At 1280x800@102 the 18 mm
-minimum target was 14.9 mm and the 18 pt label floor was 14.9 pt. So there are
-now two kinds of number here:
+correctly: "a floor that moves is not a floor". At 1280x800@102 the minimum
+target was 14.9 mm and the 18 pt label floor was 14.9 pt. So there are now two
+kinds of number here:
 
-* **Floors** -- :data:`MIN_TARGET_MM` (18 mm, any interactive thing),
+* **Floors** -- :data:`MIN_TARGET_MM` (20 mm since ADR-0011, any interactive
+  thing),
   :data:`GAP_FLOOR_MM` (8 mm between targets) and :data:`TILE_LABEL_MIN_PT`
   (18 pt). ``fit`` never touches these. They are computed from the panel's real
   density and that is the end of it.
@@ -36,7 +37,11 @@ the tile does: 4 x 3 -> 4 x 2 -> 3 x 2, and the rest of the activities paginate
 (:data:`GRIDS`). Eight 42 mm tiles a child can hit beat twelve 26 mm ones, and
 01 #12 wanted fewer choices anyway. Only when no grid can hold a
 :data:`MIN_GRID_TILE_MM` tile does ``fit`` start shrinking the tile itself, and
-even then it stops at the 18 mm floor.
+even then it stops at :data:`MIN_TARGET_MM`.
+
+**A point is not 4/3 of a pixel either.** See :attr:`Metrics.font_dpi` and
+:func:`pin_font_dpi`: the image sets a 1.3 text-scaling factor, which was being
+applied on top of the shell's own child type scale.
 """
 
 from __future__ import annotations
@@ -46,18 +51,34 @@ import os
 import re
 from dataclasses import dataclass, replace
 
-from .labels import line_height_px
+from .access import CAPTION_LINES, CAPTION_PT
+from .labels import FONT_DPI, line_height_px
 
 log = logging.getLogger(__name__)
 
 MM_PER_INCH = 25.4
 DEFAULT_DPI = 96.0
 
+#: Believe GTK's own text density only if it is physically plausible. A
+#: ``gtk-xft-dpi`` of 0 means "GTK has not decided yet", which is not a density.
+MIN_FONT_DPI = 60.0
+MAX_FONT_DPI = 300.0
+
 # SYNTHESIS section 3, "The numbers".
-#: **A floor.** Any interactive thing, on any panel, whatever ``fit`` says.
-#: SYNTHESIS A1 / 06 #13 (Hourcade's 64 px on a 1998 display); 01 #1 argues for
-#: 24 mm from the same data and is unresolved -- see the audit section 4 item 11.
-MIN_TARGET_MM = 18.0
+#: **A floor. 20 mm since ADR-0011 (2026-08-23).**
+#:
+#: The 18 mm this carried was a unit-conversion artefact: Hourcade et al.
+#: 2004's 64 px was on a ~75-80 dpi CRT, i.e. 20-24 mm, and the study's own
+#: physical figure is 23.7 mm. Checkpoint 1 ruled "keep 18 / prefer 24"
+#: without noticing. The panel resolved it the other way and the ADR makes it
+#: binding: **20 mm minimum, 24 mm preferred, 40 mm for a primary tile.**
+#:
+#: It is the *measured hit area* that has to clear this, not the number the
+#: layout asks for -- the accessibility review measured the band's buttons at
+#: 69x77 px (17.2 mm) against a 72 px request, because ``theme.css`` took
+#: ``margin: 0 4px`` off each side afterwards. The margin is gone and the gap
+#: lives in the container's spacing, where it costs the target nothing.
+MIN_TARGET_MM = 20.0
 PRIMARY_TILE_MM = 40.0  # activity tile, journal card, big ritual button: preferred
 JOURNAL_CARD_MM = 20.0  # 08 section 4.3
 AVATAR_TILE_MM = 30.0  # spec S1
@@ -95,19 +116,28 @@ TILE_CHROME_X_PX = 28  # horizontal: 12 + 12 padding, 2 + 2 border
 TILE_SPACING_PX = 6  # the box's spacing between icon and label
 #: The icon may be squeezed by the label box, but only so far: below this
 #: fraction of the tile the picture stops being the thing you recognise.
+#: **The floor is 45% since ADR-0011.** For a pre-reader with low vision, no
+#: English or CVD the picture is the only persistent channel there is, so it
+#: does not get to be the thing that gives way when a label wraps.
 TILE_ICON_FRACTION = 0.52
-TILE_ICON_MIN_FRACTION = 0.36
+TILE_ICON_MIN_FRACTION = 0.45
 TILE_ICON_MIN_PX = 24
 
-#: Spec 7a: "the band scales with the same factor, clamped to 80-128 px".
+#: Spec 7a: "the band scales with the same factor, clamped to 80-128 px" --
+#: **80-136 since ADR-0011**, which raised the target floor to 20 mm and said
+#: in as many words that the clamp may rise to hold one. 136 px is 20 mm plus
+#: :data:`BAND_CHROME_PX` at the densest panel we ship for (118 dpi).
 BAND_MIN_PX = 80
-BAND_MAX_PX = 128
+BAND_MAX_PX = 136
 #: theme.css: ``.band`` has 8 px of vertical padding either side of the row and
 #: a 4 px bottom border. The band's buttons have to live inside what is left,
 #: or GTK grows the band past the clamp and the tops get cut off.
 BAND_CHROME_PX = 20
 #: A band button never shrinks below this, whatever the clamp says.
 BAND_TARGET_MIN_PX = 44
+#: ``theme.css`` ``.kid-captions``: 4 px of padding either side and a 2 px top
+#: rule. Fixed pixels, so they are budgeted rather than scaled.
+CAPTION_CHROME_PX = 10
 
 # Plausibility clamp. VMs and some docks report a 0 mm or 10 mm wide monitor;
 # believing them would make the shell microscopic or enormous.
@@ -131,7 +161,7 @@ MIN_FIT = 0.45
 #: Chrome -- the gaps, the band's spare height, the pager's arrows -- is what
 #: gets spent first when the layout is a little too tall. These are the steps
 #: :meth:`Metrics.shrunk_to_fit` tries *before* it touches the tile, and each
-#: one still stops at its own floor (8 mm gaps, an 18 mm band button, an 18 mm
+#: one still stops at its own floor (8 mm gaps, a 20 mm band button, a 20 mm
 #: pager arrow). Only when the last of them still overflows does ``fit`` start.
 CHROME_STEPS: tuple[float, ...] = (1.0, 0.94, 0.88, 0.82, 0.76, 0.7, 0.62, 0.54, 0.45, 0.35)
 
@@ -155,6 +185,27 @@ class Metrics:
     scale_factor: int = 1
     screen_width: int = 0
     screen_height: int = 0
+    #: **What a CSS point is actually drawn at**, from GTK's ``gtk-xft-dpi``.
+    #:
+    #: :mod:`kidnix_shell.labels` assumed 96 -- "kidnix never sets a text
+    #: scaling factor, so a point is 4/3 of a pixel on every panel". The image
+    #: does set one: ``system_files/usr/share/kidnix/dconf/kid.d/10-input``
+    #: has ``text-scaling-factor=1.3``, deliberately, so a five-year-old gets
+    #: bigger type. GTK therefore reports **124.8 dpi**, every point size is
+    #: drawn 30% larger than the layout budgeted for, and the two-line label
+    #: box a tile reserves was never big enough to hold two real lines.
+    #:
+    #: The symptom was not a clipped label -- :func:`~kidnix_shell.labels.
+    #: fit_label` falls through to its unbounded "third line" branch rather
+    #: than cut anything -- it was a **content window 100 px taller than the
+    #: strip gnome-kiosk had for it**, and the shell logging ``shell geometry
+    #: WRONG`` on the real machine while every headless test passed.
+    #:
+    #: So it is measured, not assumed. 96 is only the headless default.
+    font_dpi: float = FONT_DPI
+    #: Is the caption strip on? It is part of the band window's height, so the
+    #: layout has to know (``[access] captions``, on by default).
+    captions: bool = True
     #: Uniform shrink applied to every *preferred* size so the layout fits the
     #: screen. Floors (:data:`MIN_TARGET_MM`, :data:`GAP_FLOOR_MM`,
     #: :data:`TILE_LABEL_MIN_PT`) ignore it.
@@ -194,6 +245,8 @@ class Metrics:
         width_mm: int = 0,
         scale_factor: int = 1,
         dpi: float | None = None,
+        font_dpi: float | None = None,
+        captions: bool = True,
     ) -> Metrics:
         """The constructor the shell uses: physical sizing, clamped to the panel.
 
@@ -213,15 +266,39 @@ class Metrics:
                 screen_height=max(0, height_px),
                 columns=columns,
                 rows=rows,
+                font_dpi=clamp_font_dpi(font_dpi),
+                captions=captions,
             ).shrunk_to_fit()
-            if best is None or candidate.tile_size > best.tile_size:
-                best = candidate
             if candidate.mm_of(candidate.tile_size) >= MIN_GRID_TILE_MM:
                 return candidate
+            if best is None or candidate._grid_rank() > best._grid_rank():
+                best = candidate
         assert best is not None
         return best
 
+    def _grid_rank(self) -> tuple[int, int, int]:
+        """How good a fallback grid is: **fitting first**, then a bigger tile.
+
+        Ranking on ``tile_size`` alone had a hole with a floor under it: once
+        every grid has been shrunk to :data:`MIN_FIT` their tiles are all the
+        same size, the comparison is a tie, and the *first* grid wins -- 4 x 3,
+        three rows, on exactly the panel that could not fit two. Fitting is the
+        thing that was actually being relied on, so it is the thing compared
+        first, and **fewer rows** breaks the remaining tie: rows are what
+        height costs, and a page a child can see beats a page they cannot.
+        """
+        return (1 if self.fits() else 0, self.tile_size, -self.rows)
+
     # --- unit conversion --------------------------------------------------
+
+    def line_height(self, points: float) -> int:
+        """One line box at ``points``, at the density GTK really draws text at.
+
+        The single place the shell converts a point size into a height. Every
+        label box in the layout comes through here, which is what makes
+        :attr:`font_dpi` a one-line fix rather than a hunt.
+        """
+        return line_height_px(points, self.font_dpi)
 
     def mm(self, millimetres: float) -> int:
         """A *preferred* size in millimetres, in logical pixels after fitting.
@@ -233,7 +310,7 @@ class Metrics:
     def mm_floor(self, millimetres: float) -> int:
         """A **floor** in millimetres. ``fit`` does not apply to these.
 
-        This is the whole point of specifying in millimetres: 18 mm is 18 mm on
+        This is the whole point of specifying in millimetres: 20 mm is 20 mm on
         a 1080p ThinkPad and on the 1280x800 panel we test on. When the ideal
         layout will not fit, the grid gives way (:data:`GRIDS`) and the
         preferences shrink -- the floors do not move.
@@ -279,7 +356,7 @@ class Metrics:
 
     @property
     def tile_size(self) -> int:
-        """Activity tile edge: 160 design px, 40 mm preferred, 18 mm floor."""
+        """Activity tile edge: 160 design px, 40 mm preferred, 20 mm floor."""
         return max(self.min_target, self.at_least_mm(TILE_PX, PRIMARY_TILE_MM))
 
     # --- the label box (see kidnix_shell.labels) --------------------------
@@ -308,7 +385,7 @@ class Metrics:
     @property
     def tile_label_height(self) -> int:
         """Two label lines, always reserved, so the grid never jumps."""
-        return TILE_LABEL_LINES * line_height_px(self.label_floor_pt)
+        return TILE_LABEL_LINES * self.line_height(self.label_floor_pt)
 
     @property
     def tile_label_width(self) -> int:
@@ -347,18 +424,45 @@ class Metrics:
 
     @property
     def band_height(self) -> int:
-        """Spec 7a: scales with everything else, clamped to 80-128 px.
+        """Spec 7a / ADR-0011: scales with everything else, clamped to 80-136 px.
 
-        With one addition since the audit: the clamp may not squeeze a band
-        *button* below the 18 mm floor, so the band is at least tall enough to
-        hold one plus its CSS chrome -- still never taller than 128 px. On a
-        panel denser than ~152 logical dpi even 128 px cannot hold 18 mm; that
-        is the one residual, and it does not arise on any panel we ship for
-        (the worst is 104 px needed at 118 dpi).
+        The clamp may not squeeze a band *button* below the 20 mm floor, so the
+        band is at least tall enough to hold one plus its CSS chrome. The
+        ceiling rose from 128 to 136 with the floor: 20 mm at the densest panel
+        we ship for (118 dpi) is 93 px, and 93 + 20 of chrome is 113, so 136
+        leaves room and still cannot eat a small panel.
+
+        **This is the row of controls only.** The caption strip underneath it
+        is :attr:`caption_height`, and what the compositor gives the band
+        window is the two together (:attr:`band_window_height`).
         """
         ideal = self.chrome(self.at_least_mm(BAND_HEIGHT_PX, MIN_TARGET_MM + 6.0))
         floor = min(BAND_MAX_PX, self.min_target + BAND_CHROME_PX)
         return max(BAND_MIN_PX, floor, min(BAND_MAX_PX, ideal))
+
+    @property
+    def caption_height(self) -> int:
+        """The strip under the band that mirrors what the shell just said.
+
+        Two lines at the 18 pt floor plus its own padding, reserved whether
+        they are used or not -- a strip that changes height is a band that
+        moves under a child's hand, and the band is the one thing in the shell
+        that never moves.
+
+        It is part of the band *window*, not of the content window, for one
+        reason: during an activity the content window is behind the child's
+        drawing, and the lines that matter most -- "Draw is asking if you're
+        done.", the ending offer -- are all said while it is. A caption a deaf
+        child cannot see at put-away is the whole finding, unfixed.
+        """
+        if not self.captions:
+            return 0
+        return CAPTION_LINES * self.line_height(CAPTION_PT) + CAPTION_CHROME_PX
+
+    @property
+    def band_window_height(self) -> int:
+        """The whole strip the compositor gives the band window."""
+        return self.band_height + self.caption_height
 
     @property
     def content_height(self) -> int:
@@ -374,11 +478,18 @@ class Metrics:
         """
         if self.screen_height <= 0:
             return 0
-        return max(1, self.screen_height - self.band_height)
+        return max(1, self.screen_height - self.band_window_height)
 
     @property
     def band_target(self) -> int:
-        """A band button: 18 mm floor, 80 design px preferred, inside the band."""
+        """A band button: **20 mm floor**, 80 design px preferred, inside the band.
+
+        And 20 mm of *hit area*: ``theme.css`` no longer puts a margin on
+        ``.band button``, because a CSS margin comes off the widget's own
+        allocation and the accessibility review measured the result at 17.2 mm
+        against this number's 72 px. The gap between band buttons is the
+        container's ``spacing`` now, which is dead space rather than target.
+        """
         wanted = max(self.design(80), self.min_target)
         room = self.band_height - BAND_CHROME_PX
         return max(BAND_TARGET_MIN_PX, min(wanted, max(room, self.min_target)))
@@ -388,13 +499,13 @@ class Metrics:
         """The grown-up gate: small, desaturated, far right (spec section 2).
 
         An *adult* control, so 08 section 3.1e's 9 mm applies, not the child's
-        18 mm -- being small is the point (08 section 4.5: unenticing).
+        20 mm -- being small is the point (08 section 4.5: unenticing).
         """
         return max(BAND_TARGET_MIN_PX, self.mm_floor(9.0), min(self.design(56), self.band_target))
 
     @property
     def min_target(self) -> int:
-        """**The floor.** 18 mm of real panel, whatever ``fit`` says."""
+        """**The floor.** 20 mm of real panel, whatever ``fit`` says (ADR-0011)."""
         return self.mm_floor(MIN_TARGET_MM)
 
     @property
@@ -419,13 +530,42 @@ class Metrics:
 
     @property
     def pager_height(self) -> int:
-        """The big page arrows under Home and My Things. 18 mm floor."""
+        """The big page arrows under Home and My Things. 20 mm floor."""
         return max(self.min_target, self.chrome(self.design(96)))
+
+    @property
+    def screen_title_height(self) -> int:
+        """A ``.screen-title`` line, plus the gap under it.
+
+        **Budgeted since 2026-08-23, because the tallest surface is not Home.**
+        ``home_size`` modelled Home -- a grid and a pager -- and What's next
+        after is Home *plus a 40 pt title*, so the arithmetic was ~85 px
+        optimistic about the one screen that decides whether the content window
+        fits. The measured-fit backstop then had to close that gap on every
+        boot, and a backstop that always fires is a model that is wrong.
+        """
+        return self.line_height(self.child_points(40.0)) + self.gap
 
     @property
     def per_page(self) -> int:
         """Tiles on one Home page (spec S2 says 12; small screens get fewer)."""
         return self.columns * self.rows
+
+    @property
+    def choice_rows(self) -> int:
+        """Rows on a titled choice screen: one fewer than Home, never zero."""
+        return max(1, self.rows - 1)
+
+    @property
+    def choice_per_page(self) -> int:
+        """Pictures on one page of "What's next after?" -- and of any choice.
+
+        SYNTHESIS B2 asks for at most five options on a choice screen; spec 7b
+        allows six to nine and the conflict was never recorded. This resolves
+        it the way the layout already wanted to: four on the panel we ship for,
+        eight on a big one, and the rest one page along.
+        """
+        return self.columns * self.choice_rows
 
     # --- fitting ----------------------------------------------------------
 
@@ -450,13 +590,79 @@ class Metrics:
         # Three gaps down the page: HomeScreen's top margin, the Screen box's
         # own spacing between the grid and the pager, and the pager's bottom
         # margin. Getting this wrong by one gap is how v0.1.0 clipped.
-        height = self.band_height + grid_height + self.pager_height + 3 * self.gap
+        height = self.band_window_height + grid_height + self.pager_height + 3 * self.gap
         return width, height
 
+    def choice_size(self) -> tuple[int, int]:
+        """What a *titled* grid screen needs: What's next after, and S1.
+
+        Home has no title. S1b is Home **plus a 40 pt headline**, and modelling
+        only Home is how the arithmetic came to be ~85 px optimistic about the
+        one surface that decides whether the content window fits at all -- the
+        measured backstop then had to close that gap on every single boot.
+
+        It is not paid for by shrinking every tile in the shell. S1b is a
+        *choice* screen and SYNTHESIS B2 wants at most five choices on one, so
+        it gets :attr:`choice_rows` -- one row fewer than Home -- and pages the
+        rest. Fewer, bigger pictures on the screen that asks a question, and
+        Home keeps its 40 mm tile.
+        """
+        grid_width = self.columns * self.tile_size + (self.columns - 1) * self.gap
+        grid_height = self.choice_rows * self.tile_height + (self.choice_rows - 1) * self.gap
+        width = grid_width + 4 * self.gap
+        height = (
+            self.band_window_height
+            + self.screen_title_height
+            + grid_height
+            + self.pager_height
+            + 3 * self.gap
+        )
+        return width, height
+
+    def chooser_size(self) -> tuple[int, int]:
+        """What "Who's here?" needs: a title, a face, and the grown-up corner.
+
+        The third shape in the shell, and the third one the arithmetic did not
+        know about. Its face is floored at 30 mm and its corner tile at the
+        20 mm target floor, so ``fit`` cannot shrink it away -- which is
+        exactly why it has to be *budgeted* rather than discovered by the
+        measured backstop and then shrunk at.
+        """
+        height = (
+            self.band_window_height
+            + self.screen_title_height
+            + self.avatar_tile_height
+            + self.min_target  # the plain grown-up tile in the corner
+            # The screen's own dead space: its bottom margin, the gap under
+            # the title, the gap over the corner, and the box's two spacings
+            # -- one of which `screen_title_height` already carries.
+            + 4 * self.gap
+        )
+        width = max(2 * self.avatar_size + 4 * self.gap, self.target_mm(40) + 2 * self.gap)
+        return width, height
+
+    @property
+    def avatar_tile_height(self) -> int:
+        """A face tile: the picture, its name, and the tile's own chrome."""
+        return self.avatar_size + self.tile_label_height + TILE_CHROME_PX + TILE_SPACING_PX
+
     def required_size(self) -> tuple[int, int]:
-        """The whole shell's minimum, in logical pixels."""
+        """The whole shell's minimum: the **tallest** surface, not just Home.
+
+        Three shapes, because the shell has three: Home's untitled grid, a
+        titled grid (What's next after), and the chooser (Who's here). Until
+        2026-08-23 only the first was modelled, so the measured backstop was
+        left to discover the other two on every boot -- and on the panel we
+        ship for it could not close the gap, which is a content window taller
+        than the strip gnome-kiosk gives it.
+        """
         home_width, home_height = self.home_size()
-        return max(home_width, self.band_width()), home_height
+        choice_width, choice_height = self.choice_size()
+        chooser_width, chooser_height = self.chooser_size()
+        return (
+            max(home_width, choice_width, chooser_width, self.band_width()),
+            max(home_height, choice_height, chooser_height),
+        )
 
     def fits(self) -> bool:
         if self.screen_width <= 0 or self.screen_height <= 0:
@@ -497,7 +703,45 @@ class Metrics:
             candidate = replace(candidate, fit=round(nxt, 4))
         return candidate
 
-    def shrunk_by(self, ratio: float) -> Metrics:
+    def chrome_signature(self) -> tuple[int, ...]:
+        """Every size ``chrome_fit`` can still move. Also the test hook.
+
+        Two metrics with the same signature lay out identically however
+        different their ``chrome_fit`` is, because each of these has hit its
+        own floor: the 8 mm gap, the 80 px band, the 20 mm pager arrow, the
+        20 mm card, the 30 mm face.
+        """
+        return (
+            self.gap,
+            self.band_window_height,
+            self.pager_height,
+            self.card_size,
+            self.avatar_size,
+            self.chrome(self.design(320)),
+        )
+
+    def chrome_is_spent(self, ratio: float = 0.99) -> bool:
+        """Would another chrome step change any size at all?
+
+        The v0.1.7 geometry regression in one predicate. ``shrunk_by`` used to
+        spend chrome until ``chrome_fit`` reached :data:`CHROME_STEPS`'s last
+        value, on the assumption that spending chrome always buys pixels. It
+        does not: the gap, the band and the pager all bottom out at their own
+        floors long before ``chrome_fit`` reaches 0.35, and every step after
+        that is a step that changes nothing. Measured in the VM: seven passes
+        of the backstop, each logging "shrinking by 0.874", each relaying out
+        to exactly the same ``904x632`` -- so the content tree stayed 802 px
+        tall inside a 708 px window, GTK sent *that* as the toplevel's minimum
+        size, and gnome-kiosk's ``lock-on-area`` could not be honoured. The
+        window came up 1280x790 and the shell logged ``shell geometry WRONG``.
+        """
+        floor = CHROME_STEPS[-1]
+        if self.chrome_fit <= floor:
+            return True
+        nxt = replace(self, chrome_fit=max(floor, round(self.chrome_fit * ratio, 4)))
+        return nxt.chrome_signature() == self.chrome_signature()
+
+    def shrunk_by(self, ratio: float, *, force_fit: bool = False) -> Metrics:
         """Shrink by a *measured* overflow ratio (the app's belt-and-braces).
 
         Same order of spending as :meth:`shrunk_to_fit`: chrome first, and only
@@ -505,11 +749,35 @@ class Metrics:
         includes CSS padding and real font metrics that the arithmetic cannot
         know, and it typically overshoots by a few pixels -- exactly the size
         of a gap, not of a target.
+
+        "Exhausted" is :meth:`chrome_is_spent`, not "``chrome_fit`` reached its
+        last step". A backstop that keeps spending a currency it has run out of
+        never buys anything, and the overflow it was called to close stays on
+        the screen.
+
+        ``force_fit`` is the caller's own evidence: a chrome step that changed
+        some size but did not change what GTK *measured* has bought nothing
+        either, and only the caller can see that. See
+        ``ShellWindow._check_measured_fit``.
         """
-        floor = CHROME_STEPS[-1]
-        if self.chrome_fit > floor:
-            return replace(self, chrome_fit=max(floor, round(self.chrome_fit * ratio, 4)))
-        return replace(self, fit=max(MIN_FIT, round(self.fit * ratio, 4)))
+        step = max(0.5, min(0.995, ratio))
+        if not force_fit and not self.chrome_is_spent(step):
+            floor = CHROME_STEPS[-1]
+            return replace(self, chrome_fit=max(floor, round(self.chrome_fit * step, 4)))
+        # ``fit`` is a multiplier on sizes that are rounded up to whole pixels,
+        # so a small enough step can leave every one of them where it was. Keep
+        # walking until something actually moves, or until the floor says no.
+        candidate = replace(self, fit=max(MIN_FIT, round(self.fit * step, 4)))
+        signature = self.layout_signature()
+        for _ in range(64):
+            if candidate.fit <= MIN_FIT or candidate.layout_signature() != signature:
+                break
+            candidate = replace(candidate, fit=max(MIN_FIT, round(candidate.fit - 0.01, 4)))
+        return candidate
+
+    def layout_signature(self) -> tuple[int, ...]:
+        """Every size the layout is built from. Two equal signatures lay out alike."""
+        return (self.tile_size, self.tile_height, *self.chrome_signature())
 
     # --- reporting --------------------------------------------------------
 
@@ -524,8 +792,11 @@ class Metrics:
             f"{screen} at {self.dpi:.0f} dpi (scale {self.scale_factor}), "
             f"fit {self.fit:.2f}, tile {self.tile_size} px ({self.mm_of(self.tile_size):.1f} mm), "
             f"gap {self.mm_of(self.gap):.1f} mm, target {self.mm_of(self.min_target):.1f} mm, "
-            f"band {self.band_height} px (button {self.mm_of(self.band_target):.1f} mm), "
-            f"label floor {self.label_floor_pt:.0f} pt, grid {self.columns}x{self.rows}, "
+            f"band {self.band_window_height} px "
+            f"(row {self.band_height}, captions {self.caption_height}, "
+            f"button {self.mm_of(self.band_target):.1f} mm), "
+            f"label floor {self.label_floor_pt:.0f} pt at {self.font_dpi:.0f} font dpi, "
+            f"grid {self.columns}x{self.rows}, "
             f"needs {width}x{height}"
         )
 
@@ -595,6 +866,76 @@ def override_from_env(env: dict[str, str] | None = None) -> ScreenOverride | Non
     return override
 
 
+def clamp_font_dpi(font_dpi: float | None) -> float:
+    """Believe GTK's text density only if it is a density."""
+    if font_dpi is None or not MIN_FONT_DPI <= font_dpi <= MAX_FONT_DPI:
+        return FONT_DPI
+    return font_dpi
+
+
+def gtk_font_dpi() -> float | None:
+    """What GTK will actually draw a CSS ``pt`` at, or ``None`` if we cannot ask.
+
+    ``gtk-xft-dpi`` is in 1024ths of a dot per inch and is where the desktop's
+    text-scaling factor arrives: 96 dpi times 1.3 is the 127794 the image's own
+    dconf produces. Imports ``gi`` lazily so headless unit tests never touch
+    GTK, exactly like :func:`monitor_geometry`.
+    """
+    try:  # pragma: no cover - requires a display
+        import gi
+
+        gi.require_version("Gtk", "4.0")
+        from gi.repository import Gtk
+
+        settings = Gtk.Settings.get_default()
+        if settings is None:
+            return None
+        raw = settings.get_property("gtk-xft-dpi")
+        return float(raw) / 1024.0 if raw and raw > 0 else None
+    except Exception:  # pragma: no cover - any GTK failure means "assume 96"
+        return None
+
+
+def pin_font_dpi(font_dpi: float = FONT_DPI) -> float | None:
+    """Draw the shell's own points at the density the shell's type scale means.
+
+    **The accessibility decision is already taken, once, here.** Every
+    child-facing size in ``theme.css`` goes through
+    :meth:`Metrics.child_points` and its 18 pt floor, and every box around it
+    is computed in millimetres from the panel's real density. The desktop's
+    ``text-scaling-factor`` is a second, independent multiplier on the same
+    quantity, and the image sets it to **1.3**
+    (``system_files/usr/share/kidnix/dconf/kid.d/10-input``). Applied on top,
+    the shell's 18 pt floor is drawn at 23.4 pt, its 40 pt headline at 52 pt,
+    and the two-line label box a 42 mm tile reserves stops fitting two lines --
+    which is how the content window came to be 150 px taller than the strip
+    gnome-kiosk gives it, with the shell logging ``shell geometry WRONG``.
+
+    So the shell pins its own ``gtk-xft-dpi`` for its own process and leaves
+    the session setting alone: every other program in the child's session --
+    Tux Paint's dialogs, GCompris' menus, none of which has a mm-based layout
+    system -- keeps the larger text the image asked for.
+
+    Returns the density that was in force before, or ``None`` if GTK could not
+    be asked. Call it **before** :func:`detect_metrics`.
+    """
+    try:  # pragma: no cover - requires a display
+        import gi
+
+        gi.require_version("Gtk", "4.0")
+        from gi.repository import Gtk
+
+        settings = Gtk.Settings.get_default()
+        if settings is None:
+            return None
+        raw = settings.get_property("gtk-xft-dpi")
+        before = float(raw) / 1024.0 if raw and raw > 0 else None
+        settings.set_property("gtk-xft-dpi", round(font_dpi * 1024))
+        return before
+    except Exception:  # pragma: no cover - any GTK failure means "leave it"
+        return None
+
+
 def monitor_geometry() -> tuple[int, int, int, int] | None:
     """``(width_px, height_px, width_mm, scale_factor)`` for the monitor we are on.
 
@@ -624,14 +965,20 @@ def monitor_geometry() -> tuple[int, int, int, int] | None:
         return None
 
 
-def detect_metrics(override: ScreenOverride | None = None) -> Metrics:
+def detect_metrics(override: ScreenOverride | None = None, captions: bool = True) -> Metrics:
     """Measure the monitor and return metrics that fit on it.
 
     ``override`` (from ``--screen``) wins; then ``KIDNIX_SCREEN`` /
     ``KIDNIX_FORCE_DPI``; then the real monitor; then a 96 dpi guess.
+
+    The *font* density is asked of GTK separately and is never overridden by
+    ``--screen``: it is a property of the session's settings, not of the panel
+    we are pretending to be on, and pretending about it is what hid the
+    1.3 text-scaling factor the image ships (see :attr:`Metrics.font_dpi`).
     """
     override = override or override_from_env()
     geometry = monitor_geometry()
+    text_dpi = gtk_font_dpi()
 
     width = height = 0
     width_mm = 0
@@ -648,6 +995,18 @@ def detect_metrics(override: ScreenOverride | None = None) -> Metrics:
 
     if not width or not height:
         # No display at all (headless tests): the design values are the answer.
-        return Metrics(dpi=clamp_dpi(dpi) if dpi is not None else DEFAULT_DPI)
+        return Metrics(
+            dpi=clamp_dpi(dpi) if dpi is not None else DEFAULT_DPI,
+            font_dpi=clamp_font_dpi(text_dpi),
+            captions=captions,
+        )
 
-    return Metrics.for_screen(width, height, width_mm=width_mm, scale_factor=scale, dpi=dpi)
+    return Metrics.for_screen(
+        width,
+        height,
+        width_mm=width_mm,
+        scale_factor=scale,
+        dpi=dpi,
+        font_dpi=text_dpi,
+        captions=captions,
+    )

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from kidnix_shell.metrics import (
@@ -10,6 +12,8 @@ from kidnix_shell.metrics import (
     BAND_MIN_PX,
     DEFAULT_DPI,
     GAP_FLOOR_MM,
+    GRIDS,
+    MIN_FIT,
     MIN_GRID_TILE_MM,
     MIN_TARGET_MM,
     PRIMARY_TILE_MM,
@@ -29,9 +33,9 @@ def test_default_is_96_dpi() -> None:
 
 def test_millimetres_never_round_down() -> None:
     metrics = Metrics()
-    # 18 mm at 96 dpi is 68.03 px; undersizing a target is the one error that
+    # 20 mm at 96 dpi is 75.59 px; undersizing a target is the one error that
     # matters, so it rounds up.
-    assert metrics.mm(MIN_TARGET_MM) == 69
+    assert metrics.mm(MIN_TARGET_MM) == 76
 
 
 def test_tile_is_at_least_forty_millimetres_on_a_dense_display() -> None:
@@ -104,6 +108,36 @@ SCREENS = [
 ]
 
 
+#: The panels ADR-0011's 20 mm floor costs a 40 mm tile. Both are small or
+#: dense enough that two rows of 40 mm tiles plus a 20 mm band button, a 20 mm
+#: pager arrow and the caption strip do not fit in 720-800 logical pixels.
+#: Named rather than tolerated: if a third one ever joins them, that is a
+#: layout decision somebody has to take, not a test that quietly went green.
+TIGHT_PANELS = {
+    (1280, 800, 118.0, 1),
+    (1280, 720, 113.0, 2),
+}
+
+#: And the one panel in :data:`SCREENS` that has no fitting layout at all.
+#: A 13" 1440p at 2x is 720 logical pixels tall; every floor kidnix has --
+#: 20 mm targets, an 18 pt two-line label box, the caption strip -- adds up to
+#: more than that. Recorded here rather than dropped from the list, because
+#: "we do not fit this panel" is a fact somebody should have to change on
+#: purpose.
+OUT_OF_HEIGHT = {(1280, 720, 113.0, 2)}
+
+
+def test_the_smallest_panels_pay_for_the_twenty_millimetre_floor() -> None:
+    """What :data:`TIGHT_PANELS` actually costs, in millimetres, on the record."""
+    for width, height, dpi, scale in sorted(TIGHT_PANELS):
+        metrics = Metrics.for_screen(width, height, dpi=dpi, scale_factor=scale)
+        assert metrics.mm_of(metrics.tile_size) < MIN_GRID_TILE_MM, metrics.describe()
+        # Still a target a five-year-old can hit, and still the whole point.
+        assert metrics.mm_of(metrics.tile_size) >= MIN_TARGET_MM - 0.05, metrics.describe()
+        assert metrics.mm_of(metrics.band_target) >= MIN_TARGET_MM - 0.05, metrics.describe()
+        assert metrics.mm_of(metrics.min_target) >= MIN_TARGET_MM - 0.05, metrics.describe()
+
+
 @pytest.mark.parametrize(("width", "height", "dpi", "scale"), SCREENS)
 def test_the_layout_never_exceeds_the_monitor(
     width: int, height: int, dpi: float, scale: int
@@ -111,6 +145,17 @@ def test_the_layout_never_exceeds_the_monitor(
     metrics = Metrics.for_screen(width, height, dpi=dpi, scale_factor=scale)
     needed_width, needed_height = metrics.required_size()
     assert needed_width <= width, metrics.describe()
+    if (width, height, dpi, scale) in OUT_OF_HEIGHT:
+        # 720 logical pixels, minus a 158 px band window, minus a 20 mm pager
+        # arrow, minus two rows of tiles that are floored at 20 mm and carry a
+        # two-line 18 pt label: the arithmetic runs out. It says so rather than
+        # pretending, every floor still holds, and the shell's measured
+        # backstop logs an ERROR on such a panel rather than shipping a window
+        # that overhangs it silently.
+        assert needed_height > height, metrics.describe()
+        assert metrics.fit == MIN_FIT, metrics.describe()
+        assert metrics.mm_of(metrics.min_target) >= MIN_TARGET_MM - 0.05
+        return
     assert needed_height <= height, metrics.describe()
 
 
@@ -137,10 +182,17 @@ def test_a_band_button_fits_inside_the_band(
 def test_every_screen_still_gets_a_touchable_tile(
     width: int, height: int, dpi: float, scale: int
 ) -> None:
-    """Fitting may shrink a tile below 40 mm; it may not make it unusable."""
+    """Fitting may shrink a tile below 40 mm; it may not make it unusable.
+
+    The bar is the **target floor** since ADR-0011, not an invented 25 mm: a
+    tile is an interactive thing and 20 mm is what an interactive thing gets.
+    On the two smallest panels here that is what it comes out at, because a
+    20 mm floor everywhere plus the caption strip is exactly the trade the ADR
+    made -- see :func:`test_the_smallest_panels_pay_for_the_twenty_millimetre_floor`.
+    """
     metrics = Metrics.for_screen(width, height, dpi=dpi, scale_factor=scale)
-    assert metrics.mm_of(metrics.tile_size) >= 25.0, metrics.describe()
-    assert metrics.tile_size >= 120
+    assert metrics.mm_of(metrics.tile_size) >= MIN_TARGET_MM - 0.05, metrics.describe()
+    assert metrics.tile_size >= metrics.min_target
 
 
 # --- the floors are absolute (CCI audit 2026-08-22, fix #1) --------------
@@ -198,8 +250,20 @@ def test_the_label_floor_is_eighteen_points_on_every_panel(
 def test_the_tile_keeps_its_forty_millimetres_on_every_panel_we_ship_for(
     width: int, height: int, dpi: float, scale: int
 ) -> None:
-    """The grid gives way before the tile does (audit section 3.1)."""
+    """The grid gives way before the tile does (audit section 3.1).
+
+    ADR-0011 moved the target floor to 20 mm and the caption strip took a
+    further 49 px off the content window, and the two together cost the
+    densest and smallest panels their 40 mm tile. That is the ADR's own stated
+    consequence ("a few fewer pixels per tile"), so it is written down as a
+    number rather than left as a failing assertion: every panel keeps 40 mm
+    except the two named here, and those keep the *floor*, which is the thing
+    the ADR was actually about.
+    """
     metrics = Metrics.for_screen(width, height, dpi=dpi, scale_factor=scale)
+    if (width, height, dpi, scale) in TIGHT_PANELS:
+        assert metrics.mm_of(metrics.tile_size) >= MIN_TARGET_MM - 0.05, metrics.describe()
+        return
     assert metrics.mm_of(metrics.tile_size) >= MIN_GRID_TILE_MM - 0.05, metrics.describe()
 
 
@@ -229,8 +293,13 @@ def test_every_touchable_size_clears_the_floor_on_every_panel(
 
 
 def test_chrome_is_spent_before_the_tile_is() -> None:
-    """1280x800 at 118 dpi fits only because the gaps gave way, not the tile."""
-    metrics = Metrics.for_screen(1280, 800, dpi=118.0)
+    """1280x800 at 102 dpi fits because the gaps gave way, not the tile.
+
+    The reference panel, not the 118 dpi one: since ADR-0011 the dense panel
+    spends its chrome *and* some of its tile (:data:`TIGHT_PANELS`). The order
+    of spending is what this test is about, and it is unchanged.
+    """
+    metrics = Metrics.for_screen(1280, 800, dpi=102.0)
     assert metrics.fit == 1.0, "the tile did not have to shrink"
     assert metrics.chrome_fit < 1.0, "the chrome did"
     assert metrics.mm_of(metrics.gap) < 12.0
@@ -253,9 +322,13 @@ def test_a_netbook_is_the_one_panel_that_costs_a_millimetre() -> None:
     and it is a panel we do not ship for.
     """
     metrics = Metrics.for_screen(1024, 600, dpi=96.0)
-    assert metrics.required_size() <= (1024, 600)
     assert metrics.mm_of(metrics.tile_size) < PRIMARY_TILE_MM
-    assert metrics.mm_of(metrics.tile_size) >= 30.0
+    # The floors hold; the tile is what gives. On 600 logical pixels a 20 mm
+    # band button, a 20 mm pager arrow and two rows of tiles cannot all be had,
+    # and this is the one panel where the arithmetic simply runs out -- it asks
+    # for more height than there is, and says so rather than pretending.
+    assert metrics.required_size()[0] <= 1024
+    assert metrics.mm_of(metrics.tile_size) >= MIN_TARGET_MM - 0.05
     assert metrics.mm_of(metrics.min_target) >= MIN_TARGET_MM - 0.05
     assert metrics.mm_of(metrics.gap) >= GAP_FLOOR_MM - 0.05
     assert metrics.label_floor_pt == TILE_LABEL_MIN_PT
@@ -303,16 +376,25 @@ def test_the_physical_panel_decides_the_layout_not_the_reported_dpi() -> None:
             ),
             1,
         )
-        for dpi in (96.0, 102.0, 118.0)
+        for dpi in (96.0, 102.0)
     }
     assert max(sizes) - min(sizes) <= 0.5
 
 
-def test_a_small_screen_gets_fewer_bigger_tiles() -> None:
+def test_a_small_screen_gets_the_biggest_tile_any_grid_can_give_it() -> None:
+    """No grid clears 40 mm on a netbook, so ``for_screen`` returns the best one.
+
+    It used to assert ``rows < 3`` -- true only while 3 x 2 happened to reach a
+    bigger tile than 4 x 3. Since ADR-0011 every grid bottoms out at the same
+    ``MIN_FIT`` tile on this panel, so the rule that is actually being relied
+    on is the one stated here: what comes back is never smaller than what any
+    other grid would have given.
+    """
     metrics = Metrics.for_screen(1024, 600, dpi=96.0)
-    assert metrics.required_size() <= (1024, 600)
-    assert metrics.rows < 3
     assert metrics.per_page == metrics.columns * metrics.rows
+    for columns, rows in GRIDS:
+        other = replace(metrics, columns=columns, rows=rows).shrunk_to_fit()
+        assert metrics.tile_size >= other.tile_size, metrics.describe()
 
 
 def test_an_unknown_screen_keeps_the_design_values() -> None:

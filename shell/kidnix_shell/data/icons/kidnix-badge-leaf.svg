@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Leaf</title>
+  <!-- A profile's shape badge (settings.PROFILE_BADGES): a rounded blade with
+       one point, told apart from the star by having no spikes at all. -->
+  <circle cx="32" cy="32" r="30" fill="#fbf7ef"/>
+  <path d="M50 12 C50 38 38 52 14 52 C14 26 26 12 50 12 Z"
+        fill="#16181d" stroke="#16181d" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M18 48 L46 16" fill="none" stroke="#fbf7ef" stroke-width="4"
+        stroke-linecap="round"/>
+</svg>

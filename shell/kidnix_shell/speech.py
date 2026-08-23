@@ -47,6 +47,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from .access import SPEECH_RATE
+
 log = logging.getLogger(__name__)
 
 #: Spec 7b / 09 section 2: 450 ms, up from v0.1.3's 300 ms. Extrapolated from
@@ -79,8 +81,18 @@ HOVER_LOG_PREFIX = "hover-speech"
 RECONNECT_SECONDS = 5.0
 
 #: en-GB, "slightly slower than default". speechd rate is -100..100.
-SPEECH_RATE = -20
+#: :mod:`kidnix_shell.access` owns the number now, because calm mode moves it.
 SPEECH_LANGUAGE = "en-GB"
+#: speechd volume is -100..100 and the shell's is 0.0-1.0. The image's 70%
+#: hardware ceiling is underneath both and is not negotiable from here.
+MIN_VOLUME = -100
+MAX_VOLUME = 100
+
+
+def volume_to_ssip(volume: float) -> int:
+    """0.0-1.0 to speech-dispatcher's -100..100."""
+    return round(MIN_VOLUME + (MAX_VOLUME - MIN_VOLUME) * max(0.0, min(1.0, volume)))
+
 
 #: Rough speaking speed, used only to decide how long the highlight ring stays
 #: on. No backend tells us reliably when it stopped.
@@ -139,6 +151,14 @@ class SpdSayBackend:
     def __init__(self, executable: str = "spd-say") -> None:
         self.executable = executable
         self._proc: subprocess.Popen[bytes] | None = None
+        self.rate = SPEECH_RATE
+        self.volume = 1.0
+
+    def set_rate(self, rate: int) -> None:
+        self.rate = rate
+
+    def set_volume(self, volume: float) -> None:
+        self.volume = volume
 
     def speak(self, text: str) -> None:
         self.cancel()
@@ -149,7 +169,9 @@ class SpdSayBackend:
                     "-l",
                     SPEECH_LANGUAGE,
                     "-r",
-                    str(SPEECH_RATE),
+                    str(self.rate),
+                    "-i",
+                    str(volume_to_ssip(self.volume)),
                     "--",
                     text,
                 ],
@@ -173,13 +195,14 @@ class SpdSayBackend:
         self.cancel()
 
 
-def open_ssip_client() -> Any:
+def open_ssip_client(rate: int = SPEECH_RATE, volume: float = 1.0) -> Any:
     """Connect to speech-dispatcher. Raises if the daemon is not there."""
     import speechd  # imported lazily: absent on some dev hosts
 
     client = speechd.SSIPClient("kidnix-shell")
     client.set_language(SPEECH_LANGUAGE)
-    client.set_rate(SPEECH_RATE)
+    client.set_rate(rate)
+    client.set_volume(volume_to_ssip(volume))
     client.set_punctuation(speechd.PunctuationMode.NONE)
     return client
 
@@ -207,7 +230,9 @@ class SpeechdBackend:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._client = client
-        self._connect = connect or open_ssip_client
+        self.rate = SPEECH_RATE
+        self.volume = 1.0
+        self._connect = connect or (lambda: open_ssip_client(self.rate, self.volume))
         self._clock = clock
         self._next_attempt = 0.0
         self._down = False
@@ -269,6 +294,21 @@ class SpeechdBackend:
         except Exception as exc:  # the daemon can go away mid-session
             self._drop(exc)
 
+    def set_rate(self, rate: int) -> None:
+        """Calm mode's slower voice, applied live rather than at connect."""
+        self.rate = rate
+        client = self._client
+        if client is not None:
+            with contextlib.suppress(Exception):
+                client.set_rate(rate)
+
+    def set_volume(self, volume: float) -> None:
+        self.volume = volume
+        client = self._client
+        if client is not None:
+            with contextlib.suppress(Exception):
+                client.set_volume(volume_to_ssip(volume))
+
     def cancel(self) -> None:
         # Never *opens* a connection: cancelling nothing is free, and this is
         # called on every utterance.
@@ -296,6 +336,14 @@ class FakeBackend:
         self.spoken: list[str] = []
         self.cancels = 0
         self.closed = False
+        self.rate = SPEECH_RATE
+        self.volume = 1.0
+
+    def set_rate(self, rate: int) -> None:
+        self.rate = rate
+
+    def set_volume(self, volume: float) -> None:
+        self.volume = volume
 
     def speak(self, text: str) -> None:
         self.spoken.append(text)
@@ -416,6 +464,14 @@ class SpeechManager:
         self.last_utterance: str = ""
         self.speaking_key: str | None = None
         self.on_highlight: Callable[[str, bool], None] | None = None
+        #: **The captioned hook** (accessibility review B2). Called by
+        #: :meth:`speak` with every line the shell utters, *before* the
+        #: "is speech even on?" check, so there is no path through this class
+        #: that says something without showing it -- including the path where
+        #: speech-dispatcher is dead, which is exactly when a caption is worth
+        #: most. ``tests/test_access.py`` walks the package's AST and fails on
+        #: any ``speak(`` that does not come through here.
+        self.on_caption: Callable[[str], None] | None = None
         self._dwell_handle: int | None = None
         self._dwell_key: str | None = None
         self._dwell_started: float = 0.0
@@ -441,6 +497,12 @@ class SpeechManager:
         if not text:
             return False
         self._stop_highlight()
+        # The caption goes up first and unconditionally. A child who cannot
+        # hear the sentence, or a machine whose voice is broken, gets the same
+        # information either way -- that is the whole point of the hook being
+        # here rather than at the call sites.
+        if self.on_caption is not None:
+            self.on_caption(text)
         if not self.enabled:
             self.last_utterance = text
             return False
@@ -657,6 +719,26 @@ class SpeechManager:
         self.speaking_key = None
 
     # -- lifecycle --
+
+    # -- calm mode and the volume control (accessibility review B3) --
+
+    def set_rate(self, rate: int) -> None:
+        """Calm mode speaks a little slower. Pushed to whatever backend we have."""
+        setter = getattr(self.backend, "set_rate", None)
+        if setter is not None:
+            setter(rate)
+
+    def set_volume(self, volume: float) -> None:
+        """0.0-1.0, under the image's 70% hardware ceiling.
+
+        Zero is *silence, not a broken voice*: ``enabled`` goes false so
+        nothing is sent, the caption still appears, and ``last_utterance``
+        still updates so the Ear keeps working the moment sound comes back.
+        """
+        self.enabled = volume > 0.0
+        setter = getattr(self.backend, "set_volume", None)
+        if setter is not None:
+            setter(volume)
 
     def close(self) -> None:
         self._cancel_dwell()

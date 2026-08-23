@@ -199,6 +199,12 @@ class PutAwayScreen(Screen):
 
         if not self._picture.get_visible():
             return
+        if self.ctx.reduced_motion:
+            # Calm mode, or a desktop with animations off. The thumbnail is
+            # simply *there*: the journey is a nice-to-have, and 1.1 s of
+            # movement at the moment a session ends is exactly the motion
+            # SC 2.3.3 is about.
+            return
 
         # The work flies up and to the left, towards My Things in the band --
         # "showing the journey" so the child sees where their thing went.

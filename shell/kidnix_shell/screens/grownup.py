@@ -377,6 +377,69 @@ class GrownupSheet(Adw.Dialog):
         session_group.add(end)
         page.add(session_group)
 
+        # --- sound and calm (accessibility review B3) ---
+        #
+        # "There IS a genuine unbypassable 70% hardware ceiling -- good
+        # engineering -- but a ceiling is not a control: no mute, no soft mode,
+        # nothing in the grown-up sheet." This is the control. It is on the
+        # sheet rather than in the parent panel because the parent panel does
+        # not exist yet and a child having a bad afternoon cannot wait for it.
+        access_group = Adw.PreferencesGroup(
+            title="Sound and calm",
+            description=(
+                "The 70% hardware volume ceiling is underneath all of this and "
+                "cannot be raised from here."
+            ),
+        )
+
+        volume = no_cut(Adw.SpinRow.new_with_range(0, 100, 10))
+        volume.set_title("Volume")
+        volume.set_subtitle("Earcons and read-aloud. Captions keep working at zero.")
+        volume.set_value(round(self.ctx.config.access.sound_volume * 100))
+        volume.connect("notify::value", self._on_volume_changed)
+        self._volume_row = volume
+        access_group.add(volume)
+
+        mute = no_cut(
+            Adw.SwitchRow(
+                title="Mute",
+                subtitle="Silence, not a broken machine: every line is still captioned.",
+            )
+        )
+        mute.set_active(self.ctx.config.access.mute)
+        mute.connect("notify::active", self._on_mute_changed)
+        self._mute_row = mute
+        access_group.add(mute)
+
+        calm = no_cut(
+            Adw.SwitchRow(
+                title="Calm mode",
+                subtitle=(
+                    "Reduced motion, a slower voice, and only the 'kept it' sound. "
+                    "One switch for a sensory-sensitive, anxious or overloaded day."
+                ),
+            )
+        )
+        calm.set_active(self.ctx.config.access.calm)
+        calm.connect("notify::active", self._on_calm_changed)
+        self._calm_row = calm
+        access_group.add(calm)
+
+        captions = no_cut(
+            Adw.SwitchRow(
+                title="Captions",
+                subtitle=(
+                    "Every spoken line, written under the band for four seconds. "
+                    "On by default. Turning it off takes effect at the next start."
+                ),
+            )
+        )
+        captions.set_active(self.ctx.config.access.captions)
+        captions.connect("notify::active", self._on_captions_changed)
+        self._captions_row = captions
+        access_group.add(captions)
+        page.add(access_group)
+
         settings_group = Adw.PreferencesGroup(title="Settings")
         length = no_cut(Adw.SpinRow.new_with_range(MIN_SESSION_MINUTES, MAX_SESSION_MINUTES, 5))
         length.set_title("Default session length")
@@ -486,6 +549,35 @@ class GrownupSheet(Adw.Dialog):
     def _end(self) -> None:
         self.ctx.host.finish_now()
         self.close()
+
+    # -- sound and calm --
+
+    def _apply_access(self, **changes: object) -> None:
+        """One place that changes ``[access]`` and hands it to the shell.
+
+        It holds for this boot only, like every other setting on this sheet:
+        ``/etc/kidnix/parent.toml`` is root-owned on purpose and the shell runs
+        as the child. A parent who wants it permanent edits the file, and the
+        file documents the keys.
+        """
+        access = self.ctx.config.access.with_overrides(**changes)
+        setter = getattr(self.ctx.host, "set_access", None)
+        if setter is not None:
+            setter(access)
+        else:  # pragma: no cover - a host without the hook (tests)
+            self.ctx.config.access = access
+
+    def _on_volume_changed(self, row: Adw.SpinRow, _param: object) -> None:
+        self._apply_access(sound_volume=max(0.0, min(1.0, row.get_value() / 100.0)))
+
+    def _on_mute_changed(self, row: Adw.SwitchRow, _param: object) -> None:
+        self._apply_access(mute=row.get_active())
+
+    def _on_calm_changed(self, row: Adw.SwitchRow, _param: object) -> None:
+        self._apply_access(calm=row.get_active())
+
+    def _on_captions_changed(self, row: Adw.SwitchRow, _param: object) -> None:
+        self._apply_access(captions=row.get_active())
 
     def _on_length_changed(self, row: Adw.SpinRow, _param: object) -> None:
         minutes = int(row.get_value())

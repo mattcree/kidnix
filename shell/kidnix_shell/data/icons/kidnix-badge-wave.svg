@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Wave</title>
+  <!-- A profile's shape badge (settings.PROFILE_BADGES): two horizontal
+       strokes, the only badge here that is wider than it is tall and the only
+       one that is a line rather than a solid. -->
+  <circle cx="32" cy="32" r="30" fill="#fbf7ef"/>
+  <path d="M9 26 C15 18 21 18 27 26 C33 34 39 34 45 26 C49 20.7 53 19.3 57 22"
+        fill="none" stroke="#16181d" stroke-width="7" stroke-linecap="round"/>
+  <path d="M9 42 C15 34 21 34 27 42 C33 50 39 50 45 42 C49 36.7 53 35.3 57 38"
+        fill="none" stroke="#16181d" stroke-width="7" stroke-linecap="round"/>
+</svg>

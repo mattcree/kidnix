@@ -48,11 +48,26 @@ from dataclasses import dataclass
 #: :attr:`~kidnix_shell.metrics.Metrics.fit` instead.
 FONT_DPI = 96.0
 
-#: Line box as a multiple of the em. Andika is a tall face (ascent + descent
-#: is about 1.42 em); Cantarell is 1.25. We budget for the taller one, because
-#: budgeting for the shorter one is how two lines become three on the machine
-#: that has the real font installed.
-LINE_SPACING = 1.45
+#: Line box as a multiple of the em. **Measured against Pango on the image**
+#: (``Gtk.Label`` + the shipped Andika, 18-40 pt): the real line box is
+#: 1.62 em, not the 1.45 this constant carried until 2026-08-23, and Cantarell
+#: is 1.25. Budgeting for the shorter one is how two lines become three on the
+#: machine that has the real font installed -- and it is exactly what happened.
+#:
+#: The 11% shortfall was not a rounding error, it was a **layout failure with
+#: no visible symptom until the compositor said no**. ``Metrics.tile_label_
+#: height`` is two lines *of this model*, and it is passed to
+#: :func:`fit_label` as the box the label must fit. Two real lines never fitted
+#: that box at any point size, so every attempt failed and the label fell
+#: through to the unbounded "third line" branch -- which returned the label at
+#: its *base* size, 34 px taller per tile than the grid had budgeted for. On
+#: the 1280x800 panel that is 68 px of overflow on a two-row grid; the content
+#: tree measured 802 px inside a 708 px window, GTK forwarded that as the
+#: toplevel's minimum size, and gnome-kiosk could not honour ``lock-on-area``.
+#: The shell logged ``shell geometry WRONG`` and the window overhung the panel.
+#:
+#: If this number is ever wrong again, be wrong *high*.
+LINE_SPACING = 1.62
 
 #: Everything the estimator measures is padded by this much. A label that the
 #: estimate says fits must fit in Pango too, on a font we have not measured.

@@ -86,7 +86,13 @@ class NextAfterScreen(Screen):
         self._pages = []
 
         metrics = self.ctx.metrics
-        pages = paginate(list(self.options()), metrics.per_page)
+        # **A choice screen pages at ``choice_per_page``, not ``per_page``.**
+        # Two reasons that turn out to be the same reason. SYNTHESIS B2 asks
+        # for at most five options on a screen that asks a question, and this
+        # one is Home *plus a 40 pt headline*, so a full Home-sized grid under
+        # a title is the tallest thing in the shell -- it is what the content
+        # window could not fit. One row fewer answers both.
+        pages = paginate(list(self.options()), metrics.choice_per_page)
         for options in pages:
             grid = self._grid(options)
             self.carousel.append(grid)

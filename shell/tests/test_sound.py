@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from kidnix_shell.sound import (
+    ATTACK_FLOOR_MS,
     BACK,
     EARCONS,
     GLIDE,
@@ -36,6 +37,7 @@ from kidnix_shell.sound import (
     generate,
     mix,
     render,
+    with_attack_floor,
 )
 
 
@@ -125,17 +127,39 @@ def test_the_phase_motif_is_still_the_quietest_of_the_five() -> None:
 
 @pytest.mark.parametrize("name", list(EARCONS))
 def test_every_earcon_renders(name: str) -> None:
+    """The rendered length is the length *after* the attack floor is applied.
+
+    ``mix`` runs :func:`with_attack_floor` first, so the declared earcon and
+    the one that reaches a speaker are not the same object -- and it is the
+    one that reaches the speaker that has to be the right length.
+    """
+    played = with_attack_floor(EARCONS[name])
     frames = render(EARCONS[name])
     assert frames
     assert len(frames) % 2 == 0
-    expected = int(SAMPLE_RATE * EARCONS[name].milliseconds / 1000.0)
+    expected = int(SAMPLE_RATE * played.milliseconds / 1000.0)
     assert len(frames) // 2 == pytest.approx(expected, abs=2)
 
 
 @pytest.mark.parametrize("name", list(EARCONS))
-def test_every_earcon_is_at_most_400_ms(name: str) -> None:
-    """08 section 3.6, and now without v0.1.3's exception for ``sleep``."""
-    assert EARCONS[name].milliseconds <= MAX_EARCON_MS
+def test_every_earcon_fades_in_over_at_least_150_ms(name: str) -> None:
+    """06 section 7.4 #26 / panel ruling 7d #7 -- and #39's measurement.
+
+    "Sudden unexpected sound is the most frequently identified auditory
+    sensory trigger" for autistic children, and four of the five earcons used
+    to attack in 0.4-4.0 ms. Every layer of every earcon now has a real
+    fade-in, and every layer is long enough to *have* one.
+    """
+    played = with_attack_floor(EARCONS[name])
+    for layer in played.layers:
+        assert layer.attack_ms >= ATTACK_FLOOR_MS, (name, layer.kind)
+        assert layer.milliseconds >= ATTACK_FLOOR_MS, (name, layer.kind)
+
+
+@pytest.mark.parametrize("name", list(EARCONS))
+def test_every_earcon_is_short(name: str) -> None:
+    """08 section 3.6's ceiling, moved by exactly the fade-in it now has."""
+    assert with_attack_floor(EARCONS[name]).milliseconds <= MAX_EARCON_MS
 
 
 @pytest.mark.parametrize("name", list(EARCONS))

@@ -37,6 +37,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from .access import AccessConfig, parse_access
 from .next_after import DEFAULT_NEXT_AFTER, NextAfter, parse_next_after
 
 log = logging.getLogger(__name__)
@@ -73,12 +74,35 @@ SYSTEM_DEFAULT_DIR = Path("/usr/share/kidnix")
 #: 08 section 3.4 -- colour is *whose it is*, shape is *what it is*. Each
 #: profile owns a two-colour identity used for its avatar, band tint, focus
 #: rings and journal cards.
+#:
+#: **Rechosen 2026-08-23 under colour-vision simulation.** The old pairs 2
+#: (green ``#2e7d32``) and 4 (rust ``#bf360c``) are 1.09:1 apart in luminance
+#: and simulate to ``#6d6d35`` and ``#757500`` under deuteranopia -- the same
+#: colour, to the ~8% of boys who are colour-blind and mostly do not know it,
+#: on the one signal that says whose computer this is. Green became navy
+#: ``#1a237e`` and violet moved to ``#5e35b1``; the shipped teal/pink profile
+#: is untouched. Every pair is now at least 0.40 apart in a weighted linear
+#: distance under *both* deuteranopia and protanopia (Vienot 1999), against
+#: 0.11 before -- ``tests/test_theme_css.py`` recomputes all of it.
+#:
+#: Four colours **cannot** be made pairwise 3:1 apart in luminance: each step
+#: needs 3x and four of them need 27x, while the whole legal range under
+#: "a band button must stand out from the band" is 6.3x. That is arithmetic,
+#: not an oversight, which is why :data:`PROFILE_BADGES` exists.
 PROFILE_COLOURS: tuple[tuple[str, str], ...] = (
     ("#0f8a8a", "#f06292"),  # teal / pink
-    ("#2e7d32", "#f9a825"),  # green / gold
-    ("#4527a0", "#26c6da"),  # violet / cyan
-    ("#bf360c", "#ffb300"),  # rust / amber
+    ("#1a237e", "#ffd54f"),  # navy / butter
+    ("#5e35b1", "#80deea"),  # violet / cyan
+    ("#bf360c", "#aed581"),  # rust / leaf
 )
+
+#: **Shape is the other half of identity** (M2, forum #22). Colour alone
+#: cannot say whose computer this is -- not under CVD, not in greyscale, not
+#: to a child who has not learned "the green one is mine". Each profile also
+#: owns a small glyph, drawn in the corner of its face on Who's here, and it
+#: is chosen so the four are told apart by *silhouette*: a point, a round, a
+#: crescent and a horizontal line survive being 6 mm across and out of focus.
+PROFILE_BADGES: tuple[str, ...] = ("star", "leaf", "moon", "wave")
 
 #: Where root-owned config may live, in order. Module-level so a test (or a
 #: developer with a container) can point it somewhere else; nothing derived
@@ -213,6 +237,10 @@ class Profile:
     colour_primary: str = PROFILE_COLOURS[0][0]
     colour_secondary: str = PROFILE_COLOURS[0][1]
     avatar: str = "face-smile"
+    #: The shape half of "colour = whose it is" (:data:`PROFILE_BADGES`). A
+    #: name, not a path: the icon is ``kidnix-badge-<badge>`` in the shell's
+    #: own set, so a hand-edited config cannot point it at a file.
+    badge: str = PROFILE_BADGES[0]
     #: 01 #35 / SYNTHESIS B8: a *fine* band, set by the parent. ``"4-5"`` is
     #: the shipped default, which puts the target five-year-old in the middle
     #: of it. An empty string means "the parent has not said", and nothing is
@@ -360,6 +388,10 @@ class ParentConfig:
     hover_dwell_ms: int = DEFAULT_HOVER_DWELL_MS
     #: ``[home]``: progressive disclosure.
     home: HomeConfig = field(default_factory=HomeConfig)
+    #: ``[access]``: captions, calm mode, volume and mute
+    #: (:mod:`kidnix_shell.access`). Its defaults are deliberate: a machine
+    #: nobody configured is the one a SEND child is most likely to be handed.
+    access: AccessConfig = field(default_factory=AccessConfig)
     #: ``[[next_after]]``: S1b's picture options.
     next_after: tuple[NextAfter, ...] = DEFAULT_NEXT_AFTER
     path: Path | None = None
@@ -448,7 +480,7 @@ class ParentConfig:
             log.warning("parent config %s is unreadable (%s); using defaults", path, exc)
             return cls(path=path, read_only=read_only, is_default=True)
 
-        profiles = []
+        profiles: list[Profile] = []
         for raw in data.get("profiles", []) or []:
             if not isinstance(raw, dict) or "id" not in raw or "name" not in raw:
                 log.warning("parent config %s: skipping malformed profile %r", path, raw)
@@ -460,6 +492,7 @@ class ParentConfig:
                     colour_primary=str(raw.get("colour_primary", base.colour_primary)),
                     colour_secondary=str(raw.get("colour_secondary", base.colour_secondary)),
                     avatar=str(raw.get("avatar", base.avatar)),
+                    badge=_badge(raw.get("badge"), len(profiles)),
                     age_band=str(raw.get("age_band", base.age_band)),
                     skip_next_choice=bool(raw.get("skip_next_choice", base.skip_next_choice)),
                 )
@@ -481,6 +514,7 @@ class ParentConfig:
             allowed_activity_ids=allowed_list,
             profiles=profiles,
             hover_dwell_ms=_hover_dwell_ms(data.get("hover_dwell_ms"), path),
+            access=parse_access(data.get("access"), str(path)),
             home=_home_config(data.get("home"), path),
             next_after=parse_next_after(data.get("next_after"), str(path)),
             path=path,
@@ -520,6 +554,12 @@ class ParentConfig:
             lines.append(f"allowed_activity_ids = [{allowed}]")
         lines += [
             "",
+            "[access]",
+            f"captions = {str(self.access.captions).lower()}",
+            f"calm = {str(self.access.calm).lower()}",
+            f"sound_volume = {self.access.sound_volume}",
+            f"mute = {str(self.access.mute).lower()}",
+            "",
             "[home]",
             f"initial_tiles = {self.home.initial_tiles}",
             f"reveal_every_sessions = {self.home.reveal_every_sessions}",
@@ -534,6 +574,7 @@ class ParentConfig:
                 f"colour_primary = {_toml_str(profile.colour_primary)}",
                 f"colour_secondary = {_toml_str(profile.colour_secondary)}",
                 f"avatar = {_toml_str(profile.avatar)}",
+                f"badge = {_toml_str(profile.badge)}",
                 f"age_band = {_toml_str(profile.age_band)}",
                 f"skip_next_choice = {str(profile.skip_next_choice).lower()}",
             ]
@@ -624,6 +665,23 @@ def _hover_dwell_ms(value: Any, path: Path) -> int:
         "hover_dwell_ms",
         path,
     )
+
+
+def _badge(value: Any, index: int) -> str:
+    """The profile's shape token, defaulted by position and never invented.
+
+    An unknown name falls back to the badge that position would have had:
+    a config typo must not leave a child with no shape at all, which is the
+    only carrier of identity that survives colour blindness.
+    """
+    fallback = PROFILE_BADGES[index % len(PROFILE_BADGES)]
+    if value is None:
+        return fallback
+    name = str(value)
+    if name not in PROFILE_BADGES:
+        log.warning("parent config: badge %r is not one of %s", name, ", ".join(PROFILE_BADGES))
+        return fallback
+    return name
 
 
 def _home_config(raw: Any, path: Path) -> HomeConfig:

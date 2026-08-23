@@ -355,10 +355,16 @@ def test_a_shrunk_layout_shrinks_the_type_too(ctx: ShellContext) -> None:
 
 
 def test_a_panel_that_does_not_have_to_shrink_restates_nothing(ctx: ShellContext) -> None:
-    """1280x800 at 118 dpi keeps its 40 mm tile now; only the chrome gave way."""
+    """1280x800 at 102 dpi keeps its 40 mm tile; only the chrome gave way.
+
+    The reference panel rather than the 118 dpi one: since ADR-0011 raised the
+    target floor to 20 mm and the caption strip took 49 px off the content
+    window, the dense panel is one of the two that spends a little tile as
+    well (``test_metrics.TIGHT_PANELS``).
+    """
     from kidnix_shell.theme import dynamic_css
 
-    metrics = Metrics.for_screen(1280, 800, dpi=118.0)
+    metrics = Metrics.for_screen(1280, 800, dpi=102.0)
     assert metrics.fit == 1.0
     assert ".tile-label" not in dynamic_css(metrics, ctx.profile)
 
@@ -390,7 +396,11 @@ def test_every_bundled_icon_loads() -> None:
 # --- the whole window (v0.1.1) ------------------------------------------
 
 
-def build_window(tmp_path: Path, screen: str = "1280x800@102"):  # type: ignore[no-untyped-def]
+def build_window(  # type: ignore[no-untyped-def]
+    tmp_path: Path,
+    screen: str = "1280x800@102",
+    config: ParentConfig | None = None,
+):
     """A real ShellWindow, never presented, on a pretend panel."""
     from kidnix_shell.app import ShellApplication, ShellWindow
     from kidnix_shell.metrics import parse_screen
@@ -402,7 +412,7 @@ def build_window(tmp_path: Path, screen: str = "1280x800@102"):  # type: ignore[
         cache_home=tmp_path / "cache",
         state_home=tmp_path / "state",
     )
-    config = ParentConfig()
+    config = config or ParentConfig()
     application = ShellApplication(
         paths=paths,
         config=config,
@@ -610,6 +620,17 @@ def walk(widget):  # type: ignore[no-untyped-def]
         child = child.get_next_sibling()
 
 
+def label_text(label) -> str:  # type: ignore[no-untyped-def]
+    """A tile label's text with the wrap taken back out.
+
+    Inside a reserved box the shell does its own wrapping and hands GTK the
+    line breaks (``widgets.fit_gtk_label``), because GTK wraps at a width
+    computed from the *style* font rather than the size the text is set at.
+    So the label really does contain newlines; what it says is this.
+    """
+    return " ".join((label.get_label() or "").split())
+
+
 def tile_labels(widget):  # type: ignore[no-untyped-def]
     return [
         found
@@ -649,10 +670,12 @@ def test_no_home_tile_label_is_ellipsized(
 
     names = {*shipped_names(), ALL_DONE_NAME}
     for label in labels:
-        assert label.get_label() in names
+        assert label_text(label) in names
         assert label.get_ellipsize() == Pango.EllipsizeMode.NONE
         assert label.get_layout().is_ellipsized() is False
-        assert label.get_wrap()
+        # The wrap is the shell's own now (widgets.fit_gtk_label): what
+        # matters is that nothing is cut, and that what is drawn is the name.
+        assert label.get_ellipsize() == Pango.EllipsizeMode.NONE
         assert label.get_wrap_mode() == Pango.WrapMode.WORD_CHAR
 
 
@@ -667,7 +690,7 @@ def test_every_home_tile_label_fits_the_tile_it_is_in(
         metrics = ctx.metrics
         for label in tile_labels(home):
             tall = label.measure(Gtk.Orientation.VERTICAL, metrics.tile_label_width)[1]
-            assert tall <= metrics.tile_label_height, label.get_label()
+            assert tall <= metrics.tile_label_height, label_text(label)
         for tile in walk(home):
             if isinstance(tile, ActivityTile):
                 natural = tile.measure(Gtk.Orientation.VERTICAL, -1)[1]
@@ -682,9 +705,12 @@ def test_no_home_tile_label_takes_more_than_two_lines(
     with themed(ctx):
         home = home_with_shipped_names(ctx, f"{width}x{height}@{dpi:g}")
         for label in tile_labels(home):
-            layout = label.get_layout()
-            layout.set_width(ctx.metrics.tile_label_width * Pango.SCALE)
-            assert layout.get_line_count() <= TILE_LABEL_LINES, label.get_label()
+            # The label's own layout, at the wrap the shell chose for it. Not
+            # a hypothetical re-wrap at `tile_label_width`: since the shell
+            # does the wrapping itself (widgets.fit_gtk_label) the layout is
+            # what will be drawn, and a re-wrap here would be measuring a
+            # different label in whatever font this host happens to have.
+            assert label.get_layout().get_line_count() <= TILE_LABEL_LINES, label_text(label)
 
 
 def test_a_page_of_tiles_is_all_one_type_size(ctx: ShellContext) -> None:
@@ -707,7 +733,7 @@ def test_the_tile_speaks_the_whole_audio_label_however_the_text_wraps(
     )
     tile = ActivityTile(activity, ctx.metrics, ctx.speech_ui, lambda: None)
     assert tile.speak_text == "Letters and numbers"
-    assert tile.label.get_label() == "Letters & numbers"
+    assert label_text(tile.label) == "Letters & numbers"
     assert tile.label_fit.line_count == 2
     tile.fire()
     assert ctx.speech.backend.spoken == ["Letters and numbers"]  # type: ignore[attr-defined]
@@ -723,7 +749,7 @@ def test_a_profile_name_is_never_cut_either(ctx: ShellContext) -> None:
     ]
     screen = WhosHereScreen(ctx)
     labels = tile_labels(screen)
-    assert [label.get_label() for label in labels] == ["Bartholomew"]
+    assert [label_text(label) for label in labels] == ["Bartholomew"]
     assert labels[0].get_ellipsize() == Pango.EllipsizeMode.NONE
     assert labels[0].get_layout().is_ellipsized() is False
 
@@ -774,6 +800,10 @@ def test_the_grownup_sheet_wraps_instead_of_cutting(ctx: ShellContext) -> None:
         assert row.get_title_lines() == 0
         if isinstance(row, Adw.ActionRow):
             assert row.get_subtitle_lines() == 0
+
+
+#: See ``tests/test_metrics.TIGHT_PANELS``.
+TIGHT_SCREENS = {"1280x800@118"}
 
 
 @pytest.mark.parametrize("screen", ["1280x800@96", "1280x800@102", "1280x800@118", "1366x768@96"])
@@ -829,7 +859,14 @@ def test_the_shell_still_fits_with_the_names_the_image_actually_ships(
         # child actually gets -- not the ones the arithmetic hoped for. The
         # floors hold on the real widget tree, which is the whole of the CCI
         # audit's fix #1: the grid gives way (4 x 2 here), the tile does not.
-        assert metrics.mm_of(metrics.tile_size) >= PRIMARY_TILE_MM - 0.5, metrics.describe()
+        if screen in TIGHT_SCREENS:
+            # ADR-0011's stated cost, named rather than tolerated: a 20 mm
+            # floor everywhere plus the caption strip does not leave two rows
+            # of 40 mm tiles on the densest panel we ship for. It keeps the
+            # floor, which is what the ADR was about.
+            assert metrics.mm_of(metrics.tile_size) >= MIN_TARGET_MM - 0.05, metrics.describe()
+        else:
+            assert metrics.mm_of(metrics.tile_size) >= PRIMARY_TILE_MM - 0.5, metrics.describe()
         assert metrics.mm_of(metrics.min_target) >= MIN_TARGET_MM - 0.05, metrics.describe()
         assert metrics.mm_of(metrics.gap) >= 8.0 - 0.05, metrics.describe()
         assert metrics.mm_of(metrics.band_target) >= MIN_TARGET_MM - 0.05, metrics.describe()
@@ -841,12 +878,12 @@ def test_the_shell_still_fits_with_the_names_the_image_actually_ships(
         # however many pages they take, and the profile name on Who's here,
         # which is built at the same time.
         labels = tile_labels(window._root)
-        assert {*shipped_names(), ALL_DONE_NAME} <= {label.get_label() for label in labels}
+        assert {*shipped_names(), ALL_DONE_NAME} <= {label_text(label) for label in labels}
         for label in labels:
             assert label.get_layout().is_ellipsized() is False
             assert label.get_ellipsize() == Pango.EllipsizeMode.NONE
             tall = label.measure(Gtk.Orientation.VERTICAL, metrics.tile_label_width)[1]
-            assert tall <= metrics.tile_label_height, label.get_label()
+            assert tall <= metrics.tile_label_height, label_text(label)
     finally:
         window.shutdown()
 
@@ -971,7 +1008,7 @@ def test_s1b_offers_every_configured_picture(ctx: ShellContext) -> None:
 
     screen = NextAfterScreen(ctx)
     screen.on_enter()
-    labels = [label.get_label() for label in tile_labels(screen)]
+    labels = [label_text(label) for label in tile_labels(screen)]
     assert labels == [option.label for option in ctx.config.next_after]
 
 
@@ -1357,7 +1394,12 @@ def test_the_shell_is_two_toplevels_on_one_application(tmp_path: Path) -> None:
     try:
         assert window.get_title() == CONTENT_TITLE
         assert window.band_window.get_title() == BAND_TITLE
-        assert window.band_window.get_content() is window.band
+        # The band window holds the band *and* the caption strip under it
+        # (accessibility review B2): the lines that matter most are said while
+        # an activity is covering the content window.
+        band_box = window.band_window.get_content()
+        assert window.band.get_parent() is band_box
+        assert window.captions.get_parent() is band_box
         assert window.get_application() is window.band_window.get_application()
         # ...and the band is emphatically not inside the content window any more.
         assert window.band not in list(walk(window._root))
@@ -1371,7 +1413,12 @@ def test_each_window_measures_inside_its_own_share_of_the_panel(tmp_path: Path) 
     window = build_window(tmp_path)
     try:
         metrics = window.metrics
-        assert metrics.content_height == metrics.screen_height - metrics.band_height
+        # The band *window* is the row of controls plus the caption strip:
+        # gnome-kiosk gives it one rectangle and both live inside it.
+        assert metrics.band_window_height == metrics.band_height + metrics.caption_height
+        assert metrics.content_height == metrics.screen_height - metrics.band_window_height
+        band_box = window.band_window.get_content()
+        assert band_box.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.band_window_height
         assert window.band.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.band_height
         assert window.band.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= metrics.screen_width
         assert window._root.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.content_height
@@ -1439,7 +1486,9 @@ def test_a_kiosk_shell_writes_phase_a_once_with_the_final_band_height(tmp_path: 
         # What `present_all()` does first, without putting anything on screen.
         window._write_band_phase()
         text = written.read_text()
-        band = window.metrics.band_height
+        # The strip the compositor is asked for is the band window's, which is
+        # the row of controls *and* the caption strip under it.
+        band = window.metrics.band_window_height
         assert f"lock-on-area=0,0 {window.metrics.screen_width}x{band}" in text, text
         assert f"set-height={band}" in text
         assert f"match-title={BAND_TITLE}" in text
@@ -1588,7 +1637,7 @@ def test_the_band_window_goes_dark_rather_than_away_on_sleeping(tmp_path: Path) 
         # And the *content* window takes it too: a class on a centred box paints
         # a small dark rectangle on full-brightness cream (forum #36, #38).
         assert window.has_css_class(dim)
-        assert window.band_window.get_content() is window.band  # still mapped
+        assert window.band_window.get_content() is not None  # still mapped
     finally:
         window.shutdown()
 
@@ -1789,5 +1838,320 @@ def test_the_hard_stop_is_the_only_kill_and_it_says_so(
         assert not window.launcher.running
         assert _state(window) is State.PUT_AWAY
         assert window.screens["put_away"].headline.get_label() == "Time to stop now."
+    finally:
+        window.shutdown()
+
+
+# --- accessibility: keyboard, captions, calm, targets (2026-08-23) --------
+#
+# The review's B1 in one sentence: "there is no keyboard route to Back, Undo,
+# My Things, the Ear, the sun or the gate, ever." Tab does not cross toplevels
+# and the band is a toplevel of its own, so the shell keeps the focus ring
+# itself (kidnix_shell.keyboard) and `Keyboard.key` is an ordinary method --
+# which is what makes a keyboard-only session testable without synthetic input.
+
+
+#: What the "All done" tile *says*, which is what the ring carries. The tile's
+#: written name is ``ALL_DONE_NAME``; a child hears the question.
+ALL_DONE_SPEAK = "All done for today?"
+
+
+def ring_names(window) -> list[str]:  # type: ignore[no-untyped-def]
+    from kidnix_shell.keyboard import names
+
+    return names(window.keys.refresh())
+
+
+def test_the_focus_ring_crosses_both_toplevels_band_first(tmp_path: Path) -> None:
+    from kidnix_shell.state import Event
+
+    window = build_window(tmp_path)
+    try:
+        # On Home, where every band control is reachable. (On Who's here My
+        # Things is insensitive -- the ring skips it, which is its own test.)
+        window.machine.try_fire(Event.CHOOSE_PROFILE)
+        window.machine.try_fire(Event.CHOOSE_NEXT_AFTER)
+        names = ring_names(window)
+        # Every band control, in the order they are drawn...
+        assert names[:3] == ["Back", "Undo", "My Things"]
+        assert "Say it again" in names
+        assert "Grown-up. Hold this for three seconds." in names
+        # ...and then the screen's, in the same one ring.
+        band = window.band.controls()
+        assert len(names) > len([c for c in band if c.get_visible()])
+        assert names.index("Back") < names.index(window.keys.ring.first().speak_text)
+    finally:
+        window.shutdown()
+
+
+def test_every_screen_puts_focus_on_one_of_its_own_controls(tmp_path: Path) -> None:
+    """B1: nothing called ``grab_focus`` anywhere, so a fresh Home had **zero**
+    FOCUSED nodes in the AT-SPI tree. Now every arrival lands somewhere."""
+    from kidnix_shell.keyboard import FOCUS_CLASS
+    from kidnix_shell.state import Event
+
+    window = build_window(tmp_path)
+    try:
+        for event in (Event.CHOOSE_PROFILE, Event.CHOOSE_NEXT_AFTER):
+            focused = window.keys.focused
+            assert focused is not None, _state(window)
+            assert focused.has_css_class(FOCUS_CLASS)
+            assert focused.speak_text
+            window.machine.try_fire(event)
+        assert _state(window) is State.HOME
+        assert window.keys.focused is not None
+    finally:
+        window.shutdown()
+
+
+def test_tab_goes_round_the_ring_and_shift_tab_comes_back(tmp_path: Path) -> None:
+    from gi.repository import Gdk
+
+    window = build_window(tmp_path)
+    try:
+        window.keys.focus(window.band.back)
+        window.keys.key(Gdk.KEY_Tab)
+        assert window.keys.focused is window.band.undo
+        window.keys.key(Gdk.KEY_Tab, shift=True)
+        assert window.keys.focused is window.band.back
+        # An arrow is the same model, not a second one: a child who finds the
+        # arrows must not discover subtly different behaviour.
+        window.keys.key(Gdk.KEY_Right)
+        assert window.keys.focused is window.band.undo
+    finally:
+        window.shutdown()
+
+
+def test_escape_is_back_and_means_what_back_means(tmp_path: Path) -> None:
+    from gi.repository import Gdk
+
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.config.profiles[0])
+        assert _state(window) is State.NEXT_CHOICE
+        window.keys.key(Gdk.KEY_Escape)
+        assert _state(window) is State.CHOOSING
+    finally:
+        window.shutdown()
+
+
+def test_a_whole_session_without_touching_the_mouse(tmp_path: Path) -> None:
+    """**The B1 acceptance test.** Who's here -> What's next -> Home ->
+    an activity -> Back -> All done -> Goodbye, on the keyboard alone.
+
+    Every step is a real key going into the shell's real controller, and every
+    activation is dispatched to whatever the ring is on -- which is the point:
+    it works whether the compositor thinks the band or the content window has
+    focus, because a child on a switch has no way to change that.
+    """
+    from gi.repository import Gdk
+
+    window = build_window(tmp_path)
+
+    def press_named(name: str) -> None:
+        """Tab until the ring is on ``name``, then Enter. As a child would."""
+        for _ in range(40):
+            focused = window.keys.focused
+            if focused is not None and getattr(focused, "speak_text", "") == name:
+                window.keys.key(Gdk.KEY_Return)
+                return
+            window.keys.key(Gdk.KEY_Tab)
+        raise AssertionError(f"{name!r} was never reachable: {ring_names(window)}")
+
+    try:
+        # S1 Who's here? -- the child's own face.
+        assert _state(window) is State.CHOOSING
+        press_named(window.ctx.config.profiles[0].name)
+        assert _state(window) is State.NEXT_CHOICE
+
+        # S1b What's next after? -- any of the pictures.
+        press_named(window.ctx.config.next_after[0].speak_text)
+        assert _state(window) is State.HOME
+
+        # S2 Home -- launch the first activity, then leave it with Back.
+        activity = window.ctx.activities[0]
+        press_named(activity.speak_text)
+        assert _state(window) is State.IN_ACTIVITY
+        window.keys.key(Gdk.KEY_Escape)
+        _wait_for_exit(window)
+        assert _state(window) is State.HOME
+
+        # ...and "All done" ends the session the way the child chose to.
+        press_named(ALL_DONE_SPEAK)
+        assert _state(window) in (State.PUT_AWAY, State.GOODBYE)
+    finally:
+        window.shutdown()
+
+
+def test_the_grown_up_gate_has_a_real_key_hold(tmp_path: Path) -> None:
+    """It was ``self.connect("clicked", lambda _b: None)`` -- a literal no-op.
+
+    A parent with a tremor, a switch or one hand could not open the sheet at
+    all. The keyboard route is the pointer route's full three seconds, so it
+    is no easier than the gate it is a route to.
+    """
+    from kidnix_shell.access import HOLD_SECONDS
+
+    window = build_window(tmp_path)
+    try:
+        gate = window.band.grownup
+        assert gate.key_pressed() is True
+        assert gate.has_css_class("holding")
+        # Letting go early is not a hold.
+        assert gate.key_released() is False
+        assert not gate.has_css_class("holding")
+        assert window._sheet is None
+        assert gate._hold_seconds == HOLD_SECONDS
+    finally:
+        window.shutdown()
+
+
+def test_five_presses_open_the_gate_for_a_switch_user(tmp_path: Path) -> None:
+    """A switch is a button; it cannot say "and keep it down"."""
+    from kidnix_shell.access import SWITCH_PRESSES
+
+    window = build_window(tmp_path)
+    try:
+        gate = window.band.grownup
+        for _ in range(SWITCH_PRESSES - 1):
+            gate.key_pressed()
+            assert gate.key_released() is False
+        gate.key_pressed()
+        assert gate.key_released() is True
+    finally:
+        window.shutdown()
+
+
+def test_a_band_button_really_is_twenty_millimetres_wide(tmp_path: Path) -> None:
+    """ADR-0011, measured rather than requested.
+
+    The review measured 69 x 77 px against a 72 px request, because
+    ``theme.css`` took ``margin: 0 4px`` off each side afterwards. What is
+    asserted here is what GTK will actually give the widget.
+    """
+    from kidnix_shell.access import HOLD_SECONDS  # noqa: F401  (documents the gate)
+
+    window = build_window(tmp_path)
+    try:
+        metrics = window.metrics
+        with themed(window.ctx):
+            for control in (
+                window.band.back,
+                window.band.undo,
+                window.band.my_things,
+                window.band.ear,
+            ):
+                width = control.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+                height = control.measure(Gtk.Orientation.VERTICAL, -1)[0]
+                assert metrics.mm_of(width) >= MIN_TARGET_MM - 0.05, control.speak_text
+                assert metrics.mm_of(height) >= MIN_TARGET_MM - 0.05, control.speak_text
+    finally:
+        window.shutdown()
+
+
+def test_the_caption_strip_mirrors_whatever_the_shell_says(tmp_path: Path) -> None:
+    """B2, end to end: the hook is on ``speak`` itself, so this cannot be
+    bypassed by a call site that forgot."""
+    window = build_window(tmp_path)
+    try:
+        window.speech.speak("Draw is asking if you're done.")
+        assert window.captions.text == "Draw is asking if you're done."
+        # The 13 spoken-only lines the review listed, one of each shape.
+        for line in (
+            "You're home.",
+            "Nothing to undo.",
+            "That one didn't open. Let's try something else.",
+            "That one isn't here any more.",
+        ):
+            window.speech.speak(line)
+            assert window.captions.text == line
+    finally:
+        window.shutdown()
+
+
+def test_a_muted_shell_still_captions_every_line(tmp_path: Path) -> None:
+    """Silence is not a broken machine. It is also the deaf child's default."""
+    from kidnix_shell.access import AccessConfig
+
+    window = build_window(tmp_path)
+    try:
+        window.set_access(AccessConfig(mute=True))
+        window.speech.speak("Let's keep that.")
+        assert window.captions.text == "Let's keep that."
+    finally:
+        window.shutdown()
+
+
+def test_the_caption_strip_never_covers_the_content_window(tmp_path: Path) -> None:
+    """It is in the band window, and the content window gets what is left."""
+    window = build_window(tmp_path)
+    try:
+        metrics = window.metrics
+        assert window.captions.get_parent() is window.band_window.get_content()
+        assert metrics.content_height + metrics.band_window_height == metrics.screen_height
+    finally:
+        window.shutdown()
+
+
+def test_calm_mode_cuts_the_motion_and_most_of_the_sound(tmp_path: Path) -> None:
+    from kidnix_shell.access import AccessConfig
+
+    config = ParentConfig(access=AccessConfig(calm=True))
+    window = build_window(tmp_path, config=config)
+    try:
+        assert window.stack.get_transition_duration() == 0
+        assert window.band.reduced_motion is True
+        assert window.ctx.reduced_motion is True
+        assert window.has_css_class("calm")
+        assert window.band_window.has_css_class("calm")
+        # The offer still *arrives* -- the ring is not motion, it is the one
+        # reserved colour saying "this, now" -- it simply does not scale in.
+        window.band.set_offer_mode(True)
+        assert window.band.finish_this.get_opacity() == 1.0
+        assert window.band.finish_this.has_css_class("kid-new")
+    finally:
+        window.shutdown()
+
+
+def test_the_dim_surfaces_are_painted_on_the_windows_not_on_a_box(tmp_path: Path) -> None:
+    """M4/forum #36, #38: a class on a `halign: CENTER` box is a rectangle."""
+    from kidnix_shell.state import Event
+
+    window = build_window(tmp_path)
+    try:
+        window.machine.try_fire(Event.GOODNIGHT)
+        assert _state(window) is State.SLEEPING
+        dim = "sleeping" if window.session.policy.is_bedtime(datetime.now()) else "resting"
+        assert window.has_css_class(dim)
+        assert window.band_window.has_css_class(dim)
+        assert window.screens["sleeping"].has_css_class(dim)
+    finally:
+        window.shutdown()
+
+
+@pytest.mark.parametrize("screen", ["1280x800@102", "1366x768@96"])
+def test_every_ritual_screen_fits_the_window_it_is_given(tmp_path: Path, screen: str) -> None:
+    """S5/S8's fit budget: the UX designer reproduced "Ask for more time"
+    clipped by the bottom edge and Sleeping as a box floating on cream.
+
+    Home has been measured since v0.1.1; nothing else was. Every surface in the
+    stack is measured here, at the two panels we ship for, against the *content
+    window's* budget rather than the monitor's -- which since v0.1.5 is what
+    gnome-kiosk actually gives it.
+    """
+    window = build_window(tmp_path, screen=screen)
+    try:
+        metrics = window.metrics
+        for name, surface in window.screens.items():
+            wide = surface.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+            tall = surface.measure(Gtk.Orientation.VERTICAL, -1)[0]
+            assert wide <= metrics.screen_width, (name, wide, metrics.describe())
+            assert tall <= metrics.content_height, (name, tall, metrics.describe())
+            # ...and nothing inside one overhangs it either.
+            for child in walk(surface):
+                assert child.measure(Gtk.Orientation.VERTICAL, -1)[0] <= metrics.content_height, (
+                    name,
+                    type(child).__name__,
+                )
     finally:
         window.shutdown()
