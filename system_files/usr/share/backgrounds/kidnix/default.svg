@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  kidnix default wallpaper: editable source.
-
-  The file GNOME actually shows is default.png next to this one; this SVG is
-  the design, kept so the wallpaper can be changed without reverse-engineering
-  a bitmap. They are regenerated together (docs/spikes/hardening.md section 4).
-
-  Constraints, in case someone redraws it:
-    * no text, no logo, no faces. The child must never be asked to read the
-      desktop, and the parent's desktop must not advertise at them.
-    * low contrast, warm, no strong verticals. Windows sit on top of this.
-    * geometric and flat, so it stays honest at any resolution and compresses
-      to ~110 KB rather than the 38 MiB that gnome-backgrounds cost.
--->
 <svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440"
      viewBox="0 0 2560 1440">
+  <!--
+    kidnix default wallpaper: editable source.
+
+    The file GNOME actually shows is default.png next to this one; this SVG is
+    the design, kept so the wallpaper can be changed without reverse-engineering
+    a bitmap. They are regenerated together (docs/spikes/hardening.md section 4).
+
+    Constraints, in case someone redraws it:
+      * no text, no logo, no faces. The child must never be asked to read the
+        desktop, and the parent's desktop must not advertise at them.
+      * low contrast, warm, no strong verticals. Windows sit on top of this.
+      * geometric and flat, so it stays honest at any resolution and compresses
+        to ~110 KB rather than the 38 MiB that gnome-backgrounds cost.
+  -->
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0.00" stop-color="#faedde"/>

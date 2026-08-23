@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <!-- SPDX-License-Identifier: Apache-2.0
        Copyright kidnix contributors. Activity tile: Copy the lights (blinken).
        The ACTION: four pads, one lit and glowing - the thing you have to copy. -->
   <title>Copy the lights</title>
-  <rect x="31" y="3" width="30" height="30" rx="8" fill="none" stroke="#f9a825"
+  <rect x="31" y="3" width="30" height="30" rx="8" fill="none" stroke="#ffd23f"
         stroke-width="2.5" stroke-dasharray="4 5"/>
   <rect x="7" y="7" width="22" height="22" rx="5" fill="#8a93b5" stroke="#16181d"
         stroke-width="3.5"/>
-  <rect x="35" y="7" width="22" height="22" rx="5" fill="#f9a825" stroke="#16181d"
+  <rect x="35" y="7" width="22" height="22" rx="5" fill="#ffd23f" stroke="#16181d"
         stroke-width="3.5"/>
   <rect x="7" y="35" width="22" height="22" rx="5" fill="#8a93b5" stroke="#16181d"
         stroke-width="3.5"/>

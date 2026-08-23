@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <!-- SPDX-License-Identifier: Apache-2.0
        Copyright kidnix contributors. Activity tile: Make a game (turbowarp).
        Two instruction blocks snapped together and something moving off because of
@@ -8,7 +8,7 @@
         fill="#f06292" stroke="#16181d" stroke-width="3" stroke-linejoin="round"/>
   <path d="M7 15 H17 L20 19 H24 L27 15 H43 V29 H27 L24 33 H20 L17 29 H7 Z"
         fill="#0f8a8a" stroke="#16181d" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M45 36 H54" stroke="#f9a825" stroke-width="4" stroke-linecap="round"/>
-  <path d="M52 30 L61 36 L52 42 Z" fill="#f9a825" stroke="#16181d" stroke-width="2.5"
+  <path d="M45 36 H54" stroke="#ffd23f" stroke-width="4" stroke-linecap="round"/>
+  <path d="M52 30 L61 36 L52 42 Z" fill="#ffd23f" stroke="#16181d" stroke-width="2.5"
         stroke-linejoin="round"/>
 </svg>

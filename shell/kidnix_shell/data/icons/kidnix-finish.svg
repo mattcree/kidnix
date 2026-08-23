@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <title>Finish this one</title>
   <!-- **One sun drawing, everywhere** (panel ruling, 2026-08-23). The band
        draws a disc sinking behind a horizon; S5 used to draw a bright midday
@@ -17,9 +17,9 @@
     </clipPath>
   </defs>
   <circle cx="32" cy="20" r="15" fill="none" stroke="#16181d" stroke-width="2"
-          stroke-opacity="0.28"/>
+          stroke-opacity="0.55"/>
   <g clip-path="url(#above-the-horizon)">
-    <circle cx="32" cy="43" r="10" fill="#f9a825" stroke="#16181d" stroke-width="3.5"/>
+    <circle cx="32" cy="43" r="10" fill="#ffd23f" stroke="#16181d" stroke-width="3.5"/>
   </g>
   <path d="M6 46 H58" stroke="#16181d" stroke-width="5" stroke-linecap="round"/>
 </svg>

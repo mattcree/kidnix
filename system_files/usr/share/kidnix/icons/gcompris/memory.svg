@@ -1,9 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <!-- SPDX-License-Identifier: Apache-2.0
        Copyright kidnix contributors. GCompris shelf tile: Matching pairs (memory).
        The OUTPUT: two cards turned up carrying the SAME picture, with one still face down.
-       memory-sound beside it is the same layout with sound instead of a shape, which is the
-       only honest way to draw the difference between them. -->
+       This tile is about the CARDS — three of them, across the whole frame. memory-sound
+       shares the shelf with it and used to share this layout too; it now draws the noise
+       instead, because a recolour of one drawing is not two drawings (icon audit, 3d). -->
   <title>Matching pairs</title>
   <rect x="24" y="15" width="17" height="27" rx="3" fill="#8a93b5" stroke="#16181d"
         stroke-width="3" transform="rotate(-7 32.5 28.5)"/>

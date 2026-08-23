@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <!-- SPDX-License-Identifier: Apache-2.0
        Copyright kidnix contributors. GCompris shelf tile: Big and small letters
        (memory-case-association). The OUTPUT: the two shapes of one letter, tied together.
@@ -13,6 +13,6 @@
     <circle cx="45" cy="40" r="8"/>
     <path d="M53 31 V49"/>
   </g>
-  <path d="M28 24 C36 18 42 20 47 26" fill="none" stroke="#f9a825" stroke-width="3"
+  <path d="M28 24 C36 18 42 20 47 26" fill="none" stroke="#ffd23f" stroke-width="3"
         stroke-linecap="round" stroke-dasharray="4 5"/>
 </svg>

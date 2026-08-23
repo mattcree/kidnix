@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <title>Undo</title>
-  <path d="M14 30 A20 20 0 1 1 22 47" fill="none" stroke="#4527a0" stroke-width="8"
+  <path d="M14 30 A20 20 0 1 1 22 47" fill="none" stroke="#f06292" stroke-width="8"
         stroke-linecap="round"/>
-  <path d="M6 16 L14 32 L30 26 Z" fill="#4527a0"/>
+  <path d="M6 16 L14 32 L30 26 Z" fill="#f06292"/>
 </svg>

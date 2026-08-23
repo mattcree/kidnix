@@ -1,5 +1,46 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <title>Ask a grown-up</title>
-  <rect x="6" y="16" width="52" height="34" rx="4" fill="#fbf7ef" stroke="#16181d" stroke-width="4"/>
-  <path d="M6 18 L32 38 L58 18" fill="none" stroke="#16181d" stroke-width="4" stroke-linejoin="round"/>
+  <!-- This drew a postal envelope until 2026-08-23, and the Letters activity's
+       Home tile draws a postal envelope too: the band's help button and a shelf
+       tile were the same picture with two unrelated meanings, which for a
+       pre-reader is the worst thing an icon set can do (icon audit, item 6).
+
+       So: a child with a hand up, standing next to a grown-up. Asking is drawn
+       as a gesture made to a person, because that is what the button does — it
+       fetches a grown-up. It does not send anything anywhere (08 section 3.7:
+       "ask a grown-up", never a silent denial).
+
+       Deliberately NOT an open palm. `clock_time/icons/stop.svg` is already a
+       raised open hand and it means stop; the hand here is a small closed one
+       at the end of a raised arm, and the arm is on the far side from the
+       grown-up so that the gesture is never read as reaching for their face.
+
+       Geometry and palette are the set's own: kidnix-child.svg's skin #f6c9a8,
+       kidnix-grownup.svg's hair #5d4037 and coat #78909c, kidnix-next-someone's
+       head-and-shoulders idiom, 3.5 strokes, and the ~3 unit margin every
+       sibling keeps.
+
+       The child's jumper is @kid-secondary and NOT @kid-primary, which is the
+       one thing about this icon that is not free: `.band button.outline-only`
+       in theme.css is transparent, so this is the single icon in kidnix that
+       is drawn straight onto the teal band, and a teal fill would disappear
+       into it. Checked on #0f8a8a as well as on @kid-paper. -->
+
+  <!-- the grown-up: taller, further over, turned towards the child -->
+  <path d="M31 58 A14 20 0 0 1 59 58 Z" fill="#78909c" stroke="#16181d"
+        stroke-width="3.5" stroke-linejoin="round"/>
+  <circle cx="45" cy="20" r="9.5" fill="#e8c39e" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M36.1 16.6 A9.5 9.5 0 0 1 53.9 16.6 Z" fill="#5d4037"/>
+  <circle cx="41" cy="21" r="1.9" fill="#16181d"/>
+  <circle cx="49" cy="21" r="1.9" fill="#16181d"/>
+
+  <!-- the child: smaller, in front, one hand up -->
+  <path d="M5 58 A12 13 0 0 1 29 58 Z" fill="#f06292" stroke="#16181d"
+        stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M10 51 C6 44 6 28 9 20" fill="none" stroke="#16181d"
+        stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="9" cy="16" r="4" fill="#f6c9a8" stroke="#16181d" stroke-width="3"/>
+  <circle cx="17" cy="33" r="8" fill="#f6c9a8" stroke="#16181d" stroke-width="3.5"/>
+  <circle cx="13.8" cy="32" r="1.8" fill="#16181d"/>
+  <circle cx="20.2" cy="32" r="1.8" fill="#16181d"/>
 </svg>

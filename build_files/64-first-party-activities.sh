@@ -527,7 +527,8 @@ version('${dist}')
     # tile is a promise: a child presses it and something happens.
     [[ -f "${ICONS}/${icon}" ]] || die "${ICONS}/${icon} is missing"
     ( cd / && python3 - "${manifest}" "/usr/bin/${script}" "${ICONS}/${icon}" <<'PY'
-import pathlib, sys, tomllib
+import pathlib, shutil, subprocess, sys, tomllib
+import xml.etree.ElementTree as ElementTree
 manifest, script, icon = (pathlib.Path(a) for a in sys.argv[1:4])
 data = tomllib.loads(manifest.read_text())
 if data["id"] != manifest.stem:
@@ -538,8 +539,35 @@ if data.get("icon_kind") != "path":
     sys.exit(f"icon_kind is {data.get('icon_kind')!r}")
 if data["icon"] != str(icon):
     sys.exit(f"icon is {data['icon']!r}, not {str(icon)!r}")
-if "<svg" not in icon.read_text()[:400]:
-    sys.exit(f"{icon} is not an SVG")
+# Not `"<svg" in text` -- that is what this check used to be, and three of the
+# four tiles shipped for weeks as an Adwaita broken-image glyph underneath it.
+# An icon is "there" only if the loader the child's screen uses can open it, so
+# this asserts the two ways it can fail to:
+#
+#   * XML. A ` -- ` inside an XML comment is forbidden and libxml2 aborts the
+#     whole document; the kidnix house style uses ` -- ` as an em-dash in prose
+#     and the prose went inside the comments. Three Home tiles and one activity
+#     control were dead this way (icon audit 2026-08-23, section 1).
+#   * The sniff window. gdk-pixbuf/glycin looks for the SVG signature in
+#     roughly the first 256 bytes; a long licence comment ahead of <svg> and
+#     the file is "not recognized" even though it parses.
+#
+# Rendering is the third, and it happens where it can: ImageMagick in this
+# image is linked against the same librsvg the loader uses.
+blob = icon.read_bytes()
+try:
+    ElementTree.fromstring(blob)
+except ElementTree.ParseError as exc:
+    sys.exit(f"{icon} is not well-formed XML: {exc}")
+start = blob.find(b"<svg")
+if not 0 <= start < 256:
+    sys.exit(f"{icon}: <svg> starts at byte {start}, outside the 256-byte sniff window")
+magick = shutil.which("magick") or shutil.which("convert")
+if magick and subprocess.run(
+    [magick, str(icon), "-resize", "64x64", "png:/dev/null"],
+    capture_output=True,
+).returncode:
+    sys.exit(f"{icon} does not render through librsvg")
 if data.get("source") != "kidnix":
     sys.exit(f"source is {data.get('source')!r}, not 'kidnix'")
 PY

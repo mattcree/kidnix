@@ -499,6 +499,56 @@ if bad: sys.exit('; '.join(bad))
 print('18 icons parse, are licensed, are font-free and under 4 KB')
 "
 
+# ...and no two of them are the same PICTURE, which is a different claim from
+# "no two of them are the same FILE" above and is the one that matters to a
+# pre-reader. `memory.svg` and `memory-sound.svg` were file-distinct and 0.88
+# correlated: the identical three-card layout, pink dots on one and teal sound
+# arcs on the other, side by side on the same page of the same shelf. A child
+# who cannot read the labels had a recolour to go on (icon audit 2026-08-23,
+# sections 3d and 11). Colour is not a cue this shelf may lean on: 1 boy in 12
+# is red-green colour blind, and the tiles are also spoken, not read.
+#
+# The measure is the audit's own: rasterise through librsvg at the size the
+# shelf shows (72 px), composite onto paper, reduce to 32x32 grey, and take the
+# normalised cross-correlation. It is deliberately crude -- it is a squint at
+# the tile from across the room, which is what a four-year-old does.
+#
+# 0.80 is the ceiling. The 153 pairs currently top out at 0.71
+# (erase / erase_clic, which ARE two versions of one activity and are drawn as
+# such), and the pair this test was written for measured 0.88.
+assert_py "no two shelf tiles are the same picture at a squint" "
+import itertools, pathlib, subprocess, sys, tempfile
+from PIL import Image
+
+CEILING = 0.80
+
+def squint(path, tmp):
+    png = pathlib.Path(tmp) / (path.stem + '.png')
+    done = subprocess.run(['magick', '-background', 'none', str(path),
+                           '-resize', '72x72', str(png)], capture_output=True)
+    if done.returncode: sys.exit(f'{path.name} did not render: {done.stderr.decode()[:200]}')
+    image = Image.open(png).convert('RGBA')
+    paper = Image.new('RGBA', image.size, (251, 247, 239, 255))
+    paper.alpha_composite(image)
+    grey = paper.convert('L').resize((32, 32), Image.LANCZOS)
+    values = [v / 255.0 for v in grey.tobytes()]
+    mean = sum(values) / len(values)
+    values = [v - mean for v in values]
+    norm = sum(v * v for v in values) ** 0.5 or 1.0
+    return [v / norm for v in values]
+
+with tempfile.TemporaryDirectory() as tmp:
+    icons = {p.name: squint(p, tmp) for p in sorted(pathlib.Path('${SHELF_ICONS}').glob('*.svg'))}
+pairs = sorted(
+    (sum(x * y for x, y in zip(icons[a], icons[b])), a, b)
+    for a, b in itertools.combinations(sorted(icons), 2)
+)
+worst = [f'{c:.3f} {a} ~ {b}' for c, a, b in pairs if c >= CEILING]
+if worst: sys.exit(f'these are the same picture at 32x32 grey: ' + '; '.join(worst))
+top, a, b = pairs[-1]
+print(f'{len(pairs)} pairs, worst {top:.2f} ({a} ~ {b}), ceiling {CEILING}')
+"
+
 section "generation 2: the clock came off the shelf"
 # The early-years teacher: "Time to the hour is Year 1 Measurement, in practice
 # the summer term; most Reception children cannot yet hold 'the long hand means

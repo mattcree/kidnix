@@ -1,12 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <!-- SPDX-License-Identifier: Apache-2.0
        Copyright kidnix contributors. GCompris shelf tile: Finish the pattern (frieze).
        A repeat with the next place still empty. GCompris' own stated goal for this one is
-       'learn algorithms', and a repeating sequence with a hole in it is that, drawn. -->
+       'learn algorithms', and a repeating sequence with a hole in it is that, drawn.
+
+       Until 2026-08-23 the four shapes floated on bare canvas: 98% x 23% of the tile,
+       15.8% ink, a thin strip in an otherwise empty square next to seventeen siblings
+       that fill their frames (icon audit, item 8). A frieze cannot be tall — it is a
+       row by definition — so the row is now ON something: a paper strip with a body,
+       which is also how a child meets one, as a band of pattern along a wall or a card.
+       Same four cells, same alternation, same empty last place. -->
   <title>Finish the pattern</title>
-  <circle cx="8" cy="32" r="6" fill="#f9a825" stroke="#16181d" stroke-width="3"/>
-  <rect x="18" y="26" width="12" height="12" rx="3" fill="#f06292" stroke="#16181d" stroke-width="3"/>
-  <circle cx="40" cy="32" r="6" fill="#f9a825" stroke="#16181d" stroke-width="3"/>
-  <rect x="50" y="26" width="12" height="12" rx="3" fill="none" stroke="#0f8a8a"
-        stroke-width="3" stroke-dasharray="4 5"/>
+  <rect x="4" y="9" width="56" height="46" rx="7" fill="#fbf7ef" stroke="#16181d"
+        stroke-width="3.5"/>
+  <circle cx="14" cy="32" r="5.5" fill="#ffd23f" stroke="#16181d" stroke-width="2.8"/>
+  <rect x="20.5" y="26.5" width="11" height="11" rx="2.5" fill="#f06292" stroke="#16181d"
+        stroke-width="2.8"/>
+  <circle cx="38" cy="32" r="5.5" fill="#ffd23f" stroke="#16181d" stroke-width="2.8"/>
+  <rect x="44.5" y="26.5" width="11" height="11" rx="2.5" fill="none" stroke="#0f8a8a"
+        stroke-width="2.8" stroke-dasharray="4 4"/>
 </svg>

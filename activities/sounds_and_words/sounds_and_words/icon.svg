@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <!-- SPDX-License-Identifier: Apache-2.0
        Copyright kidnix contributors. Activity tile: Sounds & words.
 
@@ -6,7 +6,7 @@
        picture this activity is about: a DOT under a one-letter grapheme, a BAR
        under a digraph, and an arrow that pushes the sounds together into a
        word. Three tiles, two dots and one bar, so the bar is visibly the odd
-       one out -- that difference is the whole claim that `sh` is ONE sound.
+       one out — that difference is the whole claim that `sh` is ONE sound.
 
        No letters in it, on purpose. A pre-reader cannot read them, and the
        marks carry the meaning on their own; it also reads in greyscale, which

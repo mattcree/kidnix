@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <title>A child</title>
   <circle cx="32" cy="30" r="20" fill="#f6c9a8" stroke="#16181d" stroke-width="3.5"/>
   <circle cx="25" cy="28" r="3" fill="#16181d"/>

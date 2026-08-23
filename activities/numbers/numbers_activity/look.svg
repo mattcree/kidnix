@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="an eye, for looking again">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128" role="img" aria-label="an eye, for looking again">
 <title>Again</title>
 <!-- "Show me the dots again." An eye, because the thing the button does is let
-     a child *look* -- and because SDK section 12 says no control is text-only:
+     a child *look* — and because SDK section 12 says no control is text-only:
      a pre-reader who cannot read "Again" can still see what this one is for.
      Deliberately not an arrow (that means "next" everywhere else in kidnix) and
      not a clock. -->

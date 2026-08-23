@@ -59,8 +59,8 @@ _default:
 
 # --- lint --------------------------------------------------------------------
 
-# Run every linter (shellcheck, hadolint, yamllint, just --fmt).
-lint: lint-shell lint-containerfile lint-yaml lint-just lint-python
+# Run every linter (shellcheck, hadolint, yamllint, just --fmt, SVG loadability).
+lint: lint-shell lint-containerfile lint-yaml lint-just lint-python lint-svg
 
 # shellcheck every tracked shell script.
 lint-shell:
@@ -98,6 +98,19 @@ lint-python:
     else \
         echo "    uv not found, skipping"; \
     fi
+
+# Every SVG in the tree must be a file the child's screen can open. Stdlib
+# Python, no container, well under a second -- the cheap half of the icon gate
+# that `tests/image/test_icons.sh` completes inside the image with librsvg.
+#
+# Five first-party SVGs shipped for weeks as an Adwaita broken-image glyph,
+# three of them Home tiles, because ` -- ` inside an XML comment is forbidden
+# and nothing had ever asked one to load. See the checker's docstring.
+lint-svg:
+    @echo "==> svg"
+    @python3 tests/image/svg_wellformed.py \
+        shell activities system_files parent-panel tests \
+        --exclude .venv --exclude node_modules --min 100
 
 # Auto-fix what can be auto-fixed.
 fmt:

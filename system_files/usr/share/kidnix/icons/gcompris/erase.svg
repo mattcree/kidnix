@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
   <!-- SPDX-License-Identifier: Apache-2.0
        Copyright kidnix contributors. GCompris shelf tile: Move the mouse (erase).
        The OUTPUT: a picture coming back into view where the pointer has swept.
@@ -10,7 +10,7 @@
           stroke-linecap="round" fill="none"/>
   </mask>
   <rect x="6" y="10" width="52" height="44" rx="6" fill="#fbf7ef"/>
-  <circle cx="24" cy="26" r="9" fill="#f9a825"/>
+  <circle cx="24" cy="26" r="9" fill="#ffd23f"/>
   <path d="M6 54 V44 C18 34 30 46 58 38 V54 Z" fill="#2e7d32"/>
   <rect x="6" y="10" width="52" height="44" rx="6" fill="#8a93b5" mask="url(#sweep)"/>
   <rect x="6" y="10" width="52" height="44" rx="6" fill="none" stroke="#16181d" stroke-width="3.5"/>
