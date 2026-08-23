@@ -317,7 +317,7 @@ def test_home_keeps_all_done_in_one_cell_forever(ctx: ShellContext) -> None:
     It used to be *last in the list*, so it moved one cell along every time
     progressive disclosure revealed a tile -- redrawing the escape hatch on a
     schedule the child cannot perceive (forum #5, #41, #57)."""
-    from kidnix_shell.resting import BEDTIME_GOODNIGHT_ICON, DAYTIME_GOODNIGHT_ICON
+    from kidnix_shell.resting import DAYTIME_GOODNIGHT_ICON
     from kidnix_shell.screens.home import ALL_DONE, AllDone, all_done_index
 
     screen = HomeScreen(ctx)
@@ -340,6 +340,9 @@ def test_the_all_done_tile_wears_the_day_picture_in_the_afternoon(ctx: ShellCont
     from kidnix_shell.resting import BEDTIME_GOODNIGHT_ICON, DAYTIME_GOODNIGHT_ICON
     from kidnix_shell.screens.home import ALL_DONE
 
+    # The demo policy has no bedtime window at all (23:59-00:00); this is the
+    # shipped one, 19:00-07:00.
+    ctx.session.policy = SessionPolicy.from_minutes()
     screen = HomeScreen(ctx)
     afternoon = datetime(2026, 8, 18, 16, 0)
     bedtime = datetime(2026, 8, 18, 21, 0)

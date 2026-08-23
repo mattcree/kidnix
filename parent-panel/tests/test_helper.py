@@ -201,6 +201,67 @@ def test_main_show_needs_no_privilege(tmp_path, capsys):
     assert payload["session"]["length_minutes"] == 30
 
 
+# --- show says whether there is a PIN, and never what it is ---------------
+#
+# `show` is the unprivileged verb. A four-digit PIN behind PBKDF2 is a
+# 10 000-candidate offline search, so printing salt+digest hands the attacker
+# the one thing kidnix-set-pin's rate limiter exists to deny.
+
+
+def test_redact_pin_removes_both_lines_and_says_a_pin_is_set():
+    out = helper.redact_pin({"parent": {"pin_salt": "aa", "pin_hash": "bb", "keep": 1}})
+    assert "pin_salt" not in out["parent"]
+    assert "pin_hash" not in out["parent"]
+    assert out["parent"]["pin_set"] is True
+    assert out["parent"]["keep"] == 1
+
+
+def test_redact_pin_on_a_machine_with_no_pin_says_so():
+    assert helper.redact_pin({"parent": {}})["parent"]["pin_set"] is False
+    assert helper.redact_pin({"parent": {"pin_hash": ""}})["parent"]["pin_set"] is False
+    assert helper.redact_pin({})["parent"]["pin_set"] is False
+
+
+def test_redact_pin_does_not_mutate_what_it_was_given():
+    payload = {"parent": {"pin_hash": "bb"}}
+    helper.redact_pin(payload)
+    assert payload["parent"]["pin_hash"] == "bb"
+
+
+def test_main_show_prints_no_hash_and_no_salt_anywhere(tmp_path, capsys):
+    etc = _mk(tmp_path)
+    helper.do_apply(household().to_payload(), etc, etc, io.StringIO(), frozenset())
+    # A PIN of the shape a real machine has: hex salt, hex PBKDF2 digest.
+    salt, digest = "0f1e2d3c", "b" * 64
+    (etc / "parent.toml").write_text(
+        f'pin_salt = "{salt}"\npin_hash = "{digest}"\n' + (etc / "parent.toml").read_text()
+    )
+    assert helper.main(["show", "--etc", str(etc), "--usr", str(etc)]) == helper.EXIT_OK
+    text = capsys.readouterr().out
+    # The whole text, not just the parent table: no key, no value, nowhere.
+    assert "pin_hash" not in text
+    assert "pin_salt" not in text
+    assert digest not in text
+    assert salt not in text
+    assert json.loads(text)["parent"]["pin_set"] is True
+
+
+def test_show_output_replayed_to_apply_cannot_erase_the_pin(tmp_path, capsys):
+    # The redaction must not become a way to CLEAR a PIN: `show | apply` is a
+    # thing a parent might reasonably do, and preserve_pin is what makes it
+    # safe -- apply reads the hash off disk and never out of a payload.
+    etc = _mk(tmp_path)
+    helper.do_apply(household().to_payload(), etc, etc, io.StringIO(), frozenset())
+    (etc / "parent.toml").write_text(
+        'pin_salt = "s"\npin_hash = "h"\n' + (etc / "parent.toml").read_text()
+    )
+    helper.main(["show", "--etc", str(etc), "--usr", str(etc)])
+    shown = json.loads(capsys.readouterr().out)
+    assert helper.do_apply(shown, etc, etc, io.StringIO(), frozenset()) == helper.EXIT_OK
+    data = tomllib.loads((etc / "parent.toml").read_text())
+    assert (data["pin_salt"], data["pin_hash"]) == ("s", "h")
+
+
 def _mk(tmp_path):
     etc = tmp_path / "etc"
     etc.mkdir(exist_ok=True)

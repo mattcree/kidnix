@@ -33,16 +33,23 @@ same treatment:
   books in it.
 
 **"All done" has one cell and never leaves it** (spec 7a, SYNTHESIS D5, and the
-panel ruling of 2026-08-23 -- see :data:`ALL_DONE_INDEX`): a moon, one tap, no
+panel ruling of 2026-08-23 -- see :data:`ALL_DONE_INDEX`): one tap, no
 confirmation, and the same ending ritual the clock would have run. A child who
 has had enough must be able to say so, and saying so must not need a grown-up,
 a hold, a sentence they cannot read, or a second look at where the button went.
+
+Its **picture** follows the clock the way its label already did (forum #17,
+:mod:`kidnix_shell.resting`): a tidy-away box during the day, the moon only
+inside the bedtime window. It carried the moon at every hour until 2026-08-23,
+which put a sleep-onset cue on the one control a four-year-old presses at ten
+in the morning -- and did it through the channel a pre-reader actually reads.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime
 from functools import partial
 from typing import TypeVar
 
@@ -54,6 +61,7 @@ from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..activities import Activity, in_age_band  # noqa: E402
 from ..i18n import N_, _  # noqa: E402
+from ..resting import DAYTIME_GOODNIGHT_ICON, goodnight_icon  # noqa: E402
 from ..util import paginate  # noqa: E402
 from ..widgets import (  # noqa: E402
     ActivityTile,
@@ -115,7 +123,10 @@ class AllDone:
     #: Msgids. A frozen dataclass default is evaluated at import, so the
     #: translation happens in the two properties below.
     name_msgid: str = N_("All done")
-    icon: str = "kidnix-moon"
+    #: **Daytime by default, because most sessions end in daylight.** The moon
+    #: is swapped in inside the bedtime window and nowhere else -- see
+    #: :meth:`HomeScreen._tile` and :func:`kidnix_shell.resting.goodnight_icon`.
+    icon: str = DAYTIME_GOODNIGHT_ICON
     icon_kind: str = "icon-name"
     category: str = "make"
     speak_msgid: str = N_("All done for today?")
@@ -279,13 +290,41 @@ class HomeScreen(Screen):
             )
         return carousel_page(grid)
 
+    def is_bedtime(self, now: datetime | None = None) -> bool:
+        """Is the night vocabulary true right now?
+
+        The same question Goodbye asks before it labels its own ending button
+        (``screens/goodbye.py``), asked from the same place -- the session
+        policy's ``[bedtime]`` window -- so the tile and the button can never
+        disagree about what time of day it is.
+
+        Answered ``False`` if there is no policy to ask. Daytime is the safe
+        default of the two: a box where a moon belonged is a picture that is
+        merely less apt, while a moon where a box belonged is the sleep-onset
+        cue this whole switch exists to keep off an afternoon screen.
+        """
+        policy = getattr(getattr(self.ctx, "session", None), "policy", None)
+        if policy is None:  # pragma: no cover - every real context has one
+            return False
+        return bool(policy.is_bedtime(now or datetime.now()))
+
+    def all_done_cell(self, now: datetime | None = None) -> AllDone:
+        """:data:`ALL_DONE` with the picture this hour of the day deserves.
+
+        A *copy*, made at render time and thrown away with the tile.
+        :data:`ALL_DONE` itself stays the one object :meth:`cells` pins into
+        the grid, because ``cells[index] is ALL_DONE`` is the invariant that
+        keeps the escape hatch where the child left it.
+        """
+        return replace(ALL_DONE, icon=goodnight_icon(bedtime=self.is_bedtime(now)))
+
     def _tile(
         self, cell: Activity | AllDone, points: float | None = None, label_height: int | None = None
     ) -> Gtk.Widget:
         metrics = self.ctx.metrics
         if isinstance(cell, AllDone):
             return ActivityTile(
-                cell,
+                self.all_done_cell(),
                 metrics,
                 self.ctx.speech_ui,
                 on_activate=self._all_done,

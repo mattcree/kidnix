@@ -21,11 +21,16 @@ than a method on the panel:
    ``fsync``, ``chmod 0644``, ``os.replace``. A power cut during a save leaves
    either the old file or the new one, never half a PIN and a machine that will
    not let anyone in.
-4. **It never touches the PIN.** The hash and salt are carried across from
-   whatever is on disk *now*, not from the payload, unless the payload's hash
-   is byte-identical to it. Changing a PIN is ``kidnix-set-pin``'s job, which
-   demands the current one and rate-limits guesses; a config writer that could
-   also set a PIN would be a way around both.
+4. **It never touches the PIN, and never repeats it.** The hash and salt are
+   carried across from whatever is on disk *now*, not from the payload, unless
+   the payload's hash is byte-identical to it. Changing a PIN is
+   ``kidnix-set-pin``'s job, which demands the current one and rate-limits
+   guesses; a config writer that could also set a PIN would be a way around
+   both. And ``show`` -- the one verb that needs no password -- prints
+   ``pin_set: true|false`` in their place rather than the two lines
+   themselves, because a four-digit PIN behind PBKDF2 is a 10 000-candidate
+   offline search and handing out the digest walks around the rate limiter.
+   See :func:`redact_pin`.
 
 Exit codes, which :mod:`kidnix_parent_panel.system` reads:
 
@@ -179,6 +184,40 @@ def preserve_pin(payload: dict[str, Any], parent_text: str) -> dict[str, Any]:
     return merged
 
 
+def redact_pin(payload: dict[str, Any]) -> dict[str, Any]:
+    """Strip ``pin_salt``/``pin_hash`` from what ``show`` is about to print.
+
+    ``show`` needs no privilege -- "what is set?" is not a secret, and being
+    able to answer it without a password is why the panel opens instantly. The
+    **PIN hash is not that question.** Four digits behind PBKDF2 is a
+    10 000-candidate offline search: anyone holding the salt and the digest can
+    grind it on another machine in seconds, which walks straight around
+    ``kidnix-set-pin``'s "two seconds a guess, five a minute" limiter, the only
+    thing that makes a four-digit secret defensible at all.
+
+    So the two lines never leave this process. What replaces them is the one
+    bit a caller legitimately needs: ``pin_set``, true or false. That is what
+    the panel would ask for -- it shows "Change PIN" either way and hands the
+    work to ``kidnix-set-pin`` -- and it is what the grown-up gate's
+    "choose a PIN first" state is derived from.
+
+    **This is not the whole fix and does not pretend to be.**
+    ``/etc/kidnix/parent.toml`` is 0644 because the shell runs as the child and
+    must read the hash to check a PIN at the gate, so ``cat`` still gives up
+    the same two lines. Closing that means moving the hash behind a
+    root-only verifier; see ``docs/spikes/pin-flow.md`` §6. What this closes is
+    the *easy* copy: the command a parent is invited to run, whose JSON lands
+    in terminals, screenshots and bug reports.
+    """
+    out = dict(payload)
+    parent = dict(out.get("parent") or {})
+    was_set = bool(str(parent.pop("pin_hash", "") or "").strip())
+    parent.pop("pin_salt", None)
+    parent["pin_set"] = was_set
+    out["parent"] = parent
+    return out
+
+
 def rendered(payload: dict[str, Any], tts_text: str) -> dict[str, str]:
     """``{filename: text}`` for everything this payload would replace.
 
@@ -326,10 +365,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "show":
         # Deliberately unprivileged: both files are 0644 and a parent asking
-        # "what is set?" should not be asked for a password to find out.
+        # "what is set?" should not be asked for a password to find out. The
+        # PIN hash is not part of that question -- see redact_pin.
         parent_text, session_text, tts_text = config_io.read_files(etc, usr)
         json.dump(
-            config_io.payload_from_toml(parent_text, session_text, tts_text),
+            redact_pin(config_io.payload_from_toml(parent_text, session_text, tts_text)),
             sys.stdout,
             indent=2,
             sort_keys=True,
@@ -386,6 +426,7 @@ __all__ = [
     "is_admin",
     "main",
     "preserve_pin",
+    "redact_pin",
     "rendered",
     "shell_round_trip",
     "write_atomically",

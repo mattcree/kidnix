@@ -2,6 +2,7 @@
 # Validate and install kidnix's parent and session settings.
 #
 #   kidnix-config show          -> print what is set now, as JSON. No password.
+#                                  Never the PIN: see "SHOW IS REDACTED" below.
 #   kidnix-config apply         -> read a JSON payload on stdin and install it.
 #   kidnix-config check         -> say nothing, change nothing; may I write?
 #
@@ -29,6 +30,19 @@
 #     on disk now and put back verbatim; a payload that carried different ones
 #     is ignored. Changing a PIN is kidnix-set-pin's job, because that is the
 #     command that demands the current PIN and rate-limits wrong guesses.
+#
+# SHOW IS REDACTED. `show` needs no privilege, and that is deliberate: a parent
+# asking what is set should not be asked for a password to find out. But it
+# prints `pin_set: true|false` where parent.toml has `pin_salt`/`pin_hash`, and
+# never the two lines themselves. A four-digit PIN behind PBKDF2 is a
+# 10 000-candidate OFFLINE search -- anyone holding salt and digest grinds it on
+# another machine in seconds, which is a way around the "two seconds a guess,
+# five a minute" limiter in kidnix-set-pin that makes four digits defensible at
+# all. parent.toml is still 0644 (the shell runs as the child and must read the
+# hash to check a PIN at the gate), so `cat` gives the same two lines; what this
+# closes is the easy copy -- the command a parent is *invited* to run, whose
+# output lands in terminals, screenshots and bug reports. docs/spikes/pin-flow.md
+# S6 carries the rest.
 #
 # POLKIT. The action is org.kidnix.parent-config, allow_active=auth_admin_keep
 # -- a grown-up sitting at the machine, in wheel, typing their own password.
@@ -65,7 +79,9 @@ usage() {
 usage: kidnix-config show|apply|check
 
   show    print the machine's current settings as JSON. Needs no privilege:
-          both files are 0644 and "what is set?" is not a secret.
+          both files are 0644 and "what is set?" is not a secret. The PIN is
+          not part of that answer: you get pin_set = true or false, never the
+          hash or the salt.
   apply   read a JSON settings payload on standard input, validate it twice,
           and install /etc/kidnix/parent.toml and /etc/kidnix/session.toml
           (and /etc/kidnix/tts.env when the voice changed).
