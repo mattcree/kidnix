@@ -524,7 +524,7 @@ have no test at all.
 Near misses: **A16** needs a virtual audio source; **B15** waits on the cosign
 key; **C7** is a documented limitation we intend to change.
 
-> **Status note (2026-08-23, after e2e wave 2 + the rollback spike):** of the
+> **Status note (2026-08-23, after e2e wave 2 + the rollback spike; `just test-rollback` passes 11/11 on the shipped image and `just test-e2e` 30/30):** of the
 > top-10 above, 1 (`just test-rollback`), 2, 3, 4, 5, 6 (partial — see A25
 > finding), 7, 9 and 10 now exist; 8 (PIN in a VM) is covered by the boot
 > test's set-pin checks. Next: A25's keyboard escape from an activity, the

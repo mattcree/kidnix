@@ -42,7 +42,8 @@ session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
 - [x] Boot test asserts: no egress from kid (`curl` exits 7) while root
       succeeds; shell restart after kill
 - [ ] Keybinding mash test on real hardware
-- [ ] First-boot idempotency and `bootc upgrade`/rollback tested in a VM
+- [x] `bootc upgrade` + automatic rollback proven in a VM (`just test-rollback`,
+      red.d boot-counter fix for btrfs /boot); first-boot idempotency via e2e
 
 ## M2 — Shell vertical slice ("one activity, end-to-end") — largely done 2026-08-22
 

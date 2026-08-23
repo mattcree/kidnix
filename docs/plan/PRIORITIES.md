@@ -86,8 +86,8 @@ generative AI in the child session · age verification · a forked desktop.
 - [ ] Child session: no egress (tested from inside the VM), no VT switch, no
       shell escape via any keybinding in a 5-minute mash test, shell restarts
       after kill
-- [~] Parent session reachable (stock GNOME); updates/rollback not yet
-      exercised in a VM
+- [x] Parent session reachable (stock GNOME); update + automatic rollback
+      proven in a VM (`just test-rollback`)
 - [x] `docs/LICENSES.md` exists (fonts, base; voices to add)
 - [x] ADR-0004…0009 written
 - [~] Activity manifests validated in CI; GCompris speaking offline unverified
