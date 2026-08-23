@@ -1,10 +1,9 @@
 # Review — child & adolescent mental-health clinician
 
 > UK CAMHS clinician (child psychotherapy / play therapy; anxiety, attachment,
-> dysregulation, early compulsive technology use). Read-only pass over
-> AGENTS.md §3, SYNTHESIS §0/§2 D–H/§4b, 02 §2.7–§5, 09 Q1/Q6/§10–11,
-> shell-v0.1 S5–S8 + §7a–7c, impl-notes §16–§20, ADR-0009/0010,
-> CHILD-TEST-PROTOCOL, the shipped strings, four screenshots, the forum.
+> dysregulation, early compulsive technology use). Read-only pass over the
+> review packet, the shipped strings in `shell/kidnix_shell/`, four
+> screenshots, and the panel forum. 2026-08-23.
 
 ## 1. Verdict
 
@@ -24,7 +23,7 @@ right.
 My concerns are almost entirely about **the emotional register of the last two
 minutes** and **what the machine does to a child who is not coping** — where
 children's software actually causes harm, and the least finished part of this
-build. No blocker here is expensive.
+build. No blocker below is expensive.
 
 ## 2. Five strengths
 
@@ -34,15 +33,15 @@ build. No blocker here is expensive.
    about lost work is a tantrum you caused; you engineered that away with care.
 2. **"All done" has zero friction, in a table, with a test guarding the table**
    (`BACK_DELAY_SECONDS` has one row). 25–31% of endings are child-initiated;
-   you treat that as normal and make adding friction require a public argument.
+   you treat that as normal and make adding friction a public argument.
 3. **"What's next after?" at the start** — the best clinical decision here: the
    ending becomes delivery of the child's own plan rather than a removal.
 4. **The refusal to fabricate.** No digits, no countdown, no points, "Nothing
-   to undo" instead of a greyed button, `Ask` hidden rather than disabled
+   to undo" rather than a greyed button, `Ask` hidden rather than disabled
    because "a control that never does anything teaches that buttons lie".
-5. **Honesty about the evidence** — no time threshold is evidenced; the
-   two-minute-warning finding is one weak study; Sleeping is parent-side
-   enforcement and does nothing for the child; the earcons are a guess.
+5. **Honesty about the evidence** — no time threshold is evidenced; Sleeping is
+   parent-side enforcement and does nothing for the child; the earcons are a
+   guess.
 
 ## 3. Concerns, ranked
 
@@ -51,7 +50,7 @@ build. No blocker here is expensive.
 `goodbye.py`'s **Goodnight** leads to `sleeping.py`'s moon + "kidnix is
 sleeping"; `sound.py`'s `SLEEP` earcon is explicitly *a yawn*. Default bedtime
 is 19:00–07:00, so the ordinary after-school session ends in night vocabulary
-three or four hours before night.
+hours before night.
 
 Two harms. (a) *It is not true*, and this codebase holds itself to "the words
 have to be true" everywhere else (§20.3). Coco's documents the failure mode — a
@@ -79,8 +78,7 @@ kidnix is sleeping. Ask a grown-up." indefinitely, chopped, synthetic.
 That is aversive, and it is a *demand* issued to a child whose executive
 function has gone offline. Repeated demands during dysregulation escalate; it is
 why we teach parents to stop talking. Everything else in the shell is admirably
-non-escalating (silent un-penalised gate failure, no "are you sure?", no
-scolding); this one surface undoes it.
+non-escalating; this one surface undoes it.
 
 **Fix:** speak once, then an 8–10 s floor; silent after three presses, warm and
 dim. Drop the demand: "The computer's having a rest." Finding an adult is not a
@@ -95,9 +93,9 @@ late two-minute sitting begins in `Phase.PUT_AWAY`: the child taps her face,
 immediately told "Let's keep that" over nothing, then "See you next time" with
 no thumbnails. A promise collected and broken inside ninety seconds, by the
 object the child has been taught owns the ending. Five-year-olds attribute that
-to themselves, and it teaches that the machine's rituals are unreliable —
-discrediting every later use of them. Relatedly, fixed 6/2-minute windows make
-40% of a 15-minute test session "the sun is going down".
+to themselves, and it teaches that the machine's rituals are unreliable.
+Relatedly, fixed 6/2-minute windows make 40% of a 15-minute test session "the
+sun is going down".
 
 **Fix:** floor the grant and refuse **at Who's here**, before "What's next
 after?" — never collect a plan for a session that cannot happen. Make the
@@ -108,8 +106,8 @@ refusal warm and non-explanatory.
 
 `dismiss_offer()`: both buttons latch the same flag; in-activity the transition
 is an explicit no-op; put-away lands at T−2 either way. Three buttons, one
-outcome. Autonomy support only works when the choice is real — the
-informational/controlling distinction this project already cites from Deci. A
+outcome. Autonomy support only works when the choice is real — Deci's
+informational/controlling distinction, which this project already cites. A
 pseudo-choice repeated daily teaches that the machine's questions are
 decorative, and that credit is spent on every later question, including "What's
 next after?", which you need believed. **Fix:** make one answer consequential
@@ -123,9 +121,8 @@ Spec §6: "the hard stop is the hard stop." But natural stopping points are the
 Hiniker actually found, as distinct from the ritual, which is Coco's. You built
 the ritual beautifully and not the boundary. **Fix:** a bounded, silent
 elasticity (≤90 s once per session, banked against the budget, never announced
-— announcing makes it negotiable). If out of scope, say plainly in SYNTHESIS
-that the best-evidenced intervention is unimplemented, so the child test is not
-read as a test of it.
+— announcing makes it negotiable). If out of scope, say so in SYNTHESIS, so the
+child test is not read as a test of it.
 
 ### MAJOR 6 — the worst day gets the coldest screen, and two banned return promises
 
@@ -135,19 +132,18 @@ time"**; `app._refuse` says **"That's all the time for today. See you
 tomorrow."** Both fire on the child's flattest day — and
 `show_button.set_visible(bool(made))` means the same condition **hides "Show a
 grown-up"**. `demo-goodbye-choice.png` is that screen: a return promise over a
-void, co-use withdrawn. A child who made nothing struggled or explored; that is
-the day the ending must be warmest. **Fix:** delete both strings; a warm,
-non-evaluative headline about *doing* rather than producing; never hide "Show a
-grown-up" — point it at earlier days.
+void, co-use withdrawn. **Fix:** delete both strings; a warm, non-evaluative
+headline about *doing* rather than producing; never hide "Show a grown-up" —
+point it at earlier days.
 
 ### MAJOR 7 — the one co-use moment is on a two-minute timer
 
 `SHOWING_SECONDS = 120`; `_showing_done` fires unconditionally. Co-viewing is
 the strongest protective moderator in your whole literature (02 §2.6, §3
-#11–12) and this is the only place you build it; two minutes is roughly how
-long it takes an adult to arrive from a kitchen. **Fix:** no timer, or 10
-minutes resetting on interaction, ended by an adult-pressed "Finished looking".
-If no adult comes, don't snatch it back. Relatedly, E1's descriptive competence
+#11–12) and this is the only place you build it; two minutes is about how long
+it takes an adult to arrive from a kitchen. **Fix:** no timer, or 10 minutes
+resetting on interaction, ended by an adult-pressed "Finished looking"; if no
+adult comes, don't snatch it back. Relatedly, E1's descriptive competence
 feedback ("you used five colours") — the one channel Deci says *raises*
 intrinsic motivation — is in SYNTHESIS and nowhere in the code.
 
@@ -181,10 +177,10 @@ is the anxiety signature.
 ### MINOR 10 — no character, and the ritual's evidence came from a character
 
 Coco's effects were relational: children answered her aloud and told their
-families. kidnix keeps the script and removes the speaker. I would **not**
-reverse that — Radesky's parasocial-pressure category makes a character
-genuinely dangerous — but be honest that P6 tests a *de-characterised* version
-of a characterised finding, so a null result may mean "no character", not "bad
+families. kidnix keeps the script and removes the speaker. Do **not** reverse
+that — Radesky's parasocial-pressure category makes a character genuinely
+dangerous — but note that P6 tests a *de-characterised* version of a
+characterised finding, so a null result may mean "no character", not "bad
 script". Meanwhile a proto-character accretes by accident: "I haven't said
 anything yet", "kidnix is sleeping", a moon that sleeps, a yawn. Choose.
 
@@ -192,11 +188,11 @@ anything yet", "kidnix is sleeping", a moon that sleeps, a yawn. Choose.
 
 (a) In an activity the offer replaces **Undo and My Things** with two icon-only
 glyphs whose words live only in `speak_text`, and speech "degrades silently" —
-use free slots, and fall back to S5 with no voice. (b) Nothing checks bedtime
-mid-session and nothing warms or dims as it approaches (02 §3 #17): shorten a
-session that would overrun, and warm the palette through the preceding hour.
-(c) "What's next after?" has no "something else" and no exit but Back —
-rigidity is Coco's named failure mode; add a ninth tile.
+use free slots, and fall back to S5 with no voice. (b) Nothing warms or dims as
+bedtime approaches (02 §3 #17): shorten a session that would overrun, and warm
+the palette through the preceding hour. (c) "What's next after?" has no
+"something else" and no exit but Back — rigidity is Coco's named failure mode;
+add a ninth tile.
 
 ### Signs of compulsive use — keep them off the screen, put them on paper
 
@@ -222,19 +218,18 @@ relationship, said out loud, by a person.
 
 ### Ethics of testing on one's own child
 
-CHILD-TEST-PROTOCOL is better than most institutional protocols I have seen.
-Four additions. (1) **The rater is not neutral** — every upset rating is made by
-the person who built the thing; have the second adult rate, or rate from audio
-afterwards, and pre-register all six predictions. (2) **Run P1 last, and be
-ready to abandon it** — an ABAB reversal costs eight weeks of an inconsistent
-ritual in the one domain (predictability) the product exists to provide; stop
-at the first sign the child has noticed. (3) **Assent must survive the parent's
-investment** — a standing rule that the child may end any session with no
-discussion and no visible disappointment, and the parent logs every occasion
-they felt the pull to persuade. That log is the real ethics record. (4) **This
-child cannot consent to being the origin of a public artefact** — keep the log,
-drawings and quotes out of anything published unless she is old enough to say
-no.
+Better than most institutional protocols I have seen. Four additions. (1) **The
+rater is not neutral** — every upset rating is made by the person who built the
+thing; have the second adult rate, or rate from audio afterwards, and
+pre-register all six predictions. (2) **Run P1 last, ready to abandon it** — an
+ABAB reversal costs eight weeks of an inconsistent ritual in the one domain
+(predictability) the product exists to provide; stop at the first sign the
+child has noticed. (3) **Assent must survive the parent's investment** — a
+standing rule that the child may end any session with no discussion and no
+visible disappointment, and the parent logs every occasion they felt the pull
+to persuade. That log is the real ethics record. (4) **This child cannot consent
+to being the origin of a public artefact** — keep the log, drawings and quotes
+out of anything published unless she is old enough to say no.
 
 ## 4. "Do no harm" checklist before the first child session
 
