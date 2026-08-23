@@ -230,7 +230,20 @@ def restart(story, policy: str) -> str:
     Returns the journal cursor taken *before* the restart, so every assertion
     in a test can be scoped to this shell and cannot match the previous one's
     identical lines.
+
+    It also starts every child's day again. ``rested_at`` and the spent
+    seconds live in the profile's own ``usage.toml`` and survive a shell
+    restart **on purpose** (ADR-0014: a restarted shell must not hand back a
+    sitting the ritual has already ended) -- which for these tests means the
+    flow before this one can leave the face dimmed and the budget spent. A
+    scenario that wants yesterday's state writes it; nobody inherits it by
+    accident.
     """
+    story.vm.ssh(
+        "rm -f /var/home/kid/.local/state/kidnix/usage.toml"
+        " /var/home/kid/.local/state/kidnix/profiles/*/usage.toml",
+        check=False,
+    )
     story.vm.write_session_policy(policy)
     cursor = story.vm.restart_shell()
     laid_out = [
@@ -266,16 +279,27 @@ def two_faces(image):
     return (first, second)
 
 
-def face_ink(image, blob) -> float:
+def face_ink(image, blob, threshold: int = 110) -> float:
     """How much ink is in one face's own bounding box, with a little margin.
 
     ``blob`` is a ``dark_centroid`` tuple taken from a reference frame, so the
     same box can be measured in a later one -- which is how "this face got
     dimmer and that one did not" is asserted without trusting either face to
     be the same size as the other.
+
+    ``threshold`` is the ruler. The default (110) sees anything inkish, which
+    is right for "is a face there". Asserting a **dim** needs a harder one:
+    the resting treatment is ``opacity: 0.7``, which blends a #16181d stroke
+    to a mean of ~90 -- still "dark" at 110, so the fraction barely moves
+    while the child sees the face fade (proven the hard way: the first run of
+    A24 measured 10.7% -> 9.9% on a visibly dimmed face). At 60, a full
+    stroke counts and a dimmed one does not, so the fraction collapses on the
+    rested face and holds on the live one.
     """
     left, top, right, bottom = blob[3]
-    return dark_fraction(image, (left - 10, top - 10, right + 10, bottom + 10))
+    return dark_fraction(
+        image, (left - 10, top - 10, right + 10, bottom + 10), threshold=threshold
+    )
 
 
 def press_the_face(story, timeout: float = 60.0) -> tuple:
@@ -1159,8 +1183,8 @@ def test_a24_a_siblings_afternoon_survives_the_other_ones_ending(flows):
         # *fraction* comparison between them a comparison of name lengths.
         time.sleep(2.5)
         image = story.shot("a24-one-resting", "A24 one face resting, one ready")
-        was_rested, was_live = face_ink(start, first), face_ink(start, second)
-        now_rested, now_live = face_ink(image, first), face_ink(image, second)
+        was_rested, was_live = face_ink(start, first, 60), face_ink(start, second, 60)
+        now_rested, now_live = face_ink(image, first, 60), face_ink(image, second, 60)
         assert now_rested < was_rested * 0.85, (
             f"the face whose sitting is over has {now_rested:.2%} ink where it "
             f"had {was_rested:.2%}: it is not being drawn any differently, so a "
