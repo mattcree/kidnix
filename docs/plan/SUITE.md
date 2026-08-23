@@ -21,14 +21,14 @@ honest and stable rather than many half-built toys.
 | Tile (child sees) | What it is | Build or curate | Depth | Status |
 |---|---|---|---|---|
 | **Draw** | Tux Paint, tuned (fewer tools, bigger buttons, en_GB) | curate | thin | shipped |
-| **Sounds & Words** | the literacy suite (research 10): Hear it → Find it → Blend it → Read it (v1); Spell it, Write it, My name (v2) — one predictable 8–12 min loop, parent sets the school's scheme + last grapheme as a hard ceiling | **build** | **deep** | weeks 1–3 built (corpus, ceiling, Find it, Blend it); image install + phoneme clips in progress; Read it next |
+| **Sounds & Words** | the literacy suite (research 10): Hear it → Find it → Blend it → Read it (v1); Spell it, Write it, My name (v2) — one predictable 8–12 min loop, parent sets the school's scheme + last grapheme as a hard ceiling | **build** | **deep** | weeks 1–4 built and installed (corpus, ceiling, Find it, Blend it, Read it with 12 decodable texts); phoneme recordings pending (Matt); Hear it / Spell it / Write it / My name next |
 | **Letters & numbers** | GCompris, as a one-level shelf of 18 curated activities | curate | thin | wired (wave C) |
 | **Potato faces** | KTuberling | curate | thin | shipped |
 | **Copy the lights** | Blinken | curate | thin | shipped |
-| **Clock & time** | play-with-the-clock toy + routine strip + "how long is a minute" (Matt's idea; Y1/Y2 time) | build | medium | v1 built (371 tests); tile install in progress |
-| **Numbers** | subitising & bonds to 5/10 built to the ELG (05 §3) | build | medium | v1 built (817 tests); tile install in progress |
+| **Clock & time** | play-with-the-clock toy + routine strip + "how long is a minute" (Matt's idea; Y1/Y2 time) | build | medium | v1 shipped as a tile (454 tests) |
+| **Numbers** | subitising & bonds to 5/10 built to the ELG (05 §3) | build | medium | v1 shipped as a tile (817 tests) |
 | **Photos** | webcam → Journal, caption/voice | build | thin | P1 |
-| **Letters to family** | picture + caption + voice to a parent-approved recipient; the reply comes back into the Journal | build | medium | v1 built (206 tests); tile install + reply import in progress |
+| **Letters to family** | picture + caption + voice to a parent-approved recipient; the reply comes back into the Journal | build | medium | v1 shipped as a tile; reply→Journal import built |
 | **Listen** | read-to-me: narrated decodable/picture books (shares Read it's engine), family-recorded stories; screen dim | build | medium | P1 |
 | **Music** | pentatonic xylophone/loops, save to Journal | build | thin | P2 |
 | **Make a game** | TurboWarp (offline Scratch) for 7+ | curate | thin | P2 |
