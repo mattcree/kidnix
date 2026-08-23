@@ -187,20 +187,34 @@ else
         "nothing in /usr/lib/fontconfig/cache"
 fi
 
-section "parent panel (placeholder)"
+section "parent panel"
+# The panel itself -- its package, its polkit action, its helper and what it
+# would write -- is tests/image/test_parent_panel.sh. What belongs HERE is only
+# its place on the parent's desktop, which is what this file is about.
+#
+# It was a placeholder that printed "not built yet" until 2026-08-23; the
+# assertion that it does so has been replaced by the assertion that it no
+# longer does, because a launcher that still says that on a machine carrying
+# the real app is the exact failure a stale check would hide.
 assert_exec /usr/bin/kidnix-parent-panel
 assert_file /usr/share/applications/kidnix-parent-panel.desktop
 assert_grep '^Exec=/usr/bin/kidnix-parent-panel$' \
-    /usr/share/applications/kidnix-parent-panel.desktop "the launcher execs the stub"
+    /usr/share/applications/kidnix-parent-panel.desktop "the launcher execs the panel"
 assert_grep '^TryExec=/usr/bin/kidnix-parent-panel$' \
     /usr/share/applications/kidnix-parent-panel.desktop "the launcher has a TryExec guard"
-assert_cmd "the stub is valid bash" bash -n /usr/bin/kidnix-parent-panel
-# It must run and say something, because a parent clicking a silent launcher
-# concludes the machine is broken.
+assert_grep '^Terminal=false$' \
+    /usr/share/applications/kidnix-parent-panel.desktop "the launcher opens a window, not a terminal"
+assert_cmd "the launcher is valid bash" bash -n /usr/bin/kidnix-parent-panel
 if /usr/bin/kidnix-parent-panel 2>/dev/null | grep -q 'Not built yet'; then
-    _report ok "the stub runs and explains itself"
+    _report no "the placeholder is gone" "the launcher still says 'not built yet'"
 else
-    _report no "the stub runs and explains itself"
+    _report ok "the placeholder is gone"
+fi
+# It must answer without a display, because that is how the build checks it.
+if /usr/bin/kidnix-parent-panel --version 2>/dev/null | grep -q '^kidnix-parent-panel '; then
+    _report ok "the panel answers --version"
+else
+    _report no "the panel answers --version"
 fi
 if command -v desktop-file-validate >/dev/null 2>&1; then
     assert_cmd "the launcher is a valid desktop entry" \

@@ -1,0 +1,111 @@
+#!/usr/bin/bash
+# Validate and install kidnix's parent and session settings.
+#
+#   kidnix-config show          -> print what is set now, as JSON. No password.
+#   kidnix-config apply         -> read a JSON payload on stdin and install it.
+#   kidnix-config check         -> say nothing, change nothing; may I write?
+#
+# WHY THIS EXISTS. /etc/kidnix/parent.toml and /etc/kidnix/session.toml are
+# root-owned because the shell runs as the child, and a child-writable session
+# length is not a session length. The parent panel runs as the *parent*, who is
+# in wheel and is not root -- so it cannot write them either. This is what can.
+#
+# It is a thin wrapper, exactly like kidnix-export and kidnix-set-pin: it
+# re-execs itself through pkexec and then hands over to the real work, which is
+# `python3 -m kidnix_parent_panel.helper`. Keeping the logic in the Python
+# package rather than in this file is deliberate -- the panel and this helper
+# then share ONE validator and ONE renderer, so the settings a parent was shown
+# as acceptable and the settings root is willing to write can never disagree.
+#
+# WHAT IT REFUSES, and none of it depends on polkit having got it right:
+#
+#   * a caller who is not root and not in wheel (the `kid` account above all);
+#   * a payload that does not validate against the panel's own rules;
+#   * a payload whose rendered TOML the SHELL cannot read back -- the files are
+#     parsed with kidnix_shell's own ParentConfig.load and load_policy before
+#     anything is replaced, so a file the child's screen would choke on never
+#     reaches /etc;
+#   * any attempt to set the PIN. The hash and salt are copied from whatever is
+#     on disk now and put back verbatim; a payload that carried different ones
+#     is ignored. Changing a PIN is kidnix-set-pin's job, because that is the
+#     command that demands the current PIN and rate-limits wrong guesses.
+#
+# POLKIT. The action is org.kidnix.parent-config, allow_active=auth_admin_keep
+# -- a grown-up sitting at the machine, in wheel, typing their own password.
+# The `kid` account is refused it by the "org.kidnix." prefix in
+# /usr/share/polkit-1/rules.d/40-kidnix-kid.rules, which is unchanged: this
+# action is NOT in that file's one-item allow-list and must never be added to
+# it. `kidnix-polkit-check kid org.kidnix.parent-config` prints the verdict.
+#
+# WRITES ARE ATOMIC. Each file is written to a temporary in the same directory,
+# fsync'd, chmod 0644, and renamed over the old one, so a power cut leaves
+# either the old file or the new one and never half of either.
+#
+# EXIT CODES (the panel reads them):
+#   0  written; each file named on stdout as "wrote <path>"
+#   1  refused: not root, not wheel, or the child's account
+#   3  the settings were invalid; nothing was written
+#  64  usage
+set -euo pipefail
+
+# The polkit action pkexec asks for, matched to this file by the exec.path
+# annotation in /usr/share/polkit-1/actions/org.kidnix.parent-config.policy.
+# Named here so `grep` finds it from either end.
+# shellcheck disable=SC2034
+readonly ACTION=org.kidnix.parent-config
+readonly MODULE=kidnix_parent_panel.helper
+
+readonly EXIT_REFUSED=1
+readonly EXIT_USAGE=64
+
+die() { printf 'kidnix-config: %s\n' "$*" >&2; exit "${EXIT_REFUSED}"; }
+
+usage() {
+    cat >&2 <<'EOF'
+usage: kidnix-config show|apply|check
+
+  show    print the machine's current settings as JSON. Needs no privilege:
+          both files are 0644 and "what is set?" is not a secret.
+  apply   read a JSON settings payload on standard input, validate it twice,
+          and install /etc/kidnix/parent.toml and /etc/kidnix/session.toml
+          (and /etc/kidnix/tts.env when the voice changed).
+  check   change nothing; exit 0 if this account may write at all.
+
+Run it as yourself; it asks polkit for the root it needs. The parent panel
+(Applications -> Parent Panel) is the way most people should reach this.
+EOF
+    exit "${EXIT_USAGE}"
+}
+
+[[ $# -ge 1 ]] || usage
+command="$1"
+shift || true
+
+case "${command}" in
+    show|apply|check) ;;
+    -h|--help) usage ;;
+    *) printf 'kidnix-config: unknown command %s\n' "${command}" >&2; usage ;;
+esac
+
+# Extra arguments are refused rather than forwarded: this process becomes root,
+# and the Python half takes hidden --etc/--usr paths for its own tests. Nothing
+# a caller invents may reach it.
+[[ $# -eq 0 ]] || die "kidnix-config takes one command and nothing else"
+
+# `show` is deliberately unprivileged. A parent asking what is currently set
+# should not be asked for a password to find out, and both files are 0644.
+if [[ "${command}" == "show" ]]; then
+    exec python3 -m "${MODULE}" show
+fi
+
+if [[ "${EUID}" -ne 0 ]]; then
+    command -v pkexec >/dev/null 2>&1 \
+        || die "pkexec is missing; run 'sudo kidnix-config ${command}' instead"
+    # The command is reconstructed rather than forwarded verbatim, so that the
+    # root half only ever sees one of the three words checked above.
+    exec pkexec /usr/bin/kidnix-config "${command}"
+fi
+
+# Root from here. The Python half decides whether the *caller* (PKEXEC_UID,
+# then SUDO_UID, then the real uid) is allowed to ask at all.
+exec python3 -m "${MODULE}" "${command}"

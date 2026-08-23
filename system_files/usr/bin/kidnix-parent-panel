@@ -1,32 +1,33 @@
 #!/usr/bin/bash
-# kidnix parent panel -- PLACEHOLDER (M1).
+# kidnix parent panel -- the grown-up's settings, on the grown-up's desktop.
 #
-# The real panel is a libadwaita application (ADR-0005): children and their
-# allow-lists, time budgets, the "ask a grown-up" queue, the Journal, and
-# updates. It defers to GNOME Settings -> Wellbeing and to malcontent-control
-# for the things GNOME already does well, and records its own policy in
-# malcontent so GNOME's tooling agrees with ours.
+#   kidnix-parent-panel              open the window
+#   kidnix-parent-panel --version    what is installed
+#   kidnix-parent-panel --self-check check this installation; no window needed
+#   kidnix-parent-panel --dump       print the files it would write
 #
-# This stub exists so that the launcher, its desktop entry and its place in the
-# parent's app grid are real and testable before the panel is written. It is
-# deliberately loud rather than silent: a parent who clicks it must not think
-# the machine is broken.
+# This replaced a placeholder that printed "not built yet". The panel itself is
+# a libadwaita application in Python (ADR-0005: the parent gets a stock GNOME
+# session, and kidnix's own policy lives in an ordinary app on it), installed
+# by build_files/62-parent-panel.sh into the image's site-packages exactly the
+# way the child's shell is. This file is the launcher its .desktop entry names.
+#
+# WHY A WRAPPER RATHER THAN THE CONSOLE SCRIPT. parent-panel/pyproject.toml
+# declares `kidnix-parent-panel = "kidnix_parent_panel.cli:main"`, but nothing
+# runs `pip install` inside the image (see 60-shell.sh for the full argument),
+# so the entry point is written out here instead. Keeping it as a shell script
+# also means tests/image/test_parent.sh's "the launcher is valid bash" check
+# still means something.
+#
+# WHAT IT DELIBERATELY DOES NOT DO:
+#
+#   * It does not ask for a password. Opening the panel is free; only *saving*
+#     borrows root, through /usr/bin/kidnix-config and polkit.
+#   * It does not run in the child's session. It is on the parent's app grid
+#     (Terminal=false), reads /etc as any user may, and writes nothing itself.
+#   * It does not touch the child's dconf profile. tests/image/test_parent.sh
+#     greps this file for the environment variable that would set one, so the
+#     name is deliberately not written here.
 set -euo pipefail
 
-VERSION_FILE=/usr/share/kidnix/VERSION
-version="$(cat "${VERSION_FILE}" 2>/dev/null || echo unknown)"
-
-cat <<MESSAGE
-kidnix parent panel (version ${version})
-
-  Not built yet.
-
-  This is a placeholder. Until the real panel lands, use:
-
-    malcontent-control          app filter and screen-time limits for 'kid'
-    gnome-control-center        wifi, printers, users, Wellbeing
-    journalctl -u 'kidnix-*'    what kidnix did at boot
-    bootc upgrade --check       whether an update is waiting
-
-  Roadmap: docs/plan/ROADMAP.md    Design: ADR-0005
-MESSAGE
+exec /usr/bin/python3 -m kidnix_parent_panel "$@"

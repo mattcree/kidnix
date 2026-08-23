@@ -25,11 +25,23 @@ COPY build_files/ /tmp/build_files/
 # and the caches out of the build context.
 COPY shell/ /tmp/shell/
 
+# The parent panel is a second source tree, installed the same way by
+# build_files/62-parent-panel.sh. It is separate from shell/ because it runs in
+# a different session as a different user: the child's shell is on the kiosk,
+# this is a libadwaita app on the parent's stock GNOME (ADR-0005).
+COPY parent-panel/ /tmp/parent-panel/
+
+# The first-party activities, for the same reason and by the same route:
+# build_files/64-first-party-activities.sh copies `sounds_and_words` and its
+# corpus into site-packages beside the SDK it is written against. Only the
+# packages themselves travel -- .containerignore drops every venv and cache.
+COPY activities/ /tmp/activities/
+
 RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
     KIDNIX_VERSION="${KIDNIX_VERSION}" \
     KIDNIX_PRETTY_VERSION="${KIDNIX_PRETTY_VERSION}" \
     /tmp/build_files/build.sh && \
-    rm -rf /tmp/build_files /tmp/shell && \
+    rm -rf /tmp/build_files /tmp/shell /tmp/parent-panel /tmp/activities && \
     ostree container commit
 
 # The cache mount above keeps /var/cache/libdnf5 busy for the whole of that

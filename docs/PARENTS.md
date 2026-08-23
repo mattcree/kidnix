@@ -73,6 +73,55 @@ The gate is a *usability* boundary: it stops a child wandering into settings.
 It is not a safe. It cannot stop someone determined and older, and **the disk
 is not encrypted**.
 
+## How to change any of this
+
+Everything below — how long a sitting is, how many children there are, which
+pictures they see, how loud it is — is one app on **your** desktop, not a file
+you have to find.
+
+Log in as `parent` (the grown-up account, not your child's screen) and open
+**Parent Panel** from the applications list. It has six pages:
+
+* **Children** — add your children, one at a time, each with their own name,
+  their own colour and shape, and their own age. Each one gets their own face
+  on the first screen, their own drawings and their own daily total. Removing a
+  child takes their face away and **keeps everything they made**.
+* **Time** — how long one sitting lasts, how many minutes there are in a day,
+  when bedtime starts, and how long the ending takes.
+* **Activities** — which pictures your child sees, one tick-box each, with a
+  line saying what each one is actually for. The first switch on the page is
+  **"Keep the grid the same"**: leave it on and nothing new ever appears on
+  your child's screen without you.
+* **Sound & calm** — the volume, a silence switch, whether every spoken line is
+  also written on the screen, and one **Calm mode** switch that slows the whole
+  thing down for a hard day.
+* **Their things** — copy your child's drawings out to a folder or a USB stick,
+  open them, print one, or delete everything.
+* **Updates & safety** — change the grown-up PIN, check for an update, and read
+  in plain English what this machine does and does not send.
+
+Change what you like across the pages, then press **Apply** once. It asks for
+**your** password (not your child's PIN), and then it says:
+
+> Saved. It takes effect at your child's next session.
+
+That is exactly true: your child's screen reads these settings when a session
+*starts*, so if they are using the computer right now, your change reaches them
+the next time they switch it on.
+
+**If something is wrong** — a bedtime that is not a time, a sitting shorter
+than the ending that goes inside it — the panel says so in a sentence at the
+top and will not let you save it. It is not being fussy; a settings file the
+child's screen cannot read is a child's screen that does not start.
+
+**If you would rather use a text editor**, you still can: the settings are
+`/etc/kidnix/parent.toml` and `/etc/kidnix/session.toml`, they are ordinary
+readable text, and the panel reads whatever it finds there the next time it
+opens. The long explanation of what every setting means and why the numbers are
+what they are lives in the copy the machine ships,
+`/usr/share/kidnix/parent.toml`, which is replaced by every update so it never
+goes out of date.
+
 ## Where the drawings are, and how to get one out
 
 They live in your child's own account on the machine, which nothing else can

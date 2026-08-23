@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+
+<!--
+  kidnix: changing the shape of the sandbox.
+
+  /etc/kidnix/parent.toml and /etc/kidnix/session.toml decide who the children
+  are, how long a sitting is, what a child may open and how the machine sounds.
+  They are root-owned because the shell runs as the child, and a child-writable
+  session length is not a session length. The parent panel runs as the PARENT,
+  who is in wheel and is not root, so it cannot write them either; and this
+  is the action behind the helper that can (/usr/bin/kidnix-config).
+
+  ONE CALLER, ONE ROUTE, AND THAT IS THE WHOLE DESIGN.
+
+  * A grown-up on their own desktop meets the defaults below:
+    allow_active=auth_admin_keep, i.e. a wheel password. That is the stock
+    Fedora admin experience, the same shape as org.kidnix.parent-tools, and not
+    a new secret to remember. auth_admin_KEEP because setting a machine up is
+    six tabs and one Apply, and being asked again five minutes later teaches a
+    parent to stop reading the dialogue.
+
+  * THE CHILD'S SESSION IS NOT A CALLER. Unlike org.kidnix.set-pin, this action
+    gets NO carve-out in /usr/share/polkit-1/rules.d/40-kidnix-kid.rules: the
+    "org.kidnix." prefix in that file's deny list already covers it, and it
+    must stay covered. Adding this id to that file's one-item allow-list would
+    hand a five-year-old the ability to lengthen their own session, empty their
+    own bedtime and tick every activity back on. Nothing about the first-PIN
+    argument that justifies set-pin applies here: a machine with no settings
+    yet has working defaults, and there is no screen a child is trapped on.
+
+  * allow_inactive=no keeps it off ssh-without-a-session and off the greeter.
+
+  THE AUTHORISATION IS NOT THE AUTHORITY. Saying yes here grants the right to
+  *ask*; /usr/bin/kidnix-config decides. It re-checks that the caller is root
+  or in wheel from PKEXEC_UID; it validates the payload against the panel's own
+  rules; it parses the files it is about to install with the SHELL's own reader
+  and refuses anything the child's screen could not read back; it writes
+  atomically; and it will not set a PIN; the hash and salt are copied off the
+  file that already exists and put back unchanged, because changing a PIN is
+  org.kidnix.set-pin's job and that is the path that demands the current one
+  and rate-limits guesses.
+
+  pkexec matches an action to a program by the exec.path annotation below.
+
+  NOTE FOR EDITORS: this is an XML comment, so it may not contain a double
+  hyphen anywhere. tests/image/test_parent_panel.sh parses this file to make
+  sure a well-meant edit cannot unregister the action or loosen its defaults.
+-->
+<policyconfig>
+  <vendor>kidnix</vendor>
+  <vendor_url>https://github.com/mattcree/kidnix</vendor_url>
+
+  <action id="org.kidnix.parent-config">
+    <description>Change this machine's settings for a child</description>
+    <description xml:lang="en_GB">Change this machine's settings for a child</description>
+    <message>Authentication is required to change the children, time limits and activities on this machine</message>
+    <message xml:lang="en_GB">Authentication is required to change the children, time limits and activities on this machine</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/kidnix-config</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>
