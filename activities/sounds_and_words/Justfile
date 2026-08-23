@@ -1,0 +1,104 @@
+# Sounds & Words -- everything you can do to this directory.
+#
+# The venv is created with --system-site-packages on purpose: PyGObject, GTK4,
+# libadwaita, GdkPixbuf and speechd come from the system, and on a real machine
+# so do `kidnix_activity` and `kidnix_shell` (build_files/60-shell.sh copies
+# both into site-packages beside the shell). In a checkout they are two
+# directories up, which is what SDK below points at.
+#
+# Run these from `activities/sounds_and_words/`.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+uvrun := "uv run --active"
+# The activity SDK, from the checkout rather than from the image.
+sdk := "../../shell"
+
+# List the recipes (this is the documentation of what you can do).
+default:
+    @just --list
+
+# Create the venv and install the dev tools.
+setup:
+    uv venv --system-site-packages --python /usr/bin/python3
+    uv sync --active
+    @{{ uvrun }} python -c "import gi; print('gi ok')"
+
+# The whole suite. GTK tests skip where there is no display; logic tests never do.
+test *ARGS:
+    {{ uvrun }} pytest {{ ARGS }}
+
+# Just the pure-logic tests -- no display, no SDK needed. The CI floor.
+test-headless:
+    env -u WAYLAND_DISPLAY -u DISPLAY {{ uvrun }} pytest -q \
+        --ignore=tests/test_gtk_screens.py
+
+# The GTK tests, on a Broadway display, so nothing opens on your desktop
+# (AGENTS.md; docs/design/activity-sdk.md section 10).
+test-gtk DISPLAY_NUMBER="108":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gtk4-broadwayd -p "8{{ DISPLAY_NUMBER }}" ":{{ DISPLAY_NUMBER }}" >/dev/null 2>&1 &
+    broadwayd=$!
+    trap 'kill "${broadwayd}" 2>/dev/null || true' EXIT
+    sleep 1.5
+    env -u WAYLAND_DISPLAY -u DISPLAY \
+        GDK_BACKEND=broadway BROADWAY_DISPLAY=":{{ DISPLAY_NUMBER }}" \
+        PYTHONPATH="{{ sdk }}" {{ uvrun }} pytest tests/test_gtk_screens.py -q
+
+lint:
+    {{ uvrun }} ruff check .
+
+# Regenerate data/*.toml from the transcription. A test insists the checked-in
+# files match byte for byte.
+generate:
+    {{ uvrun }} python tools/gen.py
+
+# Check the manifest with the same validator the image build runs.
+validate:
+    PYTHONPATH="{{ sdk }}" {{ uvrun }} python -m kidnix_activity.cli validate manifest.toml
+
+# Run the activity on a Broadway display. Ctrl-C runs its save.
+run DISPLAY_NUMBER="108" *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gtk4-broadwayd -p "8{{ DISPLAY_NUMBER }}" ":{{ DISPLAY_NUMBER }}" >/dev/null 2>&1 &
+    broadwayd=$!
+    trap 'kill "${broadwayd}" 2>/dev/null || true' EXIT
+    sleep 1.5
+    env -u WAYLAND_DISPLAY -u DISPLAY \
+        GDK_BACKEND=broadway BROADWAY_DISPLAY=":{{ DISPLAY_NUMBER }}" \
+        KIDNIX_ACTIVITY_ID=sounds-and-words KIDNIX_PROFILE_ID=dev \
+        PYTHONPATH="{{ sdk }}" {{ uvrun }} python -m sounds_and_words {{ ARGS }}
+
+# The two screenshots in docs/design/screenshots/, plus the digraph one. The
+# --ceiling flag is a development override and the shell never passes it.
+screenshots DISPLAY_NUMBER="108":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(realpath ../../docs/design/screenshots)"
+    scratch="$(mktemp -d)"
+    trap 'rm -rf "${scratch}"' EXIT
+    gtk4-broadwayd -p "8{{ DISPLAY_NUMBER }}" ":{{ DISPLAY_NUMBER }}" >/dev/null 2>&1 &
+    broadwayd=$!
+    trap 'kill "${broadwayd}" 2>/dev/null || true; rm -rf "${scratch}"' EXIT
+    sleep 1.5
+    shoot() {
+        env -u WAYLAND_DISPLAY -u DISPLAY \
+            GDK_BACKEND=broadway BROADWAY_DISPLAY=":{{ DISPLAY_NUMBER }}" \
+            KIDNIX_SCREEN=1280x800 \
+            KIDNIX_ACTIVITY_ID=sounds-and-words KIDNIX_PROFILE_ID=dev \
+            PYTHONPATH="{{ sdk }}" \
+            {{ uvrun }} python -m sounds_and_words --screenshot "$1" --seed 3 "${@:2}"
+    }
+    shoot "${out}"
+    shoot "${scratch}" --ceiling ng
+    cp "${scratch}/saw-blend-it.png" "${out}/saw-blend-it-digraph.png"
+    ls -la "${out}"/saw-*.png
+
+# Everything CI runs for this directory.
+ci: lint test-headless validate
+
+clean:
+    rm -rf .venv .pytest_cache .ruff_cache
+    find . -name __pycache__ -type d -prune -exec rm -rf {} +

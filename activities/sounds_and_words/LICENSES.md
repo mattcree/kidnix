@@ -112,7 +112,16 @@ Everything kidnix added to the Crown-copyright material is marked
 - fifteen never-taught pseudo-GPCs used only to explain *why* a word is not
   decodable;
 - the segmentations in `data/lexicon.toml` for words that appear in L&S captions
-  and sentences but in none of its word bank columns.
+  and sentences but in none of its word bank columns;
+- **eighteen drawings**, added 2026-08-23 for Blend it (week 3):
+  `sounds_and_words/pictures/*.svg` — fifteen concrete nouns (bag, bed, bus,
+  cat, cup, dog, fox, hat, jam, map, net, pin, pot, sun, tap), each a word with
+  a segmentation on record so it can actually appear under a real ceiling — and
+  `sounds_and_words/icons/*.svg` — three interface drawings (push, say, next).
+  Hand-drawn SVG paths, no traced or third-party artwork, no embedded fonts and
+  no text elements. They are first-draft quality and deliberately flat and
+  high-contrast so that every one of them reads in greyscale (SYNTHESIS B6:
+  colour is never the sole carrier of meaning).
 
 These are kidnix's, under Apache-2.0, and are separable from the OGL material.
 
@@ -125,7 +134,7 @@ These are kidnix's, under Apache-2.0, and are separable from the OGL material.
 | a–z phoneme audio | CC-BY-SA-4.0 (GCompris `voices-en_GB`, already in the image) | covers every single-letter grapheme |
 | ~20 digraph/trigraph recordings | ours, CC-BY-SA-4.0 | **must be recorded**; never synthesise a phoneme — TTS adds a schwa, which is the classic phonics error |
 | narration for sentences and books | Piper `en_GB-cori-high`, public domain | already pinned in `docs/LICENSES.md`; fine for sentences, **not** for isolated phonemes |
-| picture prompts | Mulberry Symbols, CC BY-SA 4.0 | UK-made AAC set |
+| picture prompts beyond the fifteen | Mulberry Symbols, CC BY-SA 4.0 | UK-made AAC set. Only needed if the fifteen kidnix drawings in §4 turn out not to be enough; each import needs its own row |
 | ~12 authored decodable texts | ours, Apache-2.0 | built from the OGL word banks; no CC-licensed UK-progression decodable set exists |
 | Andika 7.000 | SIL OFL 1.1 | use the SIL release, **not** the Google Fonts subset |
 

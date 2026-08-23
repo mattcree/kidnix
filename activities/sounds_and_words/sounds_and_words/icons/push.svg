@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="push the sounds together">
+<title>push the sounds together</title>
+<g fill="none" stroke="#16181d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+<rect x="26" y="30" width="32" height="60" rx="10" fill="#fbf7ef"/>
+<rect x="62" y="30" width="32" height="60" rx="10" fill="#fbf7ef"/>
+<path d="M4 46h12M4 60h12M4 74h12" stroke="#0f8a8a"/>
+<path d="M116 46h-12M116 60h-12M116 74h-12" stroke="#0f8a8a"/>
+</g>
+</svg>

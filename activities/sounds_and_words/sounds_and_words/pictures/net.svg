@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a net">
+<title>a net</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M16 108 52 72" stroke-width="12"/>
+<path d="M16 108 52 72" stroke-width="6" stroke="#c98a53"/>
+<clipPath id="hoop"><circle cx="74" cy="46" r="30"/></clipPath>
+<g clip-path="url(#hoop)" stroke-width="3">
+<path d="M56 12 30 46M74 12 40 60M92 12 46 74M104 24 56 82M104 42 70 88M104 60 88 88"/>
+<path d="M56 84 30 50M74 86 40 38M92 84 46 24M104 74 56 16M104 56 70 10M104 38 88 10"/>
+</g>
+<circle cx="74" cy="46" r="30" stroke-width="6"/>
+</g>
+</svg>

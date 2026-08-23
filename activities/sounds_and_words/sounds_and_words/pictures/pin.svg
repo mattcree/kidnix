@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a pin">
+<title>a pin</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M38 34a22 22 0 0 1 44 0v6H38Z" fill="#f06292"/>
+<path d="M50 40h20v14H50Z" fill="#c0405f"/>
+<path d="M60 54 66 78 60 104 54 78Z" fill="#b9c4cc"/>
+</g>
+</svg>

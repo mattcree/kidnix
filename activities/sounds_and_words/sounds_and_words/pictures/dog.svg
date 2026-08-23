@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a dog">
+<title>a dog</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M32 42c-10 2-14 22-8 36 5 12 14 10 16 2" fill="#a06a3c"/>
+<path d="M88 42c10 2 14 22 8 36-5 12-14 10-16 2" fill="#a06a3c"/>
+<path d="M36 52a24 24 0 0 1 48 0v14a24 24 0 0 1-48 0Z" fill="#c98a53"/>
+<circle cx="50" cy="56" r="4" fill="#16181d"/>
+<circle cx="70" cy="56" r="4" fill="#16181d"/>
+<path d="M44 74h32v8a16 16 0 0 1-32 0Z" fill="#f2e2cf"/>
+<ellipse cx="60" cy="76" rx="7" ry="5" fill="#16181d"/>
+</g>
+</svg>

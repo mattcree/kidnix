@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="the sun">
+<title>the sun</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="60" cy="60" r="26" fill="#ffd23f"/>
+<path d="M60 14v12M60 94v12M14 60h12M94 60h12M27 27l9 9M84 84l9 9M93 27l-9 9M36 84l-9 9"/>
+</g>
+</svg>

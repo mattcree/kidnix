@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a hat">
+<title>a hat</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M34 74V52a26 26 0 0 1 52 0v22Z" fill="#0f8a8a"/>
+<path d="M18 74h84a6 6 0 0 1 0 12H18a6 6 0 0 1 0-12Z" fill="#0b6d6d"/>
+<path d="M34 62h52" stroke="#ffd23f"/>
+</g>
+</svg>

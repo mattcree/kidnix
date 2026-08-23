@@ -6,9 +6,17 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 # Deliberately no runtime dependencies. The corpus is TOML (stdlib tomllib) and
-# the logic is pure Python. GTK arrives in week 2 via kidnix_activity, which
-# comes from the system, not from a wheel.
+# the logic is pure Python. The GTK half (weeks 2-3) imports kidnix_activity,
+# which comes from the system -- the same wheel and the same `cp -a` as the
+# shell (build_files/60-shell.sh) -- and not from PyPI.
 dependencies = []
+
+# The window. `kidnix_activity` (the SDK), `kidnix_shell`, PyGObject, GTK4,
+# libadwaita and GdkPixbuf all come from the image, never from PyPI -- see
+# docs/design/activity-sdk.md section 10 -- which is why the venv is created
+# with `--system-site-packages` and why this list is still empty.
+[project.scripts]
+kidnix-sounds-and-words = "sounds_and_words.activity:main"
 
 [dependency-groups]
 dev = [
@@ -51,6 +59,10 @@ ignore = [
 # The transcription carries IPA symbols. ambiguous-unicode-character-string
 # would have us replace them with lookalike ASCII, which is exactly wrong.
 "tools/lsdata.py" = ["RUF001", "E501"]
+# Same rule, same reason, in a docstring: /uː/ and /ʊ/ are the two sounds `oo`
+# stands for, and writing them as ASCII would lose the distinction the whole
+# module is about.
+"sounds_and_words/distractors.py" = ["RUF002"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sounds_and_words"]

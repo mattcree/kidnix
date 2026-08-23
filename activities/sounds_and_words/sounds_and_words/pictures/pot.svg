@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a pot">
+<title>a pot</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M26 50h68v34a14 14 0 0 1-14 14H40a14 14 0 0 1-14-14Z" fill="#8d949c"/>
+<path d="M18 44h84" stroke-width="7"/>
+<path d="M52 30h16v14H52Z" fill="#8d949c"/>
+<path d="M94 58h12a8 8 0 0 1 0 16H94M26 58H14a8 8 0 0 0 0 16h12"/>
+</g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a bus">
+<title>a bus</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14 34h92v46H14Z" fill="#f2b134"/>
+<path d="M22 42h24v18H22ZM54 42h24v18H54ZM86 42h14v18H86Z" fill="#dff1f8"/>
+<path d="M14 80h92"/>
+<circle cx="36" cy="86" r="12" fill="#3a3a3a"/>
+<circle cx="86" cy="86" r="12" fill="#3a3a3a"/>
+</g>
+</svg>

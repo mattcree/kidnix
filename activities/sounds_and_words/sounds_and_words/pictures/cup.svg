@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a cup">
+<title>a cup</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M28 40h56l-6 52a10 10 0 0 1-10 9H44a10 10 0 0 1-10-9Z" fill="#e9f1f6"/>
+<path d="M84 52h10a14 14 0 0 1 0 28h-12"/>
+<path d="M28 40h56"/>
+<path d="M44 24c0 6-6 8-6 14M60 20c0 6-6 8-6 14M76 24c0 6-6 8-6 14" stroke="#8aa4b2" stroke-width="4"/>
+</g>
+</svg>

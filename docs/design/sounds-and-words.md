@@ -1,11 +1,14 @@
 # Sounds & Words — design
 
-> Implementer's design note, 2026-08-23, week 1 of the six-week v1 in
+> Implementer's design note, 2026-08-23, **weeks 1–3** of the six-week v1 in
 > `docs/plan/SUITE.md` §3 and `docs/research/10-early-reading-writing-sota.md`
-> §7.1. Covers what is built (corpus, ceiling, acceptance test, schedule
-> skeleton, parent copy) and what weeks 2–6 will build on top of it.
+> §7.1. §§1–8 are week 1 — the corpus, the ceiling, the acceptance test, the
+> schedule skeleton and the parent copy, none of which is GTK. **§12 is weeks
+> 2–3**: the session loop, Find it, Blend it, the Journal card and the two
+> screens as they actually look. §13 is how it gets onto the image, which has
+> not happened yet.
 >
-> Code: `activities/sounds_and_words/`. Nothing in this note is GTK.
+> Code: `activities/sounds_and_words/`.
 
 ---
 
@@ -41,8 +44,8 @@ of seven games.**
 | | Module | Interaction | v1? |
 |---|---|---|---|
 | A | **Hear it** | a phoneme plays; the child picks which of three pictures starts with it. No letters on screen. | week 6 if time |
-| B | **Find it** | "find the one that says /s/" — tap it, or press the key. Lowercase always. A digraph is a two-key sequence that visually fuses into one tile. | week 2 |
-| C | **Blend it** | a decodable word with sound buttons — a dot under a single-letter grapheme, a **bar under a digraph or trigraph** (the L&S p.70 convention). Tap each; then a "push together" slider merges them. Then the child says it aloud to a person. | week 3 |
+| B | **Find it** | "find the one that says /s/" — tap it, or press the key. Lowercase always. A digraph is a two-key sequence that visually fuses into one tile. | ✅ week 2 |
+| C | **Blend it** | a decodable word with sound buttons — a dot under a single-letter grapheme, a **bar under a digraph or trigraph** (the L&S p.70 convention). Tap each; then a "push together" arrow merges them. Then the child says it aloud to a person. | ✅ week 3 |
 | E | **Read it** | a 4–8 sentence decodable text, one sentence per screen, illustrated. Optional narration with word-by-word highlighting. **Zero hotspots, zero mini-games, zero tap-a-word dictionary.** | week 4 |
 | D | Spell it | phoneme frame + tiles; any phonically-plausible answer celebrated | deferred |
 | C+ | Try the other one | set-for-variability on a curated list | deferred |
@@ -461,8 +464,8 @@ practice:
 | Week | Deliverable |
 |---|---|
 | 1 | ✅ corpus, ceiling, Appendix 7 acceptance test, schedule skeleton, parent copy |
-| 2 | **Find it** — screen and keyboard, lowercase; record the ~20 digraph clips |
-| 3 | **Blend it** — sound buttons with the dot/bar convention, push-together slider |
+| 2 | ✅ **Find it** — screen and keyboard, lowercase (§12.3). The ~20 digraph clips are **still not recorded** (§12.6) |
+| 3 | ✅ **Blend it** — sound buttons with the dot/bar convention, the push-together arrow, the Journal card (§12.4–§12.5) |
 | 4 | **Read it** — ~12 authored decodable texts, Phases 2–3, Piper narration, optional word highlighting, no interactive elements |
 | 5 | the three-pane parent view, wired to `History` and `parent_text.toml` |
 | 6 | **Hear it** if time, accessibility pass, image tests, the "what this is not" page |
@@ -507,7 +510,8 @@ Does he go and find a paper book afterwards? No telemetry can capture those, and
 | NC English Appendix 1 (Spelling) | **OGL v3.0** | cited; transcription is a v1.1 job |
 | kidnix's additions and all code | Apache-2.0 | ours |
 | a–z phoneme audio (GCompris `voices-en_GB`) | CC-BY-SA-4.0 | already in the image |
-| ~20 digraph/trigraph clips | ours, CC-BY-SA-4.0 | **not recorded yet** |
+| ~20 digraph/trigraph clips | ours, CC-BY-SA-4.0 | **not recorded yet** — and neither are the a–z ones, in usable form (§12.6) |
+| 18 drawings (15 word pictures, 3 interface icons) | ours, Apache-2.0 | drawn 2026-08-23; hand-written SVG paths, no traced artwork |
 | narration (Piper `en_GB-cori-high`) | public domain | pinned; sentences only |
 | ~12 decodable texts | ours, Apache-2.0 | week 4 |
 
@@ -523,3 +527,288 @@ inside an OGL document and are redistributed on that basis; a cautious reading
 treats the *derived frequency ranking* as third-party. kidnix ships no frequency
 data and needs none — L&S's lists are already matched to the progression, which
 is the thing that matters.
+
+---
+
+## 12. Weeks 2–3: the loop, on a screen
+
+Everything in §§1–8 was data and pure logic. This section is the part a child
+can press. It sits on `kidnix_activity` (the SDK; `docs/design/activity-sdk.md`),
+which means the input rules, the millimetres, the voice, the captions, calm mode
+and the SIGTERM save all arrive already correct and are not re-derived here.
+
+**The split from §9 is kept exactly.** `sounds_and_words/` still imports no GTK
+except in `activity.py` and `screenshots.py`; `import sounds_and_words` pulls in
+no `gi`, and a test asserts that in a subprocess. The guarantee this activity
+carries — *never show a child a grapheme the school has not taught* — lives in
+the half that can be proved without a display.
+
+```
+sounds_and_words/
+  settings.py     the parent's ceiling (/etc) and this child's history (§12.2)
+  loop.py         the session: order, twelve items, twelve minutes, two tries
+  distractors.py  which three wrong tiles, and why those three (§12.3)
+  keys.py         what a key press meant, digraphs included (§12.3)
+  blend.py        dots, bars, and the three stages of a word (§12.4)
+  phonemes.py     what to *say* for a sound, and where it comes from (§12.6)
+  pictures.py     fifteen concrete nouns, drawn here
+  summary.py      the card the child takes away (§12.5)
+  activity.py     the window. Wiring only.
+  screenshots.py  --screenshot, under Broadway, never on a desktop
+```
+
+### 12.1 The session, and the two bounds it will not cross
+
+`loop.plan_session()` calls `schedule.compose_session()` and then cuts what
+comes back down to something a five-year-old can finish:
+
+```
+start → (Hear it: not built) → Find it → Blend it → (Read it: week 4) → done
+```
+
+**Twelve items** and **twelve minutes**, both asserted. Four Find it items and
+eight Blend it words is exactly twelve, which is how the two numbers were chosen
+rather than the other way round; the trim always cuts from the end, so the
+module order survives it. If the schedule has less to do the session is shorter
+— kidnix does not manufacture work — and a ceiling of "nothing taught yet" gives
+an empty session rather than an invented one.
+
+The runnable part of a full session costs ~8 minutes today; the whole loop with
+Read it in it lands at ~9.7, inside research 10 §4.1's 8–12 band. A test pins
+both numbers so that adding Read it cannot quietly push the session past twelve.
+
+**Missing modules are skipped, not stubbed.** There is no greyed-out "coming
+soon" tile for Hear it or Read it. A child would press it every single session
+and be refused every single time, which is the opposite of what an activity
+promising predictability should ship. The Read it items the schedule plans are
+kept in `Plan.deferred` so the start-up log can say what week 4 will add.
+
+### 12.2 Where the ceiling and the history live
+
+| | |
+|---|---|
+| the ceiling | `/etc/kidnix/sounds_and_words.toml`, `[ceiling] scheme`, `last_grapheme`; falls back to `/usr/share/kidnix/sounds_and_words.toml` |
+| the history | `$XDG_STATE_HOME/kidnix/profiles/<KIDNIX_PROFILE_ID>/sounds-and-words/history.json` |
+
+Root-owned config, in the same place and under the same ownership rule as the
+shell's `parent.toml`: the child owns `$XDG_CONFIG_HOME`, and a child-writable
+ceiling is not a ceiling. `/etc` first and `/usr/share` second because bootc's
+three-way merge makes `/etc` the parent's copy and `/usr/share` ours.
+
+**The dev default is Phase 2 set 3** — `s a t p i n m d g o c k`, twelve GPCs
+and seventy-two words — and it is deliberately low. Research 10 §4.5: *starting
+too low costs nothing; a five-year-old re-reading `sat, pat, tap` is not
+harmed*, whereas a default that guessed high would show a child a sound the
+school has not taught, which is the one thing this activity may never do. A
+broken TOML file, an unknown scheme or an unknown grapheme all fall **back to
+that default and say so in the log** — never up, and never a refusal to start,
+because a grown-up's typo must not become "the computer is broken" to a child.
+
+The history is per profile, because two siblings sharing one Leitner box means
+neither one's spacing is real. It is indented JSON with the dates written out,
+so §6's promise — *a parent can read the model in a text editor* — is true. A
+corrupt file costs the spacing schedule (which rebuilds itself over a few
+sessions and which the child cannot see) and is **left on disk** rather than
+overwritten, so whoever debugs it still has it.
+
+`settings.progress_dir()` computes that path without importing `kidnix_shell`,
+so the pure half stays importable on a machine with no shell. That is a
+duplicated spelling, so `tests/test_sdk.py` re-derives it from
+`LaunchEnv.paths.profile_state` and fails if the two ever disagree.
+
+### 12.3 Find it (module B)
+
+![Find it](screenshots/saw-find-it.png)
+
+The prompt speaks the phoneme and can replay it; four tiles carry the grapheme
+in lowercase Andika at **40 mm**, and each one speaks *its own sound* on hover
+and on focus — so a child sweeping the row hears the four sounds without having
+to commit to one.
+
+**Two routes to the same answer, neither privileged.** Tap the tile, or press
+the key. Research 10 §6 is the framing that makes the keyboard legitimate at
+five: *"press the key that makes /s/" is not typing practice, it is
+find-the-grapheme-from-a-sound*, which is a stated Letters and Sounds Phase 2
+success criterion. There is no home row, no finger assignment, no WPM and no
+timer anywhere in `keys.py`.
+
+- **Lowercase, and Shift is never required.** Input is folded, so a child with
+  Caps Lock on is not told they are wrong.
+- **A digraph is two keys that fuse into one tile.** `s` then `h` is `sh`, and
+  the `s` on the way there is *pending*, never a wrong answer — the failure
+  research 10 §6 warns about by name.
+- **A key that is not on the board is not a mistake.** It replays the sound and
+  costs nothing. A five-year-old exploring a keyboard presses things.
+- **No timer for the ambiguous case.** When `a` and `ai` are both on the board,
+  `a` is held: the next key resolves it, or the widget layer settles it after a
+  pause. A timeout inside the pure model would make the fastest child wrong.
+
+**Right:** the tile glows, the voice says *"yes, sss"* — the sound named, not
+the child praised (research 05 §2f: informational, never controlling) — and the
+loop moves on. **Wrong:** no buzzer, no red, no cross, and nothing at all
+happens to the tile they pressed. The **correct** tile pulses gently and the
+sound plays again. After two tries the loop moves on without comment. The
+Leitner box is written from the **first** attempt only: getting it on the third
+go is not the same event as getting it first time.
+
+**Distractors are chosen, not sampled** (`distractors.py`), in four tiers:
+reversals and rotations first (`b`/`d`, `p`/`q`, `n`/`u`, `m`/`w`), then
+visually similar (`m`/`n`, `c`/`o`, `i`/`l`, `s`/`z`), then multigraphs sharing
+a letter in the same position (`sh` against `ch` and `th`), then nearest in
+teaching order. Two rules underneath, both tested against every taught GPC:
+
+1. **Never an untaught grapheme.** A distractor is still a grapheme kidnix put
+   on a screen, and the constitution has no exception for wrong answers. A tiny
+   ceiling gives a board of three tiles, or of one — never a fourth borrowed
+   from next term.
+2. **Never two tiles with the same spelling.** `oo` is in the corpus twice and
+   so is `s`; both on one board is an unanswerable question that looks, to a
+   child, exactly like being told they are wrong when they are right.
+
+### 12.4 Blend it (module C)
+
+![Blend it](screenshots/saw-blend-it.png)
+
+A word from the ceiling-filtered corpus, one sound button per **sound** —
+never per letter — with the Letters and Sounds p.70 marks under them: a **dot**
+under a one-letter grapheme, a **bar** under a digraph, trigraph or doubled
+consonant. Split digraphs have a third mark in the model and nothing in the v1
+ceiling reaches them.
+
+![Blend it, with a digraph](screenshots/saw-blend-it-digraph.png)
+
+The bar is not decoration. It is the entire visual claim that `ng` is *one*
+sound, and a child taught with bars who is shown two dots under `ng` has been
+told the opposite of what their teacher told them. For the same reason a
+grapheme label never wraps: `ng` broken across two lines as `n-` / `g` would be
+showing two sounds where there is one.
+
+Tapping a button says that phoneme and only that phoneme. The **push-together
+arrow** slides the tiles together and says the whole word. It is a *button you
+tap*, not a slider you drag — SYNTHESIS A5's click-move-click with the move
+taken out — and it is **never a gate**: a child who already knows the word can
+press it first, and one who wants to hear `c` eleven times can. Research 10 open
+question 2 is whether sound buttons help or entrench sound-by-sound reading, and
+an activity that *forced* every button before the word could be heard would have
+answered that question the wrong way by construction.
+
+Then it stops being software's job. The prompt becomes *"now say it out loud"*
+and a `GrownUpTurn` card asks the adult to have the child read it to them.
+kidnix never listens to a child read and never grades it (§8 #6). The card is
+not modal, takes no focus and blocks nothing: an adult who has walked away must
+not be able to strand a child.
+
+**Pictures** are fifteen concrete nouns drawn here — bag, bed, bus, cat, cup,
+dog, fox, hat, jam, map, net, pin, pot, sun, tap — and nothing else. A picture
+beside `cat` is worth having and a picture beside `sat` is not; a vague scribble
+next to a verb teaches a child to distrust the pictures next to the nouns. They
+are flat and high-contrast so every one reads in greyscale (SYNTHESIS B6), they
+contain no text, and they are ours under Apache-2.0 (`LICENSES.md` §4).
+
+### 12.5 What the child takes away
+
+At the end, `save_entry(kind="sounds", …)` writes one card into the child's
+Journal: the words they read today, set in Andika, on cream, with the caption
+*"Read today: cat, sat, pin"* and a `meta.json` carrying `gpcs_practised`,
+`words`, `date` and the ceiling.
+
+The card carries **the words and nothing else**. No count of them — "3 words
+today" is a score with a friendly face on it — no tick, no date (01 #19: no
+digits where a child can see them; the shell draws the day heading itself, for
+the adult), and no "well done". A session where nothing was blended keeps no
+card and says nothing about it. The done screen and the SIGTERM save cannot each
+keep one: a second identical card in My Things is a bug the child would have to
+live with.
+
+### 12.6 The audio, stated honestly
+
+**Every phoneme a child hears today is a placeholder.** `phonemes.py` resolves
+a GPC to a recording if there is one at
+`/usr/share/kidnix/sounds-and-words/phonemes/<gpc-id>.ogg`, and otherwise to the
+corpus's kidnix-safe *spelled* label — "sss", "shh", "ay" — spoken by the
+ordinary voice. Those spellings are the ones §2.2's schwa blacklist already
+checks, they are good for `sss` and thin for `ck`, and `Source.SPELLED` marks
+every one of them as what it is.
+
+Two things stand between that and real recordings, and neither is in this
+activity's hands:
+
+1. **The a–z clips exist and are not readable.** GCompris's `voices-en_GB`
+   bundle is in the image and `build_files/55-gcompris.sh` already asserts
+   `alphabet/U0061.ogg`…`U007A.ogg` are in it — but it is a Qt `.rcc` archive,
+   not loose files. Unpacking it once, at build time, into the directory above
+   is a `build_files/` job and this activity does not own that directory.
+2. **No digraph clip exists anywhere.** ~20 clips, one adult, one morning
+   (research 10 §5 and open question 8), and they become kidnix's own
+   CC-BY-SA-4.0 asset.
+
+`phonemes.missing_recordings()` is the list that has to reach empty before this
+section may stop saying "placeholder", and it is computed against what is
+actually installed rather than asserted here. There is also no clip *player* in
+the SDK yet, so the first real clip will fail as a missing player rather than as
+a wrong sound.
+
+### 12.7 What the tests cover
+
+554 tests, all green, `ruff check` clean. 317 of them are new this pass: item
+selection, the distractor tiers and the two rules under them, the keyboard
+mapping including digraph sequences and the ambiguous-prefix case, session
+composition and both bounds, the two-attempt rule, the first-attempt-only box
+write, the card's caption and meta, the parent-ceiling fallbacks, and the fifteen
+drawings. All of those are headless and none of them needs a display.
+
+On top of that, 31 GTK tests build both screens for real — tile sizes in
+millimetres, the spoken strings, the ring, the pulse landing on the *correct*
+tile and not on the pressed one, the digraph key sequence, the dots and bars,
+the push, the grown-up card, the whole loop end to end, and an assertion that no
+digit appears on any screen. They skip where there is no display; the logic
+tests never do. They are run under Broadway (`just test-gtk`) and never present
+a window, so nothing opens on a developer's desktop.
+
+The screenshots above are regenerated by `just screenshots`, also under
+Broadway. `--ceiling` is a **development override** for exactly that purpose: it
+logs a warning, the manifest's `exec` is the bare command, and a child's session
+cannot reach it.
+
+---
+
+## 13. Getting it onto the image — not done yet
+
+Nothing here is installed. `manifest.toml` is deliberately **not** in
+`system_files/usr/share/kidnix/activities/`, so there is no tile, because a tile
+that opens a half-built activity is worse than no tile. What a later image wave
+has to do, in one commit:
+
+1. **Ship the package.** `build_files/` copies `activities/sounds_and_words/
+   sounds_and_words` into the same `purelib` that `60-shell.sh` copies
+   `kidnix_shell` and `kidnix_activity` into, with `data/`, `pictures/`,
+   `icons/` and `activity.css` beside it, and byte-compiles it with
+   `--invalidation-mode unchecked-hash` like the shell. A plain `cp -a` for the
+   same reason the shell uses one: hatchling and pip would have to be installed
+   into the image and removed again to produce a byte-identical tree.
+2. **Ship the console script.** `/usr/bin/kidnix-sounds-and-words`, which is
+   what `exec` in the manifest names.
+3. **Ship the manifest** as `/usr/share/kidnix/activities/sounds-and-words.toml`,
+   and run `kidnix-activity validate` on it in the build, as the SDK asks.
+4. **Ship a default ceiling** at `/usr/share/kidnix/sounds_and_words.toml` with
+   the Phase 2 set 3 default written out and commented, so a parent editing
+   `/etc/kidnix/sounds_and_words.toml` has something to copy — and so the
+   fallback in §12.2 is a *documented* default rather than a constant in a
+   Python file.
+5. **A tile**, "Sounds & words", `category = "learn"`, `age_band = "4-6"`, with
+   the goal line from the manifest verbatim: *"Practises the letter sounds the
+   school has already taught. Not a reading programme."*
+6. **An icon.** The manifest names `kidnix-learn`, which is the shell's own
+   bundled category icon. A drawing of its own belongs in `docs/design/
+   icons-brief.md` with the rest.
+7. **An image test**, in the shape `tests/image/` already uses: the package
+   imports under the image's Python, the manifest validates, the console script
+   is on `PATH`, and `data/` is where `corpus.data_dir()` looks.
+8. **One e2e step**, as the SDK asks of every activity: launch it, blend one
+   word, find the card in My Things.
+
+Two things that should land at the same time or the activity ships with a hole
+in it: **the shell's caption listener** (`docs/design/activity-sdk.md` §4.2 —
+until it exists the spoken prompt, which *is* the instruction here, is
+audio-only, and B2 is unfixed for the whole time a child spends in this
+activity); and **the phoneme clips** (§12.6).

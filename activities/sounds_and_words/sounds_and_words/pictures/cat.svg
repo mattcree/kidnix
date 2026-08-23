@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a cat">
+<title>a cat</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M30 46 32 24 50 38Z" fill="#f5b942"/>
+<path d="M90 46 88 24 70 38Z" fill="#f5b942"/>
+<circle cx="60" cy="66" r="32" fill="#f5b942"/>
+<circle cx="49" cy="60" r="4" fill="#16181d"/>
+<circle cx="71" cy="60" r="4" fill="#16181d"/>
+<path d="M60 72v6M60 78l-6 5M60 78l6 5"/>
+<path d="M18 66h20M18 78h20M102 66H82M102 78H82"/>
+</g>
+</svg>
