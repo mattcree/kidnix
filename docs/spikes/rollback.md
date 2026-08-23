@@ -1,3 +1,7 @@
+> **Status 2026-08-23 (later):** the fix in §4.1 now SHIPS as
+> `system_files/usr/lib/greenboot/red.d/10-kidnix-boot-counter.sh`; `just test-rollback`
+> passes 11/11 on the shipped image. The body below records the finding as it was.
+
 # Spike: does a bad update actually roll itself back?
 
 **Status: the claim is FALSE on the disks kidnix builds today.** A deployment

@@ -14,9 +14,11 @@ An old laptop with kidnix on it starts up straight into your child's things.
 There is no login for them, no desktop, no icons to lose, no shop, and **no web
 browser at all** — not hidden, not blocked, not installed.
 
-They see a screen of large pictures: Draw, Potato faces, Letters and numbers,
-Copy the lights, and a few more. They press one. It fills the screen. When
-they are finished, the computer says so and puts it away.
+They see a screen of large pictures: Draw, Sounds and words, Numbers, Potato
+faces, Clock, Letters, Letters and numbers, Copy the lights, Mini golf, and a
+few more — which ones depends on your child's age and on what you have ticked.
+They press one. It fills the screen. When they are finished, the computer says
+so and puts it away.
 
 That is the whole machine.
 
@@ -80,7 +82,7 @@ pictures they see, how loud it is — is one app on **your** desktop, not a file
 you have to find.
 
 Log in as `parent` (the grown-up account, not your child's screen) and open
-**Parent Panel** from the applications list. It has six pages:
+**Parent Panel** from the applications list. It has seven pages:
 
 * **Children** — add your children, one at a time, each with their own name,
   their own colour and shape, and their own age. Each one gets their own face
@@ -93,12 +95,18 @@ Log in as `parent` (the grown-up account, not your child's screen) and open
   **"Keep the grid the same"**: leave it on and nothing new ever appears on
   your child's screen without you.
 * **Sound & calm** — the volume, a silence switch, whether every spoken line is
-  also written on the screen, and one **Calm mode** switch that slows the whole
-  thing down for a hard day.
+  also written on the screen (it is, by default), **which of the two reading
+  voices** you want and how fast it reads, and one **Calm mode** switch that
+  slows the whole thing down for a hard day. Both voices are the same British
+  English reader; pick whichever your child prefers.
 * **Their things** — copy your child's drawings out to a folder or a USB stick,
   open them, print one, or delete everything.
-* **Updates & safety** — change the grown-up PIN, check for an update, and read
-  in plain English what this machine does and does not send.
+* **Family** — the people a letter could go to: a name your child would
+  recognise and, if you like, a photograph. It is written down on this machine
+  and nowhere else. There is no address book, no account and no email box.
+* **Updates & safety** — change the grown-up PIN, check for an update, install
+  one, go back to the previous version, and read in plain English what this
+  machine does and does not send.
 
 Change what you like across the pages, then press **Apply** once. It asks for
 **your** password (not your child's PIN), and then it says:
@@ -199,15 +207,43 @@ child's session is running, open a terminal on your own account and run
 account's traffic. Or simpler: there is no browser to open, and no activity on
 the machine has anywhere to type an address.
 
+## Letters to family
+
+The **Letters** tile lets your child make a letter for someone you have put on
+the Family page: a picture, a few words, and their own voice if they want. When
+they press "Post it", nothing is sent anywhere. The letter is written into a
+folder on the laptop — the outbox — and marked *waiting for a grown-up to send*.
+
+**You are the postbox.** Log in as `parent`, open Files, and look in
+`/var/lib/kidnix/outbox/` — one folder per child, then one folder per letter,
+with the picture, the words and the recording in it, ready to attach to an email
+or print. Send it however you normally would.
+
+**A reply comes back.** If Granny writes back, make a folder for it under
+`/var/lib/kidnix/inbox/<your child>/` and put what she sent in it — the picture,
+the words, and a recording if there is one. The next time your child chooses
+their face at "Who's here?", it appears in **My Things** as *"A letter from
+Granny"*, and the first Home screen says so out loud. Her words are shown
+exactly as she wrote them; nothing is corrected or tidied.
+
+The child's session can read the inbox and cannot write to it. Nothing about
+either folder touches the internet.
+
 ## Updating it
 
 kidnix does not update itself. Nothing happens on a timer, nothing reboots
 overnight, and nothing changes under your child without you.
 
-Right now updating means a grown-up running a command on the machine. There is
-no button yet — that is deliberate: a one-tap update from the internet is only
-safe once the machine checks who signed it, and that check is being finished
-first. If you want it, ask; the person who builds your image can do it for you.
+Updating is a button on the **Updates & safety** page of the Parent Panel. It
+does three things in this order: it checks whether the machine can verify who
+signed an update, tells you the answer either way, and only then offers to
+install. **If the machine cannot check the signature, the button is switched
+off** — that is the safe direction, and it is deliberate. An installed update
+starts being used the next time the laptop is switched on, and the same page has
+a **Roll back** button for when one made something worse.
+
+You do not have to use that button. A start-up that fails its own health checks
+already rolls the machine back by itself, unattended, without anybody watching.
 
 ## If it will not start
 
@@ -229,9 +265,14 @@ first. If you want it, ask; the person who builds your image can do it for you.
 Worth saying plainly, because the tiles are short and short is easy to
 misread:
 
-* **It does not teach phonics.** The letter activities play the letter's *name*
-  ("ay", "bee", "see"), not the sound it makes in a word. English schools teach
-  the sounds first. Use these for the alphabet, not for reading.
+* **"Letter names" does not teach phonics.** That tile plays the letter's *name*
+  ("ay", "bee", "see"), not the sound it makes in a word, and it says so on the
+  tile. English schools teach the sounds first. Use it for the alphabet, not for
+  reading. **"Sounds and words"** is the one that practises sounds — but it
+  practises only what the school has already taught, it is not a reading
+  programme, and it is still being finished: the sounds are currently spoken by
+  the computer's voice rather than recorded by a person, which is not the same
+  thing and is not good enough yet for a child being taught by a school.
 * **It is not a curriculum.** The eighteen picked activities in "Letters and
   numbers" touch a handful of the Early Years goals, not all of them. There is a
   full list with reasons on the machine itself at

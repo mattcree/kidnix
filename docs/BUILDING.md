@@ -132,7 +132,7 @@ just build        # rootless podman build -> localhost/kidnix:latest
 just test-image   # assert the image contains what it should (~2s)
 just test-boot    # boot it in a real VM and assert the kiosk came up (~30s)
 just lint         # shellcheck + hadolint + yamllint + just --fmt + ruff
-just ci           # lint + build + test-image, in the order CI runs them
+just ci           # lint + build + test-image + licences + packages-check
 ```
 
 **None of that needs `sudo`.** Not the build, not the tests, and — since
@@ -151,7 +151,48 @@ the scripts whose name contains `lockdown`.
 Image tests are static-only — they prove the *files and packages* are right,
 and cannot prove anything that happens at boot. That is `test-boot`'s job.
 
+## Working on the shell — and never making a sound
+
+The shell is a uv project in `shell/`, with its own Justfile. Run these from
+`shell/`:
+
+```sh
+just setup              # uv venv --system-site-packages (GTK comes from the system)
+just demo               # the whole ritual in three minutes, windowed
+just test-headless      # the CI floor: pure logic, no display
+just lint               # ruff + mypy
+just validate-manifests # gates the manifests the image ships
+just ci                 # lint + test-headless + po-check + validate-manifests + validate-activity
+```
+
+**`shell/Justfile` exports `KIDNIX_SPEECH=off`**, and that is not a nicety. Any
+value in `off / 0 / false / none / null` makes `speech.speech_off()` true and
+the shell takes a null voice: no speech-dispatcher connection, no Piper, no
+pre-rendered clip playback. Every demo, screenshot run and GTK test is therefore
+silent by default on a developer's machine. `KIDNIX_SPEECH=on just demo` is the
+deliberate opt-in, and it uses **your** speakers and **your** speech-dispatcher.
+A real kiosk session never goes through this Justfile and is unaffected.
+
+For pixels without a window appearing on your desktop, use the repo-root recipe,
+which runs the demo under GTK's Broadway backend and screenshots it:
+
+```sh
+just shell-demo-headless 1280x800@102 output/home.png
+just shell-demo-headless 1280x800@102 output/resting.png --start-on resting
+```
+
+`--start-on` takes the state to jump to (`home`, `offer`, `resting`, …), and
+`--screen WxH@DPI` makes the layout believe it is on a panel that size, which is
+how the small-panel fit budget is checked without owning the panel.
+
 ## Running a VM
+
+**None of these recipes gives the VM a sound device.** No `-audiodev`, no
+`-device` for audio: a kidnix VM is silent on the host, on purpose, so a test
+run cannot take over the machine's speakers. If you actually need to *hear* the
+shell — checking a Piper voice or an earcon — add `-audiodev pipewire,id=snd
+-device intel-hda -device hda-duplex` to the `vm` recipe by hand, and take it
+out again afterwards.
 
 Three ways in, in increasing order of fidelity and cost.
 
@@ -323,7 +364,7 @@ Afterwards, `just vm-ssh 'sudo bootc status'` shows both deployments, and
 
 ## The automated boot tests
 
-Two of them, and the difference matters.
+Four recipes, and the differences matter.
 
 ### `just test-boot` — the one you run
 
@@ -394,6 +435,64 @@ test harness stays dumb and the failure message says what actually broke.
 The unit is diagnostic only (`SuccessExitStatus=0 1`) — a child's laptop must
 still boot when the probe is unhappy.
 
+### `just test-e2e` — the one that drives the shell
+
+```sh
+just build-qcow2-rootless   # once
+just test-e2e               # ~10 minutes
+just test-e2e-offline       # the pixel-geometry helpers alone, milliseconds
+```
+
+**30 tests** in three files, sharing **one** VM because a second boot costs
+60–90 s of the budget: `test_geometry.py` (15, offline, run first so a typo in
+the pixel helpers fails in a second rather than in four minutes),
+`test_scenario.py` (7 — one child's ordinary session: boot, choose, plan,
+launch Tux Paint, draw, keep, the offer, put-away, Goodbye, Resting) and
+`test_flows.py` (8 — the flows the happy path cannot reach: a spent budget, a
+bedtime clock, an activity that fails to open, "All done", a whole session on
+the keyboard, the hard stop). `conftest.pytest_collection_modifyitems` enforces
+that order.
+
+Nothing is installed in the guest and the image under test is the image we ship:
+the *interaction* is QEMU `input-send-event` over QMP (absolute pointer, real
+key presses), and the *evidence* is a framebuffer screendump plus the guest's
+own journal read over ssh. Root SSH comes from an ephemeral key passed as a
+systemd credential over SMBIOS. QEMU runs `-display none`; see
+`docs/spikes/e2e-scenario.md`.
+
+Artefacts land in `output/e2e/`: a numbered PNG per step, the serial console,
+the QEMU command line, and `contact-sheet.png` — which is copied over
+`docs/design/screenshots/e2e-contact-sheet.png`, the picture in the README.
+
+### `just test-rollback` — the one that proves the biggest claim
+
+```sh
+just build-qcow2-rootless
+just test-rollback          # ~4 minutes, needs KVM; nightly, not per-PR
+just rollback-clean         # stop the registry, drop the unhealthy image
+```
+
+"Immutable, so it cannot be broken" is the largest claim in the product. This
+recipe builds a variant image carrying **one** extra file — an always-failing
+*required* greenboot check, from `--build-arg KIDNIX_SELFTEST_BREAK_HEALTH=1` —
+serves it from the throwaway local registry, `bootc switch`es a real booted
+machine onto it, and waits for the machine to put itself back. It asserts the
+counter arms, decrements on every failed boot, that the machine rolled *itself*
+back, that `bootc` agrees it is the original digest, and that the child's shell
+is running again.
+
+`tests/image/test_lockdown.sh` asserts the failing check is absent from every
+normal build, so it cannot reach a shipped image by accident.
+
+The first run of this test found the claim was **false**: GRUB cannot write
+`/boot/grub2/grubenv` when `/boot` is btrfs, so bootupd's `decrement
+boot_counter` never happened and a bad update reboot-looped for ever instead of
+rolling back. The fix now ships —
+`system_files/usr/lib/greenboot/red.d/10-kidnix-boot-counter.sh` does the
+decrement greenboot's own rollback trigger is waiting for. `docs/spikes/rollback.md`
+has the full root cause and the verified 11/11 run; its header still describes
+the pre-fix state.
+
 ## Debugging a boot that goes wrong
 
 **Turn off autologin** to get a normal GDM greeter and a session picker. `/etc`
@@ -443,18 +542,58 @@ rather than a one-liner (`Requisite=graphical-session.target` on the portals,
 Containerfile          FROM ghcr.io/ublue-os/base-main:44, runs build.sh, lints
 build_files/build.sh   runs the NN-*.sh stages in order
   00-packages.sh       gdm, gnome-kiosk, malcontent, speech-dispatcher, ...
+  05-locale.sh         en_GB everywhere: locale.conf, keyboard, per-app nudges
   10-branding.sh       rewrites /usr/lib/os-release, writes VERSION + image-info
   20-users.sh          validates the declarative account config
   30-kiosk.sh          graphical.target, enables gdm + the boot probe
   35-parent-desktop.sh the parent's stock GNOME session (ADR-0005)
   36-fonts.sh          Andika + Atkinson Hyperlegible, system font cache
   40-lockdown.sh       no egress for uid 1000, dconf locks, polkit, greenboot
-  50-activities.sh     the activity payload and its manifests
-  60-shell.sh          installs shell/ into site-packages, wires gnome-session
+  50-activities.sh     the curated third-party payload and its manifests
+  55-gcompris.sh       turns GCompris' 198 activities into a shelf of 18
+  60-shell.sh          installs shell/ + kidnix_activity, wires gnome-session
+  62-parent-panel.sh   installs parent-panel/ and its root helper (wheel-only)
+  64-first-party-activities.sh   Sounds & words, Numbers, Clock, Letters
+  65-tts.sh            Piper + the en_GB alba/cori voices behind speech-dispatcher
+  66-prerender-speech.sh  renders the shell's closed vocabulary to Ogg clips
   70-hardening.sh      removes firefox & co, masks noisy units, one wallpaper
+  75-supply-chain.sh   signature policy + the pinned cosign key for updates
   90-cleanup.sh        dnf clean, empties /var (bootc requires this)
 system_files/          copied verbatim to /
 ```
+
+### What the child actually sees
+
+Fourteen manifests in `system_files/usr/share/kidnix/activities/`, filtered per
+child by age band and the parent's allow-list, so no one child sees all of them:
+
+| Tile | What it is | Ages |
+|---|---|---|
+| **Draw** | Tux Paint, tuned | 3–10 |
+| **Sounds & words** | first-party phonics (the deep vertical) | 4–6 |
+| **Numbers** | first-party subitising and bonds to 5/10 | 4–7 |
+| **Potato faces** | KTuberling | 3–7 |
+| **Clock** | first-party play-with-the-clock toy | 4–8 |
+| **Letters** | first-party letters to family (picture + words + voice) | 4–8 |
+| **Make a game** | TurboWarp; hidden unless installed | 6–12 |
+| **Letters & numbers** | the GCompris shelf of 18 curated children | 4–8 |
+| **Letter names** | KLettres — letter *names*, not phonics, and says so | 4–8 |
+| **Number game** | TuxMath — it can be lost, so 7+ | 7–10 |
+| **Copy the lights** | Blinken | 4–10 |
+| **Mini golf** | Kolf | 5–10 |
+| **Jump and run** | SuperTux — has a GAME OVER, so 7+ | 7–12 |
+| **Library** | Kiwix; absent until a grown-up adds a ZIM | 5–12 |
+
+The four first-party ones are built in this repo under `activities/` and
+installed by `build_files/64-first-party-activities.sh` — a `cp -a` into
+site-packages plus the dist-info a wheel would have left, for the same reason
+`60-shell.sh` does it that way (pip and hatchling would have to be installed
+into a child's OS and removed again to produce a byte-identical tree). Each one
+gets its console script, its icon and its manifest, and the stage asserts all of
+it. `tests/image/test_first_party.sh` is the gate.
+
+`just validate-manifests` (from `shell/`) exits non-zero on any manifest error;
+`shell/just ci` runs it.
 
 ### Base image
 

@@ -40,6 +40,12 @@ Out of scope for v0.1 (tracked in `docs/plan/PRIORITIES.md`): Ask-a-grown-up
 queue, multi-child switching UX, parent panel proper, printing, sending,
 band-over-activity (see §8), calm mode, on-screen keyboard.
 
+> **2026-08-23.** Four of those eight have since shipped: band-over-activity
+> (§8's gap, closed in v0.1.5), calm mode (§7d #7), the **parent panel** as a
+> real app (`parent-panel/`, `docs/design/parent-panel.md`), and multi-child
+> profiles with per-child allow-lists. Ask-a-grown-up, printing, sending and
+> the on-screen keyboard are still out. See **§9** for where the build stands.
+
 ## 2. Surfaces and state machine
 
 States: `CHOOSING` → `HOME` ⇄ `IN_ACTIVITY`, `HOME` ⇄ `JOURNAL`,
@@ -55,10 +61,15 @@ except SLEEPING (which needs the session to be allowed again or the gate).
   visible but speaks "You're home". Undo in v0.1 routes to the current
   shell action (e.g. un-star) — activities own their own undo.
 - Ask is present but disabled-looking in v0.1 (outline), speaks "Asking a
-  grown-up is coming soon". Grown-up is small, desaturated, far right, hold
-  3 s.
+  grown-up is coming soon". **Superseded by §7a: Ask is hidden entirely until
+  the flow exists** (`band.SHOW_ASK`). Grown-up is small, desaturated, far
+  right, hold 3 s, and **not voiced** (§7b).
 - Sun: starts left, travels right and sinks as the session depletes; colour
-  warms in the last 6 minutes. No digits anywhere.
+  warms in the last 6 minutes. No digits anywhere. **Superseded by §7b: the sun
+  does not travel** — it shrinks and sinks at a fixed horizontal centre, and it
+  is held down from the Ending offer onward (§7d #3).
+- **Since v0.1.5 the band is its own toplevel window** so it stays visible over
+  an activity (§8's known gap, now closed — see the implementation notes §18).
 
 ### S1 Who's here? — avatar tiles ≥ 30 mm, child's colours, name spoken on
 focus; plain Grown-up tile bottom-right.
@@ -100,8 +111,11 @@ find something the same colour in the room?").
 ### S8 Sleeping — dim, warm, quiet screen with a sleeping sun/moon; tap
 speaks "kidnix is sleeping. Ask a grown-up." Grown-up gate available.
 
-### S9 Grown-up sheet (v0.1 minimal) — adult typography; PIN pad (default PIN
-1234 for dev, stored hashed in parent-owned config); actions: Start session
+### S9 Grown-up sheet (v0.1 minimal) — adult typography; PIN pad (**no PIN
+ships**: the image has no `pin_hash` and the gate forces the first grown-up to
+choose one, which `kidnix-set-pin` refuses to let be `1234`; §7d #11, notes
+§23.4/§24.1 — this line said "default PIN 1234 for dev" until 2026-08-23);
+actions: Start session
 (N min), End session now, Add 5/15/30 min, Set default session length, Open
 parent panel (stub: opens a libadwaita about-window), Log out (→ GDM).
 
@@ -111,7 +125,8 @@ parent panel (stub: opens a libadwaita about-window), Log out (→ GDM).
 - Every focusable widget has `speak_text` (defaults to its accessible name);
   speak on keyboard focus and on pointer hover after 300 ms dwell (no
   repeat while the pointer stays), and on activation. The Ear repeats the
-  last utterance.
+  last utterance. **Superseded by §7b: 450 ms plus a settle gate, and a 10 s
+  per-widget repeat cooldown. The Ear is never itself hover- or focus-spoken.**
 - Paired visual highlight: the spoken widget gets a highlight ring while
   speaking.
 - If speech-dispatcher is unavailable, degrade silently and log once.
@@ -184,12 +199,16 @@ on schema errors so CI can run it.)
   label "All done", spoken "All done for today?") that runs the same ending
   ritual from S6 onward — not a band slot. One tap, no confirmation; Back on
   the Put-away screen is disabled for 3 s then returns Home (accidental taps
-  recover).
+  recover). *("Last position" and the moon are both superseded by §7d #5 and
+  the resting-vocabulary ruling: the tile is pinned to a fixed cell, index 7,
+  and it wears a tidy-away box during the day and the moon only at bedtime.)*
 - **Inert controls:** Undo stays visible everywhere for spatial stability and
   speaks "Nothing to undo" when empty. **Ask is hidden** until the flow exists
   (an always-disabled control teaches the child that buttons lie).
 - **Earcons:** ship four short generated tones (keep, tap, back, sleep) at
-  −14 LUFS; no music.
+  −14 LUFS; no music. *(Superseded by §7b: they are auditory icons, and there
+  are five — `phase` is the one with no referent. All ≤ 400 ms, fades ≥ 150 ms
+  per §7d #7.)*
 
 ## 8. Known gaps to spike after v0.1
 - **Band over activities.** Research wants the band visible during an
@@ -215,7 +234,9 @@ on schema errors so CI can run it.)
   (dwell ms, followed-by-selection?) in the local log for protocol P5.
 - **Progressive disclosure**: first-run Home shows the first 5–6 tiles by
   `order`; one more tile appears after each N sessions (N = 2) up to the
-  allow-list; parent can set "show everything" in parent.toml.
+  allow-list; parent can set "show everything" in parent.toml. **Superseded by
+  §7d #5: it is built, but it is OFF by default** (`show_everything = true`), so
+  a first run shows everything the age band and the allow-list left.
 - **Earcons**: prefer representational auditory icons where a referent
   exists (paper rustle for "keep", soft door for "back", yawn/owl for
   "sleep"); generated tones only where no referent; licence any samples.
@@ -264,8 +285,16 @@ on schema errors so CI can run it.)
    line; `calm = true` (reduced motion, softer/fewer sounds); earcon fades
    ≥ 150 ms; volume/mute control; focus ring and sun contrast ≥ 3:1 on the
    band; Sleeping/Resting paints the content window.
+   > **What shipped, 2026-08-23:** all of it except the `calm` default.
+   > `AccessConfig.calm` ships **`false`** and `captions` ships **`true`**:
+   > calm is opt-in from the parent panel's "Sound & calm" page, and the
+   > accommodation that costs nobody anything is the one that is on by
+   > default. Ruling recorded in `docs/plan/CHECKPOINT-2.md`.
 8. Target floor **20 mm** (Hourcade's physical figure), 24 mm preferred;
    supersedes checkpoint-1 item 15 (ADR-0011).
+   > **What shipped:** `metrics.MIN_TARGET_MM = 20.0`, a hard floor that `fit`
+   > may not round down (`test_millimetres_never_round_down`). The 24 mm
+   > preference is **not** encoded as a constant.
 9. Voice: a 20 s "tell me about it" recorder on Let's keep that and on
    Journal cards (OGG `note.ogg` in the entry).
 10. Research logging (hover-speech, PIN attempts, burst-click) behind
@@ -273,3 +302,35 @@ on schema errors so CI can run it.)
 11. Per-profile journal/budget/progress; parent export and wipe; starter PIN
     detected and the gate forces a new one.
 12. GCompris is a one-level **shelf** tile of the 18 curated children.
+
+## 7e. Ruling on choice ceilings (2026-08-23, ADR-0013)
+
+The checkpoint-2 audit found three first-party activities drawing more than five
+targets on a screen. **ADR-0013** rules that the ≤ 5 ceiling applies to a choice
+the child must *weigh* (the ending offer, yes/no decisions, "What's next after",
+which keeps its ≤ 8 tolerated exception from §7b) and **not** to a labelled grid
+whose items are the task itself — the numerals 1–10, the twelve hours on a clock
+face, the Home grid's own 12 tiles. Read ADR-0013 before citing SYNTHESIS B2 at
+a domain grid.
+
+## 9. Status of this specification
+
+This file is the **rulings**, not the build. As of 2026-08-23:
+
+* **What was built, wave by wave** — `docs/design/shell-v0.1-implementation-notes.md`.
+  Start at its §0 "Current behaviour summary"; the numbered sections are a
+  dated log and the early ones are superseded.
+* **Where the build stands against these rulings** —
+  `docs/design/cci-compliance-audit-2026-08-23-checkpoint-2.md` (10 of 14 met,
+  4 partial, 0 missing) and the shorter `docs/plan/CHECKPOINT-2.md`, which is
+  the current state of each finding and the list before child test #1.
+* **The decisions that outgrew a bullet here** — ADR-0011 (20 mm floor and the
+  panel rulings), ADR-0012 (internationalisation), ADR-0013 (choice ceilings).
+* **The child's-eye view of the flows** — `docs/design/FLOWS.md`;
+  **what the suite is for** — `docs/plan/SUITE.md`.
+
+Two §7d rulings are *not* met as written: `calm`'s default (§7d #7, ruled the
+other way in `docs/plan/CHECKPOINT-2.md`) and 24 mm as a preferred constant
+(§7d #8 — the 20 mm floor is encoded and tested, the 24 mm preference is not).
+Everything else in §7a–§7d is built; check `CHECKPOINT-2.md` before assuming
+any of it is still open.

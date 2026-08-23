@@ -440,7 +440,7 @@ rollback-clean: registry-stop
 #
 # Nothing is installed in the guest. Root gets an ephemeral SSH key through a
 # systemd credential passed over SMBIOS; see docs/spikes/e2e-scenario.md.
-# THE scenario test: drive the shell with a fake mouse and keyboard (~2.5 min).
+# THE scenario test: drive the shell with a fake mouse and keyboard (~10 min (30 tests, one VM)).
 test-e2e *ARGS: _require-qcow2
     @mkdir -p "{{ e2e_dir }}"
     @# pytest comes from the system where Fedora ships it, and from a throwaway

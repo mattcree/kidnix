@@ -5,9 +5,43 @@
 > what was built, what was deviated from and why, and what the thinker needs to
 > decide next.
 
+## 0. Current behaviour summary (2026-08-23)
+
+**This file is a running log, not a description of the shell as it is now.**
+Sections 1–8 describe the *first* build (v0.1.0, 2026-08-22) and several of
+their statements have been false for some time; each wave since then is its own
+dated section. Where a section below disagrees with this table, **this table
+and the section it points at win.**
+
+| What the shell does now | Authoritative section |
+|---|---|
+| **Two toplevels, one process** — the band is its own window over the activity | §18.1, §19.1 |
+| **Home shows everything by default.** `HomeConfig.show_everything = true`; progressive disclosure is opt-in, not the first-run default | §21.7 (supersedes §17.4) |
+| **"All done" is pinned to cell 7** (last cell of row 2) and never moves; the grid keeps holes rather than closing up | §21.7, `screens/home.py` `ALL_DONE_INDEX` |
+| **Hover read-aloud: 450 ms dwell + settle gate + a 10 s per-widget repeat cooldown** (`speech.HOVER_DWELL_MS`, `HOVER_REPEAT_COOLDOWN_S`) | §17.3 (supersedes §2's "300 ms") |
+| **The Ear is never hover-spoken or focus-spoken**, so a pointer parked on it cannot repeat itself | `band.py` module docstring, §17.6's reasoning |
+| **`KIDNIX_SPEECH=off` is the hard mute** — `shell/Justfile` exports it by default, so no demo or test uses a developer's speakers | `speech.speech_off()`, AGENTS.md §5 |
+| **Speech has two mouths**: a pre-rendered clip catalogue built at image time (Kokoro `bf_emma`, ~351 clips) for the closed vocabulary, Piper `alba` for anything with a placeholder in it | `kidnix_shell/prerendered.py`, `build_files/66-prerender-speech.sh`, `docs/spikes/tts-prerender.md` |
+| **Captions are on by default** and every spoken line is mirrored — including lines an *activity* speaks, over the caption socket | §22.2, §25 |
+| **Daytime is "Resting", bedtime is "Goodnight"** — two vocabularies switched on `is_bedtime`, rate-limited, painted on the whole content window | §21.6, §24.2 |
+| **Data is per-profile** (journal, budget, progress), with a migration from the single-profile layout | §23.3 |
+| **The image ships no PIN**; the gate forces one and a change costs the current one | §23.4, §24.1 |
+| **Earcons, band-over-activity, "All done", calm mode and Andika are all built** — the §3 "deferred" table predates every one of them | §17.5, §18, §17.7/§21.7, §22.3, `build_files/36-fonts.sh` |
+| **Replies from family are imported into My Things** at "Who's here?" | §27 |
+| **The parent panel is a real app** (`parent-panel/`), and the shell reads what it writes: `[[windows]]`, per-child allow-lists, read-aloud pace | §26, `docs/design/parent-panel.md` |
+| Still genuinely deferred: **Ask-a-grown-up** (the button says "coming soon" and means it) | §3 |
+
+Status of the build as a whole, and what is next, lives in
+`docs/plan/CHECKPOINT-2.md`; the rulings this shell is measured against are
+`docs/design/shell-v0.1.md` §7a–§7d.
+
 ## 1. Architecture
 
-One process, one window, one band, one stack of surfaces.
+One process, **two toplevels** (a content window and the band window), one band,
+one stack of surfaces.
+
+> **2026-08-23:** this section said "one window" until v0.1.5 made the band a
+> toplevel of its own so it could stay visible over an activity. See §18.1.
 
 ```
 ShellApplication (Adw.Application)
@@ -68,6 +102,11 @@ Everything in spec §1 items 1–8, plus:
   (once per enter, re-armed on leave), and on activation; new utterance cancels
   the previous; the Ear repeats; the spoken widget wears the reserved yellow
   highlight ring for an estimated utterance duration.
+  > **2026-08-23: the dwell is 450 ms**, gated on pointer velocity settling, and
+  > a widget will not repeat itself for 10 s (`speech.HOVER_DWELL_MS`,
+  > `HOVER_REPEAT_COOLDOWN_S`) — §17.3. The **Ear is not hover-spoken or
+  > focus-spoken at all**, because a pointer parked on it made it say itself.
+  > The backend list gained a pre-rendered clip catalogue in front of it (§0).
 - **Journal** import via `Gio.FileMonitor` (2 s debounce) *plus* a 15 s safety
   sweep, because file monitors are unreliable across the filesystems an activity
   might save to and Tux Paint writes several files per save. Identical bytes are
@@ -79,13 +118,25 @@ Everything in spec §1 items 1–8, plus:
   ignores `SIGTERM`. The whole demo world lives in a temp directory. The demo
   manifests are written as TOML and read back through the *real* loader, so
   every `--demo` run smoke-tests manifest parsing.
-- **`--validate-manifests [DIR]`** — the ten shipped manifests in
+- **`--validate-manifests [DIR]`** — the shipped manifests in
   `system_files/usr/share/kidnix/activities/` all validate, and there is a test
   asserting that so the shell and the activities implementer cannot drift apart.
+  > **2026-08-23:** ten then, **fourteen** now — the four first-party activities
+  > (Sounds & words, Numbers, Clock, Letters) joined the curated ten.
 
 ## 3. What is deferred, and why
 
-| Deferred | Why |
+> **2026-08-23: six of these seven rows are no longer true.** Earcons shipped as
+> auditory icons (§17.5); the band stays over an activity (§18); "All done" is a
+> pinned Home tile (§17.7, §21.7); calm mode and `prefers-reduced-motion` are
+> built (§22.3); Andika ships from `build_files/36-fonts.sh`; and the read-aloud
+> highlight is unchanged but no longer the open question it was. **Only
+> Ask-a-grown-up is still deferred** — and note the row below is wrong about it
+> too: spec §7a ruled the button *hidden* rather than outline-only, which is
+> what `band.SHOW_ASK = False` does. The table is kept because the reasoning in
+> it is why each thing was built the way it was.
+
+| Deferred (as of 2026-08-22) | Why |
 |---|---|
 | **Earcons** | The six-sound set is specified in `kidnix_shell/data/sounds/README.md` and the call sites (`sound.Earcons`, one-per-250 ms, ducked under speech) are wired. The files are not shipped: a synthesised sine pair is worse than silence for a sound heard 200×/day, and SYNTHESIS H5 wants a real licence provenance entry per file. |
 | **Ask-a-grown-up** | Out of scope in the spec. The Ask button exists, is outline-only, and honestly says "Asking a grown-up is coming soon." Not-allowed tiles say the same rather than pretending a queue exists. |
@@ -222,6 +273,17 @@ just lint               # ruff check + ruff format --check + mypy (strict-ish)
 just validate-manifests # gates the shipped activity manifests
 just ci                 # lint + test-headless + validate-manifests
 ```
+
+> **2026-08-23.** Two things this list now gets wrong. The counts are from
+> 2026-08-22 and have grown by an order of magnitude (see
+> `docs/plan/CHECKPOINT-2.md`), and `just ci` also runs `po-check` and
+> `validate-activity` since ADR-0012 and the SDK landed. More importantly:
+> **`shell/Justfile` exports `KIDNIX_SPEECH=off`**, so none of these recipes
+> makes a sound on a developer's machine — the null voice is the default and
+> `KIDNIX_SPEECH=on just demo` is the deliberate opt-in. For a screenshot with
+> no window on anybody's desktop, use the repo-root
+> `just shell-demo-headless <screen> <out.png> [--start-on …]`, which runs the
+> demo under GTK's Broadway backend.
 
 The venv is created with `--system-site-packages` because PyGObject, GTK4,
 libadwaita, GdkPixbuf and `speechd` come from the system — they are already in
@@ -1077,8 +1139,16 @@ now carries a comment saying where it went.
 
 ### 17.4 Progressive disclosure (09 §10 #4; SYNTHESIS B2)
 
+> **Superseded 2026-08-23 (§21.7): `show_everything` defaults to `true`.**
+> Progressive disclosure is still implemented exactly as described below and a
+> parent can still switch it on, but **it is off by default**, so a first-run
+> Home is not six tiles — it is every tile the age band and the allow-list left,
+> with "All done" pinned at cell 7. Read this section for the mechanism, §21.7
+> for the default.
+
 `settings.HomeConfig` (`[home]` in `parent.toml`): `initial_tiles = 6`,
-`reveal_every_sessions = 2`, `show_everything = false`.
+`reveal_every_sessions = 2`, `show_everything = false` *(now `true` — see
+above)*.
 `HomeConfig.tiles_visible(total, sessions_completed)` is the whole rule, and
 `HomeScreen._revealed()` applies it to the cells left after the age band and
 availability filters.
@@ -1173,13 +1243,20 @@ the grown-up sheet's "End now" all act on the same tick they are called.
 
 ### 17.8 Screenshots, tests, and what did not change
 
+> **2026-08-23:** the numbers in this section are a record of *this wave*, not
+> of the shell today. Two are now actively misleading: `demo-home-firstrun.png`
+> shows a first run that **no longer happens** (disclosure is off by default —
+> §21.7), and S1b has **nine** options since "Not sure" was added. Current test
+> counts and the current tile set are in `docs/plan/CHECKPOINT-2.md`.
+
 `docs/design/screenshots/`:
 
 * `demo-next-choice.png` — S1b at 1280×800 @102: eight Home-sized tiles, one
-  page, the title, the band above.
+  page, the title, the band above. *(Nine options since §21.7.)*
 * `demo-home-firstrun.png` — a first-run Home: **six** tiles (five activities
   by `order` plus "All done"), where the same demo world would otherwise show
-  nine.
+  nine. *(Historic: with `show_everything = true` a first run now shows all
+  nine, with "All done" pinned at cell 7.)*
 * `demo-goodbye-choice.png` — Goodbye with the child's own picture and "Ready
   to go outside?".
 
