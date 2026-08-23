@@ -1,0 +1,167 @@
+/* kidnix activity theme -- what an activity adds to the shell's own.
+ *
+ * `kidnix_shell/theme.css` is loaded first and unchanged: an activity looks
+ * like the shell because it *is* the shell's stylesheet, plus the handful of
+ * selectors below for things the shell has no equivalent of.
+ *
+ * The colour tokens are restated here rather than inherited. GTK4 does resolve
+ * `@define-color` across providers on the same display, but an activity is a
+ * separate process that may be run on a developer's desktop with no shell
+ * behind it and, one day, without the shell's stylesheet at all -- and a
+ * missing colour in GTK CSS is not an error, it is a black rectangle. The
+ * values are byte-identical to `theme.css` and
+ * `tests/test_activity_sdk_widgets.py` re-reads both files and fails if they
+ * ever drift.
+ */
+
+@define-color kid-highlight #ffd23f;
+@define-color kid-ink #16181d;
+@define-color kid-paper #fbf7ef;
+@define-color kid-paper-dim #efe8da;
+@define-color kid-edge #7e838c;
+@define-color kid-edge-strong #5a5f6a;
+@define-color kid-primary #0f8a8a;
+@define-color kid-secondary #f06292;
+
+window.kidnix-activity {
+  background-color: @kid-paper;
+  color: @kid-ink;
+  font-family: "Andika", "Andika New Basic", "Cantarell", sans-serif;
+}
+
+/* --- the big button ----------------------------------------------------
+ *
+ * The same flat-with-depth treatment as a Home tile, one step heavier: in an
+ * activity this is usually the only thing on the screen a child is meant to
+ * press, so it may be the loudest object there without competing with
+ * anything. Press moves it, because a control that does not move under a
+ * five-year-old's hand has not answered them. */
+
+button.big {
+  background-color: @kid-paper;
+  color: @kid-ink;
+  border: 3px solid @kid-edge;
+  border-bottom-width: 8px;
+  border-radius: 32px;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.14);
+  padding: 16px;
+  font-weight: 600;
+}
+
+button.big:hover {
+  background-color: #ffffff;
+}
+
+button.big:active,
+button.big.pressed {
+  margin-top: 5px;
+  border-bottom-width: 3px;
+  box-shadow: none;
+}
+
+.big-button-label {
+  font-weight: 600;
+}
+
+/* --- a picture to choose ------------------------------------------------ */
+
+button.picture-tile {
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge;
+  border-bottom-width: 6px;
+  border-radius: 24px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.14);
+  padding: 10px;
+}
+
+button.picture-tile:hover {
+  background-color: #ffffff;
+}
+
+button.picture-tile:active,
+button.picture-tile.pressed {
+  margin-top: 4px;
+  border-bottom-width: 2px;
+  box-shadow: none;
+}
+
+.picture-frame {
+  border-radius: 12px;
+  border: 2px solid @kid-edge;
+  background-color: @kid-paper-dim;
+}
+
+/* --- the prompt --------------------------------------------------------- */
+
+.prompt-line {
+  font-weight: 600;
+}
+
+/* The replay control. Deliberately quieter than the prompt it repeats: it is
+ * always available and never the thing to press first. */
+button.replay {
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge;
+  border-bottom-width: 5px;
+  border-radius: 50%;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+}
+
+button.replay:active,
+button.replay.pressed {
+  margin-top: 3px;
+  border-bottom-width: 2px;
+  box-shadow: none;
+}
+
+/* --- "your turn, grown-up" (SUITE section 3) ----------------------------
+ *
+ * The one surface in an activity that is NOT addressed to the child, so it is
+ * the one surface that may look nothing like the rest: adult typography, adult
+ * density, a dimmed ground and a rule down the leading edge in the secondary
+ * colour. A child who cannot read still gets the message from the shape --
+ * this block is not for me -- which is the whole point of it being visually
+ * different rather than merely differently worded. */
+
+.grownup-turn {
+  background-color: @kid-paper-dim;
+  color: @kid-ink;
+  border: 2px solid @kid-edge;
+  border-left: 10px solid @kid-secondary;
+  border-radius: 16px;
+  padding: 16px 20px;
+  font-family: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", "Cantarell", sans-serif;
+  font-size: 13pt;
+}
+
+.grownup-turn .title {
+  font-size: 17pt;
+  font-weight: 700;
+}
+
+.grownup-turn .body {
+  font-size: 13pt;
+}
+
+/* Its button is an adult's: it does not get the child's 20 mm, it gets the
+ * 9 mm of 08 section 3.1e, and it is quiet. */
+.grownup-turn button {
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge-strong;
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 13pt;
+}
+
+/* --- calm mode ---------------------------------------------------------
+ *
+ * Reduced motion is mostly the absence of transitions, which an activity gets
+ * by not adding any. What is left is the depth cue that *moves* on press; calm
+ * keeps the colour change and drops the travel. */
+
+window.calm button.big:active,
+window.calm button.big.pressed,
+window.calm button.picture-tile:active,
+window.calm button.picture-tile.pressed {
+  margin-top: 0;
+}

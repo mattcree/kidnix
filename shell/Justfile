@@ -24,52 +24,77 @@ setup:
     @just _check-gi
 
 _check-gi:
-    {{python}} tools/check_env.py
+    {{ python }} tools/check_env.py
 
 # Run the shell against the real activity manifests (windowed, for development).
 run *ARGS:
-    {{python}} -m kidnix_shell --windowed {{ARGS}}
+    {{ python }} -m kidnix_shell --windowed {{ ARGS }}
 
 # Run the demo: fake activities, a three-minute session, the whole ritual.
 demo *ARGS:
-    {{python}} -m kidnix_shell --demo --windowed {{ARGS}}
+    {{ python }} -m kidnix_shell --demo --windowed {{ ARGS }}
 
 # Ten seconds of the demo, then quit. What CI and a smoke check run.
 smoke:
-    {{python}} -m kidnix_shell --demo --windowed --run-seconds 10
+    {{ python }} -m kidnix_shell --demo --windowed --run-seconds 10
 
 # The headless test suite.
 test *ARGS:
-    {{uvrun}} pytest {{ARGS}}
+    {{ uvrun }} pytest {{ ARGS }}
 
 # Just the pure-logic tests -- no display needed, this is the CI floor.
 test-headless:
-    env -u WAYLAND_DISPLAY -u DISPLAY {{uvrun}} pytest -q
+    env -u WAYLAND_DISPLAY -u DISPLAY {{ uvrun }} pytest -q
 
 lint:
-    {{uvrun}} ruff check .
-    {{uvrun}} ruff format --check .
-    {{uvrun}} mypy
+    {{ uvrun }} ruff check .
+    {{ uvrun }} ruff format --check .
+    {{ uvrun }} mypy
 
 # Apply the formatter and the fixable lints.
 fix:
-    {{uvrun}} ruff check --fix .
-    {{uvrun}} ruff format .
+    {{ uvrun }} ruff check --fix .
+    {{ uvrun }} ruff format .
 
 # Generate the four earcons (keep/tap/back/sleep) -- run at image build time.
 earcons DIR="":
-    {{python}} -m kidnix_shell.sound {{DIR}}
+    {{ python }} -m kidnix_shell.sound {{ DIR }}
 
 # Run the demo as if the monitor were a small panel (the one the boot clipped).
 demo-small SCREEN="1280x800@102" *ARGS:
-    {{python}} -m kidnix_shell --demo --windowed --screen {{SCREEN}} {{ARGS}}
+    {{ python }} -m kidnix_shell --demo --windowed --screen {{ SCREEN }} {{ ARGS }}
 
 # Check the activity manifests the image ships. Exits non-zero on any error.
 validate-manifests DIR="../system_files/usr/share/kidnix/activities":
-    {{python}} -m kidnix_shell --validate-manifests {{DIR}}
+    {{ python }} -m kidnix_shell --validate-manifests {{ DIR }}
+
+# --- the activity SDK (kidnix_activity, docs/design/activity-sdk.md) ---------
+
+# Check a first-party activity's manifest against the SDK's extra rules:
+# no network, no quit dialogue, a goal, an audio label and a picture.
+validate-activity PATH="kidnix_activity/examples/hello_draw/hello-draw.toml":
+    {{ python }} -m kidnix_activity.cli validate {{ PATH }}
+
+# Scaffold a new activity. `just new-activity "Clock and time" ../activities`
+new-activity NAME DIR=".":
+    {{ python }} -m kidnix_activity.cli new "{{ NAME }}" --dir {{ DIR }}
+
+# The example activity, on a Broadway display so no window opens on the desktop
+# (AGENTS.md: never take over the developer's screen). Ctrl-C runs its save.
+hello-draw DISPLAY_NUMBER="107":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gtk4-broadwayd -p "8{{ DISPLAY_NUMBER }}" ":{{ DISPLAY_NUMBER }}" >/dev/null 2>&1 &
+    broadwayd=$!
+    trap 'kill "${broadwayd}" 2>/dev/null || true' EXIT
+    sleep 0.5
+    env -u WAYLAND_DISPLAY -u DISPLAY \
+        GDK_BACKEND=broadway BROADWAY_DISPLAY=":{{ DISPLAY_NUMBER }}" \
+        KIDNIX_ACTIVITY_ID=hello-draw KIDNIX_PROFILE_ID=dev \
+        {{ python }} -m kidnix_activity.examples.hello_draw
 
 # Everything CI runs for this directory.
-ci: lint test-headless validate-manifests
+ci: lint test-headless validate-manifests validate-activity
 
 clean:
     rm -rf .venv .pytest_cache .ruff_cache .mypy_cache

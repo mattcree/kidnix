@@ -7,6 +7,12 @@ It is a launcher, a Journal and a session manager — not a host for activity
 code. Activities are separate processes started with a clean environment; the
 shell watches what they write and keeps it.
 
+This directory also holds **`kidnix_activity`**, the activity SDK that
+first-party activities are built from — same uv project, same wheel, same copy
+into the image, because an SDK that lagged the shell it borrows `Metrics`,
+`Journal` and `SpeechManager` from would break every activity on the machine.
+Its contract is [`docs/design/activity-sdk.md`](../docs/design/activity-sdk.md).
+
 ## Quick start
 
 ```bash
@@ -128,6 +134,33 @@ kidnix_shell/
   util.py         pagination
   sound.py        earcon synthesis and GStreamer playback
   demo.py         --demo world, and the fake activity itself
+```
+
+```
+kidnix_activity/          the activity SDK (docs/design/activity-sdk.md)
+  app.py          ActivityApplication / ActivityWindow -- one window, sized
+                  to the rectangle below the band
+  widgets.py      BigButton, PictureTile, Prompt, GrownUpTurn
+  keyboard.py     the focus ring. Escape is the SHELL's and is never taken
+  activity.css    what an activity adds to theme.css (loaded second)
+  examples/hello_draw/   the worked example, not installed on the image
+
+  # pure logic, no GTK, fully unit-tested headless:
+  env.py          the launch environment (KIDNIX_ACTIVITY_ID, KIDNIX_PROFILE_ID)
+  lifecycle.py    SIGTERM -> on_finish() -> exit. There is no quit dialogue
+  captions.py     the caption datagram to $XDG_RUNTIME_DIR/kidnix/captions.sock
+  metrics.py      ContentArea: mm sizing for the area an activity is given
+  journal.py      save_entry(): write into the child's Journal directly
+  manifest.py     validation + the template a new manifest starts from
+  scaffold.py     what `kidnix-activity new` writes
+  speech.py       one voice: speech-dispatcher plus the caption hook
+  cli.py          `kidnix-activity new|validate`
+```
+
+```bash
+just validate-activity                       # the example's manifest
+just new-activity "Clock and time" ../activities
+just hello-draw                              # runs on a Broadway display
 ```
 
 Everything a child touches is a `ChildButton`, which is where the input rules

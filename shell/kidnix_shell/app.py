@@ -573,6 +573,11 @@ class ShellWindow(Adw.ApplicationWindow):
         upgrade.
         """
         self.ctx.profile = profile
+        # Before the early return below: every activity is told whose things it
+        # may write (``KIDNIX_PROFILE_ID``), and the SDK's Journal writer needs
+        # it on the *first* profile too -- which is the one this method is
+        # called with when nothing has changed yet.
+        self.launcher.profile_id = profile.id
         paths = self.paths.for_profile(profile.id)
         if paths == self.profile_paths:
             return

@@ -1,0 +1,32 @@
+# hello_draw -- the SDK's example activity.
+#
+# NOT installed on the image: it is not in
+# `system_files/usr/share/kidnix/activities/`, on purpose. A child's Home has
+# room for about eight things and none of them should be a demonstration.
+# `kidnix-shell --demo` may list it, and `kidnix-activity validate` checks it in
+# CI, which is what keeps this file honest as the SDK changes.
+schema = 1
+
+id = "hello-draw"
+name = "Hello draw"
+audio_label = "Hello draw. Press the big button to make a square."
+goal = "A worked example of the activity SDK: one button, one picture, one Journal entry."
+
+icon = "kidnix-make"
+icon_kind = "icon-name"
+
+category = "make"
+age_band = "4-8"
+
+exec = ["/usr/bin/python3", "-m", "kidnix_activity.examples.hello_draw"]
+
+# The SDK saves on SIGTERM and never shows a quit dialogue.
+quit = "signal"
+quit_grace = 5.0
+
+network_required = false
+
+# No journal_watch: the activity writes its own entries with
+# kidnix_activity.journal.save_entry, so there is nothing for the shell's
+# importer to notice two seconds later.
+notes = "Example only. See docs/design/activity-sdk.md."

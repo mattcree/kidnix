@@ -84,6 +84,12 @@ ENV_ALLOWLIST = (
 #: Locale variables are allow-listed by prefix.
 ENV_ALLOWLIST_PREFIXES = ("LC_",)
 
+#: The two variables the shell *adds*. Together they are the activity SDK's
+#: whole input contract (``kidnix_activity.env``): which manifest this process
+#: is, and whose things it may write.
+ACTIVITY_ID_VAR = "KIDNIX_ACTIVITY_ID"
+PROFILE_ID_VAR = "KIDNIX_PROFILE_ID"
+
 DEFAULT_PATH = "/usr/local/bin:/usr/bin:/bin"
 
 
@@ -197,12 +203,25 @@ class Launcher:
         home: Path,
         parent_env: Mapping[str, str] | None = None,
         spawn: Callable[..., Any] | None = None,
+        profile_id: str = "",
     ) -> None:
         self.home = home
         self.parent_env = parent_env
         self._spawn = spawn or subprocess.Popen
         self.current: RunningActivity | None = None
         self.on_exit: Callable[[RunningActivity, int], None] | None = None
+        #: **Which child is sitting there** (:data:`PROFILE_ID_VAR`). Set by
+        #: ``ShellWindow._use_profile`` and exported to every activity.
+        #:
+        #: An activity built on ``kidnix_activity`` writes its own Journal
+        #: entries rather than leaving files for the importer to notice, and a
+        #: child's Journal has lived under ``kidnix/profiles/<id>/`` since
+        #: 2026-08-23. Without this the SDK would have to guess, and the only
+        #: guess available -- the pre-profiles layout -- is a directory the
+        #: shell no longer reads. Empty means "no profile chosen yet", which is
+        #: the legacy layout and is what a machine with one child has always
+        #: had.
+        self.profile_id = profile_id
 
     # -- starting --
 
@@ -221,7 +240,10 @@ class Launcher:
             if resume_path is not None
             else list(activity.exec_argv)
         )
-        env = build_env(self.home, self.parent_env, {"KIDNIX_ACTIVITY_ID": activity.id})
+        extra = {ACTIVITY_ID_VAR: activity.id}
+        if self.profile_id:
+            extra[PROFILE_ID_VAR] = self.profile_id
+        env = build_env(self.home, self.parent_env, extra)
 
         # An unnamed temporary file rather than a pipe: nobody is reading it
         # while the activity runs, and a full pipe buffer would block a child's
