@@ -384,10 +384,30 @@ done
 dconf_locked org.gnome.mutter.wayland.keybindings switch-to-session-2
 dconf_is org.gnome.desktop.wm.keybindings close "@as []"                # Alt+F4
 dconf_is org.gnome.desktop.wm.keybindings panel-run-dialog "@as []"     # Alt+F2
-dconf_is org.gnome.desktop.wm.keybindings switch-applications "@as []"  # Alt+Tab
 dconf_is org.gnome.desktop.wm.keybindings switch-to-workspace-right "@as []"
 dconf_is org.gnome.desktop.wm.keybindings toggle-fullscreen "@as []"
 dconf_locked org.gnome.desktop.wm.keybindings close
+
+# The one exception, and the reason it exists (FLOWS A25,
+# docs/spikes/keyboard-escape.md): inside an activity the compositor gives the
+# keyboard to the activity's toplevel, so the shell's "Escape is Back" never
+# arrives. switch-applications on <Super>Tab hands the keyboard back to a shell
+# window -- mutter's own handler, no popup, no overview, nothing drawn -- and
+# Escape is Back from there. Measured end to end on the image.
+dconf_is org.gnome.desktop.wm.keybindings switch-applications "['<Super>Tab']"
+dconf_locked org.gnome.desktop.wm.keybindings switch-applications
+# ...and nothing came with it. One chord, one direction, everything else shut.
+dconf_is org.gnome.desktop.wm.keybindings switch-applications-backward "@as []"
+dconf_is org.gnome.desktop.wm.keybindings switch-windows "@as []"       # Alt+Tab
+dconf_is org.gnome.desktop.wm.keybindings switch-windows-backward "@as []"
+dconf_is org.gnome.desktop.wm.keybindings cycle-windows "@as []"
+dconf_is org.gnome.desktop.wm.keybindings switch-group "@as []"
+dconf_is org.gnome.desktop.wm.keybindings switch-panels "@as []"        # Ctrl+Alt+Tab
+dconf_is org.gnome.desktop.wm.keybindings activate-window-menu "@as []"
+# Exactly one binding in the generated keyfile has a chord at all. `grep -c`
+# exits 1 on a zero count, hence `|| true` rather than `|| echo 0`.
+with_a_chord="$(grep -cE "^[a-z0-9-]+=\['" /usr/share/kidnix/dconf/kid.d/50-keybindings || true)"
+assert_eq "exactly one keybinding has a chord" "1" "${with_a_chord:-0}"
 
 # The keybinding keyfile is generated from the live schemas at build time so a
 # GNOME upgrade cannot quietly add a shortcut we forgot about.

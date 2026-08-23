@@ -210,7 +210,9 @@ lockfile="${DCONF_SRC}/locks/50-keybindings"
 {
     echo "# GENERATED AT BUILD TIME by build_files/40-lockdown.sh -- do not edit."
     echo "#"
-    echo "# Every keybinding in mutter's three keybinding schemas, blanked."
+    echo "# Every keybinding in mutter's three keybinding schemas, blanked --"
+    echo "# with exactly ONE exception, switch-applications, which is the child's"
+    echo "# way out of an activity (see below, and docs/spikes/keyboard-escape.md)."
     echo "# gnome-kiosk implements almost no shortcuts itself, but it is mutter"
     echo "# underneath, and mutter's defaults include Alt+F4 (close), Alt+Tab,"
     echo "# Super, workspace switching and -- the important one --"
@@ -256,6 +258,59 @@ for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
         || die "switch-to-session-${n} was not blanked (VT switching would still work)"
 done
 grep -q '^close=@as \[\]$' "${keyfile}" || die "Alt+F4 (close) was not blanked"
+
+# --- the one keybinding a child is allowed to have --------------------------
+#
+# FLOWS A25: inside an activity the compositor gives the keyboard to the
+# *activity's* toplevel, so the shell's "Escape is Back" never arrives and a
+# child on a keyboard or a switch cannot leave a drawing at all -- the one step
+# of a session they could not take. Blanking all 102 keybindings above is what
+# shut that door; exactly one is opened again here, and only far enough to move
+# the keyboard from the activity back to a window of the shell's, where Escape
+# is Back and every band control is on the ring.
+#
+# Why this key. Measured on the image, in a real kid session, with Tux Paint
+# running (docs/spikes/keyboard-escape.md): gnome-kiosk installs custom
+# handlers for the keybindings it wants to neutralise, and switch-applications
+# is NOT one of them, so mutter's own handler runs -- it activates the next
+# window in the most-recently-used list and draws nothing at all. There is no
+# switcher popup, no overview and no launcher in gnome-kiosk to expose. It is
+# also the only mechanism available: gnome-settings-daemon's custom-keybindings
+# are refused the grab under gnome-kiosk (docs/spikes/band-over-activity.md
+# §3e) and gnome-kiosk has no window/shell D-Bus API.
+#
+# Why this chord. One chord, not two: <Super>Tab is what an adult or an
+# assistive-technology switch interface sends on purpose and what a child does
+# not hit by accident, and Super is a modifier no activity we ship uses.
+# <Alt>Tab -- mutter's other stock default for this key -- stays blank, as does
+# switch-applications-backward: one direction reaches every window of a
+# two-window shell, and each extra chord is extra surface for nothing.
+#
+# It is LOCKED like everything else in this file, so nothing in the session can
+# change it, clear it, or add a second chord to it.
+escape_binding="switch-applications"
+escape_chord="['<Super>Tab']"
+blank_line="$(grep -c "^${escape_binding}=@as \[\]$" "${keyfile}" || true)"
+(( "${blank_line:-0}" == 1 )) \
+    || die "expected exactly one blanked ${escape_binding} to re-enable, found ${blank_line:-0}"
+sed -i "s|^${escape_binding}=@as \[\]$|${escape_binding}=${escape_chord}|" "${keyfile}"
+grep -qxF "${escape_binding}=${escape_chord}" "${keyfile}" \
+    || die "${escape_binding} was not re-enabled; a keyboard-only child could not leave an activity"
+grep -qxF "/org/gnome/desktop/wm/keybindings/${escape_binding}" "${lockfile}" \
+    || die "${escape_binding} is not in the lock list; the session could clear the way out"
+# ...and nothing else got a chord with it. `switch-panels` (Ctrl+Alt+Tab) is
+# mutter's other focus-cycling family and stays shut; `close` is Alt+F4.
+grep -q '^switch-applications-backward=@as \[\]$' "${keyfile}" \
+    || die "switch-applications-backward must stay blank: one direction is enough"
+for shut in switch-windows switch-windows-backward cycle-windows switch-group \
+            switch-panels cycle-panels toggle-fullscreen panel-run-dialog; do
+    grep -q "^${shut}=@as \[\]$" "${keyfile}" \
+        || die "${shut} is not blank; ${escape_binding} is the only binding a child may have"
+done
+with_a_chord="$(grep -cE "^[a-z0-9-]+=\['" "${keyfile}" || true)"
+(( "${with_a_chord:-0}" == 1 )) \
+    || die "${with_a_chord:-0} keybindings have a chord; exactly one (${escape_binding}) may"
+log "re-enabled ${escape_binding}=${escape_chord} -- the keyboard route out of an activity"
 
 # Every key we set by hand must exist in a schema, or dconf silently stores a
 # value nothing reads and the lockdown is decorative.
@@ -384,6 +439,16 @@ check_setting org.gnome.mutter.wayland.keybindings switch-to-session-2 "@as []"
 check_locked  org.gnome.desktop.lockdown          disable-command-line
 check_locked  org.gnome.desktop.peripherals.mouse double-click
 check_locked  org.gnome.mutter.wayland.keybindings switch-to-session-2
+
+# The keyboard route out of an activity (FLOWS A25). Spelled out here as well
+# as caught by the generic read-back loop, because a silent regression -- the
+# chord cleared, or the key left writable -- is the difference between a child
+# on a switch being able to leave a drawing and not.
+check_setting org.gnome.desktop.wm.keybindings switch-applications          "['<Super>Tab']"
+check_locked  org.gnome.desktop.wm.keybindings switch-applications
+check_setting org.gnome.desktop.wm.keybindings switch-applications-backward "@as []"
+check_setting org.gnome.desktop.wm.keybindings switch-windows               "@as []"
+check_setting org.gnome.desktop.wm.keybindings switch-panels                "@as []"
 
 # Trackpad hardening (research 09 Q7). The trackpad is the worst pointing
 # device in the house for a five-year-old and the one cheap laptops ship with,

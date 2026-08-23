@@ -596,6 +596,158 @@ tts_length_scale=$(piperd_log | sed -n 's/.*length_scale=\([0-9.]*\).*/\1/p' | t
 tts_fallbacks=$(journalctl -b --no-pager -o cat -t kidnix-piper-say 2>/dev/null \
     | grep -c 'falling back to espeak-ng')
 
+# --- A25: the keyboard route out of an activity ------------------------------
+#
+# FLOWS A25 and docs/spikes/keyboard-escape.md. Inside an activity the
+# compositor gives the keyboard to the *activity's* toplevel, so the shell's
+# "Escape is Back" never arrives and a child on a keyboard or a switch cannot
+# leave a drawing at all. The answer is exactly one re-enabled mutter
+# keybinding -- switch-applications on <Super>Tab -- which hands the keyboard
+# back to a window of the shell's, where Escape is Back. Two halves are worth
+# proving separately: that the *setting* survives into the live session, and
+# that the compositor *acts* on it with a real activity on the screen.
+#
+# The keys come from a synthetic /dev/uinput keyboard created here, inside the
+# guest: bcvk gives us no QMP, and XTEST would be delivered by Xwayland to X11
+# clients rather than to the compositor. libinput picks a uinput device up like
+# any other keyboard, which is exactly why this is a fair test.
+a25_binding=$(askid env DCONF_PROFILE=kid gsettings get \
+    org.gnome.desktop.wm.keybindings switch-applications | tr -d '\n')
+a25_writable=$(askid env DCONF_PROFILE=kid gsettings writable \
+    org.gnome.desktop.wm.keybindings switch-applications | tr -d '\n')
+a25_backward=$(askid env DCONF_PROFILE=kid gsettings get \
+    org.gnome.desktop.wm.keybindings switch-applications-backward | tr -d '\n')
+
+cat >/tmp/kidnix-uinput.py <<'KIDNIX_UINPUT_EOF'
+# A keyboard that is not there: create one with /dev/uinput, press the chords
+# named on the command line, destroy it.  usage: uinput.py [--delay S] chord...
+import fcntl, os, struct, sys, time
+
+UI_SET_EVBIT, UI_SET_KEYBIT, UI_DEV_CREATE, UI_DEV_DESTROY = (
+    0x40045564, 0x40045565, 0x5501, 0x5502)
+EV_SYN, EV_KEY, SYN_REPORT = 0x00, 0x01, 0x00
+KEYS = {'esc': 1, 'tab': 15, 'enter': 28, 'space': 57, 'leftctrl': 29,
+        'leftshift': 42, 'leftalt': 56, 'leftmeta': 125}
+
+argv = sys.argv[1:]
+delay = 2.0
+if argv and argv[0] == '--delay':
+    delay = float(argv[1])
+    argv = argv[2:]
+
+fd = os.open('/dev/uinput', os.O_WRONLY | os.O_NONBLOCK)
+fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
+for code in KEYS.values():
+    fcntl.ioctl(fd, UI_SET_KEYBIT, code)
+os.write(fd, b'kidnix-boot-test-keyboard'.ljust(80, b'\0')
+         + struct.pack('HHHH', 3, 0x4b49, 0x4458, 1)
+         + struct.pack('I', 0) + b'\0' * (4 * 64 * 4))
+fcntl.ioctl(fd, UI_DEV_CREATE)
+time.sleep(2.0)   # udev, then libinput, have to notice the new device
+
+def emit(kind, code, value):
+    os.write(fd, struct.pack('llHHi', 0, 0, kind, code, value))
+
+for chord in argv:
+    names = chord.split('+')
+    for name in names:
+        emit(EV_KEY, KEYS[name], 1)
+        emit(EV_SYN, SYN_REPORT, 0)
+    time.sleep(0.08)
+    for name in reversed(names):
+        emit(EV_KEY, KEYS[name], 0)
+        emit(EV_SYN, SYN_REPORT, 0)
+    print('sent ' + chord)
+    time.sleep(delay)
+
+fcntl.ioctl(fd, UI_DEV_DESTROY)
+os.close(fd)
+KIDNIX_UINPUT_EOF
+
+a25_uinput=absent
+[ -c /dev/uinput ] && a25_uinput=present
+a25_keys_rc=""
+a25_activity_pid=""
+a25_in_activity=""
+a25_back_asked=""
+a25_asking_spoken=""
+a25_shell_state=""
+a25_cursor=""
+
+# Press Enter and wait for the screen it should have changed, up to three
+# times. A synthetic keyboard can be created a moment before libinput is ready
+# for it, and a lost first keystroke would otherwise desynchronise the whole
+# sequence and look exactly like a broken keybinding.
+a25_enter_until() {
+    tries=0
+    while [ "$tries" -lt 3 ]; do
+        python3 /tmp/kidnix-uinput.py --delay 1 enter >/dev/null 2>&1
+        sleep 4
+        journalctl -b --no-pager -o cat --after-cursor "$a25_cursor" \
+            _SYSTEMD_USER_UNIT=kidnix-shell.service 2>/dev/null \
+            | grep -q "$1" && return 0
+        tries=$(( tries + 1 ))
+    done
+    return 1
+}
+
+if [ "$a25_uinput" = present ]; then
+    a25_cursor=$(journalctl -b --no-pager -n1 -o export \
+        _SYSTEMD_USER_UNIT=kidnix-shell.service 2>/dev/null \
+        | sed -n 's/^__CURSOR=//p')
+    # Three Enters is the whole way in: every screen focuses its own first
+    # control on arrival (keyboard.py focus_first), and those are the child,
+    # the first plan, and Draw. No Tab, so this does not encode how many
+    # controls a screen happens to have -- only that Enter activates the ring.
+    a25_enter_until 'state choosing -> next_choice'
+    a25_enter_until 'state next_choice -> home'
+    a25_enter_until 'state home -> in_activity'
+    a25_keys_rc=$?
+    tries=0
+    while [ "$tries" -lt 30 ]; do
+        a25_activity_pid=$(pgrep -u kid -x tuxpaint 2>/dev/null | head -1)
+        [ -n "$a25_activity_pid" ] && break
+        sleep 2
+        tries=$(( tries + 1 ))
+    done
+    # Tux Paint fades its splash in before it will answer anything.
+    [ -n "$a25_activity_pid" ] && sleep 12
+    a25_in_activity=$(journalctl -b --no-pager -o cat --after-cursor "$a25_cursor" \
+        _SYSTEMD_USER_UNIT=kidnix-shell.service 2>/dev/null \
+        | grep -c 'state home -> in_activity')
+    # THE MEASUREMENT: the chord, then Escape. With the activity focused,
+    # Escape alone reaches Tux Paint and never the shell (that is the A25
+    # finding); after the chord it is the shell's Back.
+    a25_cursor=$(journalctl -b --no-pager -n1 -o export \
+        _SYSTEMD_USER_UNIT=kidnix-shell.service 2>/dev/null \
+        | sed -n 's/^__CURSOR=//p')
+    python3 /tmp/kidnix-uinput.py --delay 3 leftmeta+tab esc >/dev/null 2>&1
+    # Back is logged at once, but the sentence the *child* gets --
+    # "... is asking if you're done" -- is only spoken after the activity's own
+    # quit_grace, because that is how long the shell waits before concluding
+    # that the activity is asking a question rather than leaving. Tux Paint
+    # asks for 30 s of it. Poll for the line instead of guessing a sleep, and
+    # take the grace from the manifest so the two cannot drift apart.
+    a25_grace=$(sed -n 's/^quit_grace *= *\([0-9.]*\).*/\1/p' \
+        /usr/share/kidnix/activities/tuxpaint.toml 2>/dev/null | head -1)
+    a25_grace=${a25_grace:-30}
+    a25_waited=0
+    while : ; do
+        sleep 3
+        a25_waited=$(( a25_waited + 3 ))
+        a25_log=$(journalctl -b --no-pager -o cat --after-cursor "$a25_cursor" \
+            _SYSTEMD_USER_UNIT=kidnix-shell.service 2>/dev/null)
+        printf '%s\n' "$a25_log" | grep -q "asking if you're done" && break
+        [ "$a25_waited" -ge "$(( ${a25_grace%.*} + 9 ))" ] && break
+    done
+    a25_back_asked=$(printf '%s\n' "$a25_log" | grep -c 'asked the activity to finish')
+    a25_asking_spoken=$(printf '%s\n' "$a25_log" | grep -c "asking if you're done")
+    a25_shell_state=$(printf '%s\n' "$a25_log" | sed -n 's/.*state \([a-z_]*\) -> \([a-z_]*\).*/\2/p' | tail -1)
+    # Leave the machine tidy for the crash-recovery section below.
+    pkill -u kid -x tuxpaint >/dev/null 2>&1
+    sleep 2
+fi
+
 # --- crash recovery ----------------------------------------------------------
 # kidnix-shell.service is Restart=always/RestartSec=1, which replaced the bash
 # supervisor. Kill the shell and time how long the child would stare at an
@@ -683,6 +835,16 @@ echo "egress_after_root_delete=${egress_after_root_delete}"
 echo "egress_kid_unblocked=${egress_kid_unblocked}"
 echo "egress_restored=${egress_restored}"
 echo "egress_kid_reblocked=${egress_kid_reblocked}"
+echo "a25_binding=${a25_binding}"
+echo "a25_writable=${a25_writable}"
+echo "a25_backward=${a25_backward}"
+echo "a25_uinput=${a25_uinput}"
+echo "a25_keys_rc=${a25_keys_rc}"
+echo "a25_activity_pid=${a25_activity_pid}"
+echo "a25_in_activity=${a25_in_activity}"
+echo "a25_back_asked=${a25_back_asked}"
+echo "a25_asking_spoken=${a25_asking_spoken}"
+echo "a25_shell_state=${a25_shell_state}"
 echo "pin_hash_at_boot=${pin_hash_at_boot}"
 echo "pin_rules_setpin=${pin_rules_setpin}"
 echo "pin_rules_tools=${pin_rules_tools}"
@@ -1173,6 +1335,81 @@ def assert_shell(probe: dict[str, str], checks: Checks) -> None:
     )
 
 
+#: The one keybinding the child session is allowed to have, and the chord it
+#: carries. Generated into /usr/share/kidnix/dconf/kid.d/50-keybindings by
+#: build_files/40-lockdown.sh; asserted in the image by tests/image/
+#: test_lockdown.sh and *in a live session, with a real activity on the screen*
+#: here. Change it in all three places or not at all.
+ESCAPE_CHORD = "['<Super>Tab']"
+
+
+def assert_keyboard_escape(probe: dict[str, str], checks: Checks) -> None:
+    """A child on a keyboard or a switch can leave an activity (FLOWS A25).
+
+    The finding this exists for, measured on the image and written up in
+    docs/spikes/keyboard-escape.md: inside an activity the compositor gives the
+    keyboard to the activity's toplevel, so the shell's Escape-is-Back never
+    arrives -- on Tux Paint it raises Tux Paint's own quit prompt instead. With
+    all 102 mutter keybindings blanked there was no way back at all, and
+    leaving an activity was the one step of a session a switch user could not
+    take.
+
+    So one binding is open again. Three things have to hold, and they fail
+    independently: the setting has to survive into the live session (the image
+    test cannot see a session), the compositor has to *act* on it, and the key
+    that arrives afterwards has to be the shell's Back rather than anybody
+    else's.
+    """
+    binding = probe.get("a25_binding", "")
+    checks.check(
+        binding == ESCAPE_CHORD,
+        f"the way out of an activity is bound in the live session: "
+        f"switch-applications = {ESCAPE_CHORD} (got '{binding or 'nothing'}')",
+    )
+    checks.check(
+        probe.get("a25_writable") == "false",
+        "...and it is locked, so nothing in the session can clear it "
+        f"(writable '{probe.get('a25_writable') or 'unknown'}')",
+    )
+    checks.check(
+        probe.get("a25_backward") == "@as []",
+        "...and nothing came with it: switch-applications-backward is still blank "
+        f"(got '{probe.get('a25_backward') or 'unknown'}')",
+    )
+
+    # The live half. If the kernel has no /dev/uinput there is no way to press
+    # a key in a bcvk guest at all, and that is a gap in the harness rather
+    # than a fault in the image -- say so, and do not pretend either way.
+    if probe.get("a25_uinput") != "present":
+        print(
+            "  NOTE: /dev/uinput is absent in this guest, so no key could be "
+            "pressed; the live half of A25 was not measured here. "
+            "tests/e2e drives the same chord over QMP."
+        )
+        return
+
+    reached = _as_int(probe.get("a25_in_activity", "")) or 0
+    checks.check(
+        reached >= 1 and bool(probe.get("a25_activity_pid")),
+        "three Enters from a synthetic keyboard reach IN_ACTIVITY with Tux Paint running "
+        f"(pid '{probe.get('a25_activity_pid') or 'none'}')",
+        "" if reached else "the shell never logged 'state home -> in_activity'",
+    )
+    asked = _as_int(probe.get("a25_back_asked", "")) or 0
+    checks.check(
+        asked >= 1,
+        "<Super>Tab then Escape, from inside the activity, is the shell's own Back "
+        "('the band asked the activity to finish')",
+        "" if asked else "the shell never saw Escape: the keyboard stayed with the activity",
+    )
+    spoke = _as_int(probe.get("a25_asking_spoken", "")) or 0
+    checks.check(
+        spoke >= 1,
+        '...and the child is told what is happening ("is asking if you\'re done")',
+        "" if spoke else "Back ran but nothing was spoken",
+    )
+
+
 #: What speech-dispatcher's rate -20 -- shell/kidnix_shell/speech.py's
 #: SPEECH_RATE -- must become by the time it reaches piper. Anything else means
 #: the chain from SSIP to length_scale is broken again; it was, silently, from
@@ -1591,6 +1828,7 @@ def assert_probe(probe: dict[str, str], checks: Checks) -> None:
 
     assert_session(probe, checks)
     assert_shell(probe, checks)
+    assert_keyboard_escape(probe, checks)
     assert_read_aloud(probe, checks)
     assert_egress(probe, checks)
     assert_pin(probe, checks)
