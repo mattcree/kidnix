@@ -1,0 +1,124 @@
+# Clock -- playing with a clock, and finding out how long a minute is.
+#
+# The source of truth for this file is
+# `activities/clock_time/manifest.toml`, which
+# `activities/clock_time/tests/test_manifest.py` validates in CI. This is the
+# copy the image ships. Everything a child or a parent can perceive is the same
+# in both -- name, audio_label, goal, category, age band, exec, quit, network --
+# and stage 64 asserts that field by field at build time. What is only here is
+# what is a fact about the *image* rather than about the activity:
+#
+#   * `order`, which only means anything next to the other tiles;
+#   * `icon`, an absolute path only the image knows
+#     (build_files/64-first-party-activities.sh installs it there); and
+#   * the packaging fields build_files/50-activities.sh's validator requires of
+#     every tile -- source, package, licence, age_min/age_max, oars_rating,
+#     journal_watch, wayland_native, notes.
+#
+# THE FILENAME IS THE ID, and that is why this is `clock-time.toml` and not
+# `clock.toml`: build_files/50-activities.sh rejects any manifest whose `id`
+# does not match its stem, and the id is `clock-time` everywhere else that
+# matters -- KIDNIX_ACTIVITY_ID, the Journal cards already written under it, and
+# `clock_time.ACTIVITY_ID`. The *name* a child sees is still "Clock".
+schema = 1
+
+id = "clock-time"
+name = "Clock"
+
+# What the shell says when a child hovers or focuses the tile. Written for the
+# ear, and it says what *happens* rather than what it is for -- the goal line
+# below is the sentence for the grown-up.
+audio_label = "Play with the clock. Move the hands and find out what happens when."
+
+# One honest line for a parent, copied verbatim from the activity's own
+# manifest, and the sentence the whole activity is held to
+# (docs/design/clock-time.md §0). It does not claim to teach telling the time,
+# because a clock a child plays with for ten minutes is practice and not a
+# curriculum -- and because the last clause is the load-bearing half: nothing
+# here is marked, scored or recorded against them.
+goal = "Playing with a clock: o'clock and half past, and what happens when. Not a test."
+
+# Fourth on Home, after Draw (10), Sounds & words (15) and Numbers (20).
+#
+# Draw stays first deliberately: tests/e2e/test_scenario.py opens "the first
+# cell of the first row" and asserts the launcher log says Draw, so a tile that
+# sorted ahead of order = 10 would break the scenario rather than silently
+# starting something else. With eleven tiles Home now paginates; All done stays
+# pinned at 7 and the pager takes the rest, which is what the pager is for.
+order = 25
+
+# A path, not an icon name. The drawing lives with the activity that owns it
+# (`clock_time/icon.svg` in the package) rather than in the shell's own bundled
+# set, and the build copies it to this stable path -- the shell's
+# `widgets.icon_image` loads `icon_kind = "path"` with `Gtk.Image.new_from_file`,
+# so an absolute path is exactly what it wants, and site-packages has a Python
+# version in it which a manifest must not.
+#
+# This is the one field that deliberately differs from the activity's own
+# manifest, which names the path a checkout would use.
+icon = "/usr/share/kidnix/icons/clock-time.svg"
+icon_kind = "path"
+
+kind = "activity"
+category = "learn"
+# Overlap, not containment: a 4-5 profile and a 6-8 profile both see this.
+# Reception plays with the hands; Year 1 and Year 2 are where the statutory
+# content is (National Curriculum KS1 Measurement).
+#
+# Both spellings, because two validators read this file and each insists on a
+# different one: build_files/50-activities.sh requires the explicit integers,
+# the shell's parser prefers the band. They must agree, and
+# kidnix_shell.activities.parse_manifest lets the explicit pair win.
+age_band = "4-8"
+age_min = 4
+age_max = 8
+
+# The console script build_files/64-first-party-activities.sh writes. No
+# arguments: `--screenshot` exists for regenerating the design note's pictures
+# and a child's session must not be able to reach it.
+exec = ["/usr/bin/kidnix-clock-time"]
+
+# The SDK saves on SIGTERM and never shows a quit dialogue
+# (kidnix_activity.lifecycle; docs/design/activity-sdk.md §3.3). Five seconds is
+# spec 7a's autosave grace, and what it covers here is one small PNG.
+quit = "signal"
+quit_grace = 5.0
+
+oars_rating = "none"
+# The child session has no egress (SYNTHESIS H1), and this activity has no use
+# for it: the clock is arithmetic, the routine is a local TOML file, and the
+# only clock it reads is the machine's own.
+network_required = false
+
+# No journal_watch and no journal_glob, deliberately. The activity writes its
+# own entry with kidnix_activity.journal.save_entry, so there is nothing for the
+# shell's importer to notice two seconds later -- and an importer watching a
+# scratch directory would keep the same card twice
+# (docs/design/activity-sdk.md §8).
+journal_watch = []
+
+wayland_native = true
+
+# Neither an RPM nor a Flatpak: this one is ours, installed by
+# build_files/64-first-party-activities.sh.
+source = "kidnix"
+package = "kidnix-clock-time"
+licence = "Apache-2.0"
+
+notes = """
+Ours. The Python package is installed beside the shell by
+build_files/64-first-party-activities.sh, not by an RPM.
+
+The day the pictures show -- six to eight moments, each with a time and a
+drawing -- is a grown-up's, in /etc/kidnix/clock_time.toml, which the image
+ships with every line commented out. Until somebody writes one, the activity
+uses its built-in day (wake, breakfast, school, lunch, home, tea, bath, bed)
+and says in the log that nobody has told it otherwise.
+
+Whether the hands snap to o'clock and half past (Year 1) or to the quarters and
+the five-minute marks (Year 2) is the same grown-up's line. Nothing in the
+activity advances it: a year band is a statement about what a school has
+taught, and this program is not entitled to infer one.
+
+See docs/design/clock-time.md.
+"""

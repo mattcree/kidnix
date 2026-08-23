@@ -1,0 +1,128 @@
+# Clock -- your family's day, and which clock your child has been taught.
+#
+# THIS FILE IS YOURS. kidnix ships it with every line commented out, and bootc's
+# three-way merge keeps your edits across every update. Nothing in kidnix ever
+# writes to it, and the child's session cannot: it is root-owned, and a day a
+# five-year-old can rewrite is not a statement about your house.
+#
+# ---------------------------------------------------------------------------
+# WHAT IT DOES
+# ---------------------------------------------------------------------------
+#
+# Clock has two screens. On the first, a child moves the hands of a big clock
+# and hears what they made -- "half past three" -- and along the bottom is a
+# strip of pictures: your day. Move the hands to half past three and the "home
+# from school" picture lights up. That link is the whole point of the activity.
+# "Half past six" is an abstraction; "half past six is when we have tea" is a
+# fact about your house, and it is what makes a clock mean anything to a
+# five-year-old.
+#
+# So the day in the strip should be YOUR day. While every line below is
+# commented out, Clock uses a built-in one -- wake 7:00, breakfast 7:30, school
+# 9:00, lunch 12:00, home 15:30, tea 17:30, bath 18:30, bed 19:00 -- and says
+# in the log that nobody has told it otherwise. That is an ordinary UK weekday
+# and it is deliberately a little early: a default that was wrong in the *late*
+# direction would put "bed" in the middle of your child's actual evening and
+# make the picture argue with the room they are sitting in.
+#
+# Nothing here is ever marked, scored or recorded against your child.
+#
+# ---------------------------------------------------------------------------
+# HOW TO SET IT
+# ---------------------------------------------------------------------------
+#
+# Uncomment what you want to change and save. It takes effect the next time
+# they open the activity. Nothing here can stop the activity from opening: a
+# typo drops the line it is on, says so in the log, and the rest of the day
+# still works.
+#
+# ---------------------------------------------------------------------------
+# WHICH CLOCK THEY HAVE BEEN TAUGHT
+# ---------------------------------------------------------------------------
+#
+#   mode = "y1"   o'clock and half past. The hands snap to those and nothing
+#                 else. This is the default.
+#   mode = "y2"   adds quarter past, quarter to, and the five-minute marks.
+#
+# National Curriculum KS1 Measurement: Year 1 is "tell the time to the hour and
+# half past the hour"; Year 2 adds "quarter past/to the hour" and five-minute
+# intervals. Nothing in the activity advances this on its own -- there is no
+# assessment here and no guessing. The only thing that moves the line is you.
+#
+# If in doubt, leave it. A Year 2 child playing with o'clock and half past has
+# lost nothing; a Reception child shown "twenty-five to four" has been given a
+# thing nobody has taught them, which is the mistake worth avoiding.
+
+# [clock]
+# mode = "y1"
+
+# ---------------------------------------------------------------------------
+# YOUR DAY
+# ---------------------------------------------------------------------------
+#
+# Six to eight moments. Uncomment the block below and change the times and the
+# names to yours. Order does not matter -- they are sorted by time.
+#
+#   id       a short name with no spaces. It is also the picture's filename.
+#   name     what YOUR family calls it. This is what is written on the tile and
+#            what the voice says, so "Tea", "Dinner" and "Supper" are all right
+#            if that is the word in your house. Keep it short: one word, or two
+#            short ones. A long word makes a wide tile, and eight wide tiles do
+#            not fit across a small screen -- nothing is ever cut in half, but
+#            the strip can end up wider than the screen and say so in the log.
+#   time     24-hour, "HH:MM". A full stop works too ("07.30"), because that is
+#            how a lot of people in the UK write it.
+#   picture  optional; defaults to `id`.
+#
+# The drawings that ship are: wake, breakfast, school, lunch, home, tea, bath,
+# bed. A moment naming a picture we do not have still works -- the tile shows
+# the word on its own -- so you can rename "tea" to "dinner" today and we can
+# draw a dinner later.
+#
+# Eight is the cap. A ninth would make the tiles too small for a small hand to
+# hit reliably (20 mm is the floor), so a ninth is dropped with a line in the
+# log rather than shrinking the other eight.
+#
+# The clock face has no morning and no afternoon, so the activity works out
+# from these times whether the hands at seven o'clock mean breakfast or bath.
+# That is why a routine with real times in it makes the whole thing better.
+
+# [[routine]]
+# id = "wake"
+# name = "Wake up"
+# time = "07:00"
+
+# [[routine]]
+# id = "breakfast"
+# name = "Breakfast"
+# time = "07:30"
+
+# [[routine]]
+# id = "school"
+# name = "School"
+# time = "09:00"
+
+# [[routine]]
+# id = "lunch"
+# name = "Lunch"
+# time = "12:00"
+
+# [[routine]]
+# id = "home"
+# name = "Home"
+# time = "15:30"
+
+# [[routine]]
+# id = "tea"
+# name = "Tea"
+# time = "17:30"
+
+# [[routine]]
+# id = "bath"
+# name = "Bath"
+# time = "18:30"
+
+# [[routine]]
+# id = "bed"
+# name = "Bed"
+# time = "19:00"

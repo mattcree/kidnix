@@ -1,0 +1,125 @@
+# Numbers -- how many, and which two numbers make five.
+#
+# The source of truth for this file is `activities/numbers/manifest.toml`,
+# which `activities/numbers/tests/test_manifest.py` validates in CI. This is
+# the copy the image ships. Everything a child or a parent can perceive is the
+# same in both -- name, audio_label, goal, category, age band, exec, quit,
+# network -- and stage 64 asserts that field by field at build time. What is
+# only here is what is a fact about the *image* rather than about the activity:
+#
+#   * `order`, which only means anything next to the other tiles;
+#   * `icon`, an absolute path only the image knows
+#     (build_files/64-first-party-activities.sh installs it there); and
+#   * the packaging fields build_files/50-activities.sh's validator requires of
+#     every tile -- source, package, licence, age_min/age_max, oars_rating,
+#     journal_watch, wayland_native, notes.
+#
+# The filename is the id: build_files/50-activities.sh rejects a manifest whose
+# `id` does not match its stem, so this file cannot be renamed on its own.
+schema = 1
+
+id = "numbers"
+name = "Numbers"
+
+# What the shell says when a child hovers or focuses the tile. Written for the
+# ear and for a pre-reader: it says what *happens*, not what it is for. Copied
+# from the activity's own manifest, which is why it is short -- the goal line
+# below is the sentence for the grown-up.
+audio_label = "Numbers"
+
+# One honest line for a parent, copied verbatim from the activity's own
+# manifest, and the sentence the whole activity is held to
+# (docs/design/numbers.md). It names the two things the EYFS Number ELG asks
+# for -- subitising to five, and the composition of five and ten -- and then it
+# says what this is not. kidnix does not teach number; a school does.
+goal = "Seeing how many without counting (up to 5), and which two numbers make 5 and 10. Practice, not a test."
+
+# Draw is first (tuxpaint, order = 10) and Sounds & words second (order = 15);
+# 20 continues that ladder and leaves room either side without renumbering
+# anything.
+#
+# It is SHARED with ktuberling, which has sat at 20 since the first wave, and
+# that is deliberate rather than overlooked: the shell sorts by `(order, id)`,
+# so a shared order is still one arrangement and not a coin toss -- Home reads
+# Draw, Sounds & words, Potato man, Numbers, Clock, the same on every boot and
+# every machine, which is the property a child relies on when they learn where
+# their tile lives. Renumbering somebody else's tile to make room for ours
+# would move a tile a child may already know the place of, which costs more
+# than the alphabetical tiebreak does.
+#
+# Draw stays first deliberately: tests/e2e/test_scenario.py opens "the first
+# cell of the first row" and asserts the launcher log says Draw, so a tile that
+# sorted ahead of order = 10 would break the scenario rather than silently
+# starting something else.
+order = 20
+
+# A path, not an icon name. The drawing lives with the activity that owns it
+# (`numbers_activity/icon.svg` in the package) rather than in the shell's own
+# bundled set, and the build copies it to this stable path -- the shell's
+# `widgets.icon_image` loads `icon_kind = "path"` with `Gtk.Image.new_from_file`,
+# so an absolute path is exactly what it wants, and site-packages has a Python
+# version in it which a manifest must not.
+#
+# This is the one field that deliberately differs from the activity's own
+# manifest, which names the path a checkout would use.
+icon = "/usr/share/kidnix/icons/numbers.svg"
+icon_kind = "path"
+
+kind = "activity"
+category = "learn"
+# Overlap, not containment: a 4-5 profile and a 6-8 profile both see this. The
+# Number ELG is Reception; bonds to ten and automatic recall run through Year 1
+# and Year 2 (KS1 Number).
+#
+# Both spellings, because two validators read this file and each insists on a
+# different one: build_files/50-activities.sh requires the explicit integers,
+# the shell's parser prefers the band. They must agree, and
+# kidnix_shell.activities.parse_manifest lets the explicit pair win.
+age_band = "4-7"
+age_min = 4
+age_max = 7
+
+# The console script build_files/64-first-party-activities.sh writes. No
+# arguments: what a child is shown is a grown-up's line in
+# /etc/kidnix/numbers.toml, never a flag on a tile.
+exec = ["/usr/bin/kidnix-numbers"]
+
+# The SDK saves on SIGTERM and never shows a quit dialogue
+# (kidnix_activity.lifecycle; docs/design/activity-sdk.md §3.3). Five seconds is
+# spec 7a's autosave grace, and what it covers here is one small PNG.
+quit = "signal"
+quit_grace = 5.0
+
+oars_rating = "none"
+# The child session has no egress (SYNTHESIS H1) and this activity has no use
+# for it: the arrangements are arithmetic and the settings are a local file.
+network_required = false
+
+# No journal_watch and no journal_glob, deliberately. The activity writes its
+# own entry with kidnix_activity.journal.save_entry, so there is nothing for the
+# shell's importer to notice two seconds later -- and an importer watching a
+# scratch directory would keep the same card twice
+# (docs/design/activity-sdk.md §8).
+journal_watch = []
+
+wayland_native = true
+
+# Neither an RPM nor a Flatpak: this one is ours, installed by
+# build_files/64-first-party-activities.sh.
+source = "kidnix"
+package = "kidnix-numbers"
+licence = "Apache-2.0"
+
+notes = """
+Ours. The Python package is installed beside the shell by
+build_files/64-first-party-activities.sh, not by an RPM.
+
+How far it counts, whether the numerals are shown and which frame is drawn are
+set by a grown-up in /etc/kidnix/numbers.toml, which the image ships with every
+line commented out. Nothing in the activity moves that line on its own: there
+is no adaptive difficulty here and there is not going to be (05 §2c -- the one
+clean trial of adaptive tutoring in primary maths came out at g = 0.01-0.09,
+and smaller for the children it was sold to help).
+
+See docs/design/numbers.md.
+"""

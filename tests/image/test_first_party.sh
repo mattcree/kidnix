@@ -1,16 +1,22 @@
 #!/usr/bin/bash
-# Static assertions about the activities kidnix writes itself -- today, Sounds
-# & Words. Runs INSIDE the built container, same shape and same helpers as
-# test_shell.sh:
+# Static assertions about the activities kidnix writes itself: Sounds & Words,
+# Numbers, Clock and Letters. Runs INSIDE the built container, same shape and same
+# helpers as test_shell.sh:
 #
 #   just test-image first_party
 #
-# What it can prove: the package is installed where the image's Python finds
-# it, the corpus travelled with it, the console script the manifest names runs,
-# the manifest validates against the SDK's rules and not just the shell's, the
-# tile sorts where it is supposed to, the parent's ceiling file behaves as a
-# shipped default, and the phoneme audio is exactly as honest on the disk as
-# the design note says it is.
+# What it can prove: every first-party package is installed where the image's
+# Python finds it *and where the child's account finds it*, the corpus
+# travelled with Sounds & Words, each console script the tiles name runs, each
+# manifest validates against the SDK's rules and not just the shell's, the
+# tiles sort where they are supposed to, each grown-up's settings file behaves
+# as a shipped default rather than as somebody's answer, Letters' outbox and
+# inbox are declared before Letters is, and the phoneme audio is exactly as
+# honest on the disk as the design note says it is.
+#
+# The three activities share one loop, for the same reason
+# build_files/64-first-party-activities.sh does: the claims are the same claims
+# and a fourth is a row in a table.
 #
 # What it cannot prove: that any of it draws. That needs a session --
 # tests/boot/ and tests/e2e/.
@@ -70,6 +76,19 @@ PKG="${PURELIB}/sounds_and_words"
 DATA="${PKG}/data"
 MANIFEST=/usr/share/kidnix/activities/sounds-and-words.toml
 PHONEMES=/usr/share/kidnix/phonemes/en_GB
+
+# The same table build_files/64-first-party-activities.sh installs from, and
+# deliberately written out again rather than sourced: a test that read its
+# claims out of the thing it is testing would pass on an image where both are
+# wrong in the same way.
+#
+#   package | script | tile | icon | config
+FIRST_PARTY=(
+    "sounds_and_words|kidnix-sounds-and-words|sounds-and-words.toml|sounds-and-words.svg|sounds_and_words.toml"
+    "numbers_activity|kidnix-numbers|numbers.toml|numbers.svg|numbers.toml"
+    "clock_time|kidnix-clock-time|clock-time.toml|clock-time.svg|clock_time.toml"
+    "letters_to_family|kidnix-letters|letters.toml|letters.svg|-"
+)
 
 # The child's own account. Everything below that a child would do is done as
 # them, because "the shell can import it" and "the kid can import it" are
@@ -400,11 +419,247 @@ if not names.is_dir():
 if list(CLIP_DIR.glob("*.ogg")):
     sys.exit("an .ogg has appeared in the phoneme directory without a ledger row")'
 
+section "every first-party activity, from the table"
+
+for row in "${FIRST_PARTY[@]}"; do
+    IFS='|' read -r package script tile icon config <<<"${row}"
+    dest="${PURELIB}/${package}"
+    manifest="/usr/share/kidnix/activities/${tile}"
+    iconfile="/usr/share/kidnix/icons/${icon}"
+
+    assert_file "${dest}/__init__.py"
+    assert_file "${dest}/activity.py"
+
+    # The claim that matters at 7am. "root can import it" and "the child can
+    # import it" are different sentences, and only the second one is about a
+    # five-year-old pressing a tile. cd / so a stray CWD cannot make it pass
+    # against a source tree that is not there anyway.
+    assert_run "${package} imports as the child, from /usr/lib" \
+        as_kid python3 -c "
+import sys
+import ${package}
+sys.exit(0 if ${package}.__file__.startswith('/usr/lib/') else 1)"
+
+    # /usr is read-only at runtime, so an image with no .pyc re-parses the
+    # whole activity on every launch and can never cache the result.
+    if compgen -G "${dest}/__pycache__/activity.*.pyc" >/dev/null 2>&1; then
+        _report ok "${package} is byte-compiled"
+    else
+        _report no "${package} is byte-compiled" "no .pyc beside activity.py"
+    fi
+
+    assert_exec "/usr/bin/${script}"
+    # --help parses and exits before any window is realised, which is as far as
+    # a container with no display can go -- and it is run as the child, because
+    # that is who runs it.
+    assert_run "${script} --help runs as the child" as_kid "/usr/bin/${script}" --help
+
+    assert_file "${manifest}"
+    assert_run "${tile} validates against the SDK's rules, not just the shell's" \
+        /usr/bin/kidnix-activity validate "${manifest}"
+
+    # A tile is a promise: a child presses it and something happens. Everything
+    # it points at has to be there, and be what it says it is.
+    assert_run "${tile} promises only things the image actually has" \
+        python3 - "${manifest}" "/usr/bin/${script}" "${iconfile}" <<'PY'
+import pathlib, sys, tomllib
+manifest, script, icon = (pathlib.Path(a) for a in sys.argv[1:4])
+d = tomllib.loads(manifest.read_text())
+if d["id"] != manifest.stem:
+    sys.exit(f"id {d['id']!r} is not the filename {manifest.stem!r}")
+if d["exec"] != [str(script)]:
+    sys.exit(f"exec is {d['exec']!r}, not [{str(script)!r}]")
+if not script.is_file():
+    sys.exit(f"{script} does not exist")
+if d.get("icon_kind") != "path" or d["icon"] != str(icon):
+    sys.exit(f"icon is {d.get('icon')!r}/{d.get('icon_kind')!r}, not {str(icon)!r}/'path'")
+if not icon.is_file() or "<svg" not in icon.read_text()[:400]:
+    sys.exit(f"{icon} is missing or is not an SVG")
+PY
+
+    # The four things every first-party tile has to say, whatever else it says.
+    assert_run "${tile} says the honest things: ours, signal quit, no egress, a goal" \
+        python3 - "${manifest}" <<'PY'
+import sys, tomllib
+d = tomllib.loads(open(sys.argv[1]).read())
+if d.get("source") != "kidnix":
+    sys.exit(f"source is {d.get('source')!r}, not 'kidnix'")
+if d.get("quit") != "signal":
+    sys.exit(f"quit is {d.get('quit')!r}: a first-party activity saves on SIGTERM")
+if d.get("network_required") is not False:
+    sys.exit("network_required is not false and the child session has no egress")
+if not str(d.get("goal", "")).strip():
+    sys.exit("no goal: a tile with nothing to tell a parent is not finished")
+if d["audio_label"].strip() == "" :
+    sys.exit("no audio_label: a pre-reader has nothing to go on")
+PY
+
+    # The grown-up's file, for the activities that have one -- `-` means this
+    # activity has no settings file of its own. Letters is the one: who a child
+    # may write to comes from the [[family]] blocks in the shell's own
+    # /etc/kidnix/parent.toml, and a second file saying the same thing in a
+    # different place would be a second answer to one question.
+    #
+    # The rest are shipped with every line commented out, on purpose: a file
+    # that set a value would be kidnix's own guess handed back to a parent as
+    # their answer, and the activity would lose the one thing it has to be able
+    # to say -- "nobody has told us yet".
+    if [[ "${config}" == "-" ]]; then
+        assert_absent "/etc/kidnix/${package}.toml"
+    else
+        assert_file "/etc/kidnix/${config}"
+        assert_run "/etc/kidnix/${config} is a template: valid TOML, and it sets nothing" \
+            python3 -c "
+import sys, tomllib
+doc = tomllib.load(open('/etc/kidnix/${config}', 'rb'))
+sys.exit(f'it sets {sorted(doc)}' if doc else 0)"
+    fi
+
+    # Nothing a developer had lying about may have travelled.
+    assert_absent "${dest}/tests"
+    assert_absent "${dest}/.venv"
+done
+
+section "the settings the activities actually read"
+
+# The other half of "it sets nothing": the *activity* has to agree that nobody
+# has answered. A reader that took "this file exists" for "a grown-up decided"
+# would present kidnix's defaults back to a parent as their own statement.
+assert_run "Numbers reads the shipped file as a default, not as somebody's answer" \
+    as_kid python3 -c '
+import sys
+from numbers_activity.settings import NumberRange, load_settings
+s = load_settings()
+if not s.is_default:
+    sys.exit(f"read as an answer, from {s.source}")
+if s.range is not NumberRange.FIVE:
+    sys.exit(f"the default range is {s.range}")
+if not s.numerals:
+    sys.exit("the default hides the numerals")'
+
+assert_run "Clock reads the shipped file as a default, and gets the built-in day" \
+    as_kid python3 -c '
+import sys
+from clock_time.routine import DEFAULT_ROUTINE
+from clock_time.settings import load_settings
+from clock_time.words import Mode
+s = load_settings()
+if not s.is_default:
+    sys.exit(f"read as an answer, from {s.source}")
+if s.mode is not Mode.Y1:
+    sys.exit(f"the default mode is {s.mode}")
+if s.routine.items != DEFAULT_ROUTINE:
+    sys.exit("the default day is not the built-in one")
+if not (6 <= len(s.routine) <= 8):
+    sys.exit(f"{len(s.routine)} moments is outside the six-to-eight the brief asks for")'
+
+# Clock's own no-cut rule, at the only place a build container can check it:
+# the words themselves. A routine name with a hyphen a grown-up did not type is
+# what a broken label looks like once it has been written down.
+assert_run "no routine name in the built-in day contains a hyphen or is empty" \
+    as_kid python3 -c '
+import sys
+from clock_time.routine import DEFAULT_ROUTINE
+for item in DEFAULT_ROUTINE:
+    if not item.name.strip():
+        sys.exit(f"{item.id} has no name")
+    if "-" in item.name:
+        sys.exit(f"{item.id} is named {item.name!r}")'
+
+section "Home, with all of them on it"
+
+# Draw stays the first tile. tests/e2e/test_scenario.py opens the first cell of
+# the first row and asserts the launcher started Tux Paint, so a re-ordered
+# manifest has to fail here rather than there. Eleven tiles means Home now
+# paginates, which is what the pager is for -- and All done stays pinned.
+assert_run "Draw is first, Sounds & words second, and ours are in their own order" \
+    python3 - <<'PY'
+import pathlib, sys, tomllib
+order = {}
+for path in sorted(pathlib.Path("/usr/share/kidnix/activities").glob("*.toml")):
+    d = tomllib.loads(path.read_text())
+    order[d["id"]] = d.get("order", 1_000_000)
+# Sorted by (order, id): a shared `order` still gives one arrangement rather
+# than a coin toss, which is why this is not an adjacency check. ktuberling has
+# sat at 20 since the first wave and Numbers joins it there.
+ranked = [k for k, _ in sorted(order.items(), key=lambda kv: (kv[1], kv[0]))]
+if ranked[0] != "tuxpaint":
+    sys.exit(f"Home starts {ranked[:5]}: Draw is not first")
+if ranked[1] != "sounds-and-words":
+    sys.exit(f"Home starts {ranked[:5]}: Sounds & words is not second")
+ours = ["sounds-and-words", "numbers", "clock-time", "letters"]
+if [tile for tile in ranked if tile in ours] != ours:
+    sys.exit(f"the first-party tiles are out of order: {ranked}")
+PY
+
+assert_run "every tile's id is its filename, so nothing can shadow anything" \
+    python3 - <<'PY'
+import pathlib, sys, tomllib
+bad = []
+for path in sorted(pathlib.Path("/usr/share/kidnix/activities").glob("*.toml")):
+    d = tomllib.loads(path.read_text())
+    if d.get("id") != path.stem:
+        bad.append(f"{path.name} is id {d.get('id')!r}")
+sys.exit("; ".join(bad) if bad else 0)
+PY
+
+# Not "no two tiles share an order" -- ktuberling and numbers both sit at 20 --
+# but "a shared order is still not a coin toss". The shell sorts by (order, id),
+# so Home's arrangement is the same on every boot and on every machine, which is
+# the property a child relies on when they learn where their tile lives.
+assert_run "Home's arrangement is total, so it is the same on every boot" \
+    python3 - <<'PY'
+import pathlib, sys, tomllib
+rows = []
+for path in sorted(pathlib.Path("/usr/share/kidnix/activities").glob("*.toml")):
+    d = tomllib.loads(path.read_text())
+    rows.append((d.get("order", 1_000_000), d["id"]))
+if len(set(rows)) != len(rows):
+    sys.exit(f"two tiles share an order AND an id: {rows}")
+PY
+
+assert_run "every shipped manifest still validates through the shell's own loader" \
+    /usr/bin/kidnix-shell-app --validate-manifests /usr/share/kidnix/activities
+
+section "Letters' two directories, declared before Letters is"
+
+# `/var` is machine-local in a bootc image, so nothing under it travels in the
+# container: these are tmpfiles declarations, and what a build container can
+# check is the declaration. tests/boot/ is where the directories themselves get
+# looked at, on a machine that has booted.
+LETTERS_TMPFILES=/usr/lib/tmpfiles.d/kidnix-letters.conf
+assert_file "${LETTERS_TMPFILES}"
+assert_grep '^d /var/lib/kidnix/outbox +0750 +kid +kid' "${LETTERS_TMPFILES}" \
+    "the outbox is the child's: 0750 kid:kid"
+assert_grep '^d /var/lib/kidnix/inbox +0750 +parent +kid' "${LETTERS_TMPFILES}" \
+    "the inbox is the grown-up's to write and the child's to read"
+assert_run "systemd-tmpfiles can parse the fragment" \
+    systemd-tmpfiles --cat-config
+
+# Letters landed in the same wave as its directories, so the tile and the
+# program have to be here -- and they are checked by the loop above like every
+# other one. What is asserted here is the pairing: a tile that opens nothing is
+# worse for a pre-reader than no tile at all, and a program with no tile is a
+# program no child can reach.
+assert_file /usr/share/kidnix/activities/letters.toml
+assert_exec /usr/bin/kidnix-letters
+assert_run "Letters' tile names the outbox and inbox its code actually writes" \
+    as_kid python3 -c '
+import sys
+from letters_to_family.mailbox import INBOX_ROOT, OUTBOX_ROOT
+if OUTBOX_ROOT.as_posix() != "/var/lib/kidnix/outbox":
+    sys.exit(f"the outbox is {OUTBOX_ROOT}")
+if INBOX_ROOT.as_posix() != "/var/lib/kidnix/inbox":
+    sys.exit(f"the inbox is {INBOX_ROOT}")' 
+
 section "licensing"
 
 assert_file /usr/share/kidnix/THIRD-PARTY.tsv
 for path in /usr/share/kidnix/phonemes/en_GB/letter-names \
-            /usr/share/kidnix/icons/sounds-and-words.svg; do
+            /usr/share/kidnix/icons/sounds-and-words.svg \
+            /usr/share/kidnix/icons/numbers.svg \
+            /usr/share/kidnix/icons/clock-time.svg \
+            /usr/share/kidnix/icons/letters.svg; do
     if grep -qF "${path}" /usr/share/kidnix/THIRD-PARTY.tsv; then
         _report ok "THIRD-PARTY.tsv has a row for ${path}"
     else

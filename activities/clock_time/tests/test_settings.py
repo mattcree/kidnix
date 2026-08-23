@@ -82,6 +82,33 @@ def test_a_file_that_was_read_is_named_so_a_parent_pane_can_say_whose_it_is(tmp_
     assert not settings.is_default
 
 
+def test_a_file_with_every_line_commented_out_is_not_an_answer(tmp_path):
+    """What the image actually ships as /etc/kidnix/clock_time.toml.
+
+    It parses -- it is valid TOML -- and it says nothing. A reader that took
+    "this file exists" for "a grown-up decided" would hand kidnix's own default
+    day back to a parent as their own statement, and the parent pane would have
+    no way to say *nobody has told us yet*. So an empty document falls through
+    to the next candidate, and then to the built-in day.
+    """
+    write(tmp_path / "etc", "# mode = \"y2\"\n# nothing is set here at all\n")
+    settings = load_settings(search=[tmp_path / "etc"])
+    assert settings.is_default
+    assert settings.source is None
+    assert settings.mode is Mode.Y1
+    assert settings.routine.items == DEFAULT_ROUTINE
+
+
+def test_an_empty_first_file_falls_through_to_a_second_that_says_something(tmp_path):
+    """/etc is the parent's and /usr/share is ours. A parent who has not
+    written anything must not shadow the image's own default file."""
+    write(tmp_path / "etc", "# nothing\n")
+    write(tmp_path / "usr", '[clock]\nmode = "y2"\n')
+    settings = load_settings(search=[tmp_path / "etc", tmp_path / "usr"])
+    assert settings.mode is Mode.Y2
+    assert settings.source == tmp_path / "usr" / CONFIG_NAME
+
+
 def test_an_unreadable_file_is_not_an_exception(tmp_path):
     directory = tmp_path / "etc"
     write(directory, "this is not toml = = =\n")

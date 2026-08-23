@@ -39,6 +39,7 @@ import math
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -51,8 +52,15 @@ from kidnix_activity.app import ActivityApplication, ActivityWindow  # noqa: E40
 from kidnix_activity.journal import JournalError  # noqa: E402
 from kidnix_activity.keyboard import ActivityKeyboard  # noqa: E402
 from kidnix_activity.metrics import ContentArea  # noqa: E402
-from kidnix_activity.widgets import BigButton, GrownUpTurn, PictureTile, Prompt  # noqa: E402
-from kidnix_shell.widgets import ChildButton, fit_gtk_label, next_key  # noqa: E402
+from kidnix_activity.widgets import (  # noqa: E402
+    BigButton,
+    GrownUpTurn,
+    PictureTile,
+    Prompt,
+    fit_label,
+)
+from kidnix_shell.labels import step_points, text_width_px  # noqa: E402
+from kidnix_shell.widgets import ChildButton, next_key, pango_wrapper  # noqa: E402
 
 from . import ACTIVITY_ID, TITLE  # noqa: E402
 from .dial import (  # noqa: E402
@@ -107,6 +115,16 @@ FRAME_MS = 50
 #: dropped by :mod:`clock_time.settings` rather than shrinking the other eight
 #: into something a five-year-old cannot hit.
 STRIP_MM: tuple[float, ...] = (30.0, 26.0, 24.0, 22.0, 20.0)
+
+#: What a picture tile costs sideways before any of it is a label, in pixels:
+#: ``button.picture-tile`` in the SDK's ``activity.css`` is ``padding: 10px``
+#: and a 2 px border, so 24. Measured, not guessed -- GTK will not take a
+#: button below ``label minimum + this``, whatever size request it was given,
+#: and a strip planned without it asks for 32 px per tile that it has not got.
+TILE_CHROME_X = 24
+
+#: A width no label will ever reach, for measuring a string *unwrapped*.
+UNBOUNDED_PX = 100_000
 
 PROMPT_CLOCK = "Move the hands. What time is it?"
 PROMPT_MINUTE = "How long is a minute?"
@@ -183,30 +201,117 @@ def _measured(label: Gtk.Label | None, fit: object, cap: int = 0) -> None:
     label.set_size_request(min(width, cap) if cap > 0 else width, -1)
 
 
-def _tile(picture: Path, area: ContentArea, name: str, size_mm: float, **kwargs) -> PictureTile:
-    """A :class:`PictureTile` with the same label correction as :func:`_big`.
+@dataclass(frozen=True)
+class StripPlan:
+    """How the routine strip will be laid out, worked out before it is built.
 
-    ``PictureTile`` does not keep the :class:`LabelFit` it made, so the fit is
-    run again here with the arguments the widget used. That is a duplicated
-    spelling and it is the lesser evil: the alternative is eight tiles whose
-    names come out as "Brea-kfast".
+    One tile size and one point size for the whole row, and a width per tile --
+    the width **that name** needs to stay whole, floored at the tile size. See
+    :meth:`Clock._strip_plan` for why the widths are not all the same.
+    """
+
+    #: The tile's target size in millimetres, from :data:`STRIP_MM`.
+    tile_mm: float
+    #: The point size every label in the strip is set at.
+    points: float
+    #: Each tile's **label box** in pixels, in routine order -- the tile itself
+    #: is this plus :data:`TILE_CHROME_X`. ``0`` means "unknown panel, do not
+    #: constrain".
+    widths: tuple[int, ...]
+    #: False when even the smallest tile and the 18 pt floor overflow the row.
+    #: Nothing is cut when this is False -- the strip is simply wider than the
+    #: panel, which is a thing the log can say and a cut word is not.
+    fits: bool = True
+
+    def across(self, area: ContentArea) -> int:
+        """How wide the whole strip will be: every tile, plus the gaps."""
+        return sum(box + TILE_CHROME_X for box in self.widths) + area.gap * max(
+            0, len(self.widths) - 1
+        )
+
+
+def _tile(
+    picture: Path,
+    area: ContentArea,
+    name: str,
+    size_mm: float,
+    *,
+    width: int = 0,
+    points: float | None = None,
+    **kwargs,
+) -> PictureTile:
+    """A :class:`PictureTile` whose name is never cut, however long the word.
+
+    ``PictureTile`` fits its own label to its own square and then lets Pango
+    wrap the string again inside it -- ``WORD_CHAR``, which splits a word when
+    the box is narrow and draws a hyphen where it did. That is where
+    "Brea-kfast" and "Scho-ol" came from. :func:`kidnix_activity.widgets.
+    fit_label` is the fit that cannot end that way: it hands the label the
+    lines it measured, with ``wrap`` off, so Pango has nothing left to
+    re-decide.
+
+    ``width`` is the label box :meth:`Clock._strip_plan` worked out for **this
+    name**, and the tile is widened to hold it. A routine tile is a target with
+    a 20 mm floor, not a square, and letting the tile that says "Breakfast" be
+    wider than the tile that says "Tea" is what makes eight of them fit across
+    a 1024 px panel with every word whole. ``points`` is the size the whole
+    strip agreed on, so the row is typographically even.
     """
     tile = PictureTile(picture, label=name, area=area, size_mm=size_mm, **kwargs)
+    size = area.target(size_mm)
+    box = width if width > 0 else max(24, size - TILE_CHROME_X)
     if tile.label is not None:
-        size = area.target(size_mm)
-        _measured(
+        fit_label(
             tile.label,
-            fit_gtk_label(
-                tile.label,
-                name,
-                width=max(24, size - 20),
-                base_pt=area.points(20.0),
-                floor_pt=area.points(18.0),
-                max_lines=2,
-            ),
-            max(24, size - 20),
+            name,
+            width=box,
+            base_pt=points if points is not None else area.points(20.0),
+            floor_pt=area.points(18.0),
+            points=points,
+            max_lines=2,
         )
+    # Height stays the tile's own square; only the width gives.
+    tile.set_size_request(max(size, box + TILE_CHROME_X), size)
     return tile
+
+
+def _measurer(widget: Gtk.Widget) -> Callable[[str, float], int]:
+    """How wide a string is, unwrapped, in the face it will really be drawn in.
+
+    Pango when there is a display; the pure-Python estimate, which is
+    deliberately a few percent wide, when there is not. Both answers are safe
+    to plan a strip with -- the estimate only ever asks for too much room.
+    """
+    try:
+        wrap, _ = pango_wrapper(widget)
+    except Exception:  # pragma: no cover - no display, no Pango context
+        return text_width_px
+    return lambda text, points: wrap(text, points, UNBOUNDED_PX)[1]
+
+
+def _label_box(measure: Callable[[str, float], int], text: str, points: float) -> int:
+    """The narrowest box that holds ``text`` at ``points`` with every word whole.
+
+    Two lines is the budget (the tile reserves two), so the answer is the best
+    of: the whole name on one line, and each way of cutting it in two **between
+    words**, costed at its wider half. "Wake up" therefore asks for the width of
+    "Wake"; "Breakfast" asks for the width of "Breakfast", because there is
+    nowhere in it for a line to break -- and that is the number the strip has to
+    respect rather than argue with.
+    """
+    words = text.split()
+    if not words:
+        return 0
+    best = measure(text, points)
+    for index in range(1, len(words)):
+        best = min(
+            best,
+            max(
+                measure(" ".join(words[:index]), points),
+                measure(" ".join(words[index:]), points),
+            ),
+        )
+    return best
 
 
 # -- the face ----------------------------------------------------------------
@@ -666,26 +771,58 @@ class ClockActivity:
         self.set_time(self.time, speak=False, played=False)
         window.speak(PROMPT_CLOCK)
 
-    def _strip_mm(self, area: ContentArea) -> float:
-        """The largest tile that lets the whole day fit across, in millimetres.
+    def _strip_plan(self, area: ContentArea, sample: Gtk.Widget) -> StripPlan:
+        """The biggest tiles, and the biggest type, that let the day fit across.
 
-        Never below ADR-0011's floor: a ninth moment is dropped by
-        :mod:`clock_time.settings` rather than squeezing eight into targets a
-        five-year-old cannot hit.
+        The strip used to size its tiles from the *count* alone and then squeeze
+        each name into whatever square that left -- about 70 px on a 1024 px
+        panel, where "Breakfast" wants 105 at the 18 pt floor. There is no point
+        size at which that fits and no line to break it on, so Pango broke the
+        word instead and a five-year-old learning to match a shape to a word was
+        shown "Brea-kfast". A cut word is a lie about the word.
+
+        So the name is measured first and the tile is sized to hold it. Each
+        tile's width is ``max(the tile floor, this label's box + padding)``, so
+        the one that says "Breakfast" is wider than the one that says "Tea" and
+        the row still fits. Tiles are tried largest-first and then type
+        largest-first: the target is what a child has to hit, so it gives ground
+        last -- 22 mm tiles at 18 pt on a 1024 px panel, 30 mm at 20 pt on the
+        1280 x 800 one kidnix ships for.
+
+        Every tile is set at the **same** point size, which is why the size is
+        part of the plan rather than each label's own business: a row where
+        "Tea" is 20 pt and "Breakfast" is 18 makes the two look like different
+        kinds of thing.
+
+        ``sample`` is any widget with a Pango context -- what the strip is
+        measured with is the face it will be drawn in.
         """
+        names = [item.name for item in self.routine]
+        count = max(1, len(names))
+        base_pt = area.points(20.0)
+        floor_pt = area.points(18.0)
         if not area.known:
-            return STRIP_MM[0]
-        # `ContentArea.columns_for` measures against the *screen*, and the
-        # strip lives inside the content box's margins -- a difference of two
-        # gaps, which on a 1024 px panel is exactly the difference between
-        # eight tiles fitting and the window being 50 px too wide.
-        count = max(1, len(self.routine))
+            # No panel to fit into: prefer everything, constrain nothing.
+            return StripPlan(STRIP_MM[0], base_pt, (0,) * count, fits=True)
+
+        measure = _measurer(sample)
+        # `ContentArea.columns_for` measures against the *screen*, and the strip
+        # lives inside the content box's margins -- a difference of two gaps,
+        # which on a 1024 px panel is exactly the difference between eight tiles
+        # fitting and the window being 50 px too wide.
         available = area.width - area.margin * 2
+        plan = None
         for candidate in STRIP_MM:
             cell = area.target(candidate)
-            if cell * count + area.gap * (count - 1) <= available:
-                return candidate
-        return STRIP_MM[-1]
+            room = max(24, cell - TILE_CHROME_X)
+            for points in step_points(base_pt, floor_pt):
+                boxes = tuple(max(room, _label_box(measure, name, points)) for name in names)
+                across = sum(box + TILE_CHROME_X for box in boxes) + area.gap * (count - 1)
+                plan = StripPlan(candidate, points, boxes, fits=across <= available)
+                if plan.fits:
+                    return plan
+        assert plan is not None  # STRIP_MM is never empty
+        return plan
 
     def _strip(self, window: ActivityWindow, area: ContentArea) -> Gtk.Widget:
         """This family's day, as pictures. **Not** a timeline (09 Q4).
@@ -696,18 +833,36 @@ class ClockActivity:
         hands to that time, which is the same link read the other way round:
         "bath is at half past six" and "half past six is bath".
         """
-        size_mm = self._strip_mm(area)
-
         strip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=area.gap)
         strip.add_css_class("routine-strip")
         strip.set_halign(Gtk.Align.CENTER)
+
+        plan = self._strip_plan(area, strip)
+        if not plan.fits:
+            # Both floors reached and the day still does not fit across. Say so
+            # rather than quietly cutting a word: the names are the grown-up's
+            # and shorter ones are the fix (docs/design/clock-time.md section 6).
+            log.warning(
+                "the routine strip wants %d px and has %d: %s at %.0f pt. "
+                "Shorter routine names would fit; nothing will be cut.",
+                plan.across(area),
+                area.width - area.margin * 2,
+                ", ".join(
+                    f"{item.name}={w}"
+                    for item, w in zip(self.routine, plan.widths, strict=True)
+                ),
+                plan.points,
+            )
+
         self.tiles = {}
-        for item in self.routine:
+        for item, width in zip(self.routine, plan.widths, strict=True):
             tile = _tile(
                 picture_path(item),
                 area,
                 item.name,
-                size_mm,
+                plan.tile_mm,
+                width=width,
+                points=plan.points,
                 speak_text=item.sentence,
                 on_activate=lambda i=item: self.set_time(i.clock.snapped(self.mode)),
                 speech=window.speech,

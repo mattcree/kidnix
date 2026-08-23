@@ -1,8 +1,9 @@
 #!/usr/bin/bash
-# Install the activities kidnix writes itself -- today, Sounds & Words.
+# Install the activities kidnix writes itself: Sounds & Words, Numbers, Clock,
+# Letters.
 #
 # This is the counterpart of 60-shell.sh for the other side of the SDK
-# contract: 60 installs `kidnix_activity`, this installs a program that *uses*
+# contract: 60 installs `kidnix_activity`, this installs the programs that *use*
 # it. Same reasoning about `cp -a` rather than pip (that file's header has it in
 # full: hatchling and pip would have to be installed into a child's OS and
 # removed again to produce a tree that is byte-for-byte the same as a copy),
@@ -14,6 +15,16 @@
 # need Piper (65) -- see section 4, which is about a sound this image does not
 # ship.
 #
+# ONE LOOP, NOT FOUR COPIES. Until 2026-08-23 this file installed exactly one
+# activity and every step was written out by hand. Four activities in, the
+# steps are the same steps -- copy the package, write the dist-info a wheel
+# would have left, byte-compile, write the console script, install the icon,
+# then prove all of it -- and the differences fit in a table. `FIRST_PARTY`
+# below is that table, and it has already paid for itself: Letters landed as
+# one row, not another two hundred lines of this. What is genuinely specific
+# to one activity stays out of the loop and says so: only Sounds & Words has a
+# data corpus and a phoneme ledger.
+#
 # WHERE THE DATA GOES, and why it is not obvious.
 # `sounds_and_words.corpus.data_dir()` resolves `__file__/../../data`, which is
 # right in the source tree (`activities/sounds_and_words/data/`) and wrong in
@@ -23,27 +34,73 @@
 # tests point at a different tree". So the image ships the wheel layout and the
 # console script exports that variable. Asserted in section 5 and again in
 # tests/image/test_first_party.sh.
+#
+# WHAT DOES NOT COME FROM HERE. The tile a child presses is an overlay file in
+# `system_files/usr/share/kidnix/activities/`, and the grown-up's settings file
+# is an overlay file in `system_files/etc/kidnix/`. Both are checked here --
+# every tile has to validate against the SDK's stricter rules and agree with the
+# activity's own manifest, and every settings file has to be read by the
+# activity as "nobody has answered yet" -- but neither is written here. An
+# overlay file is in the image before any of this runs, which is what lets
+# `bootc` diff and roll it back.
 set -euo pipefail
 
 log() { printf '  -- %s\n' "$*"; }
 die() { printf 'ERROR: 64-first-party-activities: %s\n' "$*" >&2; exit 1; }
 
-SRC=/tmp/activities/sounds_and_words
+ACTIVITIES=/tmp/activities
 LIB="${BUILD_FILES_DIR:-/tmp/build_files}/lib"
+TILES=/usr/share/kidnix/activities
+ICONS=/usr/share/kidnix/icons
 
-[[ -d "${SRC}/sounds_and_words" ]] \
-    || die "${SRC}/sounds_and_words is missing -- the Containerfile must COPY activities/ /tmp/activities/"
-[[ -d "${SRC}/data" ]] || die "${SRC}/data is missing"
+[[ -d "${ACTIVITIES}" ]] \
+    || die "${ACTIVITIES} is missing -- the Containerfile must COPY activities/ /tmp/activities/"
 [[ -f "${LIB}/rcc.py" ]] || die "${LIB}/rcc.py is missing"
-
-VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' "${SRC}/pyproject.toml" | head -1)"
-[[ -n "${VERSION}" ]] || die "could not read version from ${SRC}/pyproject.toml"
 
 PURELIB="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib", "posix_prefix", vars={"base": "/usr", "platbase": "/usr"}))')"
 [[ "${PURELIB}" == /usr/lib/* ]] || die "refusing to install outside /usr: ${PURELIB}"
+log "site-packages: ${PURELIB}"
+
+# -----------------------------------------------------------------------------
+# The table
+# -----------------------------------------------------------------------------
+#
+# One row per activity kidnix wrote. Fields, `|`-separated, in the order the
+# loop reads them:
+#
+#   checkout   the directory under activities/ -- a repository fact
+#   package    the importable name, which is NOT always the directory
+#              (activities/numbers holds `numbers_activity`, because `numbers`
+#              would shadow nothing today and something tomorrow)
+#   script     the console script under /usr/bin, and what the tile's `exec`
+#              has to name
+#   entry      module:function, copied from [project.scripts] in its pyproject
+#   tile       the manifest in /usr/share/kidnix/activities. The stem IS the
+#              manifest's `id` -- build_files/50-activities.sh rejects any
+#              manifest where it is not -- which is why Clock's is
+#              `clock-time.toml` and not `clock.toml`
+#   icon       the basename under /usr/share/kidnix/icons. A stable path
+#              outside site-packages, because site-packages has a Python
+#              version in it and a manifest must not
+#   config     the grown-up's settings file under /etc/kidnix, or `-` for an
+#              activity that has none
+#
+# Adding the fourth is one row. Nothing below is written per-activity.
+FIRST_PARTY=(
+    "sounds_and_words|sounds_and_words|kidnix-sounds-and-words|sounds_and_words.activity:main|sounds-and-words.toml|sounds-and-words.svg|sounds_and_words.toml"
+    "numbers|numbers_activity|kidnix-numbers|numbers_activity.activity:main|numbers.toml|numbers.svg|numbers.toml"
+    "clock_time|clock_time|kidnix-clock-time|clock_time.activity:main|clock-time.toml|clock-time.svg|clock_time.toml"
+    "letters_to_family|letters_to_family|kidnix-letters|letters_to_family.activity:main|letters.toml|letters.svg|-"
+)
+
+# Sounds & Words' corpus, which is the one payload no other activity has. The
+# loop copies it because the row says to; everything that *reads* it -- the
+# console script's environment variable, the phoneme ledger in section 4 -- is
+# written out by name, because it is genuinely one activity's business.
+SRC="${ACTIVITIES}/sounds_and_words"
 PKG="${PURELIB}/sounds_and_words"
 DATA="${PKG}/data"
-log "site-packages: ${PURELIB}"
+[[ -d "${SRC}/data" ]] || die "${SRC}/data is missing"
 
 # -----------------------------------------------------------------------------
 # 0. The build's own library has to pass its own tests first
@@ -59,90 +116,125 @@ log "unit-testing the build's Qt resource reader"
     || die "build_files/lib tests failed"
 
 # -----------------------------------------------------------------------------
-# 1. The Python package
+# 1-3. The package, the console script and the icon -- once, for each of them
 # -----------------------------------------------------------------------------
 
 # A developer checkout carries __pycache__ compiled by whatever Python they
-# have. Those must never travel: the image's Python could import them.
-find /tmp/activities -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-find /tmp/activities -name '*.py[co]' -delete 2>/dev/null || true
+# have, and a .venv, and pytest's caches. None of it may travel: the image's
+# Python could import a stale .pyc, and a venv in site-packages is a second
+# interpreter's worth of symlinks pointing at a machine that is not this one.
+find "${ACTIVITIES}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+find "${ACTIVITIES}" -name '*.py[co]' -delete 2>/dev/null || true
 
-install -d "${PURELIB}"
-rm -rf "${PKG:?}"
-cp -a "${SRC}/sounds_and_words" "${PKG}"
+install -d "${PURELIB}" "${ICONS}"
 
-# The corpus, in the layout a wheel would have produced (pyproject.toml:
-# [tool.hatch.build.targets.wheel.force-include] "data" = "sounds_and_words/data").
-rm -rf "${DATA:?}"
-cp -a "${SRC}/data" "${DATA}"
+for row in "${FIRST_PARTY[@]}"; do
+    IFS='|' read -r checkout package script entry tile icon config <<<"${row}"
+    src="${ACTIVITIES}/${checkout}"
+    dest="${PURELIB}/${package}"
+    module="${entry%%:*}"
+    function="${entry##*:}"
 
-# The activity's own licence file travels with it: the corpus is Crown
-# copyright under the Open Government Licence and the attribution has to be
-# *in the image*, not only in the repository (AGENTS.md §5).
-install -m 0644 "${SRC}/LICENSES.md" "${PKG}/LICENSES.md"
+    [[ -d "${src}/${package}" ]] \
+        || die "${src}/${package} is missing -- is the table's package name right?"
+    [[ -f "${src}/pyproject.toml" ]] || die "${src}/pyproject.toml is missing"
 
-# The metadata a wheel install would have left behind.
-DISTINFO="${PURELIB}/kidnix_sounds_and_words-${VERSION}.dist-info"
-rm -rf "${DISTINFO}"
-install -d "${DISTINFO}"
-cat >"${DISTINFO}/METADATA" <<EOF
+    version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "${src}/pyproject.toml" | head -1)"
+    [[ -n "${version}" ]] || die "could not read version from ${src}/pyproject.toml"
+    dist="$(sed -n 's/^name = "\(.*\)"$/\1/p' "${src}/pyproject.toml" | head -1)"
+    [[ -n "${dist}" ]] || die "could not read the distribution name from ${src}/pyproject.toml"
+    summary="$(sed -n 's/^description = "\(.*\)"$/\1/p' "${src}/pyproject.toml" | head -1)"
+
+    # The console script the tile names has to be the one the activity declares.
+    # A table that had drifted from a pyproject would otherwise install a
+    # program under a name nothing calls, and the tile would open nothing.
+    grep -Fq "${script} = \"${entry}\"" "${src}/pyproject.toml" \
+        || die "${src}/pyproject.toml does not declare ${script} = \"${entry}\""
+
+    log "installing ${dist} ${version} as ${package}"
+
+    rm -rf "${dest:?}"
+    cp -a "${src}/${package}" "${dest}"
+
+    # Sounds & Words' corpus, in the layout a wheel would have produced
+    # (pyproject.toml: [tool.hatch.build.targets.wheel.force-include]
+    # "data" = "sounds_and_words/data"). Nothing else has one, and the `-d`
+    # test is the whole of the special case.
+    if [[ -d "${src}/data" ]]; then
+        rm -rf "${dest:?}/data"
+        cp -a "${src}/data" "${dest}/data"
+    fi
+
+    # An activity's own licence file travels with it when it has one: Sounds &
+    # Words' corpus is Crown copyright under the Open Government Licence and the
+    # attribution has to be *in the image*, not only in the repository
+    # (AGENTS.md §5).
+    if [[ -f "${src}/LICENSES.md" ]]; then
+        install -m 0644 "${src}/LICENSES.md" "${dest}/LICENSES.md"
+    fi
+
+    # The metadata a wheel install would have left behind, so
+    # `importlib.metadata.version()` answers and a later `pip list` in a debug
+    # shell does not describe a machine that is not there.
+    distinfo="${PURELIB}/${dist//-/_}-${version}.dist-info"
+    rm -rf "${distinfo:?}"
+    install -d "${distinfo}"
+    cat >"${distinfo}/METADATA" <<EOF
 Metadata-Version: 2.1
-Name: kidnix-sounds-and-words
-Version: ${VERSION}
-Summary: Sounds & Words -- the kidnix literacy activity
+Name: ${dist}
+Version: ${version}
+Summary: ${summary}
 License: Apache-2.0
 Requires-Python: >=3.11
 EOF
-printf 'kidnix-image-build\n' >"${DISTINFO}/INSTALLER"
-printf 'sounds_and_words\n' >"${DISTINFO}/top_level.txt"
+    printf 'kidnix-image-build\n' >"${distinfo}/INSTALLER"
+    printf '%s\n' "${package}" >"${distinfo}/top_level.txt"
 
-# /usr is read-only at runtime; without .pyc files the whole activity is
-# re-parsed on every launch and the result can never be cached. `unchecked-hash`
-# keeps the .pyc valid regardless of mtimes, which is what an ostree commit needs.
-python3 -m compileall -q -f --invalidation-mode unchecked-hash "${PKG}" \
-    || die "byte-compiling sounds_and_words failed"
+    # /usr is read-only at runtime; without .pyc files the whole activity is
+    # re-parsed on every launch and the result can never be cached.
+    # `unchecked-hash` keeps the .pyc valid regardless of mtimes, which is what
+    # an ostree commit needs.
+    python3 -m compileall -q -f --invalidation-mode unchecked-hash "${dest}" \
+        || die "byte-compiling ${package} failed"
 
-# -----------------------------------------------------------------------------
-# 2. The console script
-# -----------------------------------------------------------------------------
-#
-# pyproject.toml declares `kidnix-sounds-and-words = "sounds_and_words.activity:main"`
-# and the shipped manifest's `exec` names this path. It exports the data
-# directory (see the header) with `setdefault`, so a developer can still point
-# it at a checkout without editing the image.
-cat >/usr/bin/kidnix-sounds-and-words <<EOF
-#!/usr/bin/python3
-# The \`kidnix-sounds-and-words\` console script from
-# activities/sounds_and_words/pyproject.toml.
-# Generated by build_files/64-first-party-activities.sh -- do not edit in the image.
-import os
-import sys
+    # -- the console script --
+    #
+    # What [project.scripts] would have generated, written by hand because pip
+    # is not in this image. Sounds & Words gets one extra line: its corpus
+    # resolver looks beside `__file__` for a `data` directory that is only
+    # there in a source tree, so the script points it at the installed one --
+    # with `setdefault`, so a developer's override still wins.
+    {
+        printf '#!/usr/bin/python3\n'
+        printf '# The %s console script, from [project.scripts] in activities/%s/pyproject.toml.\n' \
+            "${script}" "${checkout}"
+        printf '# Generated by build_files/64-first-party-activities.sh -- do not edit in the image.\n'
+        printf 'import sys\n'
+        if [[ "${package}" == "sounds_and_words" ]]; then
+            printf 'import os\n\n'
+            printf '# sounds_and_words.corpus.data_dir() resolves __file__/../../data, which is\n'
+            printf '# the source tree layout and not an installed one. Point it at the corpus\n'
+            printf '# this image actually ships. setdefault, so a developer override still wins.\n'
+            printf 'os.environ.setdefault("KIDNIX_SOUNDS_AND_WORDS_DATA", "%s")\n' "${DATA}"
+        fi
+        printf '\nfrom %s import %s\n\n' "${module}" "${function}"
+        printf 'if __name__ == "__main__":\n'
+        printf '    sys.exit(%s())\n' "${function}"
+    } >"/usr/bin/${script}"
+    chmod 0755 "/usr/bin/${script}"
 
-# sounds_and_words.corpus.data_dir() resolves __file__/../../data, which is the
-# source tree's layout and not an installed one. Point it at the corpus this
-# image actually ships. setdefault, so a developer's override still wins.
-os.environ.setdefault("KIDNIX_SOUNDS_AND_WORDS_DATA", "${DATA}")
-
-from sounds_and_words.activity import main
-
-if __name__ == "__main__":
-    sys.exit(main())
-EOF
-chmod 0755 /usr/bin/kidnix-sounds-and-words
-
-# -----------------------------------------------------------------------------
-# 3. The icon
-# -----------------------------------------------------------------------------
-#
-# The drawing belongs to the activity, so it lives in the activity's package
-# (`sounds_and_words/icon.svg`) rather than in the shell's own bundled set --
-# the shell's `data/icons/` is the shell's, and an activity reaching into it
-# would be the wrong ownership. The manifest names an absolute path and
-# `kidnix_shell.widgets.icon_image` loads `icon_kind = "path"` with
-# `Gtk.Image.new_from_file`, so a stable path outside site-packages is what it
-# needs: site-packages has a Python version in it and a manifest must not.
-install -d -m 0755 /usr/share/kidnix/icons
-install -m 0644 "${PKG}/icon.svg" /usr/share/kidnix/icons/sounds-and-words.svg
+    # -- the icon --
+    #
+    # The drawing belongs to the activity, so it lives in the activity's package
+    # (`<package>/icon.svg`) rather than in the shell's own bundled set -- the
+    # shell's `data/icons/` is the shell's, and an activity reaching into it
+    # would be the wrong ownership. The manifest names an absolute path and
+    # `kidnix_shell.widgets.icon_image` loads `icon_kind = "path"` with
+    # `Gtk.Image.new_from_file`, so a stable path outside site-packages is what
+    # it needs: site-packages has a Python version in it and a manifest must not.
+    [[ -f "${dest}/icon.svg" ]] || die "${package} ships no icon.svg"
+    install -m 0644 "${dest}/icon.svg" "${ICONS}/${icon}"
+done
 
 # -----------------------------------------------------------------------------
 # 4. The phoneme clips, and the ledger that says there are none
@@ -384,13 +476,108 @@ chmod 0644 "${PHONEME_DIR}/phonemes.toml" \
 
 log "verifying the install"
 
-# Import from a directory that is definitely not the source tree, so a stray
-# CWD cannot make this pass by accident.
-( cd / && python3 -c '
+# -- once per activity, from the table ----------------------------------------
+for row in "${FIRST_PARTY[@]}"; do
+    IFS='|' read -r checkout package script entry tile icon config <<<"${row}"
+    module="${entry%%:*}"
+    manifest="${TILES}/${tile}"
+
+    # Import from a directory that is definitely not the source tree, so a
+    # stray CWD cannot make this pass by accident.
+    ( cd / && python3 -c "
 import sys
-import sounds_and_words
-sys.exit(0 if sounds_and_words.__file__.startswith("/usr/lib/") else 1)
-' ) || die "sounds_and_words does not import from /usr/lib"
+import ${package}
+sys.exit(0 if ${package}.__file__.startswith('/usr/lib/') else 1)
+" ) || die "${package} does not import from /usr/lib"
+
+    # The GTK half imports. There is no display in a build container, so this
+    # realises no window -- but a missing import here is a child tapping a tile
+    # and getting nothing at all.
+    ( cd / && python3 -c "
+import gi
+gi.require_version('Gtk', '4.0')
+gi.require_version('Adw', '1')
+from gi.repository import Adw, Gtk  # noqa: F401
+import ${module}  # noqa: F401
+" ) || die "${module} cannot import GTK4/libadwaita/kidnix_activity"
+
+    # The metadata a wheel install would have left behind. A debug shell that
+    # ran `pip list` in this image must not describe a machine that is not here.
+    dist="$(sed -n 's/^name = "\(.*\)"$/\1/p' "${ACTIVITIES}/${checkout}/pyproject.toml" | head -1)"
+    ( cd / && python3 -c "
+from importlib.metadata import version
+version('${dist}')
+" ) || die "importlib.metadata does not know ${dist}"
+
+    # The console script runs and does what its name says. `--help` exits
+    # before any window is realised, which is the only smoke test a build
+    # container can run.
+    [[ -x "/usr/bin/${script}" ]] || die "/usr/bin/${script} is not executable"
+    ( cd / && "/usr/bin/${script}" --help >/dev/null ) \
+        || die "/usr/bin/${script} --help failed"
+
+    # The stricter of the two validators (docs/design/activity-sdk.md §9): the
+    # shell's parser, plus quit="signal", network_required=false, a goal, an
+    # audio_label, an icon and kind="activity".
+    [[ -f "${manifest}" ]] || die "${manifest} is missing from the overlay"
+    ( cd / && /usr/bin/kidnix-activity validate "${manifest}" >/dev/null ) \
+        || die "${manifest} does not validate against the SDK's rules"
+
+    # Everything the manifest points at has to exist, and be what it says. A
+    # tile is a promise: a child presses it and something happens.
+    [[ -f "${ICONS}/${icon}" ]] || die "${ICONS}/${icon} is missing"
+    ( cd / && python3 - "${manifest}" "/usr/bin/${script}" "${ICONS}/${icon}" <<'PY'
+import pathlib, sys, tomllib
+manifest, script, icon = (pathlib.Path(a) for a in sys.argv[1:4])
+data = tomllib.loads(manifest.read_text())
+if data["id"] != manifest.stem:
+    sys.exit(f"id {data['id']!r} is not the filename {manifest.stem!r}")
+if data["exec"] != [str(script)]:
+    sys.exit(f"exec is {data['exec']!r}, not [{str(script)!r}]")
+if data.get("icon_kind") != "path":
+    sys.exit(f"icon_kind is {data.get('icon_kind')!r}")
+if data["icon"] != str(icon):
+    sys.exit(f"icon is {data['icon']!r}, not {str(icon)!r}")
+if "<svg" not in icon.read_text()[:400]:
+    sys.exit(f"{icon} is not an SVG")
+if data.get("source") != "kidnix":
+    sys.exit(f"source is {data.get('source')!r}, not 'kidnix'")
+PY
+    ) || die "${manifest} promises something the image does not have"
+
+    # The shipped tile and the activity's own manifest must not have drifted
+    # apart on anything a child or a parent can perceive. `order` and `icon`
+    # are allowed to differ -- they are facts about the image, not about the
+    # activity.
+    ( cd / && python3 - "${manifest}" "${ACTIVITIES}/${checkout}/manifest.toml" <<'PY'
+import sys, tomllib
+with open(sys.argv[1], "rb") as fh:
+    shipped = tomllib.load(fh)
+with open(sys.argv[2], "rb") as fh:
+    theirs = tomllib.load(fh)
+for key in ("id", "name", "audio_label", "goal", "category", "age_band", "exec",
+            "quit", "network_required"):
+    if shipped.get(key) != theirs.get(key):
+        sys.exit(f"{key}: image has {shipped.get(key)!r}, activity says {theirs.get(key)!r}")
+PY
+    ) || die "the shipped tile disagrees with ${checkout}'s own manifest"
+
+    # The grown-up's file, and the promise it makes: shipped with every line
+    # commented out, so a machine nobody has configured uses the built-in
+    # default AND the activity can still say "nobody has told us yet". A file
+    # that set a value would be kidnix's own guess handed back to a parent as
+    # their answer.
+    if [[ "${config}" != "-" ]]; then
+        [[ -f "/etc/kidnix/${config}" ]] || die "/etc/kidnix/${config} is missing from the overlay"
+        ( cd / && python3 -c "
+import sys, tomllib
+doc = tomllib.load(open('/etc/kidnix/${config}', 'rb'))
+sys.exit(f'it sets {sorted(doc)}' if doc else 0)
+" ) || die "/etc/kidnix/${config} is not fully commented out"
+    fi
+done
+
+# -- Sounds & Words only ------------------------------------------------------
 
 # The pure half must stay importable with no GTK on the path -- that split is
 # the whole reason the ceiling can be proved without a display
@@ -413,64 +600,8 @@ if not corpus.gpcs or not corpus.words:
 print(f"    corpus: {len(corpus.gpcs)} GPCs, {len(corpus.words)} words from {data_dir()}")
 ' ) || die "the corpus does not load from ${DATA}"
 
-# The GTK half imports. There is no display in a build container, so this
-# realises no window -- but a missing import here is a child tapping a tile and
-# getting nothing at all.
-( cd / && python3 -c '
-import gi
-gi.require_version("Gtk", "4.0")
-gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk  # noqa: F401
-import sounds_and_words.activity  # noqa: F401
-' ) || die "sounds_and_words.activity cannot import GTK4/libadwaita/kidnix_activity"
-
-# The console script runs and does what its name says. `--help` exits before
-# any window is realised, which is the only smoke test a build container can run.
-( cd / && /usr/bin/kidnix-sounds-and-words --help >/dev/null ) \
-    || die "/usr/bin/kidnix-sounds-and-words --help failed"
-
-# The stricter of the two validators (docs/design/activity-sdk.md §9): the
-# shell's parser, plus quit="signal", network_required=false, a goal, an
-# audio_label, an icon and kind="activity".
-MANIFEST=/usr/share/kidnix/activities/sounds-and-words.toml
-[[ -f "${MANIFEST}" ]] || die "${MANIFEST} is missing from the overlay"
-( cd / && /usr/bin/kidnix-activity validate "${MANIFEST}" >/dev/null ) \
-    || die "${MANIFEST} does not validate against the SDK's rules"
-
-# The shipped tile and the activity's own manifest must not have drifted apart
-# on anything a child or a parent can perceive. `order` and `icon` are allowed
-# to differ -- they are facts about the image, not about the activity.
-( cd / && python3 - <<PY
-import sys, tomllib
-with open("${MANIFEST}", "rb") as fh:
-    shipped = tomllib.load(fh)
-with open("${SRC}/manifest.toml", "rb") as fh:
-    theirs = tomllib.load(fh)
-for key in ("id", "name", "audio_label", "goal", "category", "age_band", "exec",
-            "quit", "network_required"):
-    if shipped.get(key) != theirs.get(key):
-        sys.exit(f"{key}: image has {shipped.get(key)!r}, activity says {theirs.get(key)!r}")
-PY
-) || die "the shipped tile disagrees with the activity's own manifest"
-
-# Everything the manifest points at has to exist. A tile is a promise.
-[[ -x /usr/bin/kidnix-sounds-and-words ]] || die "the console script is not executable"
-[[ -f /usr/share/kidnix/icons/sounds-and-words.svg ]] || die "the tile icon is missing"
-
-# Draw stays the first tile on Home: tests/e2e/test_scenario.py opens the first
-# cell of the first row and asserts the launcher started Tux Paint.
-( cd / && python3 - <<'PY'
-import pathlib, sys, tomllib
-orders = {}
-for path in sorted(pathlib.Path("/usr/share/kidnix/activities").glob("*.toml")):
-    data = tomllib.loads(path.read_text())
-    orders[data["id"]] = data.get("order", 1_000_000)
-first = min(orders, key=lambda k: (orders[k], k))
-if first != "tuxpaint":
-    sys.exit(f"Home's first tile is now {first!r} (order {orders[first]}), not Draw")
-print(f"    Home order: {sorted(orders.items(), key=lambda kv: kv[1])[:3]}")
-PY
-) || die "an activity now sorts ahead of Draw on Home"
+grep -q KIDNIX_SOUNDS_AND_WORDS_DATA /usr/bin/kidnix-sounds-and-words \
+    || die "the console script does not point the corpus at the installed data"
 
 # The parent's ceiling file, and the promise it makes: shipped commented out,
 # so a machine nobody has configured uses the built-in Phase 2 set 3 floor and
@@ -529,6 +660,75 @@ print(f"    phonemes: {len(still)}/{len(corpus.gpcs)} still placeholders, "
 PY
 ) || die "the phoneme ledger and the clips on disk disagree"
 
+# -- the whole shelf, together ------------------------------------------------
+
+# Numbers and Clock read their grown-up's file the same way, and the same
+# claim has to hold: an /etc file with every line commented out parses to
+# nothing, and nothing is not an answer. `is_default` staying True is what lets
+# a parent pane say "nobody has told us yet" instead of presenting kidnix's own
+# defaults back to a grown-up as their statement.
+( cd / && python3 - <<'PY'
+import sys
+
+from numbers_activity.settings import NumberRange, load_settings as numbers_settings
+from clock_time.settings import load_settings as clock_settings
+from clock_time.routine import DEFAULT_ROUTINE
+from clock_time.words import Mode
+
+numbers = numbers_settings()
+if not numbers.is_default:
+    sys.exit(f"the shipped numbers.toml was read as an answer, from {numbers.source}")
+if numbers.range is not NumberRange.FIVE:
+    sys.exit(f"the default range is {numbers.range}")
+
+clock = clock_settings()
+if not clock.is_default:
+    sys.exit(f"the shipped clock_time.toml was read as an answer, from {clock.source}")
+if clock.mode is not Mode.Y1:
+    sys.exit(f"the default mode is {clock.mode}")
+if clock.routine.items != DEFAULT_ROUTINE:
+    sys.exit("the default day is not the built-in one")
+print(f"    defaults: numbers={numbers.range.value}, clock={clock.mode.value}, "
+      f"{len(clock.routine)} moments")
+PY
+) || die "a shipped /etc/kidnix settings file does not behave as a default"
+
+# Draw stays the first tile on Home: tests/e2e/test_scenario.py opens the first
+# cell of the first row and asserts the launcher started Tux Paint. With eleven
+# tiles Home paginates, which is fine -- what must not change is which one is
+# first.
+( cd / && python3 - <<'PY'
+import pathlib, sys, tomllib
+orders = {}
+for path in sorted(pathlib.Path("/usr/share/kidnix/activities").glob("*.toml")):
+    data = tomllib.loads(path.read_text())
+    orders[data["id"]] = data.get("order", 1_000_000)
+# The tiebreak is the id, so a shared `order` still gives one arrangement and
+# not a coin toss. ktuberling has sat at 20 since the first wave and Numbers
+# joins it there; Home reads Draw, Sounds & words, Potato man, Numbers, Clock.
+ranked = sorted(orders, key=lambda k: (orders[k], k))
+if ranked[0] != "tuxpaint":
+    sys.exit(f"Home's first tile is now {ranked[0]!r} (order {orders[ranked[0]]}), not Draw")
+ours = ["sounds-and-words", "numbers", "clock-time", "letters"]
+missing = [tile for tile in ours if tile not in orders]
+if missing:
+    sys.exit(f"first-party tiles missing from Home: {missing}")
+if [tile for tile in ranked if tile in ours] != ours:
+    sys.exit(f"the first-party tiles are out of order: {ranked}")
+if ranked[1] != "sounds-and-words":
+    sys.exit(f"Sounds & words is no longer second: {ranked[:4]}")
+print(f"    Home order: {[(k, orders[k]) for k in ranked[:5]]} ({len(orders)} tiles)")
+PY
+) || die "the first-party tiles do not sit where they are supposed to on Home"
+
+# Every tile in the directory, through the shell's own loader, after ours have
+# landed. 60-shell.sh ran this before these three existed.
+( cd / && /usr/bin/kidnix-shell-app --validate-manifests /usr/share/kidnix/activities >/dev/null ) \
+    || die "a shipped manifest does not validate through the shell's own loader"
+
 rm -rf /tmp/activities
 
-log "kidnix-sounds-and-words ${VERSION} installed into ${PURELIB}"
+for row in "${FIRST_PARTY[@]}"; do
+    IFS='|' read -r _checkout package script _entry _tile _icon _config <<<"${row}"
+    log "${package} installed into ${PURELIB}, ${script} on PATH"
+done

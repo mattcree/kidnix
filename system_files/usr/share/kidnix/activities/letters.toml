@@ -1,0 +1,129 @@
+# Letters -- a picture, a few words and your voice, for somebody real.
+#
+# The source of truth for this file is
+# `activities/letters_to_family/manifest.toml`, which
+# `activities/letters_to_family/tests/test_manifest.py` validates in CI. This
+# is the copy the image ships. Everything a child or a parent can perceive is
+# the same in both -- name, audio_label, goal, category, age band, exec, quit,
+# network -- and stage 64 asserts that field by field at build time. What is
+# only here is what is a fact about the *image* rather than about the activity:
+#
+#   * `order`, which only means anything next to the other tiles;
+#   * `icon`, an absolute path only the image knows
+#     (build_files/64-first-party-activities.sh installs it there); and
+#   * the packaging fields build_files/50-activities.sh's validator requires of
+#     every tile -- source, package, licence, age_min/age_max, oars_rating,
+#     journal_watch, wayland_native, notes.
+#
+# The filename is the id: build_files/50-activities.sh rejects a manifest whose
+# `id` does not match its stem, so this file cannot be renamed on its own.
+schema = 1
+
+id = "letters"
+name = "Letters"
+
+# What the shell says when a child hovers or focuses the tile. Written for the
+# ear and for a pre-reader: it says what *happens*, not what it is for.
+audio_label = "Send a letter"
+
+# One honest line for a parent, copied verbatim from the activity's own
+# manifest. The last sentence is the load-bearing one and it is a promise about
+# the machine, not a caveat: nothing here sends anything. A letter is made, it
+# is kept, and a grown-up is the one who decides it reaches anybody
+# (docs/design/letters-to-family.md).
+goal = "Make a letter for someone in your family: a picture, a few words, your voice. A grown-up sends it."
+
+# Fifth on Home, after Draw (10), Sounds & words (15), Numbers (20) and
+# Clock (25).
+#
+# 30 is SHARED with turbowarp, and that is deliberate rather than overlooked --
+# the same reasoning numbers.toml sets out at 20. The shell sorts by
+# `(order, id)`, so a shared order is still one arrangement and not a coin
+# toss: "letters" sorts before "turbowarp", the result is the same on every
+# boot and every machine, and no tile a child may already know the place of
+# gets moved to make room for ours.
+order = 30
+
+# A path, not an icon name. The drawing lives with the activity that owns it
+# (`letters_to_family/icon.svg` in the package) rather than in the shell's own
+# bundled set, and the build copies it to this stable path -- the shell's
+# `widgets.icon_image` loads `icon_kind = "path"` with `Gtk.Image.new_from_file`,
+# so an absolute path is exactly what it wants, and site-packages has a Python
+# version in it which a manifest must not.
+#
+# This is the one field that deliberately differs from the activity's own
+# manifest, which names the path a checkout would use.
+icon = "/usr/share/kidnix/icons/letters.svg"
+icon_kind = "path"
+
+kind = "activity"
+# `make`, not `learn`: this is the child making something for a person, and it
+# is the only first-party tile that is not practice of something a school
+# taught. Nothing in it is marked and there is nothing in it to get right.
+category = "make"
+# Overlap, not containment: a 4-5 profile and a 6-8 profile both see this. A
+# four-year-old draws and speaks; an eight-year-old writes.
+#
+# Both spellings, because two validators read this file and each insists on a
+# different one: build_files/50-activities.sh requires the explicit integers,
+# the shell's parser prefers the band. They must agree, and
+# kidnix_shell.activities.parse_manifest lets the explicit pair win.
+age_band = "4-8"
+age_min = 4
+age_max = 8
+
+# The console script build_files/64-first-party-activities.sh writes.
+exec = ["/usr/bin/kidnix-letters"]
+
+# The SDK saves on SIGTERM and never shows a quit dialogue
+# (kidnix_activity.lifecycle; docs/design/activity-sdk.md §3.3). Five seconds is
+# spec 7a's autosave grace, and what it covers here is one PNG, one Ogg and a
+# little JSON.
+quit = "signal"
+quit_grace = 5.0
+
+oars_rating = "none"
+# The child session has no egress (SYNTHESIS H1), and this is the tile where
+# that matters most: a program called "Letters" that could reach the network
+# would be a program that could send a five-year-old's picture to a stranger.
+# It cannot. It writes files to a directory on this machine, and a grown-up
+# does the rest.
+network_required = false
+
+# No journal_watch and no journal_glob, deliberately. The activity writes its
+# own entry with kidnix_activity.journal.save_entry, so there is nothing for the
+# shell's importer to notice two seconds later -- and an importer watching a
+# scratch directory would keep the same card twice
+# (docs/design/activity-sdk.md §8).
+journal_watch = []
+
+wayland_native = true
+
+# Neither an RPM nor a Flatpak: this one is ours, installed by
+# build_files/64-first-party-activities.sh.
+source = "kidnix"
+package = "kidnix-letters"
+licence = "Apache-2.0"
+
+notes = """
+Ours. The Python package is installed beside the shell by
+build_files/64-first-party-activities.sh, not by an RPM.
+
+Who a child can write to comes from the [[family]] blocks in
+/etc/kidnix/parent.toml, which the parent panel's Family tab writes. There is
+no address book in the child's session and no way to add a person from it.
+
+A posted letter lands in /var/lib/kidnix/outbox/<profile>/ marked "waiting for
+a grown-up to send", and nothing in kidnix ever marks it sent -- because
+nothing in kidnix can send it. Replies a grown-up drops into
+/var/lib/kidnix/inbox/<profile>/ appear on the "Letters for you" shelf. Both
+directories are created at boot by
+system_files/usr/lib/tmpfiles.d/kidnix-letters.conf: the outbox is the child's
+(0750 kid:kid) and the inbox is the grown-up's to write and the child's to read
+(0750 parent:kid).
+
+If the outbox cannot be written the letter is NOT lost: the Journal entry is
+written first and always, and the copy for the grown-up is the part that fails.
+
+See docs/design/letters-to-family.md.
+"""

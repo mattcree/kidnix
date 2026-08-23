@@ -1,0 +1,82 @@
+# Numbers -- how far your child counts, and what the tiles look like.
+#
+# THIS FILE IS YOURS. kidnix ships it with every line commented out, and bootc's
+# three-way merge keeps your edits across every update. Nothing in kidnix ever
+# writes to it, and the child's session cannot: it is root-owned, and a range a
+# five-year-old can widen is not a statement about what their school has taught.
+#
+# ---------------------------------------------------------------------------
+# WHAT IT DOES
+# ---------------------------------------------------------------------------
+#
+# Numbers is two things: *how many* -- seeing a small group and knowing there
+# are four without counting them -- and *which two numbers make five*. Both are
+# what the EYFS Number Early Learning Goal actually asks for, and both are
+# practice rather than teaching. Your child's school teaches number; this is a
+# few minutes of playing with what they already know.
+#
+# Nothing here is ever marked, scored or recorded against your child, and
+# nothing in the activity moves this file on its own. There is no difficulty
+# ladder and there is not going to be one: the one clean trial of adaptive
+# tutoring in primary maths found an effect of g = 0.01-0.09, and *smaller* for
+# the children it was sold to help. A grown-up who knows the child decides.
+# That is you.
+#
+# While every line below is commented out, Numbers uses its starting point --
+# one to five, numerals shown, and whichever frame suits the question -- and
+# says so in the log. That is deliberately the ELG's floor. A child re-doing
+# "how many" up to five is not harmed; a child shown bonds to ten before their
+# class has met them is being tested on something nobody taught them.
+#
+# ---------------------------------------------------------------------------
+# HOW TO SET IT
+# ---------------------------------------------------------------------------
+#
+# Uncomment the lines you want to change and save. It takes effect the next
+# time they open the activity. Nothing here can stop the activity from
+# opening: a typo drops the line it is on, says so in the log, and the rest
+# still works.
+#
+# ---------------------------------------------------------------------------
+# HOW FAR IT COUNTS
+# ---------------------------------------------------------------------------
+#
+#   range = "five"   how many, one to five, and the number bonds to five.
+#                    The default, and exactly the ELG's floor: "subitise up to
+#                    5" and "number bonds up to 5".
+#   range = "ten"    adds six to ten -- always drawn as five-and-some-more, so
+#                    that six reads as "five and one" rather than as six things
+#                    to count -- and some bonds to ten, including double five.
+#                    The ELG's ceiling: "some number bonds to 10, including
+#                    double facts".
+#
+# If in doubt, leave it at five. Going too low costs nothing.
+#
+# ---------------------------------------------------------------------------
+# WHAT THE TILES LOOK LIKE
+# ---------------------------------------------------------------------------
+#
+#   numerals = true    a big 4, with four dots underneath it. The default.
+#                      The ELG is about the *symbol* meeting the quantity, and
+#                      it is symbolic comparison -- knowing 4 is more than 3 as
+#                      written digits -- that correlates with later maths
+#                      (r = .30, against .24 for dots alone).
+#   numerals = false   the dots only, for a child who does not know the
+#                      numerals yet. The voice is unchanged either way: it
+#                      always says "four".
+#
+#   frames = "auto"    a five-frame for the bonds to five, a ten-frame for the
+#                      bonds to ten. The default.
+#   frames = "five"    prefer the five-frame. A bond to ten still gets a
+#                      ten-frame, because ten counters do not fit in five
+#                      boxes.
+#   frames = "ten"     always the ten-frame, with the boxes past the number
+#                      greyed out and not pressable. Many UK schools use the
+#                      ten-frame from the very start, precisely so that five
+#                      reads as half of ten -- if your child's does, set this
+#                      and their screen will look like their classroom.
+
+# [numbers]
+# range = "five"
+# numerals = true
+# frames = "auto"

@@ -391,7 +391,7 @@ recording because each was a measured bug rather than a preference:
   this window asked for 1074 × 890 in a 1024 × 618 rectangle because two 40 mm
   buttons were *stacked* beside the clock and the routine strip was budgeted
   against the screen width rather than the content box. Both are now measured
-  (`_reserved`, `_strip_mm`) and a test asserts the whole tree's minimum fits in
+  (`_reserved`, `_strip_plan`) and a test asserts the whole tree's minimum fits in
   both directions on both screens.
 * **The grown-up's card is on the minute screen.** SUITE §3's co-use moment has
   to be somewhere, and four rows — prompt, face, strip, card — do not fit. Of the
@@ -406,6 +406,37 @@ computed for a narrower face than kidnix draws in. Inside a centred box that
 answer is also the allocation, so "Watch it" came out as "W-atc-h it". Handing
 the measured width back as a size request (capped at the room the control
 actually has) closes the loop.
+
+**The strip is planned from the words, not from the count.** Until 2026-08-23 it
+was the other way round: `_strip_mm` picked the largest square that let eight
+tiles fit across, and each name was then asked to fit whatever that left — about
+70 px on a 1024 px panel. "Breakfast" wants 105 px at the 18 pt floor and has no
+line inside it to break, so Pango broke it between characters and drew a hyphen
+to say so. `docs/design/screenshots/clock-play.png` said **Brea-kfast** and
+**Scho-ol**, which is the one thing a label is not allowed to do to a child who
+is learning to match a shape to a word (SYNTHESIS B4, and
+`shell/kidnix_shell/labels.py`).
+
+`_strip_plan` measures first. For each tile size largest-first, and then each
+point size largest-first, it asks every name how narrow a box it can keep its
+words whole in — one line, or the wider half of the best break between words —
+and gives that tile `max(the tile floor, that box + the tile's chrome)`. So the
+tile that says "Breakfast" is wider than the tile that says "Tea", every tile is
+still at or above ADR-0011's 20 mm, every label is still at or above 18 pt, and
+the row still fits: 22 mm at 18 pt on a 1024 px panel, 30 mm at 20 pt on the
+1280 × 800 one. The whole strip is set at one point size, because a row where
+"Tea" is 20 pt and "Breakfast" is 18 makes the two look like different kinds of
+thing.
+
+Two mechanics make it stick, and both are in `kidnix_activity.widgets.fit_label`
+— the SDK's word-whole wrapper round `fit_gtk_label`. It always passes a
+*height*, which is what puts `fit_gtk_label` on the branch that hands the label
+the lines it measured with wrapping switched off, so Pango has nothing left to
+re-decide (with no height it re-wraps at `max-width-chars`, `WORD_CHAR`, and that
+is where the hyphen came from). And it strips the trailing space Pango leaves on
+each broken line: six pixels on "Wake " that the line was never measured with,
+which across eight tiles was the difference between the window fitting the panel
+and overhanging it.
 
 ## 10. Tests
 
@@ -450,11 +481,12 @@ three things:
    taken straight from the national curriculum and nothing in `docs/research/`
    backs them. 05 covers EYFS number and KS1 arithmetic and is silent on time.
    Somebody should put the KS1 Measurement text in the research corpus properly.
-2. **Long routine names wrap on a narrow panel.** At eight tiles on a 1024 px
-   panel the label box is about 70 px, so "Breakfast" and "School" break
-   mid-word. They are legible, they are spoken, and the names are
-   parent-configurable — but the fix is either a shorter shipped default or a
-   `PictureTile` that can put its label outside its own box.
+2. **A routine name longer than any panel can hold.** Fixed for the shipped
+   names (§9, "the strip is planned from the words"); still open for a
+   grown-up who calls a moment something very long. The plan reaches both
+   floors, says so in the log, and leaves the word whole — so the strip is
+   wider than the row rather than a lie about the word. What it wants is a
+   *shorter name*, and the parent pane has nowhere to say so yet.
 3. **The face never reaches 60% on the panels we have.** §9 explains why and the
    shortfall is logged. Getting there needs the routine strip to cost less
    height — two rows of four is worse, and a strip with no labels breaks B4, so

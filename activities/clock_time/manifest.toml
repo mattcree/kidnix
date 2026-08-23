@@ -5,11 +5,15 @@
 # runs the same validator, so a manifest that would be rejected on the machine
 # is rejected in CI first.
 #
-# NOT yet installed on the image. A later image wave copies the package beside
-# the shell and this file into /usr/share/kidnix/activities/ -- see
-# docs/design/clock-time.md section 11 for that plan. Until then the tile does
-# not exist, which is correct: a tile that opens a half-built activity is worse
-# than no tile.
+# INSTALLED ON THE IMAGE since 2026-08-23.
+# `build_files/64-first-party-activities.sh` copies `clock_time` beside the
+# shell, writes /usr/bin/kidnix-clock-time, and installs the icon at
+# /usr/share/kidnix/icons/clock-time.svg. The tile the shell actually reads is
+# `system_files/usr/share/kidnix/activities/clock-time.toml` -- named for the
+# id, because build_files/50-activities.sh rejects a manifest whose id is not
+# its filename -- which is a copy of this file plus the packaging fields and an
+# `order`; stage 64 asserts the two agree field by field on everything a child
+# or a parent can perceive. See docs/design/clock-time.md section 11.
 schema = 1
 
 id = "clock-time"

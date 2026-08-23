@@ -260,5 +260,15 @@ def load_settings(*, search: list[Path] | None = None, name: str = CONFIG_NAME) 
         doc = read_document(path)
         if doc is None:
             continue
+        if not doc:
+            # Every line of it is a comment. It parses to nothing, and nothing
+            # is not an answer: `is_default` has to stay True so a parent pane
+            # can say "nobody has told us yet" rather than handing kidnix's own
+            # defaults back to a grown-up as their own statement. The image
+            # ships exactly such a file -- system_files/etc/kidnix/numbers.toml --
+            # so this is the normal case on a machine nobody has configured,
+            # not an edge one.
+            log.info("%s sets nothing; using the built-in defaults", path)
+            continue
         return settings_from_document(doc, source=path)
     return ParentSettings()

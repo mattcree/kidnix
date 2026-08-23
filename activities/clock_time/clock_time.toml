@@ -1,8 +1,12 @@
 # The grown-up's copy of this family's day.
 #
-# This is the file the image ships as /usr/share/kidnix/clock_time.toml. A
-# parent's own copy goes at /etc/kidnix/clock_time.toml and wins: bootc's
-# three-way merge makes /etc theirs and /usr/share ours.
+# This is the schema, written out with every value at its default so it can be
+# read in one go. The IMAGE ships a copy at /etc/kidnix/clock_time.toml with
+# every line commented out, which is deliberate: a shipped file that set a value
+# would be kidnix's own guess handed back to a parent as their answer, and the
+# activity would lose the one thing it needs to be able to say -- "nobody has
+# told us yet". /usr/share/kidnix/clock_time.toml is read second and is not
+# shipped; bootc's three-way merge makes /etc theirs and /usr/share ours.
 #
 # Root-owned, both of them. The child owns $XDG_CONFIG_HOME, and a year band a
 # child can edit is not a statement about what their school has taught.

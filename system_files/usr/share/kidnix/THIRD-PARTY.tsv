@@ -99,3 +99,27 @@
 /usr/share/kidnix/phonemes/en_GB/letter-names/ATTRIBUTION	Apache-2.0	https://github.com/mattcree/kidnix	first-party
 /usr/share/kidnix/phonemes/en_GB/phonemes.toml	Apache-2.0	https://github.com/mattcree/kidnix	first-party
 /usr/share/kidnix/icons/sounds-and-words.svg	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+/usr/share/kidnix/icons/numbers.svg	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+/usr/share/kidnix/icons/clock-time.svg	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+/usr/share/kidnix/icons/letters.svg	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+
+# --- pre-rendered speech (build_files/66-prerender-speech.sh) -----------------
+#
+# /usr/share/kidnix/speech/en_GB holds ~314 Ogg/Opus clips of the shell's own
+# UI strings, synthesised HERE at image build time with Kokoro-82M v1.0
+# (Apache-2.0) and Fedora's espeak-ng for G2P. The model, onnxruntime and numpy
+# were fetched into a mktemp -d and deleted before the layer committed; none of
+# them is in the image (tests/image/test_prerender.sh asserts it).
+#
+# WHY TWO ROWS AND NOT 314. The clips are BUILD OUTPUT, not redistributed
+# third-party content: kidnix generated them from its own strings, the way
+# kidnix_shell/sound.py generates the five earcons. What is third-party is the
+# MODEL they came out of, and that is one fact about the whole tree rather than
+# 314 identical facts. So the provenance lives in one ATTRIBUTION file that
+# covers the directory -- the same shape as
+# /usr/share/kidnix/phonemes/en_GB/letter-names/ATTRIBUTION -- and these two
+# rows point at it. /usr/share/kidnix/speech is deliberately NOT in
+# test_licenses.sh's VENDORED_TREES for that reason; tests/image/test_prerender.sh
+# section 5 is what keeps the obligations honest instead.
+/usr/share/kidnix/speech/ATTRIBUTION	Apache-2.0	https://huggingface.co/hexgrad/Kokoro-82M	vendored
+/usr/share/kidnix/speech/en_GB/index.json	Apache-2.0	https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX	vendored

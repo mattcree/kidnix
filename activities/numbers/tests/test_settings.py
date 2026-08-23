@@ -127,6 +127,36 @@ def test_load_falls_back_to_the_defaults_when_nobody_has_answered(tmp_path: Path
     assert settings.range is NumberRange.FIVE
 
 
+def test_a_file_with_every_line_commented_out_is_not_an_answer(tmp_path: Path) -> None:
+    """What the image actually ships as /etc/kidnix/numbers.toml.
+
+    It parses -- it is valid TOML -- and it says nothing. A reader that took
+    "this file exists" for "a grown-up decided" would hand kidnix's own default
+    range back to a parent as their own statement, and the parent pane would
+    have no way to say *nobody has told us yet*.
+    """
+    (tmp_path / CONFIG_NAME).write_text("# range = \"ten\"\n# nothing is set here\n")
+    settings = load_settings(search=[tmp_path])
+    assert settings.is_default
+    assert settings.source is None
+    assert settings.range is NumberRange.FIVE
+
+
+def test_an_empty_first_file_falls_through_to_a_second_that_says_something(
+    tmp_path: Path,
+) -> None:
+    """/etc is the parent's and /usr/share is ours. A parent who has not
+    written anything must not shadow the image's own default file."""
+    first, second = tmp_path / "etc", tmp_path / "usr"
+    first.mkdir()
+    second.mkdir()
+    (first / CONFIG_NAME).write_text("# nothing\n")
+    (second / CONFIG_NAME).write_text('[numbers]\nrange = "ten"\n')
+    settings = load_settings(search=[first, second])
+    assert settings.range is NumberRange.TEN
+    assert settings.source == second / CONFIG_NAME
+
+
 def test_load_reads_the_first_directory_that_has_one(tmp_path: Path) -> None:
     first, second = tmp_path / "etc", tmp_path / "usr"
     first.mkdir()

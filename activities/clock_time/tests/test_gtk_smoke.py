@@ -473,3 +473,113 @@ def test_finishing_after_playing_keeps_the_clock_they_made(gtk, tmp_path):
     # And the routine's own drawing goes in beside it, so the card in My Things
     # is a record of *what happens when* and not only of a dial.
     assert (entries[0].parent / "v002.svg").is_file()
+
+
+# --- the routine strip's words, measured by the engine that draws them -------
+
+
+def _tile_label(tile):
+    """The Gtk.Label inside a routine tile, and what is actually set on it."""
+    from gi.repository import Gtk
+
+    def walk(widget):
+        yield widget
+        child = widget.get_first_child()
+        while child is not None:
+            yield from walk(child)
+            child = child.get_next_sibling()
+
+    return next(w for w in walk(tile) if isinstance(w, Gtk.Label))
+
+
+def test_no_routine_name_is_ever_cut(running):
+    """**The regression.** ``docs/design/screenshots/clock-play.png`` on
+    2026-08-23 said "Brea-kfast" and "Scho-ol": the tiles were sized from the
+    count and the names were asked to fit whatever that left, so Pango broke
+    the words between characters and drew a hyphen where it did.
+
+    A pre-reader learning to match a shape to a word cannot match half a word,
+    and cannot widen the tile. So: whatever the strip does to fit -- smaller
+    tiles, smaller type, a wider tile for a longer word -- the lines it sets
+    must join back to the name, with the same words in the same order and no
+    hyphen that the grown-up did not type."""
+    for item_id, tile in running.tiles.items():
+        item = running.routine.by_id(item_id)
+        label = _tile_label(tile)
+        lines = label.get_label().split("\n")
+        assert " ".join(line.strip() for line in lines).split() == item.name.split()
+        assert "-" not in label.get_label() or "-" in item.name
+
+
+def test_every_routine_line_fits_the_box_it_was_measured_for(running):
+    """Not cut *and* not spilling. Each line, laid out at the size the strip
+    settled on, is no wider than the label box the tile reserved -- which is
+    the other half of "wrap, never cut": a label that overflows its tile is
+    clipped by the tile, which is a cut word wearing a different hat."""
+    from gi.repository import Gtk
+
+    for tile in running.tiles.values():
+        label = _tile_label(tile)
+        box = label.get_size_request()[0]
+        if box <= 0:  # an unknown panel constrains nothing
+            continue
+        assert label.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= box
+
+
+def test_the_strip_asks_for_no_more_room_than_the_row_has(running):
+    """The plan is made with Pango and the widgets are built from it, so the
+    two must agree: the strip's *minimum* width -- which is what GTK will not
+    go below, and what pushed v0.1.0's window past the panel -- fits inside the
+    content box's margins."""
+    from gi.repository import Gtk
+
+    area = running.window.area
+    if not area.known:
+        return
+    strip = next(
+        w
+        for w in _children(running.window.content)
+        if w.has_css_class("routine-strip")
+    )
+    minimum = strip.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+    assert minimum <= area.width - area.margin * 2
+
+
+def _children(widget):
+    child = widget.get_first_child()
+    while child is not None:
+        yield child
+        child = child.get_next_sibling()
+
+
+def test_a_long_name_gets_a_wider_tile_and_the_others_keep_the_floor(running):
+    """The shape of the fix, on the real screen: the tile that carries the
+    longest word is wider than the tile that says "Tea", and every tile is
+    still at least the 20 mm ADR-0011 asks for."""
+    area = running.window.area
+    widths = {i: t.get_size_request()[0] for i, t in running.tiles.items()}
+    assert widths["breakfast"] > widths["tea"]
+    for tile_id, width in widths.items():
+        assert area.mm_of(width) >= 20.0 - 1e-9, tile_id
+
+
+def test_every_routine_label_is_at_least_eighteen_point(running):
+    """SYNTHESIS B4's floor, read back off the attribute the label was set
+    with -- the strip may shrink type to fit, and this is where it stops."""
+    from gi.repository import Pango
+
+    area = running.window.area
+    sizes = set()
+    for tile in running.tiles.values():
+        attributes = _tile_label(tile).get_attributes()
+        assert attributes is not None
+        found = [
+            attribute.as_size().size / Pango.SCALE
+            for attribute in attributes.get_attributes()
+            if attribute.klass.type == Pango.AttrType.SIZE
+        ]
+        assert found, "the label carries no size attribute at all"
+        assert min(found) >= area.points(18.0) - 0.05
+        sizes.add(round(found[-1], 1))
+    # One size for the whole row: eight names, one typographic voice.
+    assert len(sizes) == 1
