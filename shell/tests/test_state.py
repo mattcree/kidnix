@@ -254,3 +254,31 @@ def test_back_on_put_away_recovers_an_accidental_all_done() -> None:
 def test_put_away_still_leads_to_goodbye() -> None:
     machine = StateMachine(State.PUT_AWAY)
     assert machine.fire(Event.GOODBYE_DUE) is State.GOODBYE
+
+
+# --- ADR-0014 changed the rules, not the graph ---------------------------
+
+
+def test_resting_per_child_added_no_states_and_no_edges() -> None:
+    """The whole of ADR-0014 happens *inside* two of these transitions.
+
+    "Is this child rested?" changed who ``GOODNIGHT`` is fired for and when
+    ``WAKE`` follows it; it did not add a state, an event or an edge, and this
+    is where a future change that quietly did would be caught. Sleeping still
+    has exactly one way out for a child and one for a grown-up.
+    """
+    assert set(TRANSITIONS[State.SLEEPING]) == {Event.WAKE, Event.OPEN_GROWNUP}
+    assert TRANSITIONS[State.SLEEPING][Event.WAKE] is State.CHOOSING
+    # Back on Home now names the exit and rings the tile; it is still the same
+    # no-op edge, because pointing at something is not navigating to it.
+    assert TRANSITIONS[State.HOME][Event.BACK] is State.HOME
+    # And the refusal at "Who's here?" still has somewhere to go when nobody
+    # on the machine may start.
+    assert TRANSITIONS[State.CHOOSING][Event.GOODNIGHT] is State.SLEEPING
+
+
+def test_who_s_here_is_still_reachable_from_sleeping_and_nothing_is_stranded() -> None:
+    """The property the ADR must not break: no new dead ends anywhere."""
+    for state in State:
+        assert successors(state), state
+    assert State.CHOOSING in successors(State.SLEEPING)

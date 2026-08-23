@@ -194,7 +194,11 @@ on schema errors so CI can run it.)
   the same factor, clamped to 80–128 px.
 - **Sleeping ends** at the start of the next allowed schedule window (or a
   new day if no windows) or on a Grown-up unlock. Daily budget resets at
-  04:00 local.
+  04:00 local. *Amended by ADR-0014 (2026-08-23): the rule is **per child**.
+  A child whose sitting has ended is **rested** until the window/day rolls
+  and their face on Who's here says so; the machine-wide Resting/Goodnight
+  screen is only for "nobody can start", and it wakes to Who's here as soon
+  as any child may start.*
 - **"I'm finished" (D5):** add a **Home tile** (last position, moon/bed icon,
   label "All done", spoken "All done for today?") that runs the same ending
   ritual from S6 onward — not a band slot. One tap, no confirmation; Back on

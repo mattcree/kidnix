@@ -253,10 +253,16 @@ def test_the_reserved_highlight_never_travels_without_an_edge() -> None:
 def test_the_highlight_is_still_the_only_reserved_colour() -> None:
     """One colour, a handful of uses, all of them "the thing you can touch now".
 
-    ``.band button.offer.kid-new`` is the newest, and it is the most literal:
-    three seconds of ring on the two ending choices as they arrive in the band,
-    which is the one moment in the product that is exactly what the reserved
-    colour is reserved for (08 section 3.4, forum #55).
+    ``.band button.offer.kid-new`` is the most literal: three seconds of ring
+    on the two ending choices as they arrive in the band, which is the one
+    moment in the product that is exactly what the reserved colour is reserved
+    for (08 section 3.4, forum #55).
+
+    ``button.tile.all-done.kid-new`` is the newest, and it is the same claim
+    made about a control that is *already* there: Back on Home now says "To
+    finish, press All done" and rings that tile for two seconds (ADR-0014).
+    A pre-reader cannot read the sentence, so the ring is not decoration --
+    it is the sentence.
     """
     body = css()
     users = re.findall(r"([^{}]*)\{[^{}]*@kid-highlight[^{}]*\}", body)
@@ -283,6 +289,10 @@ def test_the_highlight_is_still_the_only_reserved_colour() -> None:
         ".tile.kid-focus",
         ".hold-progress progress",
         ".band button.offer.kid-new",
+        # Back on Home, pointing at the way out (ADR-0014). Same shape as the
+        # band's arriving offer: the ring travels with the tile's own border
+        # going to full ink, so the yellow is never the only boundary.
+        "button.tile.all-done.kid-new",
     }
 
 

@@ -6,6 +6,21 @@ deliberately plain Grown-up tile in the bottom-right corner.
 v0.1 ships one profile. The screen is written for N because the data model is
 (spec section 1.7) and because "colour = whose it is" is how multi-child
 switching is meant to work later (08 section 4.4).
+
+**A face whose sitting is over is still a face** (ADR-0014). Resting moved
+from the machine to the profile, so this screen is where a household with two
+children meets it: the child who has just pressed "All done" gets their own
+face back, dimmed, with the reason attached to it, while their sibling's is
+untouched. It is dimmed and not removed, not greyed out and not disabled --
+
+* **removed** would be the worst of the three: a five-year-old navigates by
+  position, and a face that is not there is a machine that has forgotten them;
+* it keeps its size (>= 30 mm), its focus ring and its voice, and hover says
+  the name **and** the reason, so the answer is available before the press;
+* the press is answered out loud and **stays here**. No state change, no
+  Resting screen: the machine is not resting, this child is, and the machine
+  saying otherwise in front of a sibling who may still start would be a lie
+  the sibling can disprove by pressing their own face.
 """
 
 from __future__ import annotations
@@ -53,11 +68,11 @@ class WhosHereScreen(Screen):
         title.set_margin_bottom(metrics.gap)
         self.append(title)
 
-        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap * 2)
-        row.set_halign(Gtk.Align.CENTER)
-        for profile in self.ctx.config.profiles:
-            row.append(self._avatar(profile))
-        self.append(row)
+        self._row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap * 2)
+        self._row.set_halign(Gtk.Align.CENTER)
+        self._faces: list[Gtk.Widget] = []
+        self._fill_faces()
+        self.append(self._row)
 
         # The grown-up tile is plain on purpose: it must not look like a
         # tempting choice next to a child's own face -- and it is **not
@@ -79,9 +94,46 @@ class WhosHereScreen(Screen):
         corner.append(grownup)
         self.append(corner)
 
+    def _fill_faces(self) -> None:
+        """Draw the row of faces for *now* (ADR-0014).
+
+        Whether a face is resting is a fact about this minute, not about when
+        the screen was constructed -- and this screen is constructed once and
+        then arrived at again and again, including the arrival straight after
+        a sibling's Goodbye, which is the whole case the ADR exists for. So the
+        row is rebuilt on every :meth:`on_enter`.
+
+        The old buttons are unregistered on the way out: the read-aloud ring
+        is put on a widget looked up by key, and a registry pointing at a
+        button that is no longer in the tree is a ring nobody sees.
+        """
+        for face in self._faces:
+            key = getattr(face, "key", "")
+            if key:
+                self.ctx.speech_ui.unregister(key)
+            self._row.remove(face)
+        self._faces = [self._avatar(profile) for profile in self.ctx.config.profiles]
+        for face in self._faces:
+            self._row.append(face)
+
+    def on_enter(self) -> None:
+        self._fill_faces()
+        super().on_enter()
+
+    def _resting_line(self, profile: Profile) -> str:
+        """Why this child cannot start, in the Resting screen's own words, or ``""``.
+
+        Asked of the host rather than computed here, because the answer needs
+        *that child's* usage file and a screen may not go reading other
+        people's state. ``or ""`` because a stand-in host in a test answers
+        every question with ``None``.
+        """
+        return self.ctx.host.profile_resting_line(profile) or ""
+
     def _avatar(self, profile: Profile) -> Gtk.Widget:
         metrics = self.ctx.metrics
         size = metrics.avatar_size
+        resting = self._resting_line(profile)
 
         # **A child's own name is the last thing in this shell that may be cut**
         # (SYNTHESIS B4), and on a panel whose chrome has been spent the face
@@ -97,10 +149,18 @@ class WhosHereScreen(Screen):
         width = max(size, longest + TILE_CHROME_X_PX)
 
         button = ChildButton(
-            speak_text=profile.speak_text,
+            # Hover and focus: the name, and then -- for a rested face -- why
+            # (ADR-0014). One utterance rather than two, so a child who moves
+            # on mid-sentence has still heard whose face it is.
+            speak_text=f"{profile.speak_text}. {resting}" if resting else profile.speak_text,
+            # The press is the shell's to answer: it goes through the same rate
+            # limiter as the Resting screen, so a child hammering a dimmed face
+            # is answered once and then left alone. See ``app.ShellWindow.
+            # _refuse``.
+            activate_text="" if resting else None,
             on_activate=partial(self.ctx.host.choose_profile, profile),
             speech_ui=self.ctx.speech_ui,
-            css_classes=("tile",),
+            css_classes=("tile", "resting-face") if resting else ("tile",),
             width=width,
             height=size,
             key=next_key(f"profile-{profile.id}"),

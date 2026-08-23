@@ -576,3 +576,46 @@ button.tile.all-done {
 button.tile.all-done:hover {
   background-color: #f2f0fb;
 }
+
+/* Two seconds of "this one, now", when Back on Home has just said "To finish,
+ * press All done." (ADR-0014). The same shape as the band's arrival highlight
+ * above -- the one reserved colour, plus the control's own border going to
+ * full ink so the yellow is never the only boundary it has. Nothing here
+ * moves the tile: it is drawn around where the child already knows it is
+ * (spec 21.7). */
+button.tile.all-done.kid-new {
+  outline: 6px solid @kid-highlight;
+  outline-offset: -3px;
+  border-color: @kid-ink;
+}
+
+/* --- a face whose sitting is over (ADR-0014) ---------------------------- */
+
+/* Resting is per child now, so Who's here has to show one child resting while
+ * their sibling is not. This is a **dim**, not a grey-out and not a disable:
+ * the tile keeps its size, its focus ring, its voice and its press, and it
+ * says why out loud. The rule this file opens with -- "never grey-out to
+ * disable" -- is about controls that stop answering, and this one answers.
+ *
+ * The class is `resting-face` and not `resting` on purpose: `.resting` is the
+ * whole *surface* above (the dim warm screen), and a bare class selector would
+ * have painted this tile the Resting screen's own colour.
+ *
+ * The border still carries it for anyone who cannot see the fill: dashed and
+ * @kid-edge-strong, the same 5.99:1 edge the outline-only treatment takes. */
+button.tile.resting-face {
+  background-color: @kid-paper-dim;
+  border-color: @kid-edge-strong;
+  border-style: dashed;
+  border-bottom-width: 2px;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+/* Hover and focus bring it back up: a child who has found the face has to be
+ * able to see whose it is while they are on it. */
+button.tile.resting-face:hover,
+button.tile.resting-face:focus-visible {
+  opacity: 1;
+  background-color: @kid-paper;
+}

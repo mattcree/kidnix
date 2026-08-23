@@ -356,6 +356,7 @@ class ChildButton(Gtk.Button):
         self,
         *,
         speak_text: str,
+        activate_text: str | None = None,
         on_activate: Callable[[], None] | None = None,
         speech_ui: SpeechUI | None = None,
         css_classes: tuple[str, ...] = (),
@@ -368,6 +369,19 @@ class ChildButton(Gtk.Button):
     ) -> None:
         super().__init__()
         self.speak_text = speak_text
+        #: What a *press* says, when that is not what hover and focus say
+        #: (ADR-0014). ``None`` -- every control in the shell but one -- means
+        #: "the same thing", which is the rule: a button whose press announces
+        #: something other than its own label is a button that surprises.
+        #:
+        #: The one exception is a **rested face** on Who's here, whose hover
+        #: has to carry the name *and* the reason ("Alfie. kidnix is resting.
+        #: Back tomorrow.") while the press has to be answered by the shell,
+        #: through the rate limiter that keeps a child hammering a face from
+        #: being told the same sentence eight times in eight seconds. Two
+        #: mouths on one press is a sentence cut off mid-word, so this one
+        #: takes ``""`` and stays shut.
+        self._activate_text = activate_text
         self._on_activate = on_activate
         self._speech_ui = speech_ui
         self._debounce = debounce_ms / 1000.0
@@ -432,9 +446,14 @@ class ChildButton(Gtk.Button):
             return
         self._last_fire = now
         if self._speech_ui is not None:
-            self._speech_ui.speech.speak_activation(self.speak_text, self.key)
+            self._speech_ui.speech.speak_activation(self.activate_text, self.key)
         if self._on_activate is not None:
             self._on_activate()
+
+    @property
+    def activate_text(self) -> str:
+        """What a press says. :attr:`speak_text` unless one was given."""
+        return self.speak_text if self._activate_text is None else self._activate_text
 
     def set_on_activate(self, callback: Callable[[], None] | None) -> None:
         self._on_activate = callback

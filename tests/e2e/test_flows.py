@@ -16,6 +16,7 @@ A19     daytime words: Resting, warm and dim, with no moon and no yawn
 A20     "All done" -- the child ends it, in one press, with no confirmation
 A21     the session refused **at Who's here**, before a plan is collected
 A22     an activity that fails to open: a friendly line, and back to Home
+A24     two children, and one of them finishing: resting is per child
 A25     a whole session on Tab, Enter and Escape -- no pointer at all
 A26     the caption strip, in pixels, while the shell is speaking
 A28     the hard stop: the kill, the WARNING, and Goodbye claiming nothing
@@ -126,6 +127,28 @@ category = "make"
 #: it is a real image with a real mime type, which is all `import_file` asks.
 TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 
+PARENT_TOML = "/etc/kidnix/parent.toml"
+PARENT_BACKUP = "/etc/kidnix/parent.toml.e2e-bak"
+
+#: A second child, **appended** to the machine's own parent.toml. TOML lets an
+#: array of tables be continued anywhere in the file, so this adds a sibling
+#: without touching the PIN, the "What's next after?" options or any access
+#: setting -- all of which stay the ones the image ships. A different colour
+#: pair and a different badge, because colour is never the sole carrier of
+#: identity (accessibility review M2).
+SECOND_CHILD = """
+[[profiles]]
+id = "e2e-sibling"
+name = "Sam"
+colour_primary = "#8a4f0f"
+colour_secondary = "#62b0f0"
+avatar = "face-smile"
+badge = "leaf"
+age_band = "4-5"
+skip_next_choice = false
+allowed_activity_ids = []
+"""
+
 #: How much of the caption strip has to be ink before we believe there is a
 #: sentence in it. A 20 pt line across a 1268 px strip is a couple of percent
 #: of the sampled pixels; blank paper is zero, because @kid-paper is #fbf7ef
@@ -220,6 +243,39 @@ def restart(story, policy: str) -> str:
     story.band_height = band_height_from(laid_out[-1])
     print(f"  band window {story.band_height} px -- {laid_out[-1]}")
     return cursor
+
+
+def two_faces(image):
+    """The two avatars on a two-child "Who's here?", left one first.
+
+    The row is ``halign: CENTER`` with two children in it, so it is symmetric
+    about the middle of the panel and each face is wholly on its own side of
+    it. Splitting ``AVATAR_BOX`` down the middle and asking for the dark blob
+    in each half is therefore the same trick ``press_the_face`` uses, done
+    twice -- no pixel positions, and nothing that a re-layout invalidates.
+
+    Returns ``(first, second)``, each a ``dark_centroid`` tuple, or ``None``
+    while there is only one face painted (which is what the wait is for).
+    """
+    left, top, right, bottom = AVATAR_BOX
+    middle = (left + right) // 2
+    first = dark_centroid(image, (left, top, middle - 4, bottom))
+    second = dark_centroid(image, (middle + 4, top, right, bottom))
+    if first is None or second is None:
+        return None
+    return (first, second)
+
+
+def face_ink(image, blob) -> float:
+    """How much ink is in one face's own bounding box, with a little margin.
+
+    ``blob`` is a ``dark_centroid`` tuple taken from a reference frame, so the
+    same box can be measured in a later one -- which is how "this face got
+    dimmer and that one did not" is asserted without trusting either face to
+    be the same size as the other.
+    """
+    left, top, right, bottom = blob[3]
+    return dark_fraction(image, (left - 10, top - 10, right + 10, bottom + 10))
 
 
 def press_the_face(story, timeout: float = 60.0) -> tuple:
@@ -1007,6 +1063,148 @@ def test_a28_the_hard_stop_tells_the_truth(flows):
     claims = [line for line in said if line.startswith("You ")]
     assert not claims, f"Goodbye claimed something was kept: {claims}"
     print(f"  PASS A28: killed once, {LOST_LINE!r} spoken, Goodbye claimed nothing")
+
+
+# --------------------------------------------------------------------------- #
+# A24 (+ A19, A20) -- two children, and one of them finishing
+# --------------------------------------------------------------------------- #
+
+
+def test_a24_a_siblings_afternoon_survives_the_other_ones_ending(flows):
+    """A24. ADR-0014, on the shipped image: resting is per child.
+
+    Matt's first hands-on session found it from the other side -- "once you
+    pick me on the front page, it doesn't seem like you can actually get back
+    out" -- and the defect underneath was that the *machine* rested. Child A
+    pressed "All done" at ten past four, the screen went to Resting until the
+    next window or tomorrow, and child B could not start without a grown-up at
+    the gate. P1 #10 ("instant switching, both of us") claimed otherwise.
+
+    Four facts, and every one of them is a thing a five-year-old can check:
+
+    1. A finishes the ritual and **"Who's here?" comes back** -- not Resting.
+       The shell must not even flash the Resting screen past them, so the
+       assertion is on the log: ``sleeping -> choosing (wake)`` follows
+       ``goodbye -> sleeping`` with no tick in between.
+    2. **A's face is dimmed and B's is not**, measured in pixels rather than
+       believed: each face is compared with *itself* before the sitting, so
+       A's box loses ink and B's does not.
+    3. **Pressing A's face says why and stays put.** The resting line, the same
+       one the Resting screen would have used, and no state change at all --
+       no ``next_choice``, no ``sleeping``.
+    4. **B's face still starts B's sitting**, which is the sentence P1 #10 has
+       been making all along.
+
+    The second child is appended to the machine's own ``parent.toml`` rather
+    than replacing it, so the PIN, the "What's next after?" options and every
+    access setting are the ones the image ships. It is put back afterwards.
+    """
+    story = flows
+    vm = story.vm
+    vm.ssh(f"cp -a {PARENT_TOML} {PARENT_BACKUP}")
+    try:
+        vm.ssh(f"cat >>{PARENT_TOML} <<'KIDNIX_E2E_EOF'\n{SECOND_CHILD}\nKIDNIX_E2E_EOF")
+        cursor = restart(story, session_policy(length=25, budget=600))
+
+        story.wait_until(two_faces, timeout=60, what="Who's here? with two faces on it")
+        start = story.shot("a24-two-faces", "A24 two children, both able to start")
+        both = two_faces(start)
+        assert both is not None, "the two faces were there and then were not"
+        first, second = both
+        print(f"  faces at {first[:2]} and {second[:2]}")
+
+        # --- the first child has a whole sitting, and ends it ---------------
+        vm.click(first[0], first[1])
+        story.expect_log("state choosing -> next_choice (choose_profile)", since=cursor)
+        choose_next_after(story, cursor)
+
+        home = story.shot("a24-home", "A24 the first child's Home")
+        lavender = colour_centroid(
+            home, (0, story.band_height + 8, SCREEN_WIDTH, SCREEN_HEIGHT), is_all_done_lavender
+        )
+        assert lavender is not None, "no lavender 'All done' tile on Home"
+        vm.click(lavender[0], lavender[1])
+        story.expect_log("state home -> put_away (im_finished)", since=cursor, timeout=30)
+        story.expect_log("state put_away -> goodbye (goodbye_due)", since=cursor, timeout=60)
+
+        # Reaching Goodbye is what rests *that child* (ADR-0014).
+        rested = story.expect_log("resting until the day rolls", since=cursor, timeout=30)
+        assert "child" in rested, rested
+
+        time.sleep(2)
+        goodbye = story.shot("a24-goodbye", "A24 Goodbye, for one of the two")
+        buttons = [box for row in find_grid(goodbye) for box in row]
+        assert buttons, "Goodbye has no buttons"
+        vm.click(*centre(buttons[-1]))  # the ending, not "Show a grown-up"
+
+        # --- 1. Who's here comes back, and Resting is never shown -----------
+        story.expect_log("state goodbye -> sleeping (goodnight)", since=cursor, timeout=30)
+        story.expect_log("state sleeping -> choosing (wake)", since=cursor, timeout=15)
+        log = story.journal(cursor)
+        assert "somebody here may start a session again" in log, (
+            "the shell woke, but not for the reason ADR-0014 gives"
+        )
+        said = spoken(log)
+        assert not any(line.startswith(RESTING_PREFIX) for line in said), (
+            "the Resting screen spoke its line on a machine where a sibling "
+            f"could still start: {said[-6:]}"
+        )
+        assert SLEEPING_LINE not in said, f"night vocabulary at four in the afternoon: {said[-6:]}"
+
+        # --- 2. one face is dimmed, and it is the right one -----------------
+        #
+        # Each face is compared with **itself** before the sitting rather than
+        # with its neighbour: the two tiles are not the same width (a name is
+        # never abbreviated, so the tile grows to fit it), which makes an ink
+        # *fraction* comparison between them a comparison of name lengths.
+        time.sleep(2.5)
+        image = story.shot("a24-one-resting", "A24 one face resting, one ready")
+        was_rested, was_live = face_ink(start, first), face_ink(start, second)
+        now_rested, now_live = face_ink(image, first), face_ink(image, second)
+        assert now_rested < was_rested * 0.85, (
+            f"the face whose sitting is over has {now_rested:.2%} ink where it "
+            f"had {was_rested:.2%}: it is not being drawn any differently, so a "
+            "child cannot see whose turn is over"
+        )
+        assert now_live > was_live * 0.85, (
+            f"the sibling's face went from {was_live:.2%} ink to {now_live:.2%} "
+            "as well -- the dim is landing on the whole screen rather than on "
+            "the one child who has finished"
+        )
+        print(
+            f"  rested face {was_rested:.2%} -> {now_rested:.2%} ink; "
+            f"sibling {was_live:.2%} -> {now_live:.2%}"
+        )
+
+        # --- 3. pressing the rested face says why, and stays put ------------
+        tap = vm.journal_cursor()
+        vm.click(first[0], first[1])
+        time.sleep(3)
+        after = story.journal(tap)
+        heard = spoken(after)
+        assert any(line.startswith(RESTING_PREFIX) for line in heard), (
+            f"pressing a resting face said nothing about resting; heard {heard}"
+        )
+        assert "-> next_choice" not in after, "a rested child started a second sitting"
+        assert "-> sleeping" not in after, (
+            "pressing one child's face sent the whole machine to Resting, which "
+            "is the defect ADR-0014 exists to fix"
+        )
+        story.shot("a24-refused", "A24 the rested face, answered where it was pressed")
+
+        # --- 4. ...and the sibling can still start --------------------------
+        vm.click(second[0], second[1])
+        story.expect_log("state choosing -> next_choice (choose_profile)", since=tap, timeout=30)
+        started = story.expect_log("session started for", since=tap, timeout=15)
+        print(f"  the sibling started anyway: {started}")
+        story.shot("a24-sibling-started", "A24 the second child's own sitting")
+        print(
+            "  PASS A24: one child's ending is one child's ending -- "
+            "Who's here returned, the face said why, the sibling started"
+        )
+    finally:
+        vm.ssh(f"mv {PARENT_BACKUP} {PARENT_TOML}", check=False)
+        restart(story, session_policy())
 
 
 # --------------------------------------------------------------------------- #

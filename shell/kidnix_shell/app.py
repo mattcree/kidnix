@@ -69,7 +69,7 @@ from .metrics import Metrics, ScreenOverride, detect_metrics, pin_font_dpi  # no
 from .next_after import NextAfter  # noqa: E402
 from .prerendered import select_prerendered  # noqa: E402
 from .research import BurstDetector, ResearchConfig  # noqa: E402
-from .resting import refusal_line  # noqa: E402
+from .resting import TapSpeechLimiter, refusal_line  # noqa: E402
 from .ritual import (  # noqa: E402
     OFFER_QUESTION,
     OfferAnswer,
@@ -95,7 +95,8 @@ from .session import (  # noqa: E402
     Session,
     SessionPolicy,
     StartRefusal,
-    budget_day,
+    next_allowed_for,
+    refusal_for,
     time_left_words,
 )
 from .settings import (  # noqa: E402
@@ -138,7 +139,14 @@ ASKING_IF_DONE = N_("{name} is asking if you're done.")
 #: When the manifest's name has been lost. "It" is the subject of the sentence
 #: above, so it is marked separately -- a language that inflects it needs to.
 SOMETHING = N_("It")
-ALREADY_HOME = N_("You're home.")
+#: **Back, on Home** (ADR-0014). It used to be "You're home." -- true, and an
+#: answer that names no action, which for a pre-reader who wants out is a dead
+#: end. Constitution #4: nothing essential is text-only and nothing essential
+#: is a statement of fact with no verb in it. The sentence names the one
+#: control that ends a sitting, and :meth:`HomeScreen.spotlight_all_done` puts
+#: the reserved highlight on it for two seconds so a child who cannot read the
+#: sentence is still shown the answer.
+TO_FINISH = N_("To finish, press All done.")
 NOTHING_TO_UNDO = N_("Nothing to undo.")
 NOTHING_SAID_YET = N_("I haven't said anything yet.")
 ASK_COMING_SOON = N_("Asking a grown-up is coming soon.")
@@ -425,7 +433,15 @@ class ShellWindow(Adw.ApplicationWindow):
         self._band_handle: int | None = None
         self._nag_handle: int | None = None
         self._content_deadline = 0.0
+        #: When the machine last went to Sleeping. Kept for the log and for
+        #: anything that wants to know how long it has been dark; **not** what
+        #: decides the wake-up any more (ADR-0014 moved that to the profiles).
         self._slept_at: datetime | None = None
+        #: The hammering rule for a refusal answered *at Who's here* -- a
+        #: dimmed face pressed over and over (ADR-0014, and forum #23, which
+        #: is where the numbers come from). The Resting screen owns one of its
+        #: own for its own surface; this is the one for the faces.
+        self._refusal_taps = TapSpeechLimiter()
         self._back_locked_until = 0.0
         self._ticks = 0
         self._last_phase: Phase | None = None
@@ -1240,16 +1256,35 @@ class ShellWindow(Adw.ApplicationWindow):
         # is a modal over wherever the child was and puts them back.
         if current not in (State.SHELF, State.IN_ACTIVITY, State.GROWNUP):
             self._shelf = None
-        if current is State.SLEEPING:
-            self._slept_at = datetime.now()
-        elif previous is State.SLEEPING:
-            self._slept_at = None
+        if current is State.CHOOSING:
+            # A fresh arrival at Who's here answers the first press out loud,
+            # and then the hammering rule applies (:meth:`_refuse`).
+            self._refusal_taps.reset()
         if current is State.GOODBYE and previous is not State.SHOWING:
             # Reaching Goodbye is what "a completed session" means, and it is
             # the only clock progressive disclosure runs on (spec 7b). Not a
             # streak: nothing shows it to the child and nothing resets it.
             total = self.kid_state.complete_session()
             log.info("session %d completed; Home may have grown", total)
+            # ...and it is what "**this child** is resting" means (ADR-0014).
+            # Here rather than in `goodnight`, because Goodbye is where every
+            # ending arrives -- the child's own "All done", the clock running
+            # out, the hard stop, the grown-up's "End session now" -- and a
+            # sitting that ended is over whether or not anybody pressed the
+            # button on the last screen of it.
+            self.session.usage.rest(datetime.now())
+            log.info("%s has had their sitting; resting until the day rolls", self.ctx.profile.id)
+        if current is State.SLEEPING:
+            self._slept_at = datetime.now()
+            # **Immediately, not on the next tick** (ADR-0014). If a sibling
+            # may still start, the machine is not resting: Who's here comes
+            # back before this screen is ever shown, so nobody sees the
+            # Resting screen flash past and hears half of its line. The nested
+            # state change has already drawn Who's here, so this one is done.
+            if self._maybe_wake(self._slept_at):
+                return
+        elif previous is State.SLEEPING:
+            self._slept_at = None
         self._show_state()
         # The letter, at the first Home of the sitting and nowhere else: after
         # `_show_state`, so Home has already said what it says and the child
@@ -1377,30 +1412,41 @@ class ShellWindow(Adw.ApplicationWindow):
         if phase is Phase.ENDING_OFFER:
             self.earcons.play(PHASE)
 
-    def _maybe_wake(self, now: datetime) -> None:
-        """Spec 7a: Sleeping ends at the next allowed window, a new day, or the gate.
+    def _maybe_wake(self, now: datetime) -> bool:
+        """Spec 7a, as amended by ADR-0014: **Sleeping ends when anybody may start.**
 
-        Deliberately *not* "as soon as there is budget left": Goodnight means
+        The rule it replaces asked the same question about the machine: the
+        screen rested until the next window or the next day, and it asked that
+        of ``_slept_at``, which is a fact about the *screen*. It is still
+        deliberately not "as soon as there is budget left" -- Goodnight means
         the sitting is over, and re-waking thirty seconds later would teach a
-        child that the ending is negotiable. The shell wakes on its own when
-        the budget day has rolled (04:00, :func:`session.budget_day`) or when
-        the bedtime window that put it to sleep has ended. Anything sooner is
-        the grown-up's decision, from the gate.
+        child that the ending is negotiable -- but the thing the sitting is
+        over *for* is a child, not a computer, and the conditions moved to the
+        profile with it (:meth:`SessionPolicy.still_resting`).
+
+        So on a one-child machine this is exactly the old behaviour, stated
+        differently: the one profile is rested, nobody may start, the screen
+        stays dark until 04:00 or the window. On a two-child machine the
+        sibling who has not had a turn wakes it, which is what P1 #10
+        ("instant switching, both of us") has been claiming all along.
+
+        Anything sooner for a *rested* child is still the grown-up's decision,
+        from the gate (:meth:`start_session`).
+
+        Returns whether it woke, so the state change that enters Sleeping can
+        tell "we are staying here" from "we never really arrived".
         """
-        if self.machine.state is not State.SLEEPING or self._slept_at is None:
-            return
-        if self.session.may_start(now) is not StartRefusal.OK:
-            return
-        new_day = budget_day(now) != budget_day(self._slept_at)
-        window_over = self.session.policy.is_bedtime(self._slept_at)
-        # The schedule window's counterpart to ``window_over`` (parent-panel
-        # section 7.1): the shell said "back after tea", tea has happened, and
-        # a screen that stays dark through the window it named is a screen
-        # that lied. ``may_start`` above has already agreed that it is open.
-        window_open = not self.session.policy.in_window(self._slept_at)
-        if new_day or window_over or window_open:
-            log.info("waking: the session is allowed again")
-            self.machine.try_fire(Event.WAKE)
+        if self.machine.state is not State.SLEEPING:
+            return False
+        if not self.anyone_may_start(now):
+            return False
+        log.info("waking: somebody here may start a session again")
+        # A refusal's sentence is consumed by the Resting screen's arrival. If
+        # we are waking instead of arriving there, nobody is going to say it,
+        # and a line left in the slot would be spoken at some later Sleeping
+        # about a refusal that happened hours ago.
+        self.ctx.rest_reason = ""
+        return self.machine.try_fire(Event.WAKE)
 
     def _advance_ritual(self, phase: Phase) -> None:
         """One tick of the ending ritual. The policy is in :mod:`ritual`."""
@@ -1630,16 +1676,22 @@ class ShellWindow(Adw.ApplicationWindow):
         # quietly starting a clock behind a screen that is not asking.
         if not self.machine.can(Event.CHOOSE_PROFILE):
             return
+        now = datetime.now()
+        # **Asked before anything is swapped** (ADR-0014). A face that cannot
+        # start may be pressed and the child stays on Who's here, so making
+        # this profile the live one first would move the Journal, the budget,
+        # the progress counter and the band's colour to a child who is not
+        # having a turn. `refusal_for` reads that child's own usage file and
+        # writes nothing.
+        refusal = self._refusal_for(profile, now)
+        if refusal is not StartRefusal.OK:
+            self._refuse(refusal, now, profile=profile)
+            return
         # Whose journal, whose budget, whose grid -- before the clock starts,
-        # because `may_start` reads this child's usage and not the machine's.
+        # because `start` reads this child's usage and not the machine's.
         self._use_profile(profile)
         self._apply_tint(profile)
         self._import_letters()
-        now = datetime.now()
-        refusal = self.session.may_start(now)
-        if refusal is not StartRefusal.OK:
-            self._refuse(refusal, now)
-            return
         self.session.start(now)
         # A new sitting: last time's answer to "what's next after?" is not this
         # time's, and Goodbye must not show a picture nobody chose today. Nor
@@ -1696,7 +1748,72 @@ class ShellWindow(Adw.ApplicationWindow):
         self.earcons.play(TAP, speaking=True)
         self.machine.try_fire(Event.CHOOSE_NEXT_AFTER)
 
-    def _refuse(self, refusal: StartRefusal, now: datetime | None = None) -> None:
+    # -- may *that* child start? (ADR-0014) ---------------------------
+
+    def _usage_for(self, profile: Profile, now: datetime) -> DailyUsage:
+        """One child's day, without making them the child at the machine.
+
+        The live profile's usage is handed back as it is -- it is the same
+        object ``Session`` is spending and the only copy that is up to date
+        mid-sitting. Anybody else's is read from their own ``usage_state``
+        file, which is current because :meth:`Session.end` saves it.
+        """
+        paths = self.paths.for_profile(profile.id)
+        if paths == self.profile_paths:
+            return self.session.usage
+        return DailyUsage.for_now(paths.usage_state, now)
+
+    def _refusal_for(self, profile: Profile, now: datetime) -> StartRefusal:
+        """Why ``profile`` may not start, or OK. Swaps nothing, writes nothing."""
+        return refusal_for(self.session.policy, self._usage_for(profile, now), now)
+
+    def _refusal_words(self, refusal: StartRefusal, profile: Profile, now: datetime) -> str:
+        """The sentence for one child's refusal, in the Resting screen's words.
+
+        ``next_allowed_for`` is asked with *that child's* usage, so the "when"
+        in the sentence is theirs: a spent budget and a finished sitting do not
+        come back at the same moment as a schedule window does.
+        """
+        return refusal_line(
+            bedtime=refusal is StartRefusal.BEDTIME,
+            out_of_hours=refusal is StartRefusal.OUT_OF_HOURS,
+            rested=refusal is StartRefusal.RESTED,
+            now=now,
+            next_open=next_allowed_for(self.session.policy, self._usage_for(profile, now), now),
+        )
+
+    def anyone_may_start(self, now: datetime | None = None) -> bool:
+        """Is there a child on this machine who could start a sitting now?
+
+        The question the machine-wide Resting screen is the answer to, and the
+        one ``_maybe_wake`` asks on every tick. **False is what "kidnix is
+        resting" means**: one child having finished is not the machine
+        finishing, and on a one-child machine the two are the same sentence,
+        which is why ADR-0014 costs that household nothing.
+        """
+        when = now or datetime.now()
+        return any(
+            self._refusal_for(profile, when) is StartRefusal.OK
+            for profile in self.ctx.config.profiles
+        )
+
+    def profile_resting_line(self, profile: Profile) -> str:
+        """What Who's here draws and says for one face, or ``""`` for a live one.
+
+        The screen's whole view of ADR-0014: a non-empty answer is "dim this
+        face and say this when it is hovered". Only :attr:`StartRefusal.RESTED`
+        produces one -- the other three refusals are the *machine's* and end at
+        the Resting screen, where they already have a screen of their own.
+        """
+        now = datetime.now()
+        refusal = self._refusal_for(profile, now)
+        if refusal is not StartRefusal.RESTED:
+            return ""
+        return self._refusal_words(refusal, profile, now)
+
+    def _refuse(
+        self, refusal: StartRefusal, now: datetime | None = None, profile: Profile | None = None
+    ) -> None:
         """No silent denials, and no adult error messages (SYNTHESIS C3).
 
         Two things about this changed on 2026-08-23. It no longer says "See you
@@ -1715,14 +1832,35 @@ class ShellWindow(Adw.ApplicationWindow):
         the same words the Resting screen behind it is about to use -- the
         child is told the same thing twice rather than two different things
         once. ``next_allowed`` is what computes it, so the two cannot drift.
+
+        **The Resting screen is for "nobody can start"** (ADR-0014). When
+        somebody else on this machine still has a turn in them the refusal is
+        answered where it was asked: the line is spoken, the child stays on
+        Who's here, and the face they pressed is already dimmed with the reason
+        on it. Sending them to a screen that says the machine is resting, while
+        their sibling's face sits behind it ready to be pressed, would be a
+        sentence the sibling can disprove in one press.
+
+        That spoken answer goes through :class:`~kidnix_shell.resting.
+        TapSpeechLimiter` -- the same rule, and the same numbers, as the
+        Resting screen's own surface. A child pressing a dimmed face over and
+        over is the population that rule was written for (forum #23): at most
+        one answer every eight seconds, nothing is ever cut off mid-word, and
+        after three presses in half a minute the screen stops answering until
+        the pressing stops.
         """
         when = now or datetime.now()
-        line = refusal_line(
-            bedtime=refusal is StartRefusal.BEDTIME,
-            out_of_hours=refusal is StartRefusal.OUT_OF_HOURS,
-            now=when,
-            next_open=self.session.next_allowed(when),
-        )
+        who = profile or self.ctx.profile
+        line = self._refusal_words(refusal, who, when)
+        if self.anyone_may_start(when):
+            log.info(
+                "%s cannot start (%s), but somebody here can: staying at Who's here",
+                who.id,
+                refusal.value,
+            )
+            if self._refusal_taps.should_speak(time.monotonic()):
+                self.speech.speak(line)
+            return
         self.ctx.rest_reason = line
         if not self.machine.try_fire(Event.GOODNIGHT):
             # Nowhere to put the screen (the gate, mid-sheet): say it anyway.
@@ -2065,8 +2203,19 @@ class ShellWindow(Adw.ApplicationWindow):
             self.earcons.play(SLEEP, speaking=True)
 
     def start_session(self, minutes: int | None = None) -> None:
+        """The gate's "Start a session". Starts **any** child, rested or not.
+
+        "Anything sooner is the grown-up's decision" was the rule before
+        ADR-0014 and it still is, so a grown-up starting a sitting for a child
+        whose sitting is over simply ends the rest: the mark is cleared, and
+        the refusal that survives is one of the machine's own -- bedtime, out
+        of hours, a spent budget -- which the sheet answers in words.
+        """
         now = datetime.now()
         self.ctx.work_lost = False
+        if self.session.may_start(now) is StartRefusal.RESTED:
+            log.info("the grown-up is starting %s again; the rest is over", self.ctx.profile.id)
+            self.session.usage.wake()
         length = None if minutes is None else minutes * 60
         if not self.session.start(now, length):
             self._refuse(self.session.may_start(now), now)
@@ -2117,7 +2266,17 @@ class ShellWindow(Adw.ApplicationWindow):
         is what lets ``tests/test_ritual.py`` assert there is no second row.
         """
         if self.machine.state is State.HOME:
-            self.speech.speak(_(ALREADY_HOME))
+            # ADR-0014: Home is the root, so Back cannot go anywhere -- but a
+            # five-year-old who presses it is asking to get *out*, and until
+            # now they were told "You're home." and left holding it. Name the
+            # exit, and point at it: the sentence for a child who can follow
+            # one, two seconds of the reserved highlight on the "All done"
+            # tile for a child who cannot. Nothing moves and nothing changes
+            # state; the tile stays exactly where it has always been.
+            self.speech.speak(_(TO_FINISH))
+            home = self.screens["home"]
+            if isinstance(home, HomeScreen):
+                home.spotlight_all_done()
             return
         if self._put_away_pending:
             # Put away is already asking (spec 7c). Back means the same thing

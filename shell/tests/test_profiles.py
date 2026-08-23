@@ -14,13 +14,13 @@ has never opened a config file.
 from __future__ import annotations
 
 import tomllib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from kidnix_shell.journal import Journal
-from kidnix_shell.session import DailyUsage
+from kidnix_shell.session import DailyUsage, SessionPolicy, StartRefusal, refusal_for
 from kidnix_shell.settings import (
     DEFAULT_PIN,
     PROFILES_DIR,
@@ -289,3 +289,61 @@ def test_a_session_started_now_spends_the_right_childs_budget(paths: Paths) -> N
     bob = DailyUsage.for_now(paths.for_profile("bob").usage_state, now)
     assert bob.remaining(60 * 60) == 60 * 60
     assert ada.remaining(60 * 60) == 30 * 60
+
+
+# --- and so is "your sitting is over" (ADR-0014) --------------------------
+
+
+def test_one_childs_ending_does_not_end_their_siblings_afternoon(paths: Paths) -> None:
+    """The defect the ADR is about, at the level the fix lives at.
+
+    Ada presses "All done" at ten past four. Before ADR-0014 the *machine*
+    rested until the next window or tomorrow, so Bob could not start without a
+    grown-up at the gate. Now the mark is Ada's, in Ada's own usage file, and
+    Bob's is untouched.
+    """
+    now = datetime(2026, 8, 18, 16, 10)
+    policy = SessionPolicy()
+    ada = DailyUsage.for_now(paths.for_profile("ada").usage_state, now)
+    bob = DailyUsage.for_now(paths.for_profile("bob").usage_state, now)
+
+    ada.add(25 * 60)
+    ada.rest(now)
+
+    later = now + timedelta(minutes=1)
+    assert refusal_for(policy, ada, later) is StartRefusal.RESTED
+    assert refusal_for(policy, bob, later) is StartRefusal.OK
+    # Read back off the disk, which is how the shell asks about a child who is
+    # not the live one: nothing of Ada's is in Bob's file.
+    assert DailyUsage.for_now(paths.for_profile("bob").usage_state, later).rested_at is None
+    assert DailyUsage.for_now(paths.for_profile("ada").usage_state, later).rested_at == now
+
+
+def test_the_machine_only_rests_when_every_child_has(paths: Paths) -> None:
+    """What ``app.ShellWindow.anyone_may_start`` is asking, in one line."""
+    now = datetime(2026, 8, 18, 16, 10)
+    policy = SessionPolicy()
+    children = [
+        DailyUsage.for_now(paths.for_profile(name).usage_state, now) for name in ("ada", "bob")
+    ]
+
+    def anyone_may_start() -> bool:
+        return any(refusal_for(policy, usage, now) is StartRefusal.OK for usage in children)
+
+    assert anyone_may_start()
+    children[0].rest(now)
+    assert anyone_may_start()  # Bob still has an afternoon
+    children[1].rest(now)
+    assert not anyone_may_start()  # *now* the machine is resting
+
+
+def test_a_one_child_machine_behaves_exactly_as_it_did(paths: Paths) -> None:
+    """The ADR's own constraint. One profile, one mark, one Resting screen."""
+    now = datetime(2026, 8, 18, 16, 10)
+    policy = SessionPolicy()
+    only = DailyUsage.for_now(paths.for_profile("child").usage_state, now)
+    only.rest(now)
+    assert refusal_for(policy, only, now + timedelta(seconds=30)) is StartRefusal.RESTED
+    tomorrow = datetime(2026, 8, 19, 8, 0)
+    fresh = DailyUsage.for_now(paths.for_profile("child").usage_state, tomorrow)
+    assert refusal_for(policy, fresh, tomorrow) is StartRefusal.OK

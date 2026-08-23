@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kidnix 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
-"POT-Creation-Date: 2026-08-23 17:59+0100\n"
+"POT-Creation-Date: 2026-08-23 21:02+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -68,7 +68,7 @@ msgid "Start. Press stop when you think the time has gone."
 msgstr ""
 
 #: ../activities/clock_time/clock_time/activity.py:154
-#: kidnix_shell/widgets.py:613
+#: kidnix_shell/widgets.py:632
 msgid "Stop"
 msgstr ""
 
@@ -216,7 +216,7 @@ msgid "Lunch"
 msgstr ""
 
 #: ../activities/clock_time/clock_time/routine.py:196
-#: kidnix_shell/screens/home.py:169
+#: kidnix_shell/screens/home.py:192
 msgid "Home"
 msgstr ""
 
@@ -475,7 +475,7 @@ msgid "Ask a grown-up to write it"
 msgstr ""
 
 #: ../activities/letters_to_family/letters_to_family/words.py:120
-#: kidnix_shell/screens/grownup.py:277 kidnix_shell/screens/whos_here.py:30
+#: kidnix_shell/screens/grownup.py:277 kidnix_shell/screens/whos_here.py:45
 msgid "Grown-up"
 msgstr ""
 
@@ -637,13 +637,14 @@ msgstr ""
 msgid "Take it out again."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/__init__.py:70
+#: ../activities/sounds_and_words/sounds_and_words/__init__.py:99
 msgid "Sounds & words"
 msgstr ""
 
 #. TRANSLATORS: two sentences to the grown-up, joined. `{invite}` asks
 #. them to sit down; `{prompt}` is the thing to ask the child.
-#: ../activities/sounds_and_words/sounds_and_words/activity.py:638
+#: ../activities/sounds_and_words/sounds_and_words/activity.py:660
+#: ../activities/sounds_and_words/sounds_and_words/activity.py:669
 #, python-brace-format
 msgid "{invite} {prompt}"
 msgstr ""
@@ -801,40 +802,40 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
-#: kidnix_shell/app.py:131
+#: kidnix_shell/app.py:132
 msgid "That one didn't want to open. Try another."
 msgstr ""
 
-#: kidnix_shell/app.py:132
+#: kidnix_shell/app.py:133
 msgid "That one didn't open. Let's try something else."
 msgstr ""
 
-#: kidnix_shell/app.py:133
+#: kidnix_shell/app.py:134
 msgid "That one isn't here any more."
 msgstr ""
 
-#: kidnix_shell/app.py:137
+#: kidnix_shell/app.py:138
 #, python-brace-format
 msgid "{name} is asking if you're done."
 msgstr ""
 
-#: kidnix_shell/app.py:140
+#: kidnix_shell/app.py:141
 msgid "It"
 msgstr ""
 
-#: kidnix_shell/app.py:141
-msgid "You're home."
+#: kidnix_shell/app.py:149
+msgid "To finish, press All done."
 msgstr ""
 
-#: kidnix_shell/app.py:142
+#: kidnix_shell/app.py:150
 msgid "Nothing to undo."
 msgstr ""
 
-#: kidnix_shell/app.py:143
+#: kidnix_shell/app.py:151
 msgid "I haven't said anything yet."
 msgstr ""
 
-#: kidnix_shell/app.py:144
+#: kidnix_shell/app.py:152
 msgid "Asking a grown-up is coming soon."
 msgstr ""
 
@@ -1095,7 +1096,7 @@ msgstr ""
 msgid "kidnix is sleeping."
 msgstr ""
 
-#: kidnix_shell/resting.py:82 kidnix_shell/screens/home.py:125
+#: kidnix_shell/resting.py:82 kidnix_shell/screens/home.py:148
 msgid "All done"
 msgstr ""
 
@@ -1569,23 +1570,23 @@ msgid ""
 "you can open in Files."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:109 kidnix_shell/widgets.py:602
+#: kidnix_shell/screens/home.py:118 kidnix_shell/widgets.py:621
 msgid "Ask a grown-up for this one."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:110
+#: kidnix_shell/screens/home.py:119
 msgid "This one isn't ready yet. Ask a grown-up."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:115
+#: kidnix_shell/screens/home.py:124
 msgid "Home. What shall we make?"
 msgstr ""
 
-#: kidnix_shell/screens/home.py:132
+#: kidnix_shell/screens/home.py:155
 msgid "All done for today?"
 msgstr ""
 
-#: kidnix_shell/screens/home.py:181
+#: kidnix_shell/screens/home.py:204
 msgid "activities"
 msgstr ""
 
@@ -1650,28 +1651,28 @@ msgstr ""
 msgid "games"
 msgstr ""
 
-#: kidnix_shell/screens/whos_here.py:29 kidnix_shell/screens/whos_here.py:34
-#: kidnix_shell/screens/whos_here.py:35
+#: kidnix_shell/screens/whos_here.py:44 kidnix_shell/screens/whos_here.py:49
+#: kidnix_shell/screens/whos_here.py:50
 msgid "Who's here?"
 msgstr ""
 
-#: kidnix_shell/session.py:818
+#: kidnix_shell/session.py:965
 msgid "Lots of time left."
 msgstr ""
 
-#: kidnix_shell/session.py:821
+#: kidnix_shell/session.py:968
 msgid "About as long as one story."
 msgstr ""
 
-#: kidnix_shell/session.py:823
+#: kidnix_shell/session.py:970
 msgid "A little bit of time left."
 msgstr ""
 
-#: kidnix_shell/session.py:825
+#: kidnix_shell/session.py:972
 msgid "Nearly time to put things away."
 msgstr ""
 
-#: kidnix_shell/session.py:827
+#: kidnix_shell/session.py:974
 msgid "The sun has gone down for today."
 msgstr ""
 
@@ -1735,21 +1736,21 @@ msgstr ""
 msgid "Can you draw what you did today on paper?"
 msgstr ""
 
-#: kidnix_shell/widgets.py:607
+#: kidnix_shell/widgets.py:626
 #, python-brace-format
 msgid "Back a page of {what}"
 msgstr ""
 
-#: kidnix_shell/widgets.py:608
+#: kidnix_shell/widgets.py:627
 #, python-brace-format
 msgid "More {what}"
 msgstr ""
 
-#: kidnix_shell/widgets.py:612
+#: kidnix_shell/widgets.py:631
 msgid "Tell me about it"
 msgstr ""
 
-#: kidnix_shell/widgets.py:617
+#: kidnix_shell/widgets.py:636
 msgid "Again?"
 msgstr ""
 

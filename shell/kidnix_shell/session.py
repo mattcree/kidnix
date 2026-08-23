@@ -45,6 +45,19 @@ class StartRefusal(Enum):
     #: is told it is night time, not that it is Tuesday.
     OUT_OF_HOURS = "out_of_hours"
     BUDGET_SPENT = "budget_spent"
+    #: **This child's sitting is over** (ADR-0014). Set when their session
+    #: reaches its ending, cleared by exactly the conditions that used to wake
+    #: the whole machine: a new budget day, the bedtime window that ended it
+    #: being over, or the schedule window having changed
+    #: (:meth:`SessionPolicy.still_resting`).
+    #:
+    #: **Last of the four**, deliberately. Two of them can hold at once -- a
+    #: child who pressed "All done" on a day whose budget was already gone is
+    #: rested *and* spent -- and "that's all the computer time for today" is
+    #: both truer and more actionable than "resting", which sounds temporary.
+    #: The rest of the order is unchanged, so a machine with one child on it
+    #: says exactly what it said before this refusal existed.
+    RESTED = "rested"
 
 
 # SYNTHESIS section 3: 25 min default, 10-45 range, ~60 min/day ceiling.
@@ -367,6 +380,34 @@ class SessionPolicy:
             return True
         return any(window.covers(when) for window in self.windows)
 
+    def still_resting(self, rested_at: datetime, now: datetime) -> bool:
+        """Is a sitting that ended at ``rested_at`` still over at ``now``? (ADR-0014)
+
+        The rule this asks used to live in ``app.ShellWindow._maybe_wake`` and
+        it was asked about the **machine**: the screen rested until the next
+        window or the next day, so a sibling could not start without a grown-up
+        at the gate. The argument for the rule -- "re-waking thirty seconds
+        later would teach a child that the ending is negotiable" -- is about
+        the *same* child and says nothing about a different one, so the
+        question moved to the profile and the conditions came with it,
+        unchanged:
+
+        * the **budget day has rolled** (04:00, :func:`budget_day`) -- which is
+          what ends an ordinary afternoon's rest;
+        * the **bedtime window that ended it is over**;
+        * the **schedule window has changed** -- the sitting ended outside
+          every ``[[windows]]``, so whatever window is open now is not the one
+          it ended in.
+
+        Pure, and it is the *only* statement of the rule: ``may_start`` and the
+        shell's wake-up both ask it, so the two cannot drift apart.
+        """
+        if budget_day(now) != budget_day(rested_at):
+            return False
+        if self.is_bedtime(rested_at):
+            return False
+        return self.in_window(rested_at)
+
     def next_window_start(self, when: datetime) -> datetime | None:
         """The earliest window opening strictly after ``when``, or ``None``.
 
@@ -495,13 +536,43 @@ def next_budget_reset(now: datetime) -> datetime:
     return today if now < today else today + timedelta(days=1)
 
 
+def _parse_rested_at(raw: Any, path: Path) -> datetime | None:
+    """``rested_at`` out of a usage file. Anything odd is "not rested".
+
+    The failure direction matters: a mark nobody can read must not lock a
+    child out of a machine that worked ten minutes ago, and the cost of
+    getting it wrong the other way is one extra sitting.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):  # TOML's own datetime, if somebody hand-edits one
+        return raw
+    try:
+        return datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        log.warning("usage state %s: rested_at=%r is not a datetime; ignoring", path, raw)
+        return None
+
+
 @dataclass
 class DailyUsage:
-    """Seconds spent today. Kid-owned state; resets at 04:00 (spec 7a)."""
+    """Seconds spent today. Kid-owned state; resets at 04:00 (spec 7a).
+
+    **One of these per child** since profiles landed: it is loaded from
+    ``paths.for_profile(id).usage_state``, so the budget, and now the "this
+    child's sitting is over" mark, belong to whoever is sitting down rather
+    than to the machine (ADR-0014).
+    """
 
     day: date
     seconds: int = 0
     path: Path | None = None
+    #: When this child's sitting ended, or ``None`` if they have not had one
+    #: today (ADR-0014). Persisted beside the seconds because it answers the
+    #: same question the seconds answer -- "may this child start now?" -- and
+    #: because a shell that is restarted mid-afternoon must not hand back a
+    #: sitting the ritual has already ended.
+    rested_at: datetime | None = None
 
     @classmethod
     def for_now(cls, path: Path, now: datetime) -> DailyUsage:
@@ -522,28 +593,135 @@ class DailyUsage:
             return cls(day=today, path=path)
         if stored_day != today:
             return cls(day=today, path=path)
-        return cls(day=stored_day, seconds=max(0, seconds), path=path)
+        return cls(
+            day=stored_day,
+            seconds=max(0, seconds),
+            path=path,
+            rested_at=_parse_rested_at(data.get("rested_at"), path),
+        )
 
     def save(self, path: Path | None = None) -> None:
         target = path or self.path
         if target is None:
             return
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(
-            f'day = "{self.day.isoformat()}"\nseconds = {self.seconds}\n', encoding="utf-8"
-        )
+        lines = [f'day = "{self.day.isoformat()}"', f"seconds = {self.seconds}"]
+        if self.rested_at is not None:
+            # A quoted string rather than TOML's own datetime type: this file
+            # is read with ``tomllib`` and written by hand, and a naive local
+            # datetime round-trips through ISO-8601 without either half having
+            # to have an opinion about time zones.
+            lines.append(f'rested_at = "{self.rested_at.isoformat(timespec="seconds")}"')
+        target.write_text("\n".join(lines) + "\n", encoding="utf-8")
         self.path = target
 
     def roll(self, today: date) -> None:
         if self.day != today:
             self.day = today
             self.seconds = 0
+            # A new budget day is one of the three things that ends a rest
+            # (:meth:`SessionPolicy.still_resting`), so the mark goes with the
+            # seconds rather than being left for the predicate to ignore.
+            self.rested_at = None
+
+    def rest(self, now: datetime) -> None:
+        """This child's sitting is over (ADR-0014). Idempotent within a day.
+
+        The *first* ending of the day is the one remembered: a second call --
+        a grown-up ending an already-ended session from the sheet, a Goodbye
+        re-entered -- must not push the mark forward, because
+        ``still_resting`` measures from it.
+        """
+        if self.rested_at is None:
+            self.rested_at = now
+            self.save()
+
+    def wake(self) -> None:
+        """Forget the rest. What "the grown-up said so" does (ADR-0014)."""
+        if self.rested_at is not None:
+            self.rested_at = None
+            self.save()
 
     def add(self, seconds: int) -> None:
         self.seconds = max(0, self.seconds + seconds)
 
     def remaining(self, budget: int) -> int:
         return max(0, budget - self.seconds)
+
+
+# --- may this child start? (ADR-0014) ------------------------------------
+#
+# Two free functions, because "may *that* child start?" is a question the
+# shell has to answer about a profile that is **not** the live one -- the
+# faces on Who's here, and "is anybody able to start, or is the whole machine
+# resting?". Answering it used to mean swapping the live profile in and out to
+# borrow its ``Session``, which would drag the Journal, the progress counter,
+# the band tint and the language along with it.
+#
+# So the policy plus a ``DailyUsage`` loaded from that child's own
+# ``usage_state`` is all either of these takes, and :class:`Session` is a thin
+# wrapper over them. Nothing here mutates anything.
+
+
+def refusal_for(policy: SessionPolicy, usage: DailyUsage, now: datetime) -> StartRefusal:
+    """Why this child may not start right now, or :attr:`StartRefusal.OK`.
+
+    The order is :class:`StartRefusal`'s own and the reasoning is written
+    there: bedtime, then out of hours, then the spent budget, then rested.
+
+    ``usage`` is read against the 04:00 budget day rather than rolled, because
+    this is asked about children who are not sitting at the machine: a stale
+    file is a fresh day, exactly as :meth:`DailyUsage.roll` would make it, and
+    nobody else's state file is written as a side effect of drawing a face.
+    """
+    today = budget_day(now)
+    stale = usage.day != today
+    spent = 0 if stale else usage.seconds
+    rested_at = None if stale else usage.rested_at
+
+    if policy.is_bedtime(now):
+        return StartRefusal.BEDTIME
+    if not policy.in_window(now):
+        return StartRefusal.OUT_OF_HOURS
+    # The floor, not zero (panel ruling, 2026-08-23). Four minutes left of the
+    # day is not a short session, it is a session that opens into its own
+    # ending -- so the answer is a warm no at the door.
+    if max(0, policy.daily_budget - spent) < policy.min_session:
+        return StartRefusal.BUDGET_SPENT
+    if rested_at is not None and policy.still_resting(rested_at, now):
+        return StartRefusal.RESTED
+    return StartRefusal.OK
+
+
+def next_allowed_for(policy: SessionPolicy, usage: DailyUsage, now: datetime) -> datetime:
+    """The next moment this child could start. Drives the Resting line.
+
+    Four gates now, and the latest of them wins: the bedtime window has to be
+    over, ``now`` has to be inside one of the parent's schedule windows
+    (:meth:`SessionPolicy.next_wake` settles those two between themselves),
+    there has to be a budget again, **and** this child's sitting has to be
+    over with (ADR-0014). A child who is told the computer is resting and
+    cannot tell whether it comes back after tea, tomorrow or on Saturday is
+    the condition D2 exists to stop (forum #31).
+
+    The last two gates stay here rather than in ``next_wake`` because they are
+    the ones about *this child* -- ``policy`` is the machine's and ``usage`` is
+    theirs.
+    """
+    when = policy.next_wake(now)
+    spent = usage.remaining(policy.daily_budget) < policy.min_session
+    resting = usage.rested_at is not None and policy.still_resting(usage.rested_at, now)
+    if spent or resting:
+        when = max(when, next_budget_reset(now))
+        if policy.windows:
+            # 04:00 is outside every schedule a household actually sets, so on
+            # a machine that has one the gates are asked again about the moment
+            # the budget returns. Guarded on ``windows`` so a machine without a
+            # schedule keeps exactly the answer it gave before this key existed
+            # -- "tomorrow, when the budget rolls" -- rather than quietly
+            # gaining the bedtime gate on top.
+            when = policy.next_wake(when)
+    return when
 
 
 # --- the session itself --------------------------------------------------
@@ -577,23 +755,16 @@ class Session:
     # -- lifecycle --
 
     def may_start(self, now: datetime) -> StartRefusal:
-        # Rolls the budget day first: a shell that has been sitting on the
-        # Sleeping screen since last night must see the fresh budget at 04:00
-        # without anyone having restarted it.
+        """This child's own answer. The rule is :func:`refusal_for`.
+
+        Rolls the budget day first: a shell that has been sitting on the
+        Sleeping screen since last night must see the fresh budget at 04:00
+        without anyone having restarted it. That is the only difference from
+        the free function -- which is asked about children who are *not*
+        sitting at the machine and therefore writes nothing.
+        """
         self.usage.roll(budget_day(now))
-        if self.policy.is_bedtime(now):
-            return StartRefusal.BEDTIME
-        # After bedtime and before the budget (parent-panel section 7.1). At 8 pm
-        # on a Tuesday both are true, and "it's night time" is the sentence a
-        # five-year-old can act on; "it isn't your window" is not.
-        if not self.policy.in_window(now):
-            return StartRefusal.OUT_OF_HOURS
-        # The floor, not zero (panel ruling, 2026-08-23). Four minutes left of
-        # the day is not a short session, it is a session that opens into its
-        # own ending -- so the answer is a warm no at the door.
-        if self.usage.remaining(self.policy.daily_budget) < self.policy.min_session:
-            return StartRefusal.BUDGET_SPENT
-        return StartRefusal.OK
+        return refusal_for(self.policy, self.usage, now)
 
     def start(self, now: datetime, length: int | None = None) -> bool:
         """Begin. Returns False if policy refuses (bedtime / budget spent).
@@ -767,32 +938,8 @@ class Session:
     # -- when the machine is next allowed to open (spec 7a) --
 
     def next_allowed(self, now: datetime) -> datetime:
-        """The next moment a session could start. Drives the Resting line.
-
-        Three gates now, and the latest of them wins: the bedtime window has
-        to be over, ``now`` has to be inside one of the parent's schedule
-        windows (:meth:`SessionPolicy.next_wake` settles those two between
-        themselves) *and* there has to be a budget again. A child who is told
-        the computer is resting and cannot tell whether it comes back after
-        tea, tomorrow or on Saturday is the condition D2 exists to stop
-        (forum #31).
-
-        The budget gate stays here rather than in ``next_wake`` because it is
-        the one gate that is about *this child* -- ``policy`` is the machine's
-        and ``usage`` is theirs.
-        """
-        when = self.policy.next_wake(now)
-        if self.usage.remaining(self.policy.daily_budget) < self.policy.min_session:
-            when = max(when, next_budget_reset(now))
-            if self.policy.windows:
-                # 04:00 is outside every schedule a household actually sets, so
-                # on a machine that has one the gates are asked again about the
-                # moment the budget returns. Guarded on ``windows`` so a
-                # machine without a schedule keeps exactly the answer it gave
-                # before this key existed -- "tomorrow, when the budget rolls"
-                # -- rather than quietly gaining the bedtime gate on top.
-                when = self.policy.next_wake(when)
-        return when
+        """The next moment this child could start. See :func:`next_allowed_for`."""
+        return next_allowed_for(self.policy, self.usage, now)
 
     def fraction_left(self, now: datetime) -> float:
         """1.0 at the start, 0.0 at the hard stop. What the sun *says*."""

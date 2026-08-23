@@ -38,6 +38,14 @@ confirmation, and the same ending ritual the clock would have run. A child who
 has had enough must be able to say so, and saying so must not need a grown-up,
 a hold, a sentence they cannot read, or a second look at where the button went.
 
+**And Back, on Home, points at it** (ADR-0014). Back here used to say "You're
+home." -- true, and no use at all to a five-year-old who wants out, because it
+names no action. It now says "To finish, press All done." and
+:meth:`HomeScreen.spotlight_all_done` puts the reserved highlight on the tile
+for two seconds, which is the only channel a pre-reader actually reads. The
+tile does not move, nothing is confirmed, and no state changes: Back on Home
+is still a no-op, it has just stopped being a dead end.
+
 Its **picture** follows the clock the way its label already did (forum #17,
 :mod:`kidnix_shell.resting`): a tidy-away box during the day, the moon only
 inside the bedtime window. It carried the moon at every hour until 2026-08-23,
@@ -47,6 +55,7 @@ in the morning -- and did it through the channel a pre-reader actually reads.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -57,7 +66,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from ..activities import Activity, in_age_band  # noqa: E402
 from ..i18n import N_, _  # noqa: E402
@@ -113,6 +122,20 @@ NOT_READY_LINE = N_("This one isn't ready yet. Ask a grown-up.")
 #: What Home says on arrival. Not :attr:`Screen.intro`, because Home speaks it
 #: after a refresh rather than before one.
 HOME_INTRO = N_("Home. What shall we make?")
+
+#: **How long the eye is drawn to "All done"** (ADR-0014). The same shape as
+#: the band's arrival highlight (``theme.css`` ``button.offer.kid-new``): the
+#: one reserved colour, for a couple of seconds, meaning "this one, now". Two
+#: rather than the band's three because nothing is arriving -- the tile was
+#: already there and the child is being shown *which* one it is.
+SPOTLIGHT_SECONDS = 2
+#: How faint the tile gets at the bottom of a breath, and how many steps a
+#: breath takes. Stepped in Python rather than left to a CSS animation, for
+#: the reason ``band._announce_offer_buttons`` gives: a transition only
+#: advances while frames are drawn, and a control parked at "nearly invisible"
+#: is the opposite of a spotlight. Every path here ends at full opacity.
+SPOTLIGHT_DIM = 0.72
+SPOTLIGHT_STEPS = 24
 
 
 @dataclass(frozen=True)
@@ -183,6 +206,13 @@ class HomeScreen(Screen):
         self.append(self.pager)
 
         self._pages: list[Gtk.Widget] = []
+        #: The "All done" tile and the page it is on, so Back can point at it
+        #: (ADR-0014). Re-found on every :meth:`refresh`, because the grid is
+        #: rebuilt from scratch on every arrival at Home.
+        self._all_done_tile: Gtk.Widget | None = None
+        self._all_done_page = 0
+        self._spotlight_handle: int | None = None
+        self._spotlight_step = 0
         self.refresh()
 
     # -- content --
@@ -245,15 +275,20 @@ class HomeScreen(Screen):
 
     def refresh(self) -> None:
         """Rebuild the grid. Cheap enough to do on every arrival at Home."""
+        self._end_spotlight()
         for page in self._pages:
             self.carousel.remove(page)
         self._pages = []
+        self._all_done_tile = None
+        self._all_done_page = 0
         self.ctx.speech_ui.forget_all()
 
         metrics = self.ctx.metrics
         pages = paginate(self.cells(), metrics.per_page)
-        for cells in pages:
+        for number, cells in enumerate(pages):
             grid = self._grid(cells)
+            if any(isinstance(cell, AllDone) for cell in cells):
+                self._all_done_page = number
             self.carousel.append(grid)
             self._pages.append(grid)
         self.pager.set_pages(len(pages), 0)
@@ -323,7 +358,7 @@ class HomeScreen(Screen):
     ) -> Gtk.Widget:
         metrics = self.ctx.metrics
         if isinstance(cell, AllDone):
-            return ActivityTile(
+            tile = ActivityTile(
                 self.all_done_cell(),
                 metrics,
                 self.ctx.speech_ui,
@@ -332,6 +367,8 @@ class HomeScreen(Screen):
                 label_points=points,
                 label_height=label_height,
             )
+            self._all_done_tile = tile
+            return tile
         denial = self._denial(cell)
         latest = self.ctx.journal.latest_for_activity(cell.id)
         return ActivityTile(
@@ -381,6 +418,81 @@ class HomeScreen(Screen):
         # a child to confirm that they have had enough is a bribe to stay).
         # Back on the Put-away screen recovers an accidental tap.
         self.ctx.host.finish_now()
+
+    # -- Back, on Home: "To finish, press All done." (ADR-0014) --------
+
+    def spotlight_all_done(self) -> bool:
+        """Put the reserved highlight on the "All done" tile for a moment.
+
+        The picture half of Back-on-Home. The sentence is the shell's
+        (``app.TO_FINISH``); this is the part a child who cannot read it gets.
+
+        Three rules, and each of them is somebody's ruling:
+
+        * **the tile does not move** (spec 21.7, and the ruling behind
+          :data:`ALL_DONE_INDEX`) -- the ring is drawn around where it already
+          is, and nothing is scaled, raised or re-ordered;
+        * **the page it is on is brought back**, because a ring on page two is
+          not a spotlight. Paging Home is not a state change and Back has not
+          navigated anywhere: the child is still on Home, looking at the first
+          page of it, which is where "All done" has always lived;
+        * **under calm mode, or a desktop with animations off, the ring is
+          simply there** -- WCAG 2.2 SC 2.3.3, and the same rule the put-away
+          flight follows.
+
+        Returns whether there was a tile to point at, so a caller can tell
+        "pointed" from "there is no Home built yet".
+        """
+        tile = self._all_done_tile
+        if tile is None:  # pragma: no cover - Home always has this tile
+            return False
+        self._end_spotlight()
+        tile.add_css_class("kid-new")
+        animate = not self.ctx.reduced_motion
+        if 0 <= self._all_done_page < len(self._pages):
+            self.carousel.scroll_to(self._pages[self._all_done_page], animate)
+            self.pager.set_pages(len(self._pages), self._all_done_page)
+        if not animate:
+            self._spotlight_handle = GLib.timeout_add_seconds(
+                SPOTLIGHT_SECONDS, self._end_spotlight
+            )
+            return True
+        self._spotlight_step = 0
+        self._spotlight_handle = GLib.timeout_add(
+            max(1, SPOTLIGHT_SECONDS * 1000 // SPOTLIGHT_STEPS), self._spotlight_breath
+        )
+        return True
+
+    def _spotlight_breath(self) -> bool:
+        """Two slow breaths of the tile's own opacity, then full and done."""
+        self._spotlight_step += 1
+        share = min(1.0, self._spotlight_step / SPOTLIGHT_STEPS)
+        tile = self._all_done_tile
+        if tile is not None:
+            # Two full cycles across the whole spotlight, starting and ending
+            # at 1.0: ``sin`` of a whole number of half-turns is zero at both
+            # ends, so the tile never lands anywhere but full opacity.
+            dip = math.sin(share * 2 * math.pi) ** 2
+            tile.set_opacity(1.0 - (1.0 - SPOTLIGHT_DIM) * dip)
+        if share >= 1.0:
+            self._spotlight_handle = None
+            self._end_spotlight()
+            return False
+        return True
+
+    def _end_spotlight(self) -> bool:
+        """Take the ring off and put the opacity back. Safe to call twice."""
+        if self._spotlight_handle is not None:
+            GLib.source_remove(self._spotlight_handle)
+            self._spotlight_handle = None
+        tile = self._all_done_tile
+        if tile is not None:
+            tile.remove_css_class("kid-new")
+            tile.set_opacity(1.0)
+        return False
+
+    def on_leave(self) -> None:
+        self._end_spotlight()
 
     def _on_page(self, page: int) -> None:
         if 0 <= page < len(self._pages):

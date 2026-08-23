@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, time, timedelta
 
+from kidnix_shell.i18n import _
 from kidnix_shell.resting import (
     ALL_DONE_HEADLINE,
     BEDTIME_GOODNIGHT_ICON,
@@ -192,3 +193,50 @@ def test_a_fresh_arrival_speaks_again() -> None:
 def test_the_thresholds_are_the_clinicians_numbers() -> None:
     assert SPEECH_INTERVAL_SECONDS == 8.0
     assert SILENCE_AFTER_TAPS == 3
+
+
+# --- rested has no words of its own (ADR-0014) ---------------------------
+
+
+def test_a_rested_child_is_told_exactly_what_the_resting_screen_says() -> None:
+    """One sentence, two places. A second phrasing would be two answers.
+
+    The face a child pressed and the screen the machine shows when nobody can
+    start are about the same thing, and a five-year-old who hears them both
+    should not have to work out that they agree.
+    """
+    tomorrow = NOW + timedelta(days=1)
+    assert refusal_line(bedtime=False, rested=True, now=NOW, next_open=tomorrow) == rest_line(
+        NOW, tomorrow, bedtime=False
+    )
+    assert refusal_line(bedtime=False, rested=True, now=NOW, next_open=tomorrow) == _(
+        RESTING_TOMORROW
+    )
+
+
+def test_the_rested_line_says_when_like_every_other_daytime_line() -> None:
+    later = NOW + timedelta(hours=3)
+    assert refusal_line(bedtime=False, rested=True, now=NOW, next_open=later) == _(
+        RESTING_LATER_TODAY
+    )
+
+
+def test_rested_never_reaches_the_night_vocabulary() -> None:
+    """Bedtime outranks it in ``StartRefusal``, so this branch is daytime-only."""
+    line = refusal_line(bedtime=True, rested=True, now=NOW, next_open=NOW)
+    assert line == _(BEDTIME_REFUSAL)
+    daytime = refusal_line(bedtime=False, rested=True, now=NOW, next_open=NOW + timedelta(days=1))
+    for word in ("sleep", "goodnight", "night"):
+        assert word not in daytime.lower()
+
+
+def test_the_four_refusals_keep_their_order_in_the_words_too() -> None:
+    """``refusal_line`` ranks them the way :class:`StartRefusal` does."""
+    when = NOW + timedelta(days=1)
+    assert refusal_line(bedtime=True, out_of_hours=True, rested=True, now=NOW, next_open=when) == _(
+        BEDTIME_REFUSAL
+    )
+    out = refusal_line(bedtime=False, out_of_hours=True, rested=True, now=NOW, next_open=when)
+    assert out.startswith("Not computer time")
+    assert refusal_line(bedtime=False, rested=True, now=NOW, next_open=when) == _(RESTING_TOMORROW)
+    assert refusal_line(bedtime=False) == _(BUDGET_SPENT_REFUSAL)

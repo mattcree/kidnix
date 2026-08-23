@@ -23,10 +23,11 @@
 **Pre** fresh install, PIN set, budget unspent, not bedtime.
 1. Lid opens → autologin → **band** (tinted strip, sun centred) + **S1**: avatar ≥ 30 mm with its badge; plain grown-up tile bottom-right, unvoiced.
 2. Hover or Tab · **says** the child's name; a focus ring is present on arrival.
-3. Press the face → profile data swapped in *before* the clock starts → `CHOOSING → NEXT_CHOICE`.
-**Accept** service active; `shell geometry ok`; one focused node on arrival; `session started` logged *after* the profile swap.
-**Evidence** spec §S1, §7d #11; impl. §23.3; SYNTHESIS need #6.
-**Coverage** **COVERED** — e2e `test_01`, `test_02`; `test_profiles.py`, `test_state.py`.
+3. Press the face → whether *that* child may start is asked first, from their own usage file, and only then is their journal, budget and tint swapped in → `CHOOSING → NEXT_CHOICE`.
+4. **A face whose sitting is over is drawn resting** (ADR-0014): dimmed, still ≥ 30 mm, still focusable, hover **says** the name *and* "kidnix is resting. Back tomorrow." Pressing it speaks that line — rate-limited like the Resting screen, silent after three presses in 30 s — and **stays on Who's here**. The row is rebuilt on every arrival, because "is this child resting?" is a fact about now.
+**Accept** service active; `shell geometry ok`; one focused node on arrival; `session started` logged *after* the profile swap; a rested face is dimmed rather than removed, greyed out or made insensitive; pressing one changes no state.
+**Evidence** spec §S1, §7d #11; impl. §23.3, §28.1; SYNTHESIS need #6; ADR-0014.
+**Coverage** **COVERED** — e2e `test_01`, `test_02`, and `test_flows.py::test_a24_a_siblings_afternoon_survives_the_other_ones_ending` for the resting face; `test_profiles.py`, `test_state.py`, `test_gtk_smoke.py`.
 
 ### A2 · What's next after?
 **Child.** As a child I want to choose what I do *after* the computer, so that stopping is going somewhere.
@@ -176,19 +177,22 @@
 
 ### A19 · Resting (daytime) — and a dysregulated child
 **Child at 4 pm; or a child in distress.**
-1. `is_bedtime` false → **Resting**: warm, dim, no moon, no yawn · **says** "kidnix is resting. Back after tea." / "…Back tomorrow.", from `next_allowed`.
-2. A child hammering the screen gets one line then silence: presses inside 8 s are **ignored** (not queued, not cut off); nothing after three in 30 s.
-3. The line demands nothing — no "Ask a grown-up", no return promise.
-**Accept** no night vocabulary before `bedtime_start`; the third tap in 30 s produces silence.
-**Evidence** spec §7d #4; panel MH #17/#23, child-psych #31; impl. §21.6.
-**Coverage** **PARTIAL** — e2e `test_flows.py::test_a20_all_done_ends_the_session_and_a19_it_rests` ends a daytime sitting and asserts the resting line, the warm surface and the *absence* of "kidnix is sleeping."; the other vocabulary is A18's test, so both are now proved on the image. `test_resting.py`, `demo-resting.png`. **Add:** the dysregulated half — three presses in 30 s earning silence.
+1. **Resting is per child, and this screen is for "nobody here can start"** (ADR-0014). One child's sitting ending rests *that profile*: `rested_at` is written beside their day's usage, `Session.may_start` answers `RESTED`, and the machine only shows this screen when every profile is refused. On a one-child machine — the common one — that is the same screen, the same words and the same clock it always was.
+2. `is_bedtime` false → **Resting**: warm, dim, no moon, no yawn · **says** "kidnix is resting. Back after tea." / "…Back tomorrow.", from `next_allowed`.
+3. A child hammering the screen gets one line then silence: presses inside 8 s are **ignored** (not queued, not cut off); nothing after three in 30 s. The same limiter answers a rested *face* on Who's here.
+4. The line demands nothing — no "Ask a grown-up", no return promise.
+5. **Sleeping ends as soon as any profile may start**, checked on the tick *and* the instant Sleeping is entered — so a sibling handover never flashes this screen past the child. For a rested child that is still a new budget day (04:00), the end of the bedtime window that ended it, or a changed schedule window; anything sooner is the grown-up's, from the gate.
+**Accept** no night vocabulary before `bedtime_start`; the third tap in 30 s produces silence; a machine with a sibling who may start never reaches this screen at all.
+**Evidence** spec §7d #4; panel MH #17/#23, child-psych #31; impl. §21.6, §28.1; ADR-0014.
+**Coverage** **PARTIAL** — e2e `test_flows.py::test_a20_all_done_ends_the_session_and_a19_it_rests` ends a daytime sitting and asserts the resting line, the warm surface and the *absence* of "kidnix is sleeping."; the other vocabulary is A18's test, so both are now proved on the image; `test_a24_…` proves the negative — the screen is *not* shown when a sibling may start. `test_resting.py`, `test_session.py`, `demo-resting.png`. **Add:** the dysregulated half — three presses in 30 s earning silence.
 
 ### A20 · "All done" — the child ends it
 **Child.** As a child I want to stop when I have had enough, and get the same ending.
 1. Press **All done** (pinned cell, moon/bed icon) · **says** "All done for today?" · one tap, **no confirmation, no bribe** → PUT_AWAY.
 2. The same ritual from S6 on. Back on Put away is inert 3 s (accidental-tap guard), then Home.
-**Accept** All done reaches Put away in one event from Home, an activity, My Things and S1b; the back-delay table has exactly one row.
-**Evidence** spec §7a, §7d #5; SYNTHESIS D5 (children ended early 31% of the time); impl. §17.7, §21.7.
+3. **Back, on Home, names this control** (ADR-0014). It used to say "You're home." — true, and no use to a pre-reader who wants out, because it names no action. It now **says** "To finish, press All done." and rings the tile with the one reserved highlight for ~2 s: a soft breath, or a static ring under calm mode / a desktop with animations off. Nothing navigates, nothing is confirmed and **the tile does not move** (§21.7); the page it lives on is brought back if the child had paged away.
+**Accept** All done reaches Put away in one event from Home, an activity, My Things and S1b; the back-delay table has exactly one row; Back on Home changes no state and leaves the tile at full opacity with no ring once the two seconds are up.
+**Evidence** spec §7a, §7d #5; SYNTHESIS D5 (children ended early 31% of the time); impl. §17.7, §21.7, §28.2; ADR-0014.
 **Coverage** **COVERED** — e2e `test_flows.py::test_a20_all_done_ends_the_session_and_a19_it_rests` finds the lavender tile by colour (it is the only control whose fill is not paper), checks it is the last cell of its row, presses it once, and asserts Put away in one event with nothing in between asking the child to confirm; `test_ritual.py`, `test_gtk_smoke.py`. Also driven by key in `test_a25_a_whole_session_on_the_keyboard`.
 
 ### A21 · The session refused at the door
@@ -221,9 +225,10 @@
 1. Who's here shows both faces, each with its own colour **and badge** (colour is never the sole carrier).
 2. Choosing a face swaps journal, budget and progress to `profiles/<id>/…` before the clock starts.
 3. A pre-profiles machine migrates into the **first** profile once, idempotently, never overwriting.
-**Accept** independent budgets; the migration never loses a Journal; colour pairs ≥ 0.40 apart under deuteranopia and protanopia.
-**Evidence** SYNTHESIS need #6; spec §7d #11; impl. §22.4, §23.3.
-**Coverage** **PARTIAL** — `test_profiles.py`, `test_theme_css.py`. **Limit:** activities share save directories (impl. §23.9 #2). **Add:** e2e with two profiles.
+4. **One child finishing does not end the other's afternoon** (ADR-0014). Ending a sitting rests *that* profile; "Who's here?" returns at once with their face dimmed, and the sibling presses their own face and starts. Anything sooner for the rested child is the grown-up's, from the gate, which clears the mark.
+**Accept** independent budgets; the migration never loses a Journal; colour pairs ≥ 0.40 apart under deuteranopia and protanopia; the Resting screen is reached only when *every* profile is refused.
+**Evidence** SYNTHESIS need #6; spec §7d #11; impl. §22.4, §23.3, §28.1; ADR-0014; P1 #10.
+**Coverage** **COVERED** — e2e `test_flows.py::test_a24_a_siblings_afternoon_survives_the_other_ones_ending` appends a second child to the machine's own `parent.toml`, has the first finish the whole ritual, and asserts Who's here returning without Resting ever being shown, one face measurably dimmer than the other in pixels, the rested face answering out loud without changing state, and the sibling starting their own sitting; `test_profiles.py`, `test_gtk_smoke.py`, `test_theme_css.py`. **Limit:** activities share save directories (impl. §23.9 #2).
 
 ### A25 · A child who cannot use a pointer
 **Child using a keyboard, or a switch.**
@@ -490,15 +495,21 @@ See **B16**. **UNCOVERED.**
 
 | Group | Flows | COVERED | PARTIAL | UNCOVERED |
 |---|---|---|---|---|
-| A — child | 28 | 12 | 16 | 0 |
+| A — child | 28 | 13 | 15 | 0 |
 | B — parent | 20 | 1 | 13 | 6 |
 | C — machine | 10 | 1 | 5 | 4 |
-| **Total** | **58** | **14** | **34** | **10** |
+| **Total** | **58** | **15** | **33** | **10** |
 
 > Updated 2026-08-23 with `tests/e2e/test_flows.py`, which drives A6, A18,
-> A19, A20, A21, A22, A25, A26 and A28 on the shipped qcow2. Group A has no
-> UNCOVERED flow left; what remains PARTIAL there is a named branch of a flow
-> whose main path is now driven on the image.
+> A19, A20, A21, A22, A24, A25, A26 and A28 on the shipped qcow2. Group A has
+> no UNCOVERED flow left; what remains PARTIAL there is a named branch of a
+> flow whose main path is now driven on the image.
+>
+> **A24 joined them with ADR-0014** (resting is per child): the sibling
+> handover is driven end to end on the image — two profiles, one of them
+> finishing, "Who's here?" returning with a face measurably dimmed, and the
+> other child starting anyway. It is the flow Matt's first hands-on session
+> found from the other side.
 
 The child's *ordinary happy path* is genuinely covered on the shipped image —
 boot, choose, plan, launch, draw, keep, the band over an activity, the offer,

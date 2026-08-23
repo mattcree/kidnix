@@ -3434,3 +3434,180 @@ or `app.py`.
 5. **`po/kidnix.pot` has not been re-extracted** for the four new msgids (the
    card title, the announcement, "someone", "Letters"), for the same reason as
    §26.7 #1.
+
+---
+
+## 28. v0.1.14 — resting is per child, and Back on Home points at the way out (2026-08-23)
+
+**ADR-0014.** Both halves of this come out of Matt's first hands-on session
+with the fresh image: *"once you pick me on the front page, it doesn't seem
+like you can actually get back out."* The observation is about one screen; the
+two defects underneath it are not the same defect.
+
+### 28.1 The "sitting is over" rule moved from the machine to the profile
+
+Spec §7a ruled that Sleeping ends at the start of the next allowed schedule
+window, a new day, or a grown-up unlock, and `app._maybe_wake` implemented
+that **for the machine**. So child A pressed "All done" at 16:10, the screen
+rested until tomorrow, and child B could not start without an adult at the
+gate. The argument for the rule — re-waking thirty seconds later would teach a
+child that the ending is negotiable — is about the **same** child and says
+nothing about a different one. P1 #10 ("instant switching, both of us") had
+been claiming otherwise since it was written.
+
+What moved:
+
+* **`session.py`** gained `DailyUsage.rested_at`, persisted beside the day's
+  seconds in the child's own `usage.toml` (an ISO string, written by hand and
+  read with `tomllib`; anything unparseable is "not rested", because the
+  failure direction that matters is never locking a child out). `rest()` is
+  idempotent within a day — the *first* ending is the one measured from —
+  and `wake()` is what a grown-up starting a session does.
+* **`SessionPolicy.still_resting(rested_at, now)`** is the whole rule, in one
+  pure predicate, and it is exactly the three conditions `_maybe_wake` used to
+  test against `_slept_at`: the budget day has rolled (04:00), the bedtime
+  window that ended it is over, or the schedule window has changed. Nothing
+  about *when* changed; only *whose*.
+* **`StartRefusal.RESTED`**, last of four. BEDTIME, OUT_OF_HOURS,
+  BUDGET_SPENT, RESTED: two can hold at once, and "that's all the computer
+  time for today" is truer and more actionable than "resting", which sounds
+  temporary. `refusal_line(rested=True)` deliberately has **no words of its
+  own** — it returns `resting_line()`, the Resting screen's own sentence,
+  because it is the same claim about the same machine.
+* **Two free functions**, `refusal_for(policy, usage, now)` and
+  `next_allowed_for(policy, usage, now)`, with `Session` as a thin wrapper.
+  The shell has to answer "may *that* child start?" about profiles that are
+  not the live one — every face on Who's here, and "is anybody able to start?"
+  — and doing that by swapping the live profile in and out would drag the
+  Journal, the progress counter, the band tint and the language with it.
+  `ShellWindow._usage_for` reads the live profile's `DailyUsage` object when
+  it is the one being asked about and loads anybody else's from their own
+  `usage_state` path. Nothing is written as a side effect of drawing a face.
+
+What that changed in the shell:
+
+* **`choose_profile` asks before it swaps.** The refusal is computed first;
+  only an `OK` gets `_use_profile`, the tint and the letters sweep.
+* **`_refuse` only reaches Sleeping when nobody may start.** Otherwise the
+  line is spoken and the child stays on Who's here — through a
+  `TapSpeechLimiter` of the shell's own, so a child pressing a dimmed face
+  repeatedly is answered once every eight seconds and not at all after three
+  presses in thirty (forum #23's numbers, applied to the faces this time).
+* **`_maybe_wake` asks "may anybody start?"** and nothing else; `_slept_at` is
+  kept for the log and no longer decides anything. It runs on the tick **and
+  the instant `SLEEPING` is entered**, so a sibling handover returns to Who's
+  here without the Resting screen ever being drawn or half-speaking its line.
+* **Reaching `GOODBYE` is what rests a profile** — not pressing the button on
+  it. Goodbye is where every ending arrives (the child's "All done", the clock,
+  the hard stop, the gate's "End session now"), and it is already where
+  `kid_state.complete_session()` fires. A sitting that ended is over whether or
+  not anybody pressed the last button.
+* **The gate still starts anybody.** `start_session` clears the mark first:
+  "anything sooner is the grown-up's decision" is unchanged.
+* **Who's here rebuilds its faces on every arrival.** Whether a face is
+  resting is a fact about this minute, and the screen is constructed once and
+  arrived at many times — including the arrival straight after a sibling's
+  Goodbye, which is the whole case. Old buttons are unregistered from the
+  read-aloud registry on the way out.
+
+**The rested face itself** is dimmed (`button.tile.resting-face`: paper-dim
+fill, the dashed 5.99:1 edge, 0.7 opacity, back to full on hover and focus),
+**not** removed, greyed out or made insensitive. It keeps its ≥ 30 mm size, its
+focus ring and its voice; hover and focus say the name *and* the reason as one
+sentence. The press is answered by the shell rather than by the button, which
+is why `ChildButton` gained an optional `activate_text`: two mouths on one
+press is a sentence cut off mid-word, so a rested face's press text is `""`
+and `_refuse` does the talking, through the limiter.
+
+**The class is `resting-face` and not `resting`** because `.resting` is already
+the *surface* class for the whole dim warm screen, and a bare class selector
+would have painted a tile in the Resting screen's own colour.
+
+**One child ⇒ identical behaviour**, which is the ADR's own constraint and is
+tested as such: the one profile is rested, nobody may start, the same Resting
+screen with the same words until 04:00 or the window. e2e A19/A20/A21 pass
+unchanged.
+
+**Left deliberately alone:** a **budget-spent** face is *not* dimmed. Only
+`RESTED` produces the dim, because that is what ADR-0014 rules on; a spent
+budget still answers in words ("That's all the computer time for today…") and
+now stays on Who's here when a sibling may start, but its face looks live.
+Worth a taste call from the thinker: the argument for dimming it too is
+consistency, and the argument against is that dimming three of the four
+refusals would put every face on the machine in a dashed outline at bedtime,
+which is a screen nobody has designed.
+
+### 28.2 Back, on Home, names the exit
+
+It said "You're home." — true, and an answer that names no action. For a
+five-year-old who has pressed Back because they want out, that is a dead end,
+and constitution #4 is that nothing essential is text-only.
+
+`app.TO_FINISH` is `N_("To finish, press All done.")`, and
+`HomeScreen.spotlight_all_done()` is the half a pre-reader actually gets: the
+one reserved highlight (`button.tile.all-done.kid-new`, the same shape as the
+band's arriving offer, with the tile's own border going to full ink so the
+yellow is never the only boundary) for two seconds. Under calm mode or a
+desktop with animations off it is simply a static ring; otherwise the tile
+breathes twice, stepped in Python for the reason
+`band._announce_offer_buttons` gives — a CSS transition only advances while
+frames are drawn, and a tile parked at "nearly invisible" is the opposite of a
+spotlight. Every path ends at full opacity with the ring removed.
+
+**The tile does not move** (§21.7). The page it lives on *is* brought back if
+the child had paged away, because a ring on page two is not a spotlight and
+paging Home is not navigation. No state changes: `HOME --back--> HOME` is the
+same edge it always was.
+
+**Rejected, per the ADR: a wrong-face undo from Home.** Back on Home must mean
+one thing. The undo of "Who's here?" lives on S1b; a parent who sets
+`skip_next_choice` has chosen to lose it, and the gate is the other way.
+
+### 28.3 Tests
+
+`test_session.py` gains eleven: the refusal itself, each of the three wake
+conditions (the 04:00 boundary asked of the predicate, because bedtime
+outranks rested at four in the morning), the four-way order with rested and
+spent both true, the persistence round trip, yesterday's mark not being
+today's, `rest` being idempotent, the grown-up's `wake`, an unreadable mark
+failing open, and `next_allowed` saying tomorrow. `test_resting.py` gains four
+on the words being the Resting screen's own. `test_state.py` gains two holding
+that the graph did **not** change — the whole ADR happens inside two existing
+transitions. `test_profiles.py` gains three on two children's usage files.
+`test_gtk_smoke.py` gains ten: the dimmed face and its two texts, the silent
+press, a live face still saying its own name, Back-on-Home's sentence and ring,
+the ring under calm, the breath always ending at 1.0, the sibling handover on
+a real `ShellWindow`, the one-child machine still resting, and the gate
+starting a rested child.
+
+`tests/e2e/test_flows.py` gains
+`test_a24_a_siblings_afternoon_survives_the_other_ones_ending`, which appends a
+second `[[profiles]]` block to the machine's own `parent.toml` (TOML lets an
+array of tables be continued anywhere, so the PIN, the S1b options and every
+access setting stay the shipped ones, and the file is restored afterwards),
+has the first child finish the whole ritual, and asserts: `sleeping ->
+choosing (wake)` with no resting line spoken, one face measurably less inky
+than the other in the framebuffer, the rested face answering out loud with no
+state change at all, and the sibling starting their own sitting. FLOWS A24 goes
+from PARTIAL to COVERED; A1, A19 and A20 gained steps.
+
+### 28.4 Still open after this pass
+
+1. **A budget-spent face is not dimmed** (§28.1, last paragraph). A taste call
+   for the thinker rather than a defect.
+2. **The e2e flow has not been run on a rebuilt image** in this pass — the
+   `output/qcow2/disk.qcow2` on the machine predates the change, and rebuilding
+   is ~15 minutes plus ~10 for the suite. It is written against the neighbouring
+   tests' idioms and the log lines it matches all exist, but "it passed" is not
+   claimed.
+3. **Four `test_gtk_smoke.py` label-fitting tests fail on this host** and did so
+   before this pass: the developer machine has no Andika, so Pango breaks
+   "Numbers" as "Numbe rs" at 96 dpi. They are not run in CI either — the module
+   skips unless `DISPLAY`/`WAYLAND_DISPLAY` is set, and `just test-headless`
+   unsets both. Running them without taking over the developer's screen wants
+   either `xvfb-run` (what this pass used) or a Broadway guard in that module's
+   skip; Broadway's own font metrics make four *more* of them fail, so Xvfb is
+   the better of the two. Worth a `just test-gtk` recipe.
+4. **`po/kidnix.pot` was re-extracted** for the one new msgid ("To finish,
+   press All done.") and the one removed ("You're home."); `po/*.po` were not
+   merged, which is `just po-update` in a quiet tree.

@@ -47,13 +47,19 @@ from kidnix_shell.screens.home import HomeScreen  # noqa: E402
 from kidnix_shell.screens.journal import JournalScreen  # noqa: E402
 from kidnix_shell.screens.sleeping import SleepingScreen  # noqa: E402
 from kidnix_shell.screens.whos_here import WhosHereScreen  # noqa: E402
-from kidnix_shell.session import DailyUsage, Session, SessionPolicy  # noqa: E402
+from kidnix_shell.session import (  # noqa: E402
+    DailyUsage,
+    Session,
+    SessionPolicy,
+    StartRefusal,
+)
 from kidnix_shell.settings import (  # noqa: E402
     DEFAULT_PIN,
     HomeConfig,
     KidState,
     ParentConfig,
     Paths,
+    Profile,
 )
 from kidnix_shell.sound import Earcons  # noqa: E402
 from kidnix_shell.speech import FakeBackend, FakeScheduler, SpeechManager  # noqa: E402
@@ -72,6 +78,16 @@ class RecordingHost:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, object]] = []
+        #: Which profile ids this stand-in says are resting, and what the face
+        #: is to say about it (ADR-0014). Empty is a machine where everybody
+        #: may start, which is what every test that does not care about
+        #: resting wants. Answered *without* recording a call: Who's here asks
+        #: it once per face while it is being built, and a question the screen
+        #: asks about itself is not something the screen "did".
+        self.resting: dict[str, str] = {}
+
+    def profile_resting_line(self, profile) -> str:  # type: ignore[no-untyped-def]
+        return self.resting.get(profile.id, "")
 
     def __getattr__(self, name: str):  # type: ignore[no-untyped-def]
         def record(*args: object, **kwargs: object) -> None:
@@ -1182,6 +1198,11 @@ def test_a_new_session_forgets_last_time_s_answer(tmp_path: Path) -> None:
         assert window.machine.state.value == State.SLEEPING.value
         window.machine.try_fire(Event.WAKE)
         assert window.machine.state.value == State.CHOOSING.value
+        # ADR-0014: reaching Goodbye rested *this child*, so their face is
+        # dimmed and pressing it says so rather than starting a second
+        # sitting. A grown-up is what un-rests them, from the gate -- and
+        # that is the only way this line is reachable at all.
+        window.session.usage.wake()
         window.choose_profile(window.ctx.profile)
         assert window.ctx.next_after is None
     finally:
@@ -1502,6 +1523,34 @@ def _state(window) -> State:  # type: ignore[no-untyped-def]
     return window.machine.state
 
 
+def _listen(window) -> list[str]:  # type: ignore[no-untyped-def]
+    """Give a real ``ShellWindow`` a fake mouth, and hand back what it says.
+
+    ``build_window`` asks for the null backend (AGENTS.md §5: nothing here may
+    reach a developer's speakers), and a null backend keeps no record. This
+    swaps in the in-memory one the screen-level tests already use, so a test
+    can assert on the sentence rather than on the fact that there was one.
+    """
+    backend = FakeBackend()
+    window.speech.backend = backend
+    return backend.spoken
+
+
+def _rest_the_machine(window) -> None:  # type: ignore[no-untyped-def]
+    """Get to the Resting screen the way the shell does (ADR-0014).
+
+    Firing ``GOODNIGHT`` on its own is no longer enough, and that is the whole
+    of the ADR: the machine-wide Resting screen means "**nobody** here can
+    start", so a shell whose one child has not had their sitting yet wakes
+    straight back up to "Who's here?" -- correctly. Resting the profile first
+    is what reaching Goodbye does.
+    """
+    from kidnix_shell.state import Event
+
+    window.session.usage.rest(datetime.now())
+    window.machine.try_fire(Event.GOODNIGHT)
+
+
 def _sleeper():  # type: ignore[no-untyped-def]
     """An activity that stays up until it is asked to go away."""
     return make_activity("sleeper", name="Sleeper", exec_argv=("/bin/sleep", "30"))
@@ -1766,11 +1815,9 @@ def test_undo_inside_an_activity_says_where_the_undo_is(tmp_path: Path) -> None:
 def test_the_band_window_goes_dark_rather_than_away_on_sleeping(tmp_path: Path) -> None:
     """Unmapping it would cost the band its placement: a re-mapped window gets
     a fresh first configure, and by then the file says "below the band"."""
-    from kidnix_shell.state import Event
-
     window = build_window(tmp_path)
     try:
-        window.machine.try_fire(Event.GOODNIGHT)
+        _rest_the_machine(window)
         assert _state(window) is State.SLEEPING
         assert window.band.get_visible() is False
         # Daytime is "resting"; the demo policy's bedtime is 23:59-00:00, so
@@ -2258,11 +2305,9 @@ def test_calm_mode_cuts_the_motion_and_most_of_the_sound(tmp_path: Path) -> None
 
 def test_the_dim_surfaces_are_painted_on_the_windows_not_on_a_box(tmp_path: Path) -> None:
     """M4/forum #36, #38: a class on a `halign: CENTER` box is a rectangle."""
-    from kidnix_shell.state import Event
-
     window = build_window(tmp_path)
     try:
-        window.machine.try_fire(Event.GOODNIGHT)
+        _rest_the_machine(window)
         assert _state(window) is State.SLEEPING
         dim = "sleeping" if window.session.policy.is_bedtime(datetime.now()) else "resting"
         assert window.has_css_class(dim)
@@ -2977,3 +3022,282 @@ def test_the_shell_watches_for_presses_that_hit_nothing(tmp_path: Path) -> None:
     finally:
         window.shutdown()
     assert BURST_LOG_PREFIX == "burst-click"
+
+
+# --------------------------------------------------------------------------- #
+# ADR-0014: resting is per child, and Back on Home points at "All done"
+# --------------------------------------------------------------------------- #
+
+
+def _two_children() -> ParentConfig:
+    """A machine with a sibling on it. Distinct ids; everything else default."""
+    config = ParentConfig()
+    config.set_pin(DEFAULT_PIN)
+    config.pin_configured = True
+    config.profiles = [
+        Profile(id="ada", name="Ada", colour_primary="#0f8a8a", colour_secondary="#f06292"),
+        Profile(id="bob", name="Bob", colour_primary="#8a4f0f", colour_secondary="#62b0f0"),
+    ]
+    return config
+
+
+def _face(screen: WhosHereScreen, name: str) -> ChildButton:
+    for button in _buttons(screen):
+        if button.speak_text == name or button.speak_text.startswith(f"{name}. "):
+            return button
+    raise AssertionError(f"no face for {name!r} on Who's here")
+
+
+def test_a_rested_face_is_dimmed_and_says_why_but_is_still_a_face(ctx: ShellContext) -> None:
+    """S1 under ADR-0014. Dimmed, not removed, not greyed out, not silent."""
+    ctx.config.profiles = [
+        Profile(id="ada", name="Ada"),
+        Profile(id="bob", name="Bob"),
+    ]
+    ctx.host.resting = {"ada": "kidnix is resting. Back tomorrow."}  # type: ignore[attr-defined]
+    screen = WhosHereScreen(ctx)
+
+    ada, bob = _face(screen, "Ada"), _face(screen, "Bob")
+    assert ada.has_css_class("resting-face")
+    assert not bob.has_css_class("resting-face")
+
+    # Hover and focus: the name **and** the reason, in that order, as one
+    # sentence -- a child who moves on mid-way has still heard whose face it is.
+    assert ada.speak_text == "Ada. kidnix is resting. Back tomorrow."
+    assert bob.speak_text == "Bob"
+
+    # Still a target, still focusable, still the same size as the live face.
+    assert ada.get_can_focus() is True
+    assert ada.get_size_request() == bob.get_size_request()
+    assert ada.get_sensitive() is True
+    floor = ctx.metrics.min_target
+    assert ada.get_size_request()[1] >= floor
+
+
+def test_pressing_a_rested_face_leaves_the_answer_to_the_shell(ctx: ShellContext) -> None:
+    """The button says nothing on the press; ``_refuse`` does, through the limiter.
+
+    Two mouths on one press is a sentence cut off mid-word, and the population
+    that presses a dimmed face repeatedly is exactly the one forum #23's rate
+    limit was written for.
+    """
+    ctx.config.profiles = [Profile(id="ada", name="Ada")]
+    ctx.host.resting = {"ada": "kidnix is resting. Back tomorrow."}  # type: ignore[attr-defined]
+    screen = WhosHereScreen(ctx)
+    ada = _face(screen, "Ada")
+    assert ada.activate_text == ""
+
+    ctx.speech.backend.spoken.clear()  # type: ignore[attr-defined]
+    ada.fire()
+    assert ctx.speech.backend.spoken == []  # type: ignore[attr-defined]
+    # It still asks the shell, which is what keeps the refusal in one place.
+    assert ("choose_profile", (ctx.config.profiles[0],)) in ctx.host.calls  # type: ignore[attr-defined]
+
+
+def test_a_live_face_still_says_its_own_name_on_a_press(ctx: ShellContext) -> None:
+    """The exception is exactly one face wide: nothing else changed."""
+    ctx.config.profiles = [Profile(id="ada", name="Ada")]
+    screen = WhosHereScreen(ctx)
+    ada = _face(screen, "Ada")
+    assert ada.activate_text == "Ada"
+    ctx.speech.backend.spoken.clear()  # type: ignore[attr-defined]
+    ada.fire()
+    assert ctx.speech.backend.spoken == ["Ada"]  # type: ignore[attr-defined]
+
+
+def test_back_on_home_names_the_exit_and_points_at_it(tmp_path: Path) -> None:
+    """ADR-0014 part 2. "You're home." named no action; this one does."""
+    from kidnix_shell.app import TO_FINISH
+
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        assert _state(window) is State.HOME
+
+        home = window.screens["home"]
+        assert isinstance(home, HomeScreen)
+        said = _listen(window)
+        window.on_back()
+
+        assert said == [TO_FINISH]
+        assert _state(window) is State.HOME  # a pointer, not a navigation
+        tile = home._all_done_tile
+        assert tile is not None
+        assert tile.has_css_class("kid-new")
+        # ...and it goes away again, leaving the tile exactly as it was.
+        home._end_spotlight()
+        assert not tile.has_css_class("kid-new")
+        assert tile.get_opacity() == 1.0
+    finally:
+        window.shutdown()
+
+
+def test_the_spotlight_is_a_ring_and_not_motion_under_calm(tmp_path: Path) -> None:
+    """WCAG 2.2 SC 2.3.3. Calm mode keeps the event and drops the movement."""
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        home = window.screens["home"]
+        assert isinstance(home, HomeScreen)
+
+        window.ctx.reduced_motion = True
+        assert home.spotlight_all_done() is True
+        tile = home._all_done_tile
+        assert tile is not None
+        assert tile.has_css_class("kid-new")
+        assert tile.get_opacity() == 1.0  # nothing breathes
+        home._end_spotlight()
+    finally:
+        window.shutdown()
+
+
+def test_the_spotlight_always_ends_at_full_opacity(tmp_path: Path) -> None:
+    """Stepped in Python for the reason the band's arrival is: a tile parked
+    at "nearly invisible" is the opposite of a spotlight."""
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        home = window.screens["home"]
+        assert isinstance(home, HomeScreen)
+        window.ctx.reduced_motion = False
+        home.spotlight_all_done()
+        tile = home._all_done_tile
+        assert tile is not None
+        for _step in range(200):
+            if not home._spotlight_breath():
+                break
+        assert tile.get_opacity() == 1.0
+        assert not tile.has_css_class("kid-new")
+    finally:
+        window.shutdown()
+
+
+def test_a_siblings_afternoon_survives_the_other_ones_ending(tmp_path: Path) -> None:
+    """ADR-0014's whole point, on a real window.
+
+    Ada presses "All done" and finishes the ritual. The machine does **not**
+    rest: Bob has not had a turn, so "Who's here?" comes straight back -- with
+    Ada's face dimmed and Bob's untouched -- rather than the Resting screen.
+    """
+    window = build_window(tmp_path, config=_two_children())
+    try:
+        ada, bob = window.ctx.config.profiles
+        window.choose_profile(ada)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        assert _state(window) is State.HOME
+
+        window.finish_now()
+        window._goodbye_now()
+        assert _state(window) is State.GOODBYE
+        # Reaching Goodbye is what rests *Ada* (and nobody else).
+        assert window.session.usage.rested_at is not None
+
+        window.goodnight()
+        # Straight past Sleeping: it is never shown, because it would be false.
+        assert _state(window) is State.CHOOSING
+
+        assert window._refusal_for(ada, datetime.now()) is StartRefusal.RESTED
+        assert window._refusal_for(bob, datetime.now()) is StartRefusal.OK
+        assert window.anyone_may_start() is True
+
+        screen = window.screens["choosing"]
+        assert isinstance(screen, WhosHereScreen)
+        assert _face(screen, "Ada").has_css_class("resting-face")
+        assert not _face(screen, "Bob").has_css_class("resting-face")
+    finally:
+        window.shutdown()
+
+
+def test_ada_pressing_her_own_dimmed_face_is_answered_and_stays_put(tmp_path: Path) -> None:
+    """No state change, no Sleeping, and the same words the screen would use."""
+    window = build_window(tmp_path, config=_two_children())
+    try:
+        ada, _bob = window.ctx.config.profiles
+        window.choose_profile(ada)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        window.finish_now()
+        window._goodbye_now()
+        window.goodnight()
+        assert _state(window) is State.CHOOSING
+
+        said = _listen(window)
+        window.choose_profile(ada)
+        assert _state(window) is State.CHOOSING  # stayed
+        assert said and said[-1].startswith("kidnix is resting.")
+        # The same sentence the face itself carries, so hover and press agree.
+        screen = window.screens["choosing"]
+        assert isinstance(screen, WhosHereScreen)
+        assert _face(screen, "Ada").speak_text.endswith(said[-1])
+
+        # ...and the hammering rule applies: a second press inside the floor
+        # is ignored rather than cutting the first answer off mid-word.
+        said.clear()
+        window.choose_profile(ada)
+        assert said == []
+    finally:
+        window.shutdown()
+
+
+def test_bob_can_still_start_his_own_sitting(tmp_path: Path) -> None:
+    """P1 #10's "instant switching, both of us", which was not true before."""
+    window = build_window(tmp_path, config=_two_children())
+    try:
+        ada, bob = window.ctx.config.profiles
+        window.choose_profile(ada)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        window.finish_now()
+        window._goodbye_now()
+        window.goodnight()
+
+        window.choose_profile(bob)
+        assert _state(window) is State.NEXT_CHOICE
+        assert window.ctx.profile.id == "bob"
+        assert window.session.running
+    finally:
+        window.shutdown()
+
+
+def test_one_child_still_gets_the_resting_screen(tmp_path: Path) -> None:
+    """The ADR's constraint, on a real window: nothing changes for one child."""
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        window.finish_now()
+        window._goodbye_now()
+        window.goodnight()
+        assert _state(window) is State.SLEEPING
+        assert window.anyone_may_start() is False
+        # And it stays there: the tick must not wake a machine whose one child
+        # has had their sitting.
+        window._maybe_wake(datetime.now())
+        assert _state(window) is State.SLEEPING
+    finally:
+        window.shutdown()
+
+
+def test_the_grown_up_gate_starts_a_rested_child_anyway(tmp_path: Path) -> None:
+    """ "Anything sooner is the grown-up's decision" -- unchanged by ADR-0014."""
+    from kidnix_shell.state import Event
+
+    window = build_window(tmp_path)
+    try:
+        window.choose_profile(window.ctx.profile)
+        window.choose_next_after(window.ctx.config.next_after[0])
+        window.finish_now()
+        window._goodbye_now()
+        window.goodnight()
+        assert window.session.may_start(datetime.now()) is StartRefusal.RESTED
+
+        # The gate is a sheet over Sleeping; "Start a session" is a control on
+        # it, and Sleeping has no edge of its own for it (test_state.py).
+        window.machine.try_fire(Event.OPEN_GROWNUP)
+        window.start_session()
+        assert _state(window) is State.HOME
+        assert window.session.running
+        assert window.session.usage.rested_at is None
+    finally:
+        window.shutdown()

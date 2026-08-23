@@ -18,9 +18,11 @@ from kidnix_shell.session import (
     Session,
     SessionPolicy,
     StartRefusal,
+    Window,
     budget_day,
     load_policy,
     next_budget_reset,
+    refusal_for,
     time_left_words,
 )
 
@@ -491,3 +493,139 @@ def test_next_allowed_is_the_later_of_bedtime_ending_and_the_budget_rolling() ->
     assert session.next_allowed(evening) == datetime(2026, 8, 19, 7, 0)
     session.usage.seconds = 0
     assert session.next_allowed(evening) == datetime(2026, 8, 19, 7, 0)
+
+
+# --- resting is per child (ADR-0014) --------------------------------------
+#
+# The rule these hold is the one that used to live in `app._maybe_wake` and be
+# asked about the *machine*: a sitting that has ended stays ended until the
+# budget day rolls at 04:00, the bedtime window that ended it is over, or the
+# schedule window has changed. Nothing about *when* changed; only *whose*.
+
+
+def test_a_child_who_has_had_their_sitting_is_refused(policy: SessionPolicy) -> None:
+    usage = DailyUsage(day=NOW.date())
+    assert refusal_for(policy, usage, NOW) is StartRefusal.OK
+    usage.rest(NOW)
+    assert refusal_for(policy, usage, NOW + timedelta(seconds=30)) is StartRefusal.RESTED
+
+
+def test_the_rest_ends_when_the_budget_day_rolls_at_four(policy: SessionPolicy) -> None:
+    """The one that ends an ordinary afternoon. Not midnight, not "in an hour"."""
+    afternoon = datetime(2026, 8, 18, 16, 10)
+    usage = DailyUsage(day=budget_day(afternoon))
+    usage.rest(afternoon)
+    assert refusal_for(policy, usage, datetime(2026, 8, 18, 18, 30)) is StartRefusal.RESTED
+    # The boundary itself is asked of the predicate rather than of the whole
+    # refusal, because 03:59 and 04:00 are both inside the default bedtime
+    # window and BEDTIME outranks RESTED -- which is the point of the order.
+    assert policy.still_resting(afternoon, datetime(2026, 8, 19, 3, 59)) is True
+    assert policy.still_resting(afternoon, datetime(2026, 8, 19, 4, 0)) is False
+    # A machine whose parent set no bedtime sees the whole thing through
+    # `refusal_for`, which is what the shell actually calls.
+    open_all_hours = SessionPolicy(bedtime_start=time(0, 0), bedtime_end=time(0, 0))
+    assert refusal_for(open_all_hours, usage, datetime(2026, 8, 19, 3, 59)) is StartRefusal.RESTED
+    assert refusal_for(open_all_hours, usage, datetime(2026, 8, 19, 4, 0)) is StartRefusal.OK
+
+
+def test_a_rest_that_began_at_bedtime_is_over_once_bedtime_is(policy: SessionPolicy) -> None:
+    """The second wake condition, unchanged from the machine-wide version."""
+    night = datetime(2026, 8, 18, 20, 0)  # inside the default 19:00-07:00
+    assert policy.still_resting(night, night + timedelta(minutes=1)) is False
+
+
+def test_a_rest_outside_every_window_is_over_as_soon_as_one_opens() -> None:
+    """The third. On a machine with no windows it can never fire, by design."""
+    policy = SessionPolicy(
+        windows=(Window(days=frozenset({"tue"}), start=time(15, 30), end=time(18, 0)),)
+    )
+    outside = datetime(2026, 8, 18, 14, 0)
+    assert policy.still_resting(outside, datetime(2026, 8, 18, 16, 0)) is False
+    inside = datetime(2026, 8, 18, 16, 0)
+    assert policy.still_resting(inside, datetime(2026, 8, 18, 16, 30)) is True
+
+
+def test_the_four_refusals_are_ranked_the_way_the_words_need_them(policy: SessionPolicy) -> None:
+    """BEDTIME, OUT_OF_HOURS, BUDGET_SPENT, RESTED -- and the last two together.
+
+    A child who pressed "All done" on a day whose budget was already gone is
+    both; "that's all the computer time for today" is truer than "resting",
+    which sounds like it will be over shortly.
+    """
+    spent_and_rested = DailyUsage(day=NOW.date(), seconds=policy.daily_budget)
+    spent_and_rested.rest(NOW)
+    assert refusal_for(policy, spent_and_rested, NOW) is StartRefusal.BUDGET_SPENT
+
+    night = SessionPolicy(bedtime_start=time(11, 0), bedtime_end=time(13, 0))
+    assert refusal_for(night, spent_and_rested, NOW) is StartRefusal.BEDTIME
+
+    hours = SessionPolicy(
+        windows=(Window(days=frozenset({"wed"}), start=time(9, 0), end=time(10, 0)),)
+    )
+    assert refusal_for(hours, spent_and_rested, NOW) is StartRefusal.OUT_OF_HOURS
+
+
+def test_the_mark_survives_a_restart(tmp_path: Path) -> None:
+    """The shell is restarted mid-afternoon; the sitting is still over."""
+    path = tmp_path / "usage.toml"
+    usage = DailyUsage(day=budget_day(NOW), path=path)
+    usage.add(600)
+    usage.rest(NOW)
+
+    reloaded = DailyUsage.for_now(path, NOW)
+    assert reloaded.seconds == 600
+    assert reloaded.rested_at == NOW
+    assert refusal_for(SessionPolicy(), reloaded, NOW + timedelta(minutes=5)) is StartRefusal.RESTED
+
+
+def test_yesterdays_mark_is_not_todays(tmp_path: Path) -> None:
+    path = tmp_path / "usage.toml"
+    DailyUsage(day=budget_day(NOW), path=path).rest(NOW)
+    tomorrow = NOW + timedelta(days=1)
+    assert DailyUsage.for_now(path, tomorrow).rested_at is None
+    assert refusal_for(SessionPolicy(), DailyUsage.for_now(path, tomorrow), tomorrow) is (
+        StartRefusal.OK
+    )
+
+
+def test_the_first_ending_of_the_day_is_the_one_remembered() -> None:
+    """``rest`` is idempotent: a second ending must not push the mark forward."""
+    usage = DailyUsage(day=NOW.date())
+    usage.rest(NOW)
+    usage.rest(NOW + timedelta(hours=2))
+    assert usage.rested_at == NOW
+
+
+def test_a_grown_up_can_end_the_rest(policy: SessionPolicy) -> None:
+    """The gate's "Start a session": anything sooner is the grown-up's call."""
+    usage = DailyUsage(day=NOW.date())
+    usage.rest(NOW)
+    usage.wake()
+    assert usage.rested_at is None
+    assert refusal_for(policy, usage, NOW) is StartRefusal.OK
+
+
+def test_an_unreadable_mark_lets_the_child_in_rather_than_out(tmp_path: Path) -> None:
+    """The failure direction: nothing in a usage file may lock a child out."""
+    path = tmp_path / "usage.toml"
+    path.write_text(
+        f'day = "{budget_day(NOW).isoformat()}"\nseconds = 0\nrested_at = "half four"\n'
+    )
+    assert DailyUsage.for_now(path, NOW).rested_at is None
+
+
+def test_a_rested_child_is_told_tomorrow_rather_than_now() -> None:
+    """``next_allowed`` is what the resting line's "when" comes out of."""
+    policy = SessionPolicy()
+    usage = DailyUsage(day=budget_day(NOW))
+    session = Session(policy=policy, usage=usage)
+    assert session.next_allowed(NOW) == NOW  # nothing is stopping them
+    usage.rest(NOW)
+    assert session.next_allowed(NOW) == next_budget_reset(NOW)
+
+
+def test_a_session_will_not_start_for_a_child_who_has_had_one(session: Session) -> None:
+    """The method and the free function are the same rule, once."""
+    session.usage.rest(NOW)
+    assert session.may_start(NOW) is StartRefusal.RESTED
+    assert session.start(NOW) is False

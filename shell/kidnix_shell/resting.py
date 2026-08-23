@@ -250,21 +250,36 @@ def refusal_line(
     *,
     bedtime: bool,
     out_of_hours: bool = False,
+    rested: bool = False,
     now: datetime | None = None,
     next_open: datetime | None = None,
 ) -> str:
     """What Who's here says when there is no turn to be had.
 
-    Three refusals, in the order :class:`kidnix_shell.session.StartRefusal`
+    Four refusals, in the order :class:`kidnix_shell.session.StartRefusal`
     ranks them: bedtime first because night words are true then and nothing
-    else needs saying, out-of-hours next because it can say *when*, and the
-    spent budget last because it is the one that points at something to do
-    instead of at the machine's own return (D6).
+    else needs saying, out-of-hours next because it can say *when*, the spent
+    budget after that because it is the one that points at something to do
+    instead of at the machine's own return (D6), and **rested** last
+    (ADR-0014).
+
+    Rested has **no words of its own**, and that is the decision rather than an
+    omission: it says exactly what the Resting screen says, through
+    :func:`resting_line`, because it is the same sentence about the same
+    machine -- one arriving at a face the child pressed and one arriving on a
+    screen. A second phrasing would be two answers to one question, and a
+    five-year-old who hears them both would have to work out that they agree.
+    Daytime words only: bedtime outranks rested, so this branch never runs at
+    night.
     """
     if bedtime:
         return _(BEDTIME_REFUSAL)
     if out_of_hours:
         return out_of_hours_line(now, next_open) if now is not None else _(OUT_OF_HOURS_REFUSAL)
+    if rested:
+        if now is None or next_open is None:  # pragma: no cover - callers pass both
+            return _(RESTING_TOMORROW)
+        return resting_line(now, next_open)
     return _(BUDGET_SPENT_REFUSAL)
 
 
