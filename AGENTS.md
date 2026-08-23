@@ -60,6 +60,10 @@ These come from the research in `docs/research/`; change them only via ADR.
    shell, idempotent first boot.
 9. **Evidence over vibes.** When we don't know, we say so and test with a
    child.
+10. **Localisable from day one.** Every child- and parent-facing string goes
+    through gettext (`_()`/`ngettext()`); language is per profile; the TTS
+    voice follows the locale; activity content is per-language by design
+    (ADR-0012). en_GB is the default, never the only.
 
 ## 4. Repository map
 
