@@ -42,6 +42,7 @@ __all__ = [
     "hour_name",
     "minute_words",
     "nearest_on_grid",
+    "rim_targets",
     "snap",
 ]
 
@@ -131,10 +132,34 @@ def grid_for(mode: Mode) -> tuple[int, ...]:
     Year 1's grid is two positions, which is what makes the activity playable
     by a five-year-old with a mouse: there is nowhere on the rim that is a
     near-miss.
+
+    It is also the *whole* of what Year 1 offers. **ADR-0013** ruled on the
+    audit's finding that the Year 2 dial carries twelve spoken rim targets: a
+    labelled grid whose items are the task itself is not a choice set, so
+    twelve stays in Year 2 -- it is a clock, and the twelve hours are the
+    domain -- but the default year gets the twelve hour marks and nothing else.
+    :func:`rim_targets` is where that is spent.
     """
     if mode is Mode.Y1:
         return (0, 30)
     return tuple(range(0, 60, 5))
+
+
+def rim_targets(mode: Mode) -> tuple[tuple[int, str], ...]:
+    """Every target on the rim, as (minute, what it says). Pure, and the truth.
+
+    The face draws these and the Tab ring walks them, and both take the list
+    from here rather than working one out, so "what a child can press" and
+    "what a child is taught" cannot drift apart. Two in Year 1, twelve in
+    Year 2 (**ADR-0013**).
+
+    The Year 1 pair is o'clock and half past -- the two positions the National
+    Curriculum names for that year -- and *nothing on the five-minute rim*:
+    no quarter past, no twenty to, and no voice for them either. A target a
+    child can hear but has not been taught is a lesson their school has not
+    given, which is the same rule :class:`Mode` keeps for the same reason.
+    """
+    return tuple((minute, minute_words(minute)) for minute in grid_for(mode))
 
 
 def nearest_on_grid(total: int, mode: Mode) -> int:

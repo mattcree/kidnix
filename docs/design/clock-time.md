@@ -124,6 +124,21 @@ on it that is not o'clock or half past, so sixty ticks would be sixty positions
 the child is not being asked about — decoration that looks like information,
 which is exactly what 05 §2c (Kaminski & Sloutsky) warns about.
 
+**ADR-0013 ruled on the other half of that, and the ruling is now spent here.**
+The 2026-08-23 CCI audit read the Year 2 dial's twelve spoken rim targets
+against SYNTHESIS B2's five-choice ceiling. The ADR's answer is that a labelled
+grid whose items *are* the task is not a choice set — the twelve hours on a
+clock face are bounded by the domain and not by our taste — so **Year 2 keeps
+its twelve**, and **Year 1, the default, gets the twelve hour marks and nothing
+on the five-minute rim**: no tick to look at, no target to press, and no voice
+saying "quarter past" to a child whose school has not said it yet. That was
+already what the code did; what it did not have was a name for why, or a test
+that would notice if it stopped. Both are there now —
+`words.rim_targets(mode)` is the single list the face draws and the Tab ring
+walks, so "what a child can press" and "what a child has been taught" are one
+statement in one place, and `test_dial.py` reads the Year 1 rim back **off the
+rendered pixels** rather than off this paragraph.
+
 ### 3.3 The words
 
 `ClockTime.words()` is the one string the voice and the caption share, and every
@@ -272,6 +287,63 @@ Three intervals are offered — half a minute, a minute, two minutes — named a
 never numbered. A child who has only ever judged one interval has learnt a
 reflex rather than a duration, and "two minutes" is the phrase adults actually
 use at the end of a session, so it is worth having a picture of.
+
+### 5.3 …and every button now *is* a picture
+
+The 2026-08-23 audit's ruling 4, in as many words: *six buttons, five of them
+text-only, for a child who cannot read.* `Start`, `Watch`, `Half`, `One` and
+`Two` were a word and a sentence in the ear and nothing to look at. SYNTHESIS
+B3 asks every control for all three channels, and the third one is the one this
+screen was missing. The drawings are in `clock_time/icons/`, in the same house
+style as the routine pictures — 120 px square, ink outline, two or three flat
+fills from the theme — and each is **the thing itself** rather than a symbol
+for it (08 §3.7):
+
+| | | |
+|---|---|---|
+| `Start` | the whole sun, every bit of it still there | it is the same disc the screen is about to show |
+| `Stop` | a hand held up, palm out | what an adult does, and what a child does back |
+| `Watch` | an arrow all the way round the sun | *again*, which is what watching one is |
+| `Half` `One` `Two` | three discs on one ground line, one bigger than the last | 09 Q1: duration is **area**, never horizontal travel |
+| `Clock` | the shell's own fat back arrow, restated at this size | one screen back means the same picture wherever it is drawn |
+
+The `Clock` button wearing the band's own back arrow is deliberate and is not a
+second way out of the activity. §2 still holds — leaving is the band's, one
+screen up, and this button has never done that. What it does is go back one
+screen *inside* the activity, which is the same sentence the band's arrow says,
+and a child who has learnt "this arrow takes me back to where I was" is better
+served by seeing it mean one thing everywhere than by having two arrows to tell
+apart. The word underneath still says where back *is*: `Clock`.
+
+Three more things about that are worth writing down.
+
+**Start and Stop are one control with two faces, and now all three channels
+turn over together.** Before this, pressing Start changed only the *sentence*:
+the word underneath still said "Start" while the ear said "Stop", which is the
+one state a pre-reader cannot check. `_go_face` moves the picture, the word and
+the sentence at once, and every route out of a guess — stopping it, choosing a
+different interval, asking to watch one instead — comes back through it, so the
+button can no longer be left saying the wrong thing. (It could before: a child
+who pressed Start and then Watch was left holding a Stop.)
+
+**The interval buttons are the only place a duration is drawn as a size.** Two
+minutes is a bigger disc, and there is no digit, no bar and no ruler anywhere
+near it — 09 Q1 again, and Tillman et al. (2018), who found most preschoolers do
+not read a directional line at all. The three share one ground line, because
+three sizes are only *three sizes* if they share a baseline; a test re-reads
+the radii and the baseline out of the SVGs and fails if they ever disagree with
+`LENGTHS`.
+
+**The pictures live in `icons/` and not in `pictures/`.** That second directory
+is the *routine* namespace: a grown-up may name any moment in their day after
+anything in it. A family whose day contained a moment called "stop" would
+otherwise be handed a drawing of a hand at tea time.
+
+Nothing here is required for the screen to work. A drawing that is not on disk
+comes back as `""`, which is what `BigButton` already reads as "this control has
+no picture", so a broken install loses the pictures and keeps the words and the
+voice — the same failure the routine strip already takes for a moment we have
+no drawing of.
 
 ## 6. The grown-up's file
 
@@ -440,20 +512,21 @@ and overhanging it.
 
 ## 10. Tests
 
-371 at the time of writing; `uv run pytest` and `uv run ruff check` are green.
+454 at the time of writing; `uv run pytest` and `uv run ruff check` are green.
 
 | File | What it holds down |
 |---|---|
-| `test_words.py` | every o'clock, half past, quarter and five-minute case; "twelve o'clock"; "half past twelve"; snapping in both modes, including the wrap over twelve and the tie; stepping; the hedge; **no digit in any of the 720 spoken strings** |
+| `test_words.py` | the rim ADR-0013 allows each year, and that Year 1's carries no five-minute name; every o'clock, half past, quarter and five-minute case; "twelve o'clock"; "half past twelve"; snapping in both modes, including the wrap over twelve and the tie; stepping; the hedge; **no digit in any of the 720 spoken strings** |
 | `test_routine.py` | the day, `HH:MM` parsing, the four skies, the am/pm resolution with and without the room's own clock, "the last thing that started" |
 | `test_settings.py` | the search path, partial credit, the eight-item cap, and that the shipped default file says exactly what the code's default day says |
+| `test_icons.py` | that every control on the minute screen has a drawing; that each one parses as SVG, keeps to the theme's palette, and draws no type at all; that a longer interval is a bigger disc on the same ground line; and that none of them is in the routine namespace |
 | `test_minute.py` | every band boundary; that no verdict carries a digit, a score or a judgement; that the disc never travels, never vanishes and is clamped |
 | `test_keys.py` | the whole key table, and that Escape and Backspace are never ours |
-| `test_dial.py` | where a tap lands (including in Year 1, where nothing may land between the two positions), and the drawing — rendered to a cairo surface and counted, because a screenshot somebody eyeballs once is not a test |
+| `test_dial.py` | where a tap lands (including in Year 1, where nothing may land between the two positions), that the Year 1 rim is **bare between the hour marks** where Year 2's ticks are (ADR-0013), and the drawing — rendered to a cairo surface and counted, because a screenshot somebody eyeballs once is not a test |
 | `test_sun_agreement.py` | every constant and every geometry re-derived from `kidnix_shell.sun` |
 | `test_activity_css.py` | the palette against `theme.css`; that a rim target still answers a hand; that nothing here is red or animates |
 | `test_manifest.py` | the shell's own validator, plus the honesty tests on the goal line |
-| `test_gtk_smoke.py` | under a Broadway daemon it starts itself, and skips the file if there is not one: the tree builds, the targets are named and land on the marks, both screens fit the rectangle, and one played session produces one Journal card |
+| `test_gtk_smoke.py` | under a Broadway daemon it starts itself, and skips the file if there is not one: the tree builds, the targets are named and land on the marks, **every control on the minute screen carries a picture, a word and a sentence**, Start turns into Stop and back in all three, both screens fit the rectangle, and one played session produces one Journal card |
 
 Headless tests are the floor and never skip. The words, the snapping, the
 routine lookup, the bands and **the whole of the drawing** are exercised with no

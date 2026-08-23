@@ -386,6 +386,94 @@ def test_the_minute_screen_builds_and_can_go_back(running):
     assert running.disc is None
 
 
+def _big_buttons(widget):
+    """Every :class:`BigButton` under ``widget``, in tree order.
+
+    A ``Prompt``'s replay control and the routine tiles are deliberately not
+    among them: they are a ``ChildButton`` and a ``PictureTile``, and both
+    already carry a picture.
+    """
+    from kidnix_activity.widgets import BigButton
+
+    def walk(node):
+        yield node
+        child = node.get_first_child()
+        while child is not None:
+            yield from walk(child)
+            child = child.get_next_sibling()
+
+    return [node for node in walk(widget) if isinstance(node, BigButton)]
+
+
+def test_every_control_on_the_minute_screen_has_a_picture_a_word_and_a_sentence(running):
+    """**The regression.** On 2026-08-23 this screen carried six controls and
+    five of them were a word and nothing else -- on the screen of an activity
+    written for a child who cannot read one (the CCI audit's ruling 4).
+    SYNTHESIS B3 asks every control for all three channels."""
+    running.build_minute(running.window)
+    buttons = _big_buttons(running.window.content)
+    assert len(buttons) == 6
+    for button in buttons:
+        assert button.icon_image is not None
+        assert button.label is not None
+        assert button.label.get_label().strip()
+        assert button.speak_text.strip()
+        assert not any(character.isdigit() for character in button.speak_text)
+
+
+def test_the_start_button_becomes_the_stop_button_in_all_three_channels(running):
+    """One control, two meanings. Until the pictures existed only the *ear*
+    knew: the word still said "Start" while the sentence said "Stop"."""
+    from clock_time.icons import icon_for
+    from clock_time.minute import Phase
+
+    running.build_minute(running.window)
+    assert running.go.label.get_label() == "Start"
+    assert "Start" in running.go.speak_text
+
+    running.start_or_stop()
+    assert running.phase is Phase.GUESSING
+    assert running.go.label.get_label() == "Stop"
+    assert running.go.speak_text.startswith("Stop")
+
+    running.start_or_stop()
+    assert running.phase is Phase.RESULT
+    assert running.go.label.get_label() == "Start"
+    assert "Start" in running.go.speak_text
+    assert icon_for("start") and icon_for("stop")
+
+
+@pytest.mark.parametrize("leave", ["watch", "choose"])
+def test_every_way_out_of_a_guess_puts_the_button_back(running, leave):
+    """A child who starts a guess and then asks to watch one instead, or
+    picks a different interval, must not be left holding a button that says
+    Stop when there is nothing running."""
+    from clock_time.minute import Length
+
+    running.build_minute(running.window)
+    running.start_or_stop()
+    assert running.go.label.get_label() == "Stop"
+    if leave == "watch":
+        running.watch()
+    else:
+        running.choose(Length.TWO_MINUTES)
+    running._stop_ticking()
+    assert running.go.label.get_label() == "Start"
+    assert "Start" in running.go.speak_text
+
+
+def test_each_interval_carries_its_own_drawing(running):
+    """Three discs, one bigger than the last, and never a digit -- the
+    picture is the only thing on the screen that says how long "Two" is."""
+    from clock_time.icons import length_icon
+    from clock_time.minute import LENGTHS
+
+    running.build_minute(running.window)
+    assert len({length_icon(length) for length in LENGTHS}) == len(LENGTHS)
+    labels = {button.label.get_label() for button in _big_buttons(running.window.content)}
+    assert {length.label for length in LENGTHS} <= labels
+
+
 def test_starting_and_stopping_gives_a_verdict_without_a_number(running):
     from clock_time.minute import Length, Phase
 

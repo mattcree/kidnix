@@ -71,12 +71,13 @@ from .dial import (  # noqa: E402
     render_card,
     total_from_point,
 )
+from .icons import icon_for, length_icon  # noqa: E402
 from .keys import Action, Screen, action_for_keyval  # noqa: E402
 from .minute import LENGTHS, Length, Phase, disc_geometry, verdict_for  # noqa: E402
 from .pictures import picture_for, picture_path  # noqa: E402
 from .routine import Routine, RoutineItem, Sky  # noqa: E402
 from .settings import ParentSettings, load_settings  # noqa: E402
-from .words import ClockTime, Mode, grid_for, minute_words  # noqa: E402
+from .words import ClockTime, Mode, rim_targets  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -372,9 +373,9 @@ class ClockFace(Gtk.Overlay):
 
         target = area.min_target
         self.targets: list[tuple[int, ChildButton]] = []
-        for minute in grid_for(mode):
+        for minute, name in rim_targets(mode):
             button = ChildButton(
-                speak_text=_rim_words(minute),
+                speak_text=name,
                 on_activate=lambda m=minute: self._rim_pressed(m),
                 speech_ui=speech_ui if speech_ui is not None else _ui_of(speech),
                 css_classes=("rim",),
@@ -459,14 +460,36 @@ def _unit_for(minute: int) -> tuple[float, float]:
     return (math.cos(angle), math.sin(angle))
 
 
-def _rim_words(minute: int) -> str:
-    """What a rim target is called: "half past", "quarter to", "o'clock".
+def _reface(
+    button: BigButton | None, area: ContentArea | None, icon: str, label: str
+) -> None:
+    """Give a control a different picture and a different word, together.
 
-    The position, not the time -- the time depends on which hour the hands are
-    in, and a target whose spoken name changed under the child's finger every
-    time they moved the clock would be a different control each press.
+    The Start button is the one control here that means two things -- press it
+    and it is now the thing that stops -- and a control that looks identical in
+    both states has told a pre-reader it is still the thing that starts. So the
+    picture and the label change with the sentence in the ear, and all three say
+    the same thing at the same time (SYNTHESIS B3).
+
+    The label is re-fitted rather than merely re-set: a word nobody measured is
+    a word Pango may break, which is the whole lesson of the routine strip.
     """
-    return minute_words(minute)
+    if button is None:
+        return
+    if button.icon_image is not None and icon:
+        pixels = button.icon_image.get_pixel_size()
+        button.icon_image.set_from_file(icon)
+        button.icon_image.set_pixel_size(pixels)
+    if button.label is not None:
+        size = area.target(SIDE_BUTTON_MM) if area is not None else 0
+        button.fit = fit_label(
+            button.label,
+            label,
+            width=max(24, (size or 160) - 24),
+            base_pt=area.points(24.0) if area is not None else 24.0,
+            floor_pt=area.points(18.0) if area is not None else 18.0,
+        )
+        _measured(button.label, button.fit, max(24, size - 24) if size else 0)
 
 
 # -- what happens when ------------------------------------------------------
@@ -608,6 +631,18 @@ class ClockActivity:
         self.tiles: dict[str, PictureTile] = {}
 
         log.info("settings: %s", self.settings.describe())
+
+    # -- the rectangle we were given --
+
+    @property
+    def _area(self) -> ContentArea | None:
+        """The window's content box, or ``None`` before there is a window.
+
+        Everything that measures itself takes this; it is a property rather
+        than a field because the window is built after the activity is, and a
+        stale copy of the panel's millimetres is worse than none.
+        """
+        return self.window.area if self.window is not None else None
 
     # -- scratch --
 
@@ -897,10 +932,19 @@ class ClockActivity:
         # three actions are 30 mm. Size is what separates a setting from a
         # thing to press, which is the same distinction the grown-up's card
         # makes with typography.
+        #
+        # Every one of them carries a drawing as well as its word. Until
+        # 2026-08-23 five of the six were a word and nothing else, on the
+        # screen of an activity written for a child who cannot read one -- the
+        # CCI audit's ruling 4. The pictures are in `clock_time/icons`, they
+        # are the thing itself rather than a symbol for it, and the label and
+        # the spoken sentence are unchanged underneath them.
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=area.gap)
         row.set_halign(Gtk.Align.CENTER)
         self.go = _big(
             "Start",
+            icon=icon_for("start"),
+            icon_kind="path",
             speak_text="Start. Press stop when you think the time has gone.",
             on_activate=self.start_or_stop,
             speech=window.speech,
@@ -911,6 +955,8 @@ class ClockActivity:
         row.append(
             _big(
                 "Watch",
+                icon=icon_for("again"),
+                icon_kind="path",
                 speak_text=f"Watch {self.length.words} go past.",
                 on_activate=self.watch,
                 speech=window.speech,
@@ -922,6 +968,8 @@ class ClockActivity:
             row.append(
                 _big(
                     length.label,
+                    icon=length_icon(length),
+                    icon_kind="path",
                     speak_text=f"Try {length.words}.",
                     on_activate=lambda w=length: self.choose(w),
                     speech=window.speech,
@@ -933,7 +981,7 @@ class ClockActivity:
         row.append(
             _big(
                 "Clock",
-                icon=str(ICON),
+                icon=icon_for("back"),
                 icon_kind="path",
                 speak_text="Back to the clock.",
                 on_activate=lambda: self.build_clock(window),
@@ -948,6 +996,25 @@ class ClockActivity:
         self.disc.set_state(Phase.READY, 0.0)
         window.speak(self.length.prompt)
 
+    def _go_face(self, *, stopping: bool) -> None:
+        """Put the one two-faced button into the state the screen is in.
+
+        Start and Stop are the same control, and until this existed only the
+        *sentence* changed between them: the word said "Start" while the ear
+        said "Stop", and the picture said nothing at all. Both faces move
+        together now, and every route out of a guess -- stopping it, choosing
+        a different interval, or asking to watch one instead -- comes back
+        through here, so the button can never be left saying the wrong thing.
+        """
+        if self.go is None:
+            return
+        if stopping:
+            self.go.set_speak_text("Stop. That feels like the right time.")
+            _reface(self.go, self._area, icon_for("stop"), "Stop")
+        else:
+            self.go.set_speak_text("Start. Press stop when you think the time has gone.")
+            _reface(self.go, self._area, icon_for("start"), "Start")
+
     def choose(self, length: Length) -> None:
         """A different interval. Stops whatever was running, quietly."""
         self._stop_ticking()
@@ -955,6 +1022,7 @@ class ClockActivity:
         self.phase = Phase.READY
         if self.disc is not None:
             self.disc.set_state(Phase.READY, 0.0)
+        self._go_face(stopping=False)
         if self.prompt is not None:
             self.prompt.set_text(length.prompt)
         if self.window is not None:
@@ -968,6 +1036,7 @@ class ClockActivity:
         self._started_at = time.monotonic()
         if self.disc is not None:
             self.disc.set_state(Phase.SHOWING, 0.0)
+        self._go_face(stopping=False)
         if self.prompt is not None:
             self.prompt.set_text(f"Watch {self.length.words} go past.")
         if self.window is not None:
@@ -985,8 +1054,7 @@ class ClockActivity:
         self._started_at = time.monotonic()
         if self.disc is not None:
             self.disc.set_state(Phase.GUESSING, 0.0)
-        if self.go is not None:
-            self.go.set_speak_text("Stop. That feels like the right time.")
+        self._go_face(stopping=True)
         if self.prompt is not None:
             self.prompt.set_text(self.length.prompt)
         if self.window is not None:
@@ -999,8 +1067,7 @@ class ClockActivity:
         fraction = min(1.0, self._elapsed / self.length.seconds)
         if self.disc is not None:
             self.disc.set_state(Phase.RESULT, fraction)
-        if self.go is not None:
-            self.go.set_speak_text("Start. Press stop when you think the time has gone.")
+        self._go_face(stopping=False)
         sentence = verdict.sentence(self.length)
         if self.prompt is not None:
             self.prompt.set_text(sentence)

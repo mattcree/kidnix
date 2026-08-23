@@ -20,6 +20,7 @@ from clock_time.words import (
     grid_for,
     hour_name,
     minute_words,
+    rim_targets,
     snap,
 )
 
@@ -322,3 +323,41 @@ def test_the_dial_is_modular_and_never_out_of_range():
 def test_describe_is_for_the_log_and_may_carry_digits():
     """A parent reads the journal; a child does not."""
     assert ClockTime.of(3, 30).describe() == "03:30 (half past three)"
+
+
+# --- ADR-0013: what the rim offers, and what it may not ---------------------
+
+
+def test_year_one_offers_two_targets_and_year_two_offers_twelve():
+    """ADR-0013. A labelled grid whose items *are* the task is not a choice
+    set, so the twelve hours of a clock face stay in Year 2 -- but the default
+    year is the two positions the National Curriculum names for it."""
+    assert [minute for minute, _name in rim_targets(Mode.Y1)] == [0, 30]
+    assert len(rim_targets(Mode.Y2)) == 12
+
+
+def test_year_one_has_nothing_on_the_five_minute_rim():
+    """Not a quarter past, not twenty to, and no voice for them either. A
+    target a child can hear but has not been taught is a lesson their school
+    has not given."""
+    said = {name for _minute, name in rim_targets(Mode.Y1)}
+    assert said == {"o'clock", "half past"}
+    for taught_later in ("quarter past", "quarter to", "five past", "twenty-five to"):
+        assert taught_later not in said
+
+
+def test_every_target_says_its_position_and_never_a_digit():
+    for mode in Mode:
+        for minute, name in rim_targets(mode):
+            assert name == minute_words(minute)
+            assert not any(character.isdigit() for character in name)
+
+
+def test_the_targets_are_exactly_the_grid_the_hands_may_land_on():
+    """One list, two readers. "What a child can press" and "where a hand may
+    stop" drifting apart is a rim target that moves the hands somewhere the
+    snap will not keep them."""
+    for mode in Mode:
+        assert [minute for minute, _name in rim_targets(mode)] == list(grid_for(mode))
+        for minute, _name in rim_targets(mode):
+            assert snap(minute, mode) == minute

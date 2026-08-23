@@ -208,6 +208,13 @@ def _draw_marks(ctx: cairo.Context, cx: float, cy: float, radius: float, mode: M
     minute ticks would be sixty positions the child is not being asked about
     -- decoration that looks like information, which 05 section 2c
     (Kaminski & Sloutsky) is exactly the finding against.
+
+    **ADR-0013** settles the other half of the same question. The twelve hour
+    marks are a labelled grid whose items *are* the task -- the domain bounds
+    them, not our taste -- so Year 2 keeps its twelve rim targets on them; the
+    default year draws the twelve marks and offers nothing on the five-minute
+    rim, neither a tick to look at nor a target to hear
+    (:func:`clock_time.words.rim_targets`).
     """
     ctx.set_line_cap(cairo.LINE_CAP_ROUND)
     if mode is Mode.Y2:

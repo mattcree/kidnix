@@ -41,6 +41,20 @@ def painted(image: cairo.ImageSurface) -> int:
     return sum(1 for index in range(3, len(data), 4) if data[index] != 0)
 
 
+def pixel(image: cairo.ImageSurface, x: float, y: float) -> tuple[float, float, float]:
+    """The colour at one point, as ``rgb`` returns them. ARGB32 is BGRA here."""
+    image.flush()
+    stride, data = image.get_stride(), bytes(image.get_data())
+    start = round(y) * stride + round(x) * 4
+    blue, green, red = data[start], data[start + 1], data[start + 2]
+    return (red / 255.0, green / 255.0, blue / 255.0)
+
+
+def is_face(image: cairo.ImageSurface, x: float, y: float) -> bool:
+    """Is this point still bare paper -- nothing drawn on it?"""
+    return all(abs(a - b) < 0.05 for a, b in zip(pixel(image, x, y), rgb(PAPER), strict=True))
+
+
 # --- a tap on the rim -------------------------------------------------------
 
 
@@ -150,6 +164,26 @@ def test_moving_the_hands_changes_the_picture():
     second, ctx2 = surface()
     draw_dial(ctx2, 300, 300, ClockTime.of(3, 30), mode=Mode.Y1)
     assert bytes(first.get_data()) != bytes(second.get_data())
+
+
+def test_year_one_leaves_the_rim_between_the_hour_marks_bare():
+    """**ADR-0013**, read off the pixels rather than off the docstring. The
+    default year draws the twelve hour marks and nothing else: a tick between
+    them would be a position the child is not being asked about, drawn as
+    though it were information (05 section 2c).
+
+    Sampled where the minute ticks live -- the annulus from 0.85 to 0.90 of
+    the radius -- at minutes that are not on an hour mark, with the hands
+    straight up and out of the way."""
+    points = (2, 3, 7, 8, 22, 23)
+    for mode, expected_bare in ((Mode.Y1, True), (Mode.Y2, False)):
+        image, ctx = surface()
+        radius = draw_dial(ctx, 300, 300, ClockTime.of(12, 0), mode=mode)
+        bare = [
+            is_face(image, *hand_tip((150.0, 150.0), radius * 0.875, minute * 6.0))
+            for minute in points
+        ]
+        assert all(bare) is expected_bare, mode
 
 
 def test_year_two_draws_minute_ticks_and_year_one_does_not():
