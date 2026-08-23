@@ -308,7 +308,18 @@ class GuestVM:
         for line in self.serial_text().splitlines():
             if MARKER_OK in line:
                 return line.strip()
-        return ""
+        # The serial line can be garbled by agetty's escape sequences (the
+        # reporter and the login prompt share ttyS0); the journal has it clean.
+        try:
+            out = self.ssh(
+                "journalctl -b -t kidnix-boot-report --no-pager -o cat 2>/dev/null"
+                f" | grep -m1 {MARKER_OK}",
+                timeout=20.0,
+                check=False,
+            )
+            return (out.stdout or "").strip()
+        except Exception:  # fall through to the empty answer
+            return ""
 
     # -- ssh ---------------------------------------------------------------
 
