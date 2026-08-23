@@ -236,3 +236,40 @@ on schema errors so CI can run it.)
   band speaks "Draw is asking if you're done".
 - ADR-0010 #5 stands: Tux Paint's tick/cross dialog is the activity's save
   step; `quit=yes` stays.
+
+## 7d. Rulings from the expert panel (2026-08-23; see reviews/2026-08-23-SYNTHESIS.md)
+
+1. Session floor 5 min (parent ≥ 3); refusal at Who's here *before* What's
+   next after, in daytime words; sub-floor grants refused in the gate with the
+   minimum named. Windows proportional with caps: offer = clamp(20%, 2–4 min),
+   put-away = clamp(10%, 1–2 min); two beats always.
+2. The offer is consequential: "Finish this one" defers put-away to T−1;
+   "One last little thing" returns Home, put-away at the normal time; "Ask
+   for more time" dismisses and names nobody. Offer buttons ADD to the band
+   (Undo/My Things keep their cells) with a scale-in and the highlight ring.
+3. Goodbye is led by the chosen destination (≥ 40 mm picture + headline,
+   spoken last); one line of descriptive feedback from the Journal; "Show a
+   grown-up" always visible; no return promises in daytime; the sun is held
+   down from Ending offer through Sleeping/Resting; one sun metaphor only.
+4. Two vocabularies on `is_bedtime`: daytime **Resting** (no moon/yawn; says
+   *when* in child terms: "after tea" / "tomorrow") vs bedtime Sleeping.
+   Resting/Sleeping speech ≤ once per 8 s, never cut mid-word, silent after
+   three taps in 30 s; the whole content window is dim.
+5. All done pinned to a fixed cell; progressive disclosure OFF by default.
+   What's next after has "Not sure yet"; Back returns to Who's here.
+6. Tiles use depictive icons of the output/action; the recent-work thumbnail
+   is a corner badge, never the tile's picture.
+7. Accessibility: one key controller across both toplevels, focus on every
+   screen, real key-hold on the gate; a caption strip mirrors every spoken
+   line; `calm = true` (reduced motion, softer/fewer sounds); earcon fades
+   ≥ 150 ms; volume/mute control; focus ring and sun contrast ≥ 3:1 on the
+   band; Sleeping/Resting paints the content window.
+8. Target floor **20 mm** (Hourcade's physical figure), 24 mm preferred;
+   supersedes checkpoint-1 item 15 (ADR-0011).
+9. Voice: a 20 s "tell me about it" recorder on Let's keep that and on
+   Journal cards (OGG `note.ogg` in the entry).
+10. Research logging (hover-speech, PIN attempts, burst-click) behind
+    `/etc/kidnix/research.toml enabled=false`; journald retention capped.
+11. Per-profile journal/budget/progress; parent export and wipe; starter PIN
+    detected and the gate forces a new one.
+12. GCompris is a one-level **shelf** tile of the 18 curated children.

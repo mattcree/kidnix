@@ -62,6 +62,21 @@ Per minute or per event, in `docs/design/testing-log.md`:
   sudden change).
 - Voice: understood? imitated? asked to repeat?
 
+## Method corrections from the expert panel (CCI reviewer, 2026-08-23)
+
+- **Not ABAB.** For P1 (sun vs no sun) use a randomised alternating-treatments
+  design: a coin at session start decides the condition, balancing time of
+  day, novelty and maturation; pre-register the prediction.
+- **Blind second coder.** Record screen + room (camera framed below the band
+  so the coder cannot see whether the sun is drawn) and have a second adult
+  code affect at the transition; the parent's own rating is secondary.
+- **Build the burst-click detector before session one** (it exists only as
+  comments); count target misses from the shell's own local diagnostics.
+- **Icon-naming probe on paper first**: print the ten tile icons at 15 mm, ask
+  "what would happen if you pressed this?" — redraw any below 3/4 before the
+  child ever sees the screen.
+- The first session is a *baseline*, not P1.
+
 ## Preference measures (01 #43)
 
 - **Again-Again** (would you do this again? yes/maybe/no) per activity, asked
