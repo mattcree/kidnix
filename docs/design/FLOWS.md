@@ -11,7 +11,8 @@
 > **COVERED** — a test drives the flow on the shipped artefact. **PARTIAL** —
 > headless/GTK tests prove the logic, or one branch of several is driven.
 > **UNCOVERED** — the named test is the one to add. Tests live in
-> `tests/e2e/test_scenario.py`, `shell/tests/`, `tests/image/`, `tests/boot/`.
+> `tests/e2e/test_scenario.py`, `tests/e2e/test_flows.py`, `shell/tests/`,
+> `tests/image/`, `tests/boot/`.
 
 ---
 
@@ -68,7 +69,7 @@
 3. Press a card = **resume** (`exec_resume`, else plain launch and "Open Draw to find it"). Star toggles; Undo un-stars. No delete.
 **Accept** no spoken string contains a digit; a card resumes rather than opening a viewer; pagination, never scrolling.
 **Evidence** spec §S4, §7a; SYNTHESIS F1–F3; impl. §16.7.
-**Coverage** **PARTIAL** — e2e `test_05` only finds the card; `test_journal.py`. **Add:** resume-from-card, the biggest untested child affordance.
+**Coverage** **COVERED** — e2e `test_flows.py::test_a6_a_journal_card_resumes` presses a card on the shipped image and asserts the launch and that the activity takes the screen; e2e `test_05`; `test_journal.py`. **Limit:** the shipped `tuxpaint.toml` declares no `exec_resume`, so what is driven is the *plain-launch* branch and the argv is asserted to carry no file. **Add:** an activity that really resumes into its own file.
 
 ### A7 · The shelf — Letters and numbers
 **Child.** As a child I want a heading and three pictures, not a menu of 198.
@@ -171,7 +172,7 @@
 3. The gate stays reachable; Sleeping ends at the next allowed window, a new day, or an unlock.
 **Accept** the dim is on the *windows*, not a centred box; the band window stays mapped (unmapping loses its placement).
 **Evidence** spec §S8, §7a, §7d #4; impl. §18.6, §21.6.
-**Coverage** **PARTIAL** — e2e `test_06` reaches `sleeping`; `test_resting.py`. **Note:** the e2e runs in daytime, so it exercises A19's screen while asserting the `goodnight` event.
+**Coverage** **PARTIAL** — e2e `test_flows.py::test_a18_bedtime_speaks_night_words_and_sleeps` writes a policy whose window contains the *guest's* now and asserts "It's night time. kidnix is going to sleep." and a dim navy surface painted on the whole window; `test_resting.py`. **Limit:** the route is the refusal at Who's here, because a session cannot *start* at bedtime — the moon at the end of a sitting still needs the clock stepped over `bedtime_start` mid-session (C10). e2e `test_06` reaches `sleeping` in daytime, so it exercises A19's screen while asserting the `goodnight` event.
 
 ### A19 · Resting (daytime) — and a dysregulated child
 **Child at 4 pm; or a child in distress.**
@@ -180,7 +181,7 @@
 3. The line demands nothing — no "Ask a grown-up", no return promise.
 **Accept** no night vocabulary before `bedtime_start`; the third tap in 30 s produces silence.
 **Evidence** spec §7d #4; panel MH #17/#23, child-psych #31; impl. §21.6.
-**Coverage** **PARTIAL** — `test_resting.py`, `demo-resting.png`. **Add:** an e2e run past bedtime, proving both vocabularies on the image.
+**Coverage** **PARTIAL** — e2e `test_flows.py::test_a20_all_done_ends_the_session_and_a19_it_rests` ends a daytime sitting and asserts the resting line, the warm surface and the *absence* of "kidnix is sleeping."; the other vocabulary is A18's test, so both are now proved on the image. `test_resting.py`, `demo-resting.png`. **Add:** the dysregulated half — three presses in 30 s earning silence.
 
 ### A20 · "All done" — the child ends it
 **Child.** As a child I want to stop when I have had enough, and get the same ending.
@@ -188,7 +189,7 @@
 2. The same ritual from S6 on. Back on Put away is inert 3 s (accidental-tap guard), then Home.
 **Accept** All done reaches Put away in one event from Home, an activity, My Things and S1b; the back-delay table has exactly one row.
 **Evidence** spec §7a, §7d #5; SYNTHESIS D5 (children ended early 31% of the time); impl. §17.7, §21.7.
-**Coverage** **PARTIAL** — `test_ritual.py`, `test_gtk_smoke.py`. **Add:** e2e press of All done; every automated ending today is clock-driven.
+**Coverage** **COVERED** — e2e `test_flows.py::test_a20_all_done_ends_the_session_and_a19_it_rests` finds the lavender tile by colour (it is the only control whose fill is not paper), checks it is the last cell of its row, presses it once, and asserts Put away in one event with nothing in between asking the child to confirm; `test_ritual.py`, `test_gtk_smoke.py`. Also driven by key in `test_a25_a_whole_session_on_the_keyboard`.
 
 ### A21 · The session refused at the door
 **Child whose budget is spent, or who arrives at bedtime.**
@@ -196,7 +197,7 @@
 2. Resting/Sleeping for the reason · **says**, in daytime words, "That's all the computer time for today. Ready to go and play?"
 **Accept** the refusal is at Who's here, never after a plan; a grant the budget would truncate below `min_session_minutes` (5, floor 3) is refused whole; no session begins outside `Phase.RUNNING`.
 **Evidence** spec §7d #1; panel blocker "session arithmetic"; impl. §21.1.
-**Coverage** **PARTIAL** — `test_session.py` (invariants over every reachable grant); `--start-on resting` earns the refusal for the screenshot. **Add:** e2e that spends the budget first.
+**Coverage** **COVERED** — e2e `test_flows.py::test_a21_the_session_is_refused_at_whos_here` gives the day one minute against a three-minute floor, presses the face, and asserts the daytime refusal *and* that `NEXT_CHOICE` was never entered and no clock started; `test_session.py` (invariants over every reachable grant); `--start-on resting` earns the refusal for the screenshot.
 
 ### A22 · An activity that fails to open
 **Child.** As a child I want the machine to go back to something I recognise, not show me an error.
@@ -204,7 +205,7 @@
 2. Return to HOME · **says** a friendly line; the detail goes to the journal for the parent only. No adult error text, no modal.
 **Accept** the child is never left on a blank screen; `IN_ACTIVITY` is always left through one path (`_activity_finished`); the failure is one log line.
 **Evidence** SYNTHESIS C3; AGENTS §3 #8; impl. §19.2 (the "sat in IN_ACTIVITY with nothing on screen" regression).
-**Coverage** **UNCOVERED**. **Add:** a GTK test for the launch failure, plus a `--demo` failure mode (the demo has five; none is "exec fails").
+**Coverage** **COVERED** — e2e `test_flows.py::test_a22_an_activity_that_fails_to_open` drops a manifest pointing at `/bin/false` into the kid's own activity directory, presses its tile, and asserts the friendly line, the single WARNING with the reason, and Home with tiles on it. **Add:** the other half of step 1 — a program that starts and never maps a window — plus a `--demo` failure mode (the demo has five; none is "exec fails").
 
 ### A23 · Tiles not allowed, not ready, or not for them
 **Child.**
@@ -230,7 +231,7 @@
 2. Focus lands on every arrival; **Escape is Back**. The gate: Enter/Space **held 3 s**, or five presses inside 3 s (a switch cannot hold).
 **Accept** a whole session completes on key values alone; nothing raises the content window to chase the ring over a drawing.
 **Evidence** spec §7d #7; panel a11y #8/#21; impl. §22.1.
-**Coverage** **PARTIAL** — `test_gtk_smoke.py::test_a_whole_session_without_touching_the_mouse`, `test_access.py`. **Add:** e2e keyboard-only run over QMP.
+**Coverage** **PARTIAL** — e2e `test_flows.py::test_a25_a_whole_session_on_the_keyboard` drives Who's here → What's next after → My Things → Home → Draw → All done on Tab/Enter/Escape over QMP, reading the ring's position from the shell's own focus speech, and asserts `.kid-focus` paints on the content window; `test_gtk_smoke.py::test_a_whole_session_without_touching_the_mouse`, `test_access.py`. **Finding, measured on the image:** inside an activity the compositor gives the keyboard to the *activity's* toplevel, so Escape never reaches the shell's Back — on Tux Paint it raises Tux Paint's own quit key instead, and the SIGTERM the band later sends dismisses that prompt rather than answering it. **Leaving an activity is the one step of a session a switch user cannot take**, so "a whole session completes on key values alone" is not yet true here; it wants a fix or an ADR, not a quieter test.
 
 ### A26 · A deaf or hard-of-hearing child
 **Child.** As a child who cannot hear the voice I want to read every line.
@@ -238,7 +239,7 @@
 2. The strip lives in the **band window**, so put-away and the offer are readable while an activity covers the content window.
 **Accept** the hook is inside `SpeechManager.speak` *before* the enabled check; an AST walk fails on any `.speak(` whose receiver is not the manager; the longest line fits at 18 pt on the narrowest panel.
 **Evidence** spec §7d #7; AGENTS §3 #4; impl. §22.2.
-**Coverage** **PARTIAL** — `test_access.py`, `test_gtk_smoke.py`. **Add:** e2e pixel assertion of a caption during put-away.
+**Coverage** **COVERED** — e2e asserts ink in the caption strip's own rows (parsed out of the shell's `display metrics:` line) at the two moments that matter: put-away with no activity (`test_a20_…`, 2.9% ink on blank paper) and put-away *over Tux Paint's own quit prompt* (`test_a28_…`, 4.3%); `test_access.py`, `test_gtk_smoke.py`.
 
 ### A27 · A child who needs it calm
 **Autistic / sensory-defensive / anxious child.**
@@ -255,7 +256,7 @@
 3. Goodbye counts only `journal.made_on_today()`, so nothing claims to have kept what was destroyed.
 **Accept** the three sentences live in one pure function; the kill happens once; `HARD_STOP` is unreachable outside `IN_ACTIVITY`.
 **Evidence** spec §7c; impl. §19.3, §20.3.
-**Coverage** **PARTIAL** — `test_ritual.py`, `test_launcher.py`, plus a live `--demo` run. **Add:** e2e with the `sticky` activity, or the tick left unanswered.
+**Coverage** **COVERED** — e2e `test_flows.py::test_a28_the_hard_stop_tells_the_truth` runs a three-minute sitting with a stroke on the canvas and the tick left unanswered, on an emptied Journal, and asserts all three audiences at once: one WARNING `killed tuxpaint with unsaved work possible`, "Time to stop now." spoken instead of "Let's keep that", and a Goodbye that claims nothing because nothing reached the Journal. `test_ritual.py`, `test_launcher.py`, plus a live `--demo` run.
 
 ---
 
@@ -489,10 +490,15 @@ See **B16**. **UNCOVERED.**
 
 | Group | Flows | COVERED | PARTIAL | UNCOVERED |
 |---|---|---|---|---|
-| A — child | 28 | 6 | 21 | 1 |
+| A — child | 28 | 12 | 16 | 0 |
 | B — parent | 20 | 1 | 13 | 6 |
 | C — machine | 10 | 1 | 5 | 4 |
-| **Total** | **58** | **8** | **39** | **11** |
+| **Total** | **58** | **14** | **34** | **10** |
+
+> Updated 2026-08-23 with `tests/e2e/test_flows.py`, which drives A6, A18,
+> A19, A20, A21, A22, A25, A26 and A28 on the shipped qcow2. Group A has no
+> UNCOVERED flow left; what remains PARTIAL there is a named branch of a flow
+> whose main path is now driven on the image.
 
 The child's *ordinary happy path* is genuinely covered on the shipped image —
 boot, choose, plan, launch, draw, keep, the band over an activity, the offer,

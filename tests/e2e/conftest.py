@@ -3,6 +3,11 @@
 One VM for the whole module: booting the disk takes 20 s and the scenario is a
 *story*, not a set of independent facts. The steps therefore run in file order
 and share one machine, exactly as a child sitting down at it would.
+
+``test_flows.py`` shares that same machine (see its module docstring), so the
+collection order below is load-bearing rather than cosmetic: the happy-path
+story has to run first, on a shell nobody has restarted, and only then may the
+flows module start rewriting the session policy under it.
 """
 
 from __future__ import annotations
@@ -34,6 +39,23 @@ DOCS_COPY = REPO / "docs" / "design" / "screenshots" / "e2e-contact-sheet.png"
 #: in the worst case, spent only on a frame that is already black.
 BLACK_FRAME_RETRIES = 5
 BLACK_FRAME_DELAY = 0.5
+
+#: Modules, in the order they must run. Alphabetically ``test_flows`` sorts
+#: *before* ``test_scenario``, which is exactly wrong: the scenario is the
+#: boot-to-Goodnight story and it assumes a shell that has not been restarted
+#: with a one-minute budget by somebody else. Everything offline goes first so
+#: a typo in the pixel helpers fails in a second rather than in four minutes.
+MODULE_ORDER = ("test_geometry", "test_scenario", "test_flows")
+
+
+def pytest_collection_modifyitems(session, config, items) -> None:
+    """Sort by module, keeping each module's own file order (the sort is stable)."""
+
+    def rank(item) -> int:
+        stem = Path(str(item.fspath)).stem
+        return MODULE_ORDER.index(stem) if stem in MODULE_ORDER else len(MODULE_ORDER)
+
+    items.sort(key=rank)
 
 
 def session_policy(
@@ -95,7 +117,11 @@ class Scenario:
         stem = f"{self._step:02d}-{name}"
         retries = 0
         while True:
-            png = self.vm.screenshot(f"{stem}.png")
+            # Both dumps into *this story's* directory, not the VM's. They are
+            # the same directory for the scenario and deliberately are not for
+            # ``test_flows.py``, which keeps its own artefacts in a subdirectory
+            # so the scenario's contact sheet stays the scenario's.
+            png = self.vm.qmp.screendump(self.output_dir / f"{stem}.png")
             image = read_ppm(self.vm.qmp.screendump(self.output_dir / f"{stem}.ppm"))
             if not near_uniform_black(image) or retries >= BLACK_FRAME_RETRIES:
                 break

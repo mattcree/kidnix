@@ -6,7 +6,7 @@ Three layers, deliberately very different in cost. None of them needs `sudo`.
 |---|---|---|---|---|
 | Runs | `podman run` inside the built image | the image as a VM, via `bcvk` | the real qcow2, under QEMU | …and then uses it |
 | Needs | rootless podman | `bcvk` + `/dev/kvm` | a qcow2 + `/dev/kvm` + OVMF | the same, plus `pytest` |
-| Takes | ~2 seconds | ~30 seconds | ~2 minutes plus the disk build | ~3 minutes |
+| Takes | ~2 seconds | ~30 seconds | ~2 minutes plus the disk build | ~10 minutes |
 | Proves | the right files and packages are present | the machine boots into the kiosk | …and that the bootloader and composefs root work | …and that a child can actually use it |
 | Command | `just test-image` | `just test-boot` | `just test-boot-qcow2` | `just test-e2e` |
 
@@ -196,19 +196,31 @@ image. Run it in CI on every PR; it costs nothing.
 
 ## `tests/e2e/` — `just test-e2e`
 
-The scenario test. It boots the same qcow2 `test-boot-qcow2` boots, then plays
-one child's session through it from **outside** the VM: QEMU's
-`input-send-event` for the mouse and keyboard, `screendump` for pixels, and ssh
-for every assertion. Nothing is installed in the guest and the image under test
-is the image we ship — there is no instrumentation build.
+Two modules, one VM. Both boot the same qcow2 `test-boot-qcow2` boots and drive
+it from **outside**: QEMU's `input-send-event` for the mouse and keyboard,
+`screendump` for pixels, and ssh for every assertion. Nothing is installed in
+the guest and the image under test is the image we ship — there is no
+instrumentation build.
+
+* **`test_scenario.py`** is the *story*: one child's ordinary session, seven
+  steps that share a machine and run in file order.
+* **`test_flows.py`** is the *catalogue*: nine of `docs/design/FLOWS.md`'s
+  group-A flows that the story cannot reach, because each needs the machine in
+  a state a good session never produces.
 
 ```sh
-just test-e2e               # ~2.5 minutes, needs a qcow2
+just test-e2e               # ~10 minutes, needs a qcow2
 just test-e2e-offline       # the pixel-geometry unit tests only, no VM
-just test-e2e -k tuxpaint   # one step (they share a VM, so mind the order)
+just test-e2e -k tuxpaint   # one scenario step (they share a VM, mind the order)
+just test-e2e -k a28        # one flow (each flow restarts the shell itself)
 ```
 
-Seven steps, in order, on one VM:
+`conftest.pytest_collection_modifyitems` fixes the module order —
+`test_geometry` (offline), then `test_scenario`, then `test_flows` — because
+alphabetically the flows would run first and hand the story a shell somebody
+had already restarted with a one-minute budget.
+
+### The scenario: seven steps, in order, on one VM
 
 | | what it does | what it asserts |
 |---|---|---|
@@ -222,7 +234,48 @@ Seven steps, in order, on one VM:
 
 Artefacts land in `output/e2e/`: `NN-name.png` per step, `contact-sheet.png`
 (also copied to `docs/design/screenshots/`), the serial console, the QEMU
-command line and the setup script injected into the guest.
+command line and the setup script injected into the guest. The flows module
+keeps its own in `output/e2e/flows/` so the contact sheet stays the story's.
+
+### The flows: nine independent facts, on the same VM
+
+`test_flows.py` reuses the scenario's guest — a second boot is a minute of a
+twelve-minute budget spent proving what the first boot proved — but **each test
+is independent**: it writes the session policy it needs, restarts
+`kidnix-shell.service` (which is also the only way back to "Who's here?"
+without rebooting), and drives the flow from there. The one thing a test may
+inherit is the Journal, and A6 says so: it uses the scenario's real drawings
+when they are there and makes itself one when they are not.
+
+| flow | what it needs the machine to be | what it asserts |
+|---|---|---|
+| **A21** | one minute of budget against a three-minute floor | the daytime refusal is spoken at Who's here and `NEXT_CHOICE` is never entered — no plan is collected for a session that cannot happen |
+| **A18** | a bedtime window containing the **guest's** now | "It's night time. kidnix is going to sleep." and a dim navy surface |
+| **A20/A26/A19** | an ordinary sitting | the lavender "All done" found by colour, one press to Put away with no confirmation, ink in the caption strip, and an ending in Resting with no sleeping line |
+| **A22** | a manifest pointing at `/bin/false` | "That one didn't open", one WARNING for the parent, and Home with tiles on it |
+| **A6** | a drawing in the Journal | a card *resumes*: `launched tuxpaint`, `journal -> in_activity`, and the content area stops being the menu |
+| **A25** | nothing but Tab, Enter and Escape | a session driven on key values, with the ring's position read from the shell's own focus speech |
+| **A28** | a three-minute sitting, an emptied Journal, the tick unanswered | one WARNING `killed tuxpaint with unsaved work possible`, "Time to stop now.", and a Goodbye that claims nothing |
+
+Two harness notes worth keeping:
+
+* **The guest's clock is not the host's.** QEMU gives the VM a UTC RTC, so on a
+  British summer afternoon the guest is an hour behind. Anything that has to
+  land *on* the shell's idea of now — the bedtime window — is computed from
+  `date` inside the guest (`guest_now`).
+* **Where the ring is, is read from the voice.** Keyboard focus speaks
+  immediately and ungated, so the last `speaking:` line in the journal names
+  the focused control. That is what makes a keyboard test possible with no
+  accessibility bus, and it means the test does not encode how many controls
+  the band happens to have.
+
+A25 also recorded a finding rather than hiding it: **inside an activity the
+keyboard belongs to the activity**. gnome-kiosk focuses the activity's toplevel
+and the shell's controller is on the shell's own two windows, so Escape never
+reaches the shell's Back; on Tux Paint it raises Tux Paint's own quit prompt,
+which the band's SIGTERM then *dismisses*. Leaving an activity is the one step
+of a session a switch user cannot take. The test says so out loud, takes the
+band's Back with the pointer, and FLOWS.md A25 stays PARTIAL.
 
 `screendump` returns as soon as the request is queued, so `scenario.shot()`
 retries up to 5 times, 500 ms apart, while the frame comes back uniformly black

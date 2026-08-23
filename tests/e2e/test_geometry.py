@@ -219,17 +219,20 @@ def test_shot_asks_again_while_the_frame_is_black(tmp_path, monkeypatch, capsys)
     frames = [(0, 0, 0), (0, 0, 0), PAPER]
 
     class FakeQMP:
+        # Both dumps go through the QMP client now -- the PNG a human looks at
+        # and the PPM the assertions read -- and both land in *the story's*
+        # directory rather than the VM's, so a second story (test_flows.py) can
+        # keep its artefacts apart. The PNG is the one an attempt is counted by.
         def screendump(self, path):
-            return _ppm(Path(path), 8, 8, frames[min(len(calls) - 1, len(frames) - 1)])
+            path = Path(path)
+            if path.suffix == ".png":
+                calls.append(path.name)
+            return _ppm(path, 8, 8, frames[min(len(calls) - 1, len(frames) - 1)])
 
     calls = []
 
     class FakeVM:
         qmp = FakeQMP()
-
-        def screenshot(self, name):
-            calls.append(name)
-            return tmp_path / name
 
     story = conftest.Scenario(FakeVM(), tmp_path)
     image = story.shot("boots", "the first frame")
@@ -249,14 +252,13 @@ def test_shot_gives_up_after_the_agreed_number_of_tries(tmp_path, monkeypatch, c
 
     class FakeQMP:
         def screendump(self, path):
-            return _ppm(Path(path), 8, 8, (0, 0, 0))
+            path = Path(path)
+            if path.suffix == ".png":
+                calls.append(path.name)
+            return _ppm(path, 8, 8, (0, 0, 0))
 
     class FakeVM:
         qmp = FakeQMP()
-
-        def screenshot(self, name):
-            calls.append(name)
-            return tmp_path / name
 
     story = conftest.Scenario(FakeVM(), tmp_path)
     image = story.shot("dark")

@@ -480,3 +480,58 @@ def band_buttons(image: Image, band_height: int) -> list:
         if count > 0.3 * height:
             columns.append(x)
     return [(left, top, right, bottom) for left, right in _group(columns, 3) if right - left > 20]
+
+
+# --------------------------------------------------------------------------- #
+# Finding two more things by colour, for tests/e2e/test_flows.py
+# --------------------------------------------------------------------------- #
+
+
+#: ``theme.css`` ``button.tile.all-done``: #e9e6f7 at rest, #f2f0fb hovered.
+#: The only lavender on any kidnix surface, and the only tile whose *fill* is
+#: not paper -- which is what makes "find All done" a colour question rather
+#: than a grid-arithmetic one. Paper (#fbf7ef) has blue *below* red; the
+#: highlight ring (#ffd23f) has blue far below both. Nothing else comes close.
+def is_all_done_lavender(pixel: tuple) -> bool:
+    red, green, blue = pixel
+    return blue >= red + 7 and blue >= green + 7 and blue > 200 and red > 180
+
+
+#: ``theme.css`` ``.kid-focus``: a 6 px ring of @kid-highlight, #ffd23f. The
+#: shell paints it itself (it cannot use ``:focus-visible``, which stops
+#: drawing on whichever of the two toplevels the compositor did not focus), so
+#: in a screenshot it is the one saturated yellow on the screen -- and
+#: therefore the only way to ask "where is the keyboard now?" from outside.
+def is_focus_ring_yellow(pixel: tuple) -> bool:
+    red, green, blue = pixel
+    return red > 200 and 170 < green < 240 and blue < 130
+
+
+#: ``Metrics.describe()``: ``band 97 px (row 70, captions 27, button 19.2 mm)``.
+#: Older builds printed ``band 97 px (button 19.2 mm)`` and have no strip to
+#: measure, which is why the caller gets ``None`` rather than a guess.
+BAND_PARTS_RE = re.compile(r"\bband (\d+) px \(row (\d+), captions (\d+)")
+
+
+def band_parts(metrics_line: str) -> tuple | None:
+    """``(window, row, captions)`` from the shell's own metrics line, or None."""
+    match = BAND_PARTS_RE.search(metrics_line)
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
+def caption_strip_box(metrics_line: str, width: int) -> tuple | None:
+    """The rows of the band *window* that carry the caption, inset a little.
+
+    The strip is the bottom :attr:`Metrics.caption_height` of the band window
+    (implementation notes 22.2): it is in the band window and not the content
+    window precisely so that put-away and the ending offer are readable while
+    an activity covers everything else. Inset by a few pixels either way so the
+    strip's own 2 px top border is not mistaken for a letter.
+    """
+    parts = band_parts(metrics_line)
+    if parts is None or parts[2] <= 6:
+        return None
+    _window, row, captions = parts
+    return (12, row + 3, width - 12, row + captions - 2)
