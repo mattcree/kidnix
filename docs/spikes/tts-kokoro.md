@@ -424,6 +424,11 @@ switch voices without a rebuild.
 3. If it is decisively better: implement **§7.1** — pre-render the fixed
    strings. 11.5 MB, no runtime cost, no ADR change (ADR-0008's engine story is
    untouched; this is an asset, not a synthesiser).
+   **This step is now built** — `docs/spikes/tts-prerender.md`,
+   `build_files/66-prerender-speech.sh`. It came in at **4.3 MB rather than
+   11.5** (Ogg/Opus, not WAV) for **333 strings**, and step 1 above is still the
+   open question: `output/tts-samples/prerender-bf_emma/` exists so it can be
+   answered. If the answer is no, the stage is one file to delete.
 4. Only if dynamic text then turns out to sound jarringly different does §7.2 —
    the resident `kidnix-kokorod` — become worth its 460 MB, and it would need a
    new ADR superseding ADR-0008's Piper default and an explicit ruling on the

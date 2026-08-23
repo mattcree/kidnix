@@ -31,6 +31,12 @@ COPY shell/ /tmp/shell/
 # this is a libadwaita app on the parent's stock GNOME (ADR-0005).
 COPY parent-panel/ /tmp/parent-panel/
 
+# The build-time speech pre-renderer (build_files/66-prerender-speech.sh). It
+# is a BUILD tool and ships nothing: it loads Kokoro-82M in a throwaway tree,
+# writes ~4 MB of Ogg/Opus into /usr/share/kidnix/speech, and is deleted with
+# the rest of /tmp before the layer commits. See docs/spikes/tts-prerender.md.
+COPY tools/prerender/ /tmp/prerender/
+
 # The first-party activities, for the same reason and by the same route:
 # build_files/64-first-party-activities.sh copies `sounds_and_words` and its
 # corpus into site-packages beside the SDK it is written against. Only the
@@ -41,7 +47,7 @@ RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
     KIDNIX_VERSION="${KIDNIX_VERSION}" \
     KIDNIX_PRETTY_VERSION="${KIDNIX_PRETTY_VERSION}" \
     /tmp/build_files/build.sh && \
-    rm -rf /tmp/build_files /tmp/shell /tmp/parent-panel /tmp/activities && \
+    rm -rf /tmp/build_files /tmp/shell /tmp/parent-panel /tmp/activities /tmp/prerender && \
     ostree container commit
 
 # The cache mount above keeps /var/cache/libdnf5 busy for the whole of that

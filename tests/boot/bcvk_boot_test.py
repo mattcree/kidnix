@@ -596,6 +596,36 @@ tts_length_scale=$(piperd_log | sed -n 's/.*length_scale=\([0-9.]*\).*/\1/p' | t
 tts_fallbacks=$(journalctl -b --no-pager -o cat -t kidnix-piper-say 2>/dev/null \
     | grep -c 'falling back to espeak-ng')
 
+# --- pre-rendered speech (docs/spikes/tts-prerender.md) ----------------------
+#
+# The same problem as the paragraph above, one layer up: a missing clip is
+# INAUDIBLE. The shell falls straight through to Piper, the child is still read
+# to, and every check that only asks "did it speak" stays green while the whole
+# catalogue does nothing. So the measurement is the shell's own counter --
+# `played clip: <sha1>.ogg`, emitted by kidnix_shell/prerendered.py -- and the
+# fixed line is the greeting, which S1 says at the top of every session before
+# anybody touches anything.
+prerender_index=/usr/share/kidnix/speech/en_GB/index.json
+prerender_clips=$(python3 -c "
+import json
+print(len(json.load(open('${prerender_index}'))['clips']))
+" 2>/dev/null || echo 0)
+shell_log() {
+    journalctl -b --no-pager -o cat \
+        _SYSTEMD_USER_UNIT=kidnix-shell.service 2>/dev/null
+}
+prerender_played=$(shell_log | grep -c 'played clip')
+# The greeting's own file, so this is "that fixed line played" and not "some
+# clip played at some point".
+prerender_greeting_file=$(python3 -c "
+import hashlib
+print(hashlib.sha1(\"Who's here?\".encode(), usedforsecurity=False).hexdigest())
+" 2>/dev/null)
+prerender_greeting=$(shell_log | grep -c "played clip: ${prerender_greeting_file}")
+# Nothing may have leaked into the runtime image (docs/spikes/tts-kokoro.md 6
+# rejected 460 MB; the whole point is that we did not pay it).
+prerender_onnxruntime=$(python3 -c 'import onnxruntime' 2>/dev/null && echo yes || echo no)
+
 # --- A25: the keyboard route out of an activity ------------------------------
 #
 # FLOWS A25 and docs/spikes/keyboard-escape.md. Inside an activity the
@@ -872,6 +902,10 @@ echo "tts_spoke_after=${tts_spoke_after}"
 echo "tts_spd_rc=${tts_spd_rc}"
 echo "tts_length_scale=${tts_length_scale}"
 echo "tts_fallbacks=${tts_fallbacks}"
+echo "prerender_clips=${prerender_clips}"
+echo "prerender_played=${prerender_played}"
+echo "prerender_greeting=${prerender_greeting}"
+echo "prerender_onnxruntime=${prerender_onnxruntime}"
 echo "failed_units=$(systemctl list-units --state=failed --no-legend --plain \
     --no-pager 2>/dev/null | awk '{print $1}' | paste -sd, -)"
 echo "os_id=$(. /etc/os-release && echo "$ID")"
@@ -1490,6 +1524,55 @@ def assert_read_aloud(probe: dict[str, str], checks: Checks) -> None:
     checks.check(
         probe.get("tts_spd_rc") == "0",
         f"spd-say returned 0 (got '{probe.get('tts_spd_rc') or 'nothing'}')",
+    )
+
+    assert_prerendered_speech(probe, checks)
+
+
+#: The floor `build_files/66-prerender-speech.sh` builds against. The tree
+#: yields ~314 today; anything near zero means the enumeration collapsed and
+#: the whole session is being read in the fallback voice.
+MIN_PRERENDERED_CLIPS = 200
+
+
+def assert_prerendered_speech(probe: dict[str, str], checks: Checks) -> None:
+    """The child hears the RENDERED voice on the lines that have one.
+
+    docs/spikes/tts-kokoro.md 7.1: the shell's speech is a nearly closed
+    vocabulary, so it is rendered with Kokoro at build time and played as audio.
+    Same trap as `assert_read_aloud`, one layer up -- a catalogue that does
+    nothing is silent about it, because every miss falls through to Piper and
+    the child is still read to. Hence a counter, and hence a NAMED line.
+    """
+    clips = _as_int(probe.get("prerender_clips", "")) or 0
+    checks.check(
+        clips >= MIN_PRERENDERED_CLIPS,
+        f"the image ships {clips} pre-rendered clips (floor {MIN_PRERENDERED_CLIPS})",
+        "" if clips else "no index.json -- was the image built without 66-prerender-speech.sh?",
+    )
+
+    played = _as_int(probe.get("prerender_played", "")) or 0
+    checks.check(
+        played >= 1,
+        f"the shell played a pre-rendered clip during this boot (saw {played})",
+        "" if played else "the catalogue is on disk but nothing ever came out of it",
+    )
+
+    # THE assertion: a fixed line, named, with its own file. "Who's here?" is
+    # S1's title and the first thing said in every session.
+    greeting = _as_int(probe.get("prerender_greeting", "")) or 0
+    checks.check(
+        greeting >= 1,
+        f'"Who\'s here?" was read from its own clip, not synthesised (saw {greeting})',
+        ""
+        if greeting
+        else "the greeting went to Piper: the lookup missed the one string it must hit",
+    )
+
+    # And the bargain: audio, not a machine-learning stack.
+    checks.check(
+        probe.get("prerender_onnxruntime") == "no",
+        "onnxruntime is NOT in the runtime image (build-only, as designed)",
     )
 
 

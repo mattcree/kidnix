@@ -96,6 +96,25 @@ BEDTIME_GOODNIGHT_LABEL = N_("Goodnight")
 DAYTIME_GOODNIGHT_SPEECH = N_("All done. Time to rest.")
 BEDTIME_GOODNIGHT_SPEECH = N_("Goodnight")
 
+#: **And the picture, which was the last channel still stuck on night.** Home's
+#: "All done" tile carried ``kidnix-moon`` at every hour, so the table at the
+#: top of this module held for the word, the voice and the caption and not for
+#: the one channel a pre-reader actually uses: a four-year-old finds that tile
+#: by its picture. A moon on a button pressed at ten in the morning is the
+#: sleep-onset cue forum #17 took out of the screen title arriving by the front
+#: door -- and it is not true, which is the other half of the ruling.
+#:
+#: The daytime drawing says what *pressing it does* rather than what time it
+#: is: hands lowering a picture into a tidy-away box. It was drawn for this
+#: (``data/icons/kidnix-act-all-done-day.svg``) and then wired to nothing.
+#:
+#: These are icon **names**, resolved by :func:`kidnix_shell.widgets.icon_image`
+#: -- the theme first, then our own bundled SVG -- so they are strings here and
+#: not paths, and nothing in this module imports GTK to say so.
+DAYTIME_GOODNIGHT_ICON = "kidnix-act-all-done-day"
+#: Bedtime. The one time of day a moon is the truth.
+BEDTIME_GOODNIGHT_ICON = "kidnix-moon"
+
 #: Who's here, when the day's computer time is gone. Warm, non-explanatory,
 #: and it points at something to do rather than at the machine's own return
 #: (D6: the system has no interest in whether the child comes back). No
@@ -203,6 +222,16 @@ def goodnight_speech(*, bedtime: bool) -> str:
     disagree about what time of day it is.
     """
     return _(BEDTIME_GOODNIGHT_SPEECH) if bedtime else _(DAYTIME_GOODNIGHT_SPEECH)
+
+
+def goodnight_icon(*, bedtime: bool) -> str:
+    """The picture on the same button. Not translated -- it is an icon name.
+
+    The fourth channel of the same switch (:data:`DAYTIME_GOODNIGHT_ICON`).
+    Kept beside the label and the speech so a future edit that moves one of
+    them has to walk past the other two.
+    """
+    return BEDTIME_GOODNIGHT_ICON if bedtime else DAYTIME_GOODNIGHT_ICON
 
 
 def out_of_hours_line(now: datetime, next_open: datetime | None) -> str:

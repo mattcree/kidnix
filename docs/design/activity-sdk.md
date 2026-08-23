@@ -302,9 +302,25 @@ could.
 | `PictureTile(path, speak_text)` | one picture among several to choose between: 30 mm, a *file* rather than an icon name, the whole of it pressable. |
 | `Prompt(text)` | the spoken instruction, written down, with a replay that says **this** prompt rather than the last thing said. `set_text()` changes it without interrupting a child. |
 | `GrownUpTurn(body)` | the co-use card (§7). |
+| `fit_label(label, text, width=, base_pt=, floor_pt=)` | set a label so that **no word is ever cut**. Returns the `LabelFit`. |
 
 Labels go through `fit_gtk_label`: wrap word-then-character, step the point size
 down to the 18 pt floor, then add a line. Nothing is ever ellipsised.
+
+Use `fit_label` for anything you have measured a box for. `fit_gtk_label` called
+without a `height` hands the label the *unwrapped* string and lets Pango wrap it
+again at `max-width-chars` — `WORD_CHAR`, which splits a word when the box is
+narrow and draws a hyphen where it did. That is how Clock's routine tiles came to
+say **Brea-kfast** and **Scho-ol** (`docs/design/screenshots/clock-play.png`,
+2026-08-23) from a fit that had never agreed to it. `fit_label` always passes a
+height, so the label is handed the lines that were measured with wrapping off; it
+turns Pango's automatic hyphen off; and it strips the trailing space Pango leaves
+on a broken line, which is real width the line was never measured with.
+
+It cannot conjure room. When a single word is wider than the box at the floor,
+the break is still forced — `fit_label` says so in the log and in the returned
+fit, and the **caller** widens the control. `clock_time.activity._strip_plan` is
+the worked example: measure the words, then size the tiles.
 
 The focus ring paints itself with `kid-focus` as well as relying on
 `:focus-visible`, because focus is per-toplevel and under gnome-kiosk there is

@@ -326,6 +326,103 @@ spike can fix.
 
 ---
 
+## 4.3 Eighteen tiles, eighteen pictures
+
+**Added 2026-08-23.** The shelf children were generated with no `icon` of their
+own, and §7 of the build stage filled that hole by inheriting the shelf tile's:
+
+```python
+icon = {toml_str(activity.get("icon", parent.get("icon", "")))}
+```
+
+so all eighteen tiles drew `kidnix-act-gcompris.svg` — the alphabet blocks. The
+CCI compliance audit (checkpoint 2, §2 row 7) counted the cost: **three or four
+identical tiles per page**. For a child who cannot read, the label is noise and
+the spoken label is transient, so the picture is the only channel that persists
+while they are looking at the screen. Four identical pictures is four tiles with
+nothing on them, and the shelf tile's own picture was the least useful one it
+could have been — it is the picture of *this whole shelf*, so it says "you are
+where you already are".
+
+Each activity in `curated.toml` now carries its own:
+
+```toml
+[[activities]]
+id = "smallnumbers"
+icon = "smallnumbers.svg"
+```
+
+### Where they live, and why not with the other icons
+
+Not in `shell/kidnix_shell/data/icons/` with the ten `kidnix-act-*.svg` tiles.
+Those resolve by *name*: the manifest says `icon = "kidnix-act-tuxpaint"`,
+`widgets.icon_image()` misses the icon theme (nothing ships that private
+namespace) and lands on `bundled_icon()`, which looks in the shell package's own
+data directory. That works, but it is a lookup with a fallback in it, and the
+fallback is `category_icon()` — the failure mode where every `learn` activity
+collapses into one bundled book.
+
+These eighteen go in `/usr/share/kidnix/icons/gcompris/` and the generated
+manifests name them by **absolute path**:
+
+```toml
+icon = "/usr/share/kidnix/icons/gcompris/smallnumbers.svg"
+icon_kind = "path"
+```
+
+`icon_kind = "path"` takes `widgets.icon_image()`'s first branch —
+`Gtk.Image.new_from_file(icon)` — with no theme lookup and no category fallback
+in the way. This is the mechanism `64-first-party-activities.sh` already uses for
+Sounds & Words, Numbers, Clock and Letters, against the same directory, and the
+reason is the same one recorded in `docs/design/icons-brief.md`: the *bundled*
+icons have no stable path (`60-shell.sh` installs into sysconfig's purelib, so
+they live under `/usr/lib/python3.14/…` and a rebase to 3.15 would turn every
+tile into `image-missing`), but `/usr/share/kidnix/icons/` is overlay content
+copied verbatim by the Containerfile and its path is a fact about the image.
+
+### What is drawn
+
+`docs/design/icons-brief.md`'s rule, unchanged: **the icon shows the output or
+the action, never the tool.** Some consequences, since the shelf is where that
+rule bites hardest — eighteen activities, six of them about counting:
+
+- **`smallnumbers` is a plain dice face**, four pips, no decoration. Subitising
+  is the objective and decoration is the thing that breaks it (`05` §2c).
+- **`learn_digits` puts the numeral `3` beside three dots.** Either half alone is
+  a different activity: the numeral alone says "numbers", the dots alone say
+  "counting", and this one is the *join*. The `3` is a path, never `<text>` — no
+  font is guaranteed on the image and Andika in particular is not.
+- **`adjacent_numbers` is four steps rising with the third still a hole.** Order
+  drawn as height, so no numeral has to be read to see what is missing.
+- **`learn_additions` is two lots and one arrow**, deliberately *not* a row of
+  beads: `kidnix-act-tuxmath.svg` already owns beads-on-a-wire. The first draft
+  used two chevrons converging, which rendered as a large **X** and read as
+  *wrong*; caught on the contact sheet, redrawn as a single arrow.
+- **`number_sequence` is a half-drawn picture with the last leg dashed.** The
+  reward for counting in order is the child's own drawing, which is why this
+  activity replaced `clockgame` at generation 2 — so the drawing is the tile.
+- **`memory` and `memory-sound` are the same three cards on purpose**, one
+  carrying a shape and one carrying sound arcs. Sound is the only difference
+  between the activities and it is the only difference between the icons.
+- **`erase` is a sweep and `erase_clic` is a grid.** Both are a picture coming
+  back out from under a cover; whether it comes back in one wipe or one square
+  at a time *is* the difference between the two activities.
+- **No arithmetic symbols anywhere.** A pre-reader can no more read `+` than a
+  word.
+
+Rendered at 128 / 64 / 40 px, plus 40 px greyscale and 40 px two-tone, in
+`docs/design/screenshots/gcompris-shelf-icons.png`. Two of the eighteen —
+`erase` and `erase_clic` — are a filled rectangle in silhouette, because "a
+picture under a cover" fills its own frame; both still carry their sweep and
+their grid in greyscale, which is the channel that matters for CVD.
+
+**These have not been shown to a child.** The acceptance test in
+`icons-brief.md` §"Acceptance test" applies unchanged: four children aged 4–6,
+15 mm prints, no labels and no sound, "what would happen if you pressed this?",
+and below 3 of 4 the icon is redrawn rather than defended.
+
+---
+
 ## 5. What is verified, and by what
 
 `build_files/55-gcompris.sh`, at image build time:
@@ -348,8 +445,14 @@ spike can fix.
 10. the en_GB bundle carries `alphabet/`, `colors/`, `misc/`, `intro/`,
     `words/`, a recording for every lowercase `a`–`z`, and an introduction for
     exactly the activities that claim one
+11. **every activity has an `icon`**, it is a plain `<name>.svg` basename, the
+    file is in `/usr/share/kidnix/icons/gcompris/`, no two activities *in the
+    same group* name the same one, and no icon is shipped that no tile uses
+12. the generated manifests come back through `tomllib` with
+    `icon_kind = "path"`, an absolute `icon` that exists on disk, and eighteen
+    distinct files between them
 
-`tests/image/test_gcompris.sh`, against the built image — **46 assertions**
+`tests/image/test_gcompris.sh`, against the built image — **52 assertions**
 covering all of the above plus: no literal `[General]` group anywhere; the old
 `activities/gcompris-qt.conf.default` resolves to the curated file; nothing on
 the shelf needs a right-click, double-click or scroll wheel; no uppercase-first
@@ -358,6 +461,15 @@ skills, letters, number and time are all represented; the tmpfiles fragment
 seeds the right path with `C` and not `C+`; `GENERATION` is an integer and
 matches `curated.toml`; systemd-tmpfiles parses every shipped fragment; and
 `/var` carries no GCompris content.
+
+Six of those are the icons (§4.3): the directory is in the image with eighteen
+files; curated names and shipped files are the same set, with no orphan either
+way; every child manifest has `icon_kind = "path"` and an absolute icon that
+exists; no two tiles share a picture, per group and shelf-wide; no child still
+carries the parent's icon; and every SVG is well-formed XML, carries an SPDX
+header, contains no `<text>` element and is under 4 KB. The XML check is not
+paranoia — librsvg refuses a malformed file outright and the tile just goes
+blank, which is how `kidnix-finish.svg` came to be silently missing.
 
 The seeding was then exercised end to end inside the built image, because
 nothing else proves the tmpfiles fragment actually produces a file GCompris can
@@ -396,6 +508,9 @@ child got a usable file: the boot test does not log in as `kid` and inspect
 - **The shell is not wired to this.** `curated.toml` is written for the shell to
   read and nothing reads it yet. Until it does, GCompris is still one tile
   running the menu.
+- **The icons are untested on children.** Eighteen distinct pictures is a
+  measurable property and it is asserted; *legible to a four-year-old* is not,
+  and nobody has run the §"Acceptance test" protocol on them (§4.3).
 
 ---
 

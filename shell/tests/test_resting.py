@@ -10,8 +10,10 @@ from datetime import datetime, time, timedelta
 
 from kidnix_shell.resting import (
     ALL_DONE_HEADLINE,
+    BEDTIME_GOODNIGHT_ICON,
     BEDTIME_REFUSAL,
     BUDGET_SPENT_REFUSAL,
+    DAYTIME_GOODNIGHT_ICON,
     DAYTIME_GOODNIGHT_SPEECH,
     RESTING_LATER_TODAY,
     RESTING_TOMORROW,
@@ -20,6 +22,7 @@ from kidnix_shell.resting import (
     SPEECH_INTERVAL_SECONDS,
     TapSpeechLimiter,
     back_when_words,
+    goodnight_icon,
     goodnight_label,
     goodnight_speech,
     refusal_line,
@@ -82,6 +85,26 @@ def test_the_button_says_daytime_words_out_loud_too() -> None:
     # And it starts with the words on the button, so what a child hears and
     # what they see are the same thing said twice, not two things.
     assert spoken.startswith(goodnight_label(bedtime=False))
+
+
+def test_the_picture_switches_on_bedtime_as_well_as_the_words() -> None:
+    """The fourth channel. Home's "All done" tile carried ``kidnix-moon`` at
+    every hour -- a sleep-onset cue on the one control a four-year-old presses
+    at ten in the morning, arriving through the channel a pre-reader reads."""
+    assert goodnight_icon(bedtime=False) == DAYTIME_GOODNIGHT_ICON
+    assert goodnight_icon(bedtime=True) == BEDTIME_GOODNIGHT_ICON
+    assert goodnight_icon(bedtime=False) != goodnight_icon(bedtime=True)
+    assert "moon" not in goodnight_icon(bedtime=False)
+
+
+def test_both_goodnight_pictures_are_drawings_this_shell_actually_ships() -> None:
+    """An icon name with no SVG behind it is a tile that falls back to its
+    category picture, silently, on a machine nobody is watching. The day
+    drawing existed for a day and a half before anything referred to it."""
+    from kidnix_shell.widgets import bundled_icon
+
+    for name in (DAYTIME_GOODNIGHT_ICON, BEDTIME_GOODNIGHT_ICON):
+        assert bundled_icon(name) is not None, name
 
 
 def test_nothing_on_the_daytime_ending_instructs_the_child() -> None:

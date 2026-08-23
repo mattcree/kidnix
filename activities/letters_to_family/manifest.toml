@@ -5,15 +5,16 @@
 # runs the same validator, so a manifest that would be rejected on the machine
 # is rejected in CI first.
 #
-# NOT yet installed on the image, but half of the way is now paved: the wave
-# that installed Numbers and Clock (2026-08-23) also shipped
-# `system_files/usr/lib/tmpfiles.d/kidnix-letters.conf`, so /var/lib/kidnix/
-# outbox and /var/lib/kidnix/inbox exist on a booted machine. What is still
-# missing is the row in build_files/64-first-party-activities.sh's FIRST_PARTY
-# table and the tile in /usr/share/kidnix/activities/ -- see
-# docs/design/letters-to-family.md section 8. Until those land the tile does not
-# exist, which is correct: a tile that opens a half-built activity is worse
-# than an absent one.
+# INSTALLED ON THE IMAGE since 2026-08-23, in the same wave as Numbers and
+# Clock. `build_files/64-first-party-activities.sh` copies `letters_to_family`
+# beside the shell, writes /usr/bin/kidnix-letters, and installs the icon at
+# /usr/share/kidnix/icons/letters.svg; the tile the shell reads is
+# `system_files/usr/share/kidnix/activities/letters.toml`, and stage 64 asserts
+# the two agree field by field on everything a child or a parent can perceive.
+# `system_files/usr/lib/tmpfiles.d/kidnix-letters.conf` creates
+# /var/lib/kidnix/outbox and /var/lib/kidnix/inbox at boot, so `post()` has
+# somewhere to write on a real machine. See docs/design/letters-to-family.md
+# section 8.
 schema = 1
 
 id = "letters"

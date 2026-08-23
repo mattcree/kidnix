@@ -149,6 +149,42 @@ assert_out "kidnix-config show works with no privilege at all" '"schema": 1' \
     /usr/bin/kidnix-config show
 assert_cmd "kidnix-config show emits valid JSON" \
     bash -c '/usr/bin/kidnix-config show | python3 -c "import json,sys; json.load(sys.stdin)"'
+# ...and the PIN is NOT part of "what is set?". A four-digit PIN behind PBKDF2
+# is a 10 000-candidate offline search, so a salt and a digest on stdout walk
+# straight around kidnix-set-pin's five-guesses-a-minute limiter. The machine's
+# own answer first (an unconfigured image has no PIN, so this is the guard that
+# the *shape* never regains the fields)...
+if /usr/bin/kidnix-config show 2>/dev/null | grep -Eq 'pin_hash|pin_salt'; then
+    _report no "kidnix-config show prints neither pin_hash nor pin_salt" \
+        "the PIN fields are in show's output"
+else
+    _report ok "kidnix-config show prints neither pin_hash nor pin_salt"
+fi
+# ...and then the same code path against a parent.toml that DOES carry a PIN,
+# which is the case an unconfigured image cannot exercise.
+assert_cmd "show redacts a real hash and reports pin_set instead" \
+    python3 - <<'PY'
+import json, subprocess, sys, tempfile
+from pathlib import Path
+
+SALT, DIGEST = "0f1e2d3c", "b" * 64
+with tempfile.TemporaryDirectory() as scratch:
+    etc = Path(scratch)
+    (etc / "parent.toml").write_text(
+        f'pin_salt = "{SALT}"\npin_hash = "{DIGEST}"\ndefault_session_minutes = 30\n'
+    )
+    (etc / "session.toml").write_text("length_minutes = 30\n")
+    out = subprocess.run(
+        [sys.executable, "-m", "kidnix_parent_panel.helper", "show",
+         "--etc", str(etc), "--usr", str(etc)],
+        capture_output=True, text=True, check=True,
+    ).stdout
+for needle in ("pin_hash", "pin_salt", DIGEST, SALT):
+    assert needle not in out, needle
+assert json.loads(out)["parent"]["pin_set"] is True, out
+PY
+assert_grep 'pin_set' /usr/bin/kidnix-config \
+    "the wrapper's own help says show gives pin_set, not the hash"
 # An unknown command must not reach the root half.
 if /usr/bin/kidnix-config wipe-everything >/dev/null 2>&1; then
     _report no "kidnix-config refuses a command it does not know"

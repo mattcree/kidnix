@@ -317,6 +317,7 @@ def test_home_keeps_all_done_in_one_cell_forever(ctx: ShellContext) -> None:
     It used to be *last in the list*, so it moved one cell along every time
     progressive disclosure revealed a tile -- redrawing the escape hatch on a
     schedule the child cannot perceive (forum #5, #41, #57)."""
+    from kidnix_shell.resting import BEDTIME_GOODNIGHT_ICON, DAYTIME_GOODNIGHT_ICON
     from kidnix_shell.screens.home import ALL_DONE, AllDone, all_done_index
 
     screen = HomeScreen(ctx)
@@ -325,7 +326,51 @@ def test_home_keeps_all_done_in_one_cell_forever(ctx: ShellContext) -> None:
     pinned = cells[index]
     assert isinstance(pinned, AllDone)
     assert pinned.speak_text == "All done for today?"
-    assert ALL_DONE.icon == "kidnix-moon"
+    assert ALL_DONE.icon == DAYTIME_GOODNIGHT_ICON
+
+
+def test_the_all_done_tile_wears_the_day_picture_in_the_afternoon(ctx: ShellContext) -> None:
+    """forum #17's ruling, applied to the channel a pre-reader actually reads.
+
+    The tile carried ``kidnix-moon`` at every hour while its label, its voice
+    and its caption had all switched to daytime words -- so a four-o'clock
+    Home showed a moon on the one control a child presses when they have had
+    enough. The daytime drawing (hands, a tidy-away box) says what pressing it
+    *does*; the moon is true only inside the bedtime window."""
+    from kidnix_shell.resting import BEDTIME_GOODNIGHT_ICON, DAYTIME_GOODNIGHT_ICON
+    from kidnix_shell.screens.home import ALL_DONE
+
+    screen = HomeScreen(ctx)
+    afternoon = datetime(2026, 8, 18, 16, 0)
+    bedtime = datetime(2026, 8, 18, 21, 0)
+    assert not ctx.session.policy.is_bedtime(afternoon)
+    assert ctx.session.policy.is_bedtime(bedtime)
+
+    assert screen.all_done_cell(afternoon).icon == DAYTIME_GOODNIGHT_ICON
+    assert screen.all_done_cell(bedtime).icon == BEDTIME_GOODNIGHT_ICON
+    # Only the picture moves: the label, the words it speaks and the cell it
+    # sits in are the same object's, at both ends of the day.
+    for when in (afternoon, bedtime):
+        cell = screen.all_done_cell(when)
+        assert (cell.id, cell.name, cell.speak_text) == (
+            ALL_DONE.id,
+            ALL_DONE.name,
+            ALL_DONE.speak_text,
+        )
+
+
+def test_the_all_done_tile_is_built_from_the_hour_not_from_the_singleton(
+    ctx: ShellContext,
+) -> None:
+    """The grid still pins the one ALL_DONE object (that is what keeps the
+    escape hatch in its cell); the icon swap is a copy made at render time."""
+    from kidnix_shell.resting import DAYTIME_GOODNIGHT_ICON
+    from kidnix_shell.screens.home import ALL_DONE, all_done_index
+
+    screen = HomeScreen(ctx)
+    screen.build()
+    assert screen.cells()[all_done_index(ctx.metrics.per_page)] is ALL_DONE
+    assert ALL_DONE.icon == DAYTIME_GOODNIGHT_ICON  # the singleton is untouched
 
 
 def test_the_all_done_cell_does_not_move_as_home_fills_up(ctx: ShellContext) -> None:

@@ -184,3 +184,55 @@ sheet already knows it and a shell-side wave can pass it through. That is a
 unconfigured machine has no secret to get wrong. A stale lockout from a
 previous PIN can still be in force, which is a minute of waiting in a case that
 needs a `--reset` anyway.
+
+## 6. What `kidnix-config show` no longer prints
+
+**Added 2026-08-23**, from the checkpoint-2 CCI audit
+(`docs/design/cci-compliance-audit-2026-08-23-checkpoint-2.md` §4).
+
+`kidnix-config show` is deliberately unprivileged — a parent asking "what is
+set?" should not be asked for a password to find out, and it is what makes the
+panel open instantly. It used to print `/etc/kidnix/parent.toml` **whole**,
+which meant `pin_salt` and `pin_hash` went to stdout on request.
+
+That is worse than it looks. §2 rule 4 above buys the four-digit PIN its only
+real defence: two seconds a guess, five a minute, counted in a root-owned file
+that a reboot does not clear — 10 000 candidates is a day and a half of
+somebody sitting at the laptop. **A salt and a digest in hand is the same
+10 000 candidates on somebody else's machine, in seconds.** Handing them out
+does not weaken the limiter; it removes it.
+
+So `show` now emits, in place of those two keys:
+
+```json
+"parent": { "pin_set": true, ... }
+```
+
+One bit, which is the whole of what a caller legitimately needs: the panel
+offers "Change PIN" either way and hands the work to `kidnix-set-pin`, and the
+gate's "choose a PIN first" state is `pin_set` false. Neither key appears in
+the output at all — not with a placeholder value, so a payload that came back
+round to `apply` can never be mistaken for a real digest. It cannot erase a PIN
+either: `apply` runs `preserve_pin`, which reads the hash off disk and ignores
+the payload's, so `show | apply` is a no-op on the PIN. Proved in
+`parent-panel/tests/test_helper.py` (`test_main_show_prints_no_hash_and_no_salt_anywhere`,
+`test_show_output_replayed_to_apply_cannot_erase_the_pin`) and on the image in
+`tests/image/test_parent_panel.sh`, which runs `show` against a `parent.toml`
+that really does carry a hash — the case an unconfigured image cannot exercise.
+
+**This is not the whole fix, and the audit did not claim it was.**
+`parent.toml` stays 0644, because the shell runs as `kid` and must read the
+hash to check a PIN at the gate (§3, "what this does not defend against"), so
+`cat /etc/kidnix/parent.toml` still yields the same two lines to anyone with a
+terminal on the machine. What this closes is the *easy* copy: the command a
+parent is invited to run, whose JSON lands in terminals, screenshots, pasted
+bug reports and support threads, where a file nobody thought to open does not.
+
+Closing the rest means moving the hash to a 0600 file and having the shell
+verify a PIN *through a root helper* rather than by reading a digest — the gate
+would send four digits to a verifier and get back yes or no, which also puts
+the child's guesses under the same rate limiter as everybody else's. That is a
+larger change than a redaction (a new privileged verb, a new failure mode at
+the gate on a machine where the helper will not start) and it is not made here.
+Until it is, the honest statement is unchanged from §3: **the gate is a
+usability boundary, not a safe.**
