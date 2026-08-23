@@ -46,3 +46,31 @@ installed as tiles; Sounds & Words weeks 1–3.
 4. Phoneme recordings (Matt) — or the activity says the label honestly (it does).
 5. Icon-naming probe on paper (CCI reviewer) — needs the hardware/printer.
 6. The protocol's stopping rules agreed with Matt in writing.
+
+## Addendum — Matt's first hands-on session (2026-08-23 evening → 24)
+
+One evening of Matt actually using the machine produced three findings and
+five fix waves, all landed and proven (e2e 31/31, image 1070 checks, shell
+1398 headless):
+
+1. **"Can't get back out"** → ADR-0014: resting moved from the machine to the
+   child. Sibling handover works (new e2e A24, with screenshot); Back on Home
+   names and spotlights All done. P1 #10's "instant switching" is now true.
+2. **"Icons have very odd issues"** → three Home tiles and two more SVGs never
+   rendered at all (` -- ` inside XML comments; the wallpaper's <svg> past the
+   sniff window). Fixed + render gates at lint/build/image-test + the
+   mechanical repairs (frieze, finish, supertux, memory-sound, undo, amber,
+   64→128 declared sizes, Ask redrawn). Open: dark variants, the ten suns.
+3. **"Indicate what's not implemented"** → the sweep found five stale "not
+   built" notices for things that ship (worst: schedule windows "change
+   nothing" while they lock the door), wipe/export missing the letters
+   outbox, family photos unreadable by the child, four Letters icons
+   missing, the Library tile a latent trap. All fixed; Library hidden until a
+   viewer exists.
+
+Tooling: `just vm-dev` (parent login in the dev VM); e2e harness learned
+ADR-0014 (per-profile usage reset in restart(), a dim-capable ink ruler).
+
+In flight 2026-08-24: shelf allow-list inheritance, grown-up sheet truth
+about the panel, this-boot-only marking on the sheet's sound controls,
+Letters shelf reading the Journal (design §7 step 5).
