@@ -1,0 +1,108 @@
+# Letters -- everything you can do to this directory.
+#
+# The venv is created with --system-site-packages on purpose: PyGObject, GTK4,
+# libadwaita, pycairo and speechd come from the system, and on a real machine so
+# do `kidnix_activity` and `kidnix_shell` (build_files/60-shell.sh copies both
+# into site-packages beside the shell). In a checkout they are two directories
+# up, which is what SDK below points at.
+#
+# Run these from `activities/letters_to_family/`.
+#
+# **Never speak and never chime on a developer machine** (AGENTS.md section 5).
+# Every recipe below exports KIDNIX_SPEECH=off: `kidnix_shell.speech` then hands
+# back a null voice, and `letters_to_family.activity.quiet()` reads the same
+# variable and gives the app a disabled earcon set, so the *sounds* are off too
+# -- they are a separate audio path and the host's speakers do not care which of
+# the two woke them up. A real kiosk session never runs through this Justfile.
+# Override with `KIDNIX_SPEECH=on just run` only if you really want your
+# speakers used.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+export KIDNIX_SPEECH := env_var_or_default("KIDNIX_SPEECH", "off")
+
+uvrun := "uv run --active"
+# The activity SDK, from the checkout rather than from the image.
+sdk := "../../shell"
+
+# List the recipes (this is the documentation of what you can do).
+default:
+    @just --list
+
+# Create the venv and install the dev tools.
+setup:
+    uv venv --system-site-packages --python /usr/bin/python3
+    uv sync --active
+    @{{ uvrun }} python -c "import gi, cairo; print('gi and cairo ok')"
+
+# The whole suite. GTK tests skip where there is no display; logic tests never do.
+test *ARGS:
+    {{ uvrun }} pytest {{ ARGS }}
+
+# Just the pure-logic tests -- no display, no SDK needed. The CI floor.
+test-headless:
+    env -u WAYLAND_DISPLAY -u DISPLAY {{ uvrun }} pytest -q \
+        --ignore=tests/test_gtk_smoke.py
+
+# The GTK tests, on a Broadway display, so nothing opens on your desktop
+# (AGENTS.md; docs/design/activity-sdk.md section 10). No `-p`: gtk4-broadwayd
+# derives its port from the display number (8080 + N) and so does the client, so
+# forcing one makes the daemon listen somewhere GDK will never look -- which
+# looks exactly like "GTK would not initialise".
+test-gtk DISPLAY_NUMBER="114":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gtk4-broadwayd ":{{ DISPLAY_NUMBER }}" >/dev/null 2>&1 &
+    broadwayd=$!
+    trap 'kill "${broadwayd}" 2>/dev/null || true' EXIT
+    sleep 1.5
+    env -u WAYLAND_DISPLAY -u DISPLAY \
+        GDK_BACKEND=broadway BROADWAY_DISPLAY=":{{ DISPLAY_NUMBER }}" \
+        PYTHONPATH="{{ sdk }}" {{ uvrun }} pytest tests/test_gtk_smoke.py -q
+
+lint:
+    {{ uvrun }} ruff check .
+
+# Check the manifest with the same validator the image build runs.
+validate:
+    PYTHONPATH="{{ sdk }}" {{ uvrun }} python -m kidnix_activity.cli validate manifest.toml
+
+# Run the activity on a Broadway display. Ctrl-C runs its save.
+# KIDNIX_PROFILE_ID makes the Journal, the outbox and the inbox per-child; a
+# development run points all three at a scratch directory rather than at
+# /var/lib/kidnix, which on a developer's machine does not exist.
+run DISPLAY_NUMBER="114" *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gtk4-broadwayd ":{{ DISPLAY_NUMBER }}" >/dev/null 2>&1 &
+    broadwayd=$!
+    trap 'kill "${broadwayd}" 2>/dev/null || true' EXIT
+    sleep 1.5
+    env -u WAYLAND_DISPLAY -u DISPLAY \
+        GDK_BACKEND=broadway BROADWAY_DISPLAY=":{{ DISPLAY_NUMBER }}" \
+        KIDNIX_ACTIVITY_ID=letters KIDNIX_PROFILE_ID=dev \
+        PYTHONPATH="{{ sdk }}" {{ uvrun }} python -m letters_to_family {{ ARGS }}
+
+# The two screenshots in docs/design/screenshots/.
+screenshots DISPLAY_NUMBER="114":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(realpath ../../docs/design/screenshots)"
+    gtk4-broadwayd ":{{ DISPLAY_NUMBER }}" >/dev/null 2>&1 &
+    broadwayd=$!
+    trap 'kill "${broadwayd}" 2>/dev/null || true' EXIT
+    sleep 1.5
+    env -u WAYLAND_DISPLAY -u DISPLAY \
+        GDK_BACKEND=broadway BROADWAY_DISPLAY=":{{ DISPLAY_NUMBER }}" \
+        KIDNIX_SCREEN=1280x800 \
+        KIDNIX_ACTIVITY_ID=letters KIDNIX_PROFILE_ID=dev \
+        PYTHONPATH="{{ sdk }}" \
+        {{ uvrun }} python -m letters_to_family --screenshot "${out}"
+    ls -la "${out}"/letters-*.png
+
+# Everything CI runs for this directory.
+ci: lint test-headless validate
+
+clean:
+    rm -rf .venv .pytest_cache .ruff_cache
+    find . -name __pycache__ -type d -prune -exec rm -rf {} +

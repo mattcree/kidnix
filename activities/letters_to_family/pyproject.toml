@@ -1,0 +1,62 @@
+[project]
+name = "kidnix-letters"
+version = "0.1.0"
+description = "Letters -- the kidnix letters-to-family activity: a picture, a few words and your voice, for somebody real"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+# Deliberately no runtime dependencies. The recipients, the letter, the outbox,
+# the inbox, the words and the keys are pure Python; the drawing is `cairo` and
+# the window is `kidnix_activity`, and both of those come from the image -- the
+# same wheel and the same `cp -a` as the shell (build_files/60-shell.sh) --
+# never PyPI. See docs/design/activity-sdk.md section 10, which is also why the
+# venv is created with `--system-site-packages` and why this list is empty.
+dependencies = []
+
+[project.scripts]
+kidnix-letters = "letters_to_family.activity:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["letters_to_family"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["letters_to_family", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # import order
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "RUF",
+]
+ignore = [
+    "E501",  # line length is the formatter's job
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["letters_to_family"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

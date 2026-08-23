@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="an envelope with a child's drawing peeking out of the top">
+<title>Letters</title>
+<!-- Depictive, not a glyph (ADR-0011): for a child with no English, low vision
+     or a colour-vision deficiency the picture is the only persistent channel.
+     A plain postal envelope with a drawing sticking out of it -- a sun and a
+     hill in a child's hand, the thing this activity actually sends. The
+     drawing is *on top of* the envelope flap so the shape reads as "something
+     going in", which is the verb; an envelope on its own reads as "post" in
+     the abstract and a four-year-old has never posted anything.
+
+     Colour is never the only difference (SYNTHESIS B6): the drawing is a paler
+     rectangle with its own dark outline, so it separates from the envelope in
+     greyscale and in a photocopy as well as in colour. -->
+
+<!-- the child's drawing, peeking out -->
+<g>
+  <rect x="30" y="14" width="60" height="46" rx="5" fill="#fbf7ef" stroke="#16181d" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="46" cy="30" r="7" fill="#ffd23f" stroke="#16181d" stroke-width="3"/>
+  <path d="M34 50 q14 -18 26 -2 q10 -14 22 2" fill="none" stroke="#0f8a8a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+<!-- the envelope -->
+<g stroke="#16181d" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+  <rect x="12" y="46" width="96" height="62" rx="7" fill="#f06292"/>
+  <path d="M12 52 L60 88 L108 52" fill="none"/>
+</g>
+</svg>

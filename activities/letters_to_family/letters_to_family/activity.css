@@ -1,0 +1,160 @@
+/* Letters -- what this activity adds to the shell's stylesheet and the SDK's.
+ *
+ * Loaded third: `kidnix_shell/theme.css`, then `kidnix_activity/activity.css`,
+ * then this. Everything a control already looks like -- the big button, the
+ * picture tile, the focus ring, the grown-up card -- comes from those two,
+ * unchanged. What is here is the four things neither of them has an equivalent
+ * of: a face on a tile, a crayon, a caption box a child types into, and the
+ * level meter on the voice button.
+ *
+ * The colour tokens are restated for the same reason the SDK restates them: a
+ * missing colour in GTK CSS is not an error, it is a black rectangle, and this
+ * activity may be run on a developer's desktop with no shell behind it.
+ * `tests/test_palette.py` re-reads theme.css and fails if they drift.
+ */
+
+@define-color kid-highlight #ffd23f;
+@define-color kid-ink #16181d;
+@define-color kid-paper #fbf7ef;
+@define-color kid-paper-dim #efe8da;
+@define-color kid-edge #7e838c;
+@define-color kid-edge-strong #5a5f6a;
+@define-color kid-primary #0f8a8a;
+@define-color kid-secondary #f06292;
+
+/* --- a person's tile -----------------------------------------------------
+ *
+ * Rounder than a picture tile, because the thing on it is a face and a face on
+ * a square looks like a document. The name sits under the photo and is never
+ * the only channel: it is also spoken on hover, on focus and on press. */
+
+button.picture-tile.recipient {
+  border-radius: 28px;
+  padding: 10px;
+}
+
+button.picture-tile.recipient .picture-frame {
+  border-radius: 22px;
+}
+
+/* The one the child has chosen stays visibly chosen on every later screen, so
+ * "who is this for?" is answered by looking rather than by remembering. Two
+ * channels, never just the colour (B6): a ring *and* a lift. */
+button.picture-tile.recipient.chosen {
+  border: 4px solid @kid-primary;
+  background-color: @kid-paper;
+}
+
+/* --- the three crayons ---------------------------------------------------
+ *
+ * Twenty millimetres of real panel each (the size comes from ContentArea, not
+ * from here). The chosen one is ringed as well as filled, because a child who
+ * cannot tell teal from black must still be able to see which crayon is in
+ * their hand. */
+
+button.crayon {
+  border-radius: 50%;
+  border: 3px solid @kid-edge;
+}
+
+button.crayon.chosen {
+  border: 6px solid @kid-ink;
+}
+
+button.crayon.teal { background-color: #0f8a8a; }
+button.crayon.pink { background-color: #f06292; }
+button.crayon.black { background-color: #16181d; }
+
+/* --- the canvas ----------------------------------------------------------
+ *
+ * Plain paper with an edge, so a four-year-old can see where the drawing stops
+ * before they draw off it. */
+
+.scribble-canvas {
+  background-color: @kid-paper;
+  border: 3px solid @kid-edge;
+  border-radius: 18px;
+}
+
+/* --- the caption box -----------------------------------------------------
+ *
+ * **Lowercase, Andika, no squiggle.** The font is the one a Reception
+ * classroom's letters are shaped like (B6); the size is the SDK's child floor
+ * or better; and there is no error styling in this file at all, because there
+ * is no such thing as a spelling error in a five-year-old's letter
+ * (05 section 3: invented spelling *is* the Year 1 curriculum). GTK's own
+ * `.error` class is never added by this activity's code either. */
+
+entry.caption, entry.caption text {
+  font-family: "Andika", "Andika New Basic", "Cantarell", sans-serif;
+  font-size: 28pt;
+  color: @kid-ink;
+  background-color: @kid-paper;
+  caret-color: @kid-primary;
+}
+
+entry.caption {
+  border: 3px solid @kid-edge;
+  border-radius: 16px;
+  padding: 10px 14px;
+  min-height: 56px;
+}
+
+entry.caption:focus-within {
+  border-color: @kid-primary;
+}
+
+/* A grown-up's box is an adult's control (08 section 3.1e): adult face, adult
+ * density, quiet. Being unenticing is the point. */
+entry.grownup, entry.grownup text {
+  font-family: "Atkinson Hyperlegible Next", "Cantarell", sans-serif;
+  font-size: 13pt;
+  color: @kid-ink;
+  background-color: @kid-paper;
+}
+
+entry.grownup {
+  border: 1px solid @kid-edge;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+/* --- the level meter -----------------------------------------------------
+ *
+ * The only thing a pre-reader can use to tell "it is listening" from "it is
+ * broken" is seeing their own voice move something (kidnix_shell.voice). It is
+ * a bar of area, not a countdown, and there is no digit on it. */
+
+levelbar.voice-level trough {
+  background-color: @kid-paper-dim;
+  border-radius: 10px;
+  min-height: 18px;
+}
+
+levelbar.voice-level block.filled {
+  background-color: @kid-primary;
+  border-radius: 10px;
+}
+
+levelbar.voice-level block.empty {
+  background-color: transparent;
+}
+
+/* --- the shelf of replies ------------------------------------------------ */
+
+button.picture-tile.reply {
+  border-radius: 22px;
+  border: 3px solid @kid-highlight;
+}
+
+/* --- the posted screen ---------------------------------------------------
+ *
+ * No confetti, no bell, no badge, no "well done" (E1/E2). What the child gets
+ * is the letter, big, on the screen, and one sentence naming who is going to
+ * get it. The reward is the artefact. */
+
+.posted-card {
+  border: 4px solid @kid-primary;
+  border-radius: 18px;
+  background-color: @kid-paper;
+}

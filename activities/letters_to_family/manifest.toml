@@ -1,0 +1,76 @@
+# Letters -- the kidnix letters-to-family activity.
+#
+# The shell reads this at start-up (spec section 4) and
+# `kidnix-activity validate manifest.toml` checks it; `tests/test_manifest.py`
+# runs the same validator, so a manifest that would be rejected on the machine
+# is rejected in CI first.
+#
+# NOT yet installed on the image, but half of the way is now paved: the wave
+# that installed Numbers and Clock (2026-08-23) also shipped
+# `system_files/usr/lib/tmpfiles.d/kidnix-letters.conf`, so /var/lib/kidnix/
+# outbox and /var/lib/kidnix/inbox exist on a booted machine. What is still
+# missing is the row in build_files/64-first-party-activities.sh's FIRST_PARTY
+# table and the tile in /usr/share/kidnix/activities/ -- see
+# docs/design/letters-to-family.md section 8. Until those land the tile does not
+# exist, which is correct: a tile that opens a half-built activity is worse
+# than an absent one.
+schema = 1
+
+id = "letters"
+name = "Letters"
+
+# What the shell says when a child hovers or focuses the tile. Written for the
+# ear and for a pre-reader: it says what *happens* -- you send something to a
+# person -- rather than naming a genre.
+audio_label = "Send a letter"
+
+# One honest line for a parent, and the sentence the whole activity is held to.
+# It names all three parts of what a five-year-old's letter legitimately is
+# (05 section 3) and it ends with the bit that is not negotiable: the machine
+# does not send anything. A parent reading this tile knows before they let a
+# child near it that a letter will be waiting for *them* to send.
+goal = "Make a letter for someone in your family: a picture, a few words, your voice. A grown-up sends it."
+
+# A drawing, not a glyph: an envelope with a child's drawing peeking out of the
+# top. For a child with no English, low vision or CVD it is the only persistent
+# channel there is (ADR-0011). The path is where the package lands on the
+# image; in a checkout the same file is
+# activities/letters_to_family/letters_to_family/icon.svg.
+icon = "/usr/lib/kidnix/letters_to_family/icon.svg"
+icon_kind = "path"
+
+# Making, not learning: what comes out of this is a letter, and the tile
+# belongs beside Draw and Photos rather than beside Sounds & Words.
+category = "make"
+
+# Four, because a four-year-old can choose a face, scribble and press Post it
+# without writing a word -- picture and voice are a complete letter. Eight,
+# because a Year 3 child writing to a grandparent has not outgrown the point of
+# it. The literacy value peaks at 5-7 (05 section 2a) and the band is wider
+# than the peak on purpose.
+age_band = "4-8"
+
+exec = ["/usr/bin/kidnix-letters"]
+
+# The SDK saves on SIGTERM and never shows a quit dialogue
+# (kidnix_activity.lifecycle; docs/design/activity-sdk.md 3.3). What put-away
+# covers here is one PNG render and one Journal entry -- and, deliberately, no
+# outbox copy: a letter the child never pressed Post it on must not appear in
+# the folder a grown-up sends things out of.
+quit = "signal"
+quit_grace = 5.0
+
+# **The load-bearing line.** The child session has no egress (SYNTHESIS H1) and
+# this activity is the one in the suite whose name most sounds like it needs
+# some. It does not: the letter is written to a folder and a grown-up carries
+# it. There is no address field anywhere in the package, no socket, and no
+# status this activity can write that says "sent".
+network_required = false
+
+# No journal_watch and no journal_glob, deliberately. The activity writes its
+# own entry with kidnix_activity.journal.save_entry, so there is nothing for the
+# shell's importer to notice two seconds later -- and an importer watching a
+# scratch directory would keep the same letter twice
+# (docs/design/activity-sdk.md 8).
+
+notes = "Recipients come from the [[family]] blocks in /etc/kidnix/parent.toml, which the parent panel's Family tab writes. Posted letters land in /var/lib/kidnix/outbox/<profile>/ marked 'waiting for a grown-up to send'; replies a grown-up drops in /var/lib/kidnix/inbox/<profile>/ appear on the 'Letters for you' shelf. See docs/design/letters-to-family.md."
