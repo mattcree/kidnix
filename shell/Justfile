@@ -60,7 +60,7 @@ fix:
     {{ uvrun }} ruff check --fix .
     {{ uvrun }} ruff format .
 
-# Generate the four earcons (keep/tap/back/sleep) -- run at image build time.
+# Generate the five earcons (keep/tap/back/sleep/phase) -- run at image build time.
 earcons DIR="":
     {{ python }} -m kidnix_shell.sound {{ DIR }}
 
