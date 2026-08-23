@@ -323,6 +323,7 @@ SHIPPED_LABELS = {
     ),
     "numbers": ("Numbers", "Numbers"),
     "clock-time": ("Clock", "Play with the clock. Move the hands and find out what happens when."),
+    "letters": ("Letters", "Send a letter"),
 }
 
 

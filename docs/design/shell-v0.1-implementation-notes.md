@@ -3187,3 +3187,173 @@ touches session policy, the allow-list or `[access]`.
 4. **`retired_profiles` is still not read, and must stay that way** (§7.4).
 5. Everything still open in §§18.9, 19.5, 20.6, 21.10, 22.7, 23.9, 24.5 and
    25.4.
+
+## 27. v0.1.13 — the reply comes back into My Things (2026-08-23)
+
+`kidnix_shell/inbox.py` (new), `kidnix_shell/app.py` (three small hooks),
+`tests/test_inbox.py` (new, 42).
+
+`docs/research/05-learning-science.md` §3 rates Letters to family the strongest
+activity in the list and then makes it conditional: *"**Show the reply.** A
+one-way outbox is not an audience; the reply must come back **into the child's
+journal** and be announced."* §6 #5 repeats it as a condition — *"provided the
+reply comes back"*. The activity shipped the outbox, the inbox and a read-only
+shelf, and `docs/design/letters-to-family.md` §7 wrote the import down as a
+**shell** job and did not build it: the announcement is Home's, and a reply has
+to be there whether or not the child ever opens Letters. This is §7, built.
+
+### 27.1 One sweep, at "Who's here?"
+
+Not a watcher. `/var/lib/kidnix/inbox/<profile>/` is `0750 parent:kid` — the
+child's session can list it and read it and can write nothing at all — and
+inotify on `/var/lib` from that session is a permissions question of its own
+(§7 #1). A reply is also not urgent: it was posted days ago and it can wait for
+the next sitting. So `ShellWindow.choose_profile` calls `_import_letters()`
+straight after `_use_profile`, before the clock starts and before Home is built,
+and the card is already in My Things by the time the child could look.
+
+Everything in that path is survivable. The inbox is missing on every developer's
+machine, unreadable on a machine whose `/var` is odd, and empty for most
+children on most days; all three come back as an empty list, no warning, no
+state file written, and a session that starts exactly as it did before.
+
+### 27.2 What a reply is
+
+`reply.json` — `{from, kind, files, sent_at}` — is a set of **hints**, and the
+files in the folder are the reply. A manifest that is unreadable, unparseable or
+not an object is logged and dropped, and the directory is then read the way a
+directory with no manifest is read (§5's rules: `from.txt`, first picture, first
+sound, `words.txt` or the first other text file, folder name with the digits
+dropped). A grown-up's tool that wrote half a JSON document must not cost a
+child their letter. The one thing the manifest is believed about absolutely is
+`files`, and only inside its own directory: a name with a separator or a `..` in
+it is dropped, because the inbox is a folder a grown-up can be *sent* things
+into.
+
+A folder whose only content is a broken `reply.json` imports nothing at all —
+`.json` is not a picture, a sound or words, so there is no reply there to have.
+
+### 27.3 The card
+
+One Journal entry per reply, written through `Journal.import_file` rather than a
+second entry writer, so a letter is byte-identical in shape to everything else
+in `journal/YYYY/MM/DD/`. On top of what the importer does:
+
+* **the title** is `A letter from Grandad` — not a filename and not "Reply". Who
+  it is from is the entire feature;
+* **`caption.txt`** holds the sender's words **verbatim**. Not corrected, not
+  re-cased, not tidied. 05 §3's "no spelling correction" is about the child's
+  writing; applying it in only one direction would be the machine marking a
+  grandparent's;
+* **`note.ogg`** is the recording, copied under that name even when it is also
+  `v001.ogg`, because that is the name `kidnix_shell.voice` looks for: it is
+  what puts the ear badge on the card and what plays when the child taps it in
+  "Show a grown-up";
+* **`meta.json`** carries `kind = "letter-reply"`, the sender, the inbox path
+  and `sent_at`. **Hyphenated**: `kidnix_activity.journal.KIND_RE` rejects an
+  underscore and `letters-to-family.md` §§7 and 9 already spell it that way, so
+  the underscore in the task note would have been a second spelling of one
+  vocabulary — i.e. a second bug — the day anything filters on it;
+* **the date is now, not `sent_at`**. A letter posted last week arrived in the
+  child's world today. Dating it backwards would file it under "Before" on the
+  very screen the child has just been told to look at. `sent_at` is in
+  `meta.json` for the grown-up.
+
+A picture thumbnails itself. A recording or a note gets a **drawn envelope
+card** — cairo and Pango, the sender's words on it in Andika (`CARD_FACE` is
+`theme.css`'s family list), ellipsised if the letter is longer than a 256 px
+card, with the whole of it in `caption.txt`. Failure to draw is not an error: no
+thumbnail means the card falls back to the Letters icon, which is worse-looking
+and works, and the drawer is injectable so the import can be asserted on a
+machine with no cairo at all.
+
+### 27.4 Once, and only once
+
+Two independent answers, because the interesting failure is a duplicate card:
+
+1. **`<profile state>/letters.json`** — path → `{mtime, size, imported}`, the
+   triple `JournalImporter._stat` already uses (§7 #3). The **presence of the
+   path** is the answer; the triple is recorded for a grown-up reading the file
+   and deliberately not compared, so a reply whose folder gained a second file
+   later is not a second letter.
+2. **The Journal's own `source_path` index.** Delete `letters.json` and the next
+   sweep still imports nothing, because `import_file` recognises bytes it has
+   already stored. A grown-up who tidies the child's state directory does not
+   thereby hand them Grandad's letter twice.
+
+Nothing is moved, renamed, marked or deleted in the inbox — no `.imported/`
+subdirectory, which the child's session could not create anyway. `tests/
+test_inbox.py` snapshots every file under the inbox root and asserts it is
+byte-for-byte identical after two sweeps.
+
+### 27.5 One line, at the first Home
+
+`inbox.Announcement` is a line that can be taken exactly once. `_import_letters`
+offers it; `_on_state_change` takes it on arrival at `State.HOME`, **after**
+`_show_state`, so Home says its own sentence first and the child hears one thing
+and then the other rather than two at once:
+
+> There's a letter for you from Grandad. It's in My Things.
+
+No badge, no count, no pulse, no notification, and no second telling — SYNTHESIS
+D6: nothing in this product summons a child back to it. Home is entered many
+times in a sitting and this is said on the first one only, which is what `take()`
+emptying the line *is*. Several letters are still **one** line naming the most
+recent sender: "you have three letters" is a number spoken to a five-year-old
+(01 #19) and a to-do list. The others are in My Things, in time order, where the
+child will meet them.
+
+### 27.6 Tests
+
+42 headless, `tests/test_inbox.py`: reading a folder reply, a loose file, the
+sender from `from.txt`, the folder name losing its digits, dot-directories and
+non-media files ignored, newest-first order, a missing inbox, the unset profile
+folder; the picture card and its thumbnail, the title, `meta.json`'s fields, the
+voice reply's `note.ogg` and `has_note`, the envelope drawn for a voice and
+*not* for a picture, the words kept verbatim and passed to the drawer, a machine
+that cannot draw at all, the entry dated now with `sent_at` preserved, a
+manifest naming the sender and the file, three broken-manifest shapes, a
+manifest that tries to name a file outside its folder; the second sweep, the
+lost state file, the state file's own shape, the reply that gained a file later,
+the inbox untouched, per-profile isolation, the empty inbox and the absent one,
+newest-first in My Things; the line naming the sender, silence when nothing
+came, said once and never again, several letters still one line with no count,
+the sentence held to D6's vocabulary, and the line dropped unsaid; plus three
+that draw a real PNG.
+
+`mypy --strict` is green across all 108 source files, and `ruff check` /
+`ruff format --check` are clean on everything this pass wrote. The suite is
+**1363 passed, 2 skipped**.
+
+**Two things in the tree were already red and are not from this pass.** `ruff
+0.16.4` reports `I001` on **36 files**, none of them touched here: it now
+classifies `tomllib` as standard library at `target-version = "py311"` (it did
+not when the tree was last formatted), so every module that imports it — and
+every test file behind it — wants its import block re-sorted. It is one
+`ruff check --fix .` in a quiet tree, and doing it here would have rewritten
+files three other people are in the middle of. And the two test failures —
+`test_activities.py::test_the_shipped_tiles_are_named_for_what_the_child_does`
+and `test_labels.py::test_the_image_still_ships_the_measured_set` — are the two
+shipped-manifest tables counting 14 manifests where they expect 13, exactly the
+failure §26.6 recorded (at 13 against 12); neither reads the inbox, the Journal
+or `app.py`.
+
+### 27.7 Still open after this pass
+
+1. **The activity's shelf still reads the inbox directly** (letters §7 #5). The
+   end state is the shelf reading the Journal and the inbox being purely a
+   grown-up's drop point; until then a reply is visible in two places, which is
+   redundant rather than wrong.
+2. **A reply cannot be replied to.** Opening a letter card resumes the Letters
+   activity like any other entry; it does not open "write back to Grandad" with
+   the recipient already chosen, which is the obvious next thing and is the
+   activity's to build.
+3. **`kind` is still not a closed vocabulary** (activity-sdk §13 #4). `picture` /
+   `writing` / `sound` / `tune` / `letter` / `letter-reply` want to be a set the
+   Journal can filter on; nothing filters on it yet.
+4. **The words on an envelope card are ellipsised at 256 px.** A long letter is
+   whole in `caption.txt` and nothing in the child's session shows it whole —
+   the Journal card has no reading view, for anybody's entry.
+5. **`po/kidnix.pot` has not been re-extracted** for the four new msgids (the
+   card title, the announcement, "someone", "Letters"), for the same reason as
+   §26.7 #1.

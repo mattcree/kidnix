@@ -60,12 +60,14 @@ from .i18n import (  # noqa: E402
     speech_language,
 )
 from .i18n import install as install_language  # noqa: E402
+from .inbox import Announcement, import_replies, state_path  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
 from .keyboard import Keyboard  # noqa: E402
 from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
 from .launcher import Launcher, RunningActivity  # noqa: E402
 from .metrics import Metrics, ScreenOverride, detect_metrics, pin_font_dpi  # noqa: E402
 from .next_after import NextAfter  # noqa: E402
+from .prerendered import select_prerendered  # noqa: E402
 from .research import BurstDetector, ResearchConfig  # noqa: E402
 from .resting import refusal_line  # noqa: E402
 from .ritual import (  # noqa: E402
@@ -104,7 +106,12 @@ from .settings import (  # noqa: E402
     migrate_profile_data,
 )
 from .sound import BACK, KEEP, PHASE, SLEEP, TAP, Earcons  # noqa: E402
-from .speech import GLibScheduler, SpeechManager, select_backend  # noqa: E402
+from .speech import (  # noqa: E402
+    GLibScheduler,
+    SpeechManager,
+    current_speech_language,
+    select_backend,
+)
 from .state import Event, State, StateMachine  # noqa: E402
 from .sun import idle_fraction  # noqa: E402
 from .theme import dynamic_css  # noqa: E402
@@ -341,6 +348,11 @@ class ShellWindow(Adw.ApplicationWindow):
             scheduler=GLibScheduler(),
             dwell_ms=config.hover_dwell_ms,
             research=self.research,
+            #: **The pre-rendered catalogue** (docs/spikes/tts-prerender.md).
+            #: `None` on an image built without `66-prerender-speech.sh`, and
+            #: on every language Kokoro has no voice for -- in both cases the
+            #: backend above speaks everything, exactly as it did before.
+            prerendered=select_prerendered(language=current_speech_language()),
         )
         log.info(
             "read-aloud backend: %s (hover dwell %d ms, settle-gated)",
@@ -391,6 +403,10 @@ class ShellWindow(Adw.ApplicationWindow):
         # implementation notes.
         self.importer = JournalImporter(self.journal, activities)
         self.watcher = JournalWatcher(self.importer, on_import=self._on_new_work)
+        #: Letters that came back (:mod:`kidnix_shell.inbox`). The inbox is
+        #: swept once, at "Who's here?", and this holds the one gentle line
+        #: until the first Home of that sitting says it -- once (D6).
+        self.letters = Announcement()
 
         usage = DailyUsage.for_now(self.profile_paths.usage_state, datetime.now())
         self.session = Session(policy=policy, usage=usage)
@@ -1235,6 +1251,12 @@ class ShellWindow(Adw.ApplicationWindow):
             total = self.kid_state.complete_session()
             log.info("session %d completed; Home may have grown", total)
         self._show_state()
+        # The letter, at the first Home of the sitting and nowhere else: after
+        # `_show_state`, so Home has already said what it says and the child
+        # hears one line and then the other rather than two at once. `take`
+        # empties it, which is the whole of "never twice" (D6).
+        if current is State.HOME and self.letters.pending:
+            self.speech.speak(self.letters.take())
 
     def _show_state(self) -> None:
         state = self.machine.state
@@ -1612,6 +1634,7 @@ class ShellWindow(Adw.ApplicationWindow):
         # because `may_start` reads this child's usage and not the machine's.
         self._use_profile(profile)
         self._apply_tint(profile)
+        self._import_letters()
         now = datetime.now()
         refusal = self.session.may_start(now)
         if refusal is not StartRefusal.OK:
@@ -1628,6 +1651,34 @@ class ShellWindow(Adw.ApplicationWindow):
             self.machine.try_fire(Event.SKIP_NEXT_CHOICE)
             return
         self.machine.try_fire(Event.CHOOSE_PROFILE)
+
+    def _import_letters(self) -> None:
+        """Bring anything a grown-up left in the inbox into this child's Journal.
+
+        `docs/design/letters-to-family.md` section 7: a reply has to come back
+        *into the child's journal* and be announced, and both halves are the
+        shell's -- a letter is there whether or not the child ever opens
+        Letters. Swept here, at "Who's here?", so the card exists before Home
+        is built; **announced** at the first Home, once, by
+        :class:`~kidnix_shell.inbox.Announcement`. No badge and no repeat (D6).
+
+        Never fatal. The inbox lives on ``/var``, which on a developer's machine
+        does not exist and on the image belongs to the parent account: every way
+        that can go wrong is a letter arriving next sitting instead, and none of
+        them is a reason a child cannot start.
+        """
+        try:
+            imported = import_replies(
+                self.journal,
+                profile_id=self.ctx.profile.id,
+                state=state_path(self.profile_paths.profile_state),
+            )
+        except OSError as exc:  # pragma: no cover - a vanished or unreadable /var
+            log.warning("could not read the letters inbox (%s)", exc)
+            return
+        self.letters.offer(imported)
+        for letter in imported:
+            log.info("a letter from %s is in My Things", letter.reply.from_name)
 
     def choose_next_after(self, option: NextAfter) -> None:
         """S1b: the child said what happens after. Spec 7b / SYNTHESIS D4.

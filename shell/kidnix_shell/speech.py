@@ -404,6 +404,27 @@ class FakeBackend:
         self.closed = True
 
 
+#: Values of ``KIDNIX_SPEECH`` that mean "make no sound at all".
+SPEECH_OFF_VALUES = frozenset({"off", "0", "false", "none", "null"})
+
+
+def speech_off() -> bool:
+    """The hard off-switch for developer machines.
+
+    A demo or a GTK test running on a workstation would otherwise talk through
+    the developer's own speech-dispatcher and speakers. Every demo/test recipe
+    sets this; only a real kiosk session leaves it unset. (AGENTS.md §5; the
+    "Say it again" incident of 2026-08-23.)
+
+    It is a *predicate* rather than a check inside :func:`select_backend`
+    because there are now two mouths -- the backend and the pre-rendered
+    catalogue (:mod:`kidnix_shell.prerendered`) -- and an off-switch that
+    closed only one of them would be worse than none, because it would look
+    like it worked.
+    """
+    return os.environ.get("KIDNIX_SPEECH", "").strip().lower() in SPEECH_OFF_VALUES
+
+
 def select_backend(prefer: str | None = None) -> SpeechBackend:
     """Pick the best available voice. Never raises, never opens a socket.
 
@@ -411,12 +432,7 @@ def select_backend(prefer: str | None = None) -> SpeechBackend:
     first utterance so that nothing here can block the shell's startup on a
     daemon that has not come up yet.
     """
-    # Hard off-switch for developer machines: a demo or a GTK test that runs
-    # on a workstation would otherwise talk through the developer's own
-    # speech-dispatcher and speakers. Every demo/test recipe sets this; only a
-    # real kiosk session leaves it unset. (AGENTS.md §5; the "Say it again"
-    # incident of 2026-08-23.)
-    if os.environ.get("KIDNIX_SPEECH", "").strip().lower() in {"off", "0", "false", "none", "null"}:
+    if speech_off():
         log.info("speech disabled by KIDNIX_SPEECH=%s", os.environ.get("KIDNIX_SPEECH"))
         return NullBackend()
     if prefer == "null":
@@ -515,8 +531,17 @@ class SpeechManager:
         enabled: bool = True,
         clock: Callable[[], float] = time.monotonic,
         research: ResearchConfig | None = None,
+        prerendered: Any = None,
     ) -> None:
         self.backend: SpeechBackend = backend or NullBackend()
+        #: **The pre-rendered catalogue** (:mod:`kidnix_shell.prerendered`), or
+        #: ``None`` on an image without one. When a clip exists for exactly the
+        #: text being said it is played instead of asking the backend; every
+        #: other path through this class -- the caption, the highlight ring,
+        #: ``last_utterance``, the Ear, ``speak_then`` -- is untouched, because
+        #: this is a change of *who makes the sound* and of nothing else.
+        #: docs/spikes/tts-kokoro.md 7.1, docs/spikes/tts-prerender.md.
+        self.prerendered: Any = prerendered
         self.scheduler: Scheduler = scheduler or GLibScheduler()
         self.dwell_ms = dwell_ms
         self.enabled = enabled
@@ -607,7 +632,17 @@ class SpeechManager:
         # voice observable from outside the machine (tests/e2e/), and it is
         # the shell's own UI text -- never anything the child typed or made.
         log.info("speaking: %s", text)
-        self.backend.speak(text)
+        # The clip, if there is one for exactly this text. Both mouths get
+        # closed either way: a hit must stop a sentence the backend is still
+        # in the middle of, and a miss must stop a clip that is still playing,
+        # or the "a new utterance cancels the old one" contract would hold
+        # only within each half.
+        if self.prerendered is not None and self.prerendered.speak(text):
+            self.backend.cancel()
+        else:
+            if self.prerendered is not None:
+                self.prerendered.cancel()
+            self.backend.speak(text)
         if remember:
             self.last_utterance = text
         self._start_highlight(key, text)
@@ -654,6 +689,8 @@ class SpeechManager:
         return self.speak(self.last_utterance, self.speaking_key)
 
     def cancel(self) -> None:
+        if self.prerendered is not None:
+            self.prerendered.cancel()
         self.backend.cancel()
         self._stop_highlight()
 
@@ -856,10 +893,18 @@ class SpeechManager:
     # -- calm mode and the volume control (accessibility review B3) --
 
     def set_rate(self, rate: int) -> None:
-        """Calm mode speaks a little slower. Pushed to whatever backend we have."""
+        """Calm mode speaks a little slower. Pushed to whatever backend we have.
+
+        The pre-rendered catalogue gets it too, and *switches itself off* if the
+        rate is not the one it was rendered at: a recording has one tempo, and a
+        parent who slowed the voice down for their child is owed the slower
+        voice rather than the prettier one.
+        """
         setter = getattr(self.backend, "set_rate", None)
         if setter is not None:
             setter(rate)
+        if self.prerendered is not None:
+            self.prerendered.set_rate(rate)
 
     def set_volume(self, volume: float) -> None:
         """0.0-1.0, under the image's 70% hardware ceiling.
@@ -872,6 +917,8 @@ class SpeechManager:
         setter = getattr(self.backend, "set_volume", None)
         if setter is not None:
             setter(volume)
+        if self.prerendered is not None:
+            self.prerendered.set_volume(volume)
 
     def set_language(self, language: str) -> None:
         """Point the voice at a language. Backends that cannot are left alone.
@@ -883,10 +930,17 @@ class SpeechManager:
         setter = getattr(self.backend, "set_language", None)
         if setter is not None:
             setter(language)
+        # A Welsh or Polish profile has no catalogue (Kokoro v1.0 has neither
+        # voice), so this is usually "drop it and speak everything" -- which is
+        # the behaviour the shell had before the catalogue existed.
+        if self.prerendered is not None:
+            self.prerendered.set_language(language)
 
     def close(self) -> None:
         self._cancel_dwell()
         self._stop_highlight()
         # Do not lose the last hover of the session: P5 wants every one.
         self._flush_hover_log()
+        if self.prerendered is not None:
+            self.prerendered.close()
         self.backend.close()
