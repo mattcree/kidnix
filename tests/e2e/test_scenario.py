@@ -49,7 +49,9 @@ DRAW_ROW, DRAW_COLUMN = 0, 0
 BACK_INDEX = 0
 MY_THINGS_INDEX = 2
 
-JOURNAL_GLOB = "/var/home/kid/.local/share/kidnix/journal"
+# v0.1.6 keeps the Journal under profiles/<id>/journal; searching the kidnix data
+# root covers both that and the pre-profile layout.
+JOURNAL_GLOB = "/var/home/kid/.local/share/kidnix"
 
 # --------------------------------------------------------------------------- #
 # v0.1.5: the band is a separate toplevel that gnome-kiosk pins to the top
