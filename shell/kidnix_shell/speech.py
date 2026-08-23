@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from .access import SPEECH_RATE
+from .i18n import N_, _, speech_language
 from .research import ResearchConfig
 
 log = logging.getLogger(__name__)
@@ -81,9 +82,26 @@ HOVER_LOG_PREFIX = "hover-speech"
 #: speech-dispatcher is invisible to the child.
 RECONNECT_SECONDS = 5.0
 
-#: en-GB, "slightly slower than default". speechd rate is -100..100.
-#: :mod:`kidnix_shell.access` owns the number now, because calm mode moves it.
+#: The **default** voice language, and the one every catalogue-less machine
+#: gets. The language actually sent is :func:`current_speech_language`, which
+#: follows the shell's own (ADR-0012): a Welsh child's tile labels being Welsh
+#: while the voice reads them in English is worse than either alone, because
+#: the child hears the *letters* mispronounced.
+#:
+#: speech-dispatcher takes the tag in ``SET SELF LANGUAGE`` (``set_language``
+#: in ``python3-speechd``, ``-l`` on ``spd-say``) and picks the first output
+#: module that claims it. Which voice that is, per language, is
+#: docs/design/i18n.md §3 -- the image ships Piper ``en_GB-cori`` only, so an
+#: unshipped language falls through to espeak-ng, which speaks ~100 of them
+#: intelligibly and none of them beautifully.
 SPEECH_LANGUAGE = "en-GB"
+
+
+def current_speech_language() -> str:
+    """The tag to send, from whatever :mod:`kidnix_shell.i18n` has installed."""
+    return speech_language() or SPEECH_LANGUAGE
+
+
 #: speechd volume is -100..100 and the shell's is 0.0-1.0. The image's 70%
 #: hardware ceiling is underneath both and is not negotiable from here.
 MIN_VOLUME = -100
@@ -154,12 +172,16 @@ class SpdSayBackend:
         self._proc: subprocess.Popen[bytes] | None = None
         self.rate = SPEECH_RATE
         self.volume = 1.0
+        self.language = current_speech_language()
 
     def set_rate(self, rate: int) -> None:
         self.rate = rate
 
     def set_volume(self, volume: float) -> None:
         self.volume = volume
+
+    def set_language(self, language: str) -> None:
+        self.language = language or SPEECH_LANGUAGE
 
     def speak(self, text: str) -> None:
         self.cancel()
@@ -168,7 +190,7 @@ class SpdSayBackend:
                 [
                     self.executable,
                     "-l",
-                    SPEECH_LANGUAGE,
+                    self.language,
                     "-r",
                     str(self.rate),
                     "-i",
@@ -196,12 +218,14 @@ class SpdSayBackend:
         self.cancel()
 
 
-def open_ssip_client(rate: int = SPEECH_RATE, volume: float = 1.0) -> Any:
+def open_ssip_client(rate: int = SPEECH_RATE, volume: float = 1.0, language: str = "") -> Any:
     """Connect to speech-dispatcher. Raises if the daemon is not there."""
     import speechd  # imported lazily: absent on some dev hosts
 
     client = speechd.SSIPClient("kidnix-shell")
-    client.set_language(SPEECH_LANGUAGE)
+    # SSIP ``SET SELF LANGUAGE``. The voice follows the shell's language, so a
+    # Polish profile is read aloud in Polish (ADR-0012, docs/design/i18n.md).
+    client.set_language(language or current_speech_language())
     client.set_rate(rate)
     client.set_volume(volume_to_ssip(volume))
     client.set_punctuation(speechd.PunctuationMode.NONE)
@@ -233,7 +257,8 @@ class SpeechdBackend:
         self._client = client
         self.rate = SPEECH_RATE
         self.volume = 1.0
-        self._connect = connect or (lambda: open_ssip_client(self.rate, self.volume))
+        self.language = current_speech_language()
+        self._connect = connect or (lambda: open_ssip_client(self.rate, self.volume, self.language))
         self._clock = clock
         self._next_attempt = 0.0
         self._down = False
@@ -310,6 +335,19 @@ class SpeechdBackend:
             with contextlib.suppress(Exception):
                 client.set_volume(volume_to_ssip(volume))
 
+    def set_language(self, language: str) -> None:
+        """``SET SELF LANGUAGE``, live: a profile switch changes the voice.
+
+        Applied to the open connection where there is one, and remembered for
+        the next one either way -- the socket is opened lazily, so on a shell
+        that has not spoken yet this is the only place the language lands.
+        """
+        self.language = language or SPEECH_LANGUAGE
+        client = self._client
+        if client is not None:
+            with contextlib.suppress(Exception):
+                client.set_language(self.language)
+
     def cancel(self) -> None:
         # Never *opens* a connection: cancelling nothing is free, and this is
         # called on every utterance.
@@ -339,12 +377,16 @@ class FakeBackend:
         self.closed = False
         self.rate = SPEECH_RATE
         self.volume = 1.0
+        self.language = current_speech_language()
 
     def set_rate(self, rate: int) -> None:
         self.rate = rate
 
     def set_volume(self, volume: float) -> None:
         self.volume = volume
+
+    def set_language(self, language: str) -> None:
+        self.language = language
 
     def speak(self, text: str) -> None:
         self.spoken.append(text)
@@ -423,8 +465,10 @@ class FakeScheduler:
 
     def advance(self, ms: int) -> None:
         self.now_ms += ms
-        due = sorted((at, handle) for handle, (at, _) in self.pending.items() if at <= self.now_ms)
-        for _, handle in due:
+        due = sorted(
+            (at, handle) for handle, (at, _cb) in self.pending.items() if at <= self.now_ms
+        )
+        for _at, handle in due:
             entry = self.pending.pop(handle, None)
             if entry is not None:
                 entry[1]()
@@ -509,14 +553,23 @@ class SpeechManager:
     #: Labels the Ear must never "say again": its own. A child who hovers the
     #: Ear hears "Say it again", presses it, and -- without this -- hears "Say
     #: it again" again, for ever (found by Matt on 2026-08-23).
-    NEVER_REMEMBER: frozenset[str] = frozenset({"Say it again"})
+    #:
+    #: **Msgids**, not sentences: a class attribute is built at import time,
+    #: which is before the language is known, and the comparison is against
+    #: what the band's button actually says *now*
+    #: (:meth:`never_remember`).
+    NEVER_REMEMBER: frozenset[str] = frozenset({N_("Say it again")})
+
+    def never_remember(self) -> frozenset[str]:
+        """:data:`NEVER_REMEMBER`, in the language currently installed."""
+        return frozenset(_(message) for message in self.NEVER_REMEMBER)
 
     def speak(self, text: str, key: str | None = None) -> bool:
         """Say something now, cancelling whatever was being said."""
         text = (text or "").strip()
         if not text:
             return False
-        remember = text not in self.NEVER_REMEMBER
+        remember = text not in self.never_remember()
         self._stop_highlight()
         # The caption goes up first and unconditionally. A child who cannot
         # hear the sentence, or a machine whose voice is broken, gets the same
@@ -597,7 +650,7 @@ class SpeechManager:
         """A control fired. Also closes P5's loop if hover just spoke it."""
         if key is not None:
             self._note_selection(key)
-        if text in self.NEVER_REMEMBER:
+        if text in self.never_remember():
             # Pressing the Ear should repeat, not announce itself first.
             return False
         return self.speak(text, key)
@@ -796,6 +849,17 @@ class SpeechManager:
         setter = getattr(self.backend, "set_volume", None)
         if setter is not None:
             setter(volume)
+
+    def set_language(self, language: str) -> None:
+        """Point the voice at a language. Backends that cannot are left alone.
+
+        Called at start-up and on a profile switch (:mod:`kidnix_shell.app`).
+        Captions are unaffected: a caption is the text that was spoken, and it
+        was already translated before it got here.
+        """
+        setter = getattr(self.backend, "set_language", None)
+        if setter is not None:
+            setter(language)
 
     def close(self) -> None:
         self._cancel_dwell()

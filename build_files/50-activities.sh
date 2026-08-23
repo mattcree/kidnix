@@ -287,7 +287,11 @@ REQUIRED = {
     "wayland_native": bool, "notes": str,
 }
 CATEGORIES = {"make", "learn", "play"}
-SOURCES = {"rpm", "flatpak"}
+# "kidnix" is an activity we WROTE, installed from the repository by
+# build_files/64-first-party-activities.sh rather than by dnf or flatpak. It
+# was added when Sounds & Words got a tile; before that every tile on Home was
+# somebody else's program, which is why this set used to have two values.
+SOURCES = {"rpm", "flatpak", "kidnix"}
 
 failed = False
 manifests = sorted(pathlib.Path("/usr/share/kidnix/activities").glob("*.toml"))
@@ -318,8 +322,10 @@ for path in manifests:
     if data.get("network_required") is True:
         bad("network_required=true: the child session has no egress")
 
-    # Only RPM activities are in the image at build time; Flatpak ones arrive on
-    # a later, online boot and the shell checks for them at runtime.
+    # Only RPM activities are on PATH at build time. Flatpak ones arrive on a
+    # later, online boot and the shell checks for them at runtime; kidnix's own
+    # are installed by stage 64, which has not run yet when this does -- 64
+    # asserts its own console script instead, at the point where it exists.
     if data.get("source") == "rpm":
         program = data["exec"][0]
         if shutil.which(program) is None:

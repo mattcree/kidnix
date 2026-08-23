@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Activity tile: Sounds & words.
+
+       The Letters and Sounds p.70 sound-button convention, which is the one
+       picture this activity is about: a DOT under a one-letter grapheme, a BAR
+       under a digraph, and an arrow that pushes the sounds together into a
+       word. Three tiles, two dots and one bar, so the bar is visibly the odd
+       one out -- that difference is the whole claim that `sh` is ONE sound.
+
+       No letters in it, on purpose. A pre-reader cannot read them, and the
+       marks carry the meaning on their own; it also reads in greyscale, which
+       every kidnix tile has to (SYNTHESIS B6). -->
+  <title>Sounds and words</title>
+
+  <!-- three grapheme tiles -->
+  <rect x="5.5" y="13" width="15" height="19" rx="3.5" fill="#ffd166"
+        stroke="#16181d" stroke-width="3.5"/>
+  <rect x="24.5" y="13" width="15" height="19" rx="3.5" fill="#ffd166"
+        stroke="#16181d" stroke-width="3.5"/>
+  <rect x="43.5" y="13" width="15" height="19" rx="3.5" fill="#9ad3bc"
+        stroke="#16181d" stroke-width="3.5"/>
+
+  <!-- sound buttons: a dot under each single letter, a bar under the digraph -->
+  <circle cx="13" cy="39.5" r="3.2" fill="#16181d"/>
+  <circle cx="32" cy="39.5" r="3.2" fill="#16181d"/>
+  <path d="M45.5 39.5 H56.5" stroke="#16181d" stroke-width="5"
+        stroke-linecap="round"/>
+
+  <!-- push together -->
+  <path d="M14 51 H50" fill="none" stroke="#0f8a8a" stroke-width="4"
+        stroke-linecap="round"/>
+  <path d="M43 44.5 L50 51 L43 57.5" fill="none" stroke="#0f8a8a"
+        stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

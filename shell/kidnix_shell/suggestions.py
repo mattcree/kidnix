@@ -17,33 +17,35 @@ from __future__ import annotations
 
 from datetime import date
 
+from .i18n import N_, _
+
 BY_ACTIVITY: dict[str, tuple[str, ...]] = {
     "tuxpaint": (
-        "You drew something. Can you find something the same colour in the room?",
-        "You drew something. Can you draw it again on paper, bigger?",
+        N_("You drew something. Can you find something the same colour in the room?"),
+        N_("You drew something. Can you draw it again on paper, bigger?"),
     ),
-    "gcompris": ("Can you teach a grown-up one of the games you played?",),
-    "ktuberling": ("Can you make a funny face with your own face in a mirror?",),
-    "klettres": ("Can you find a letter you know somewhere in the room?",),
-    "blinken": ("Can you clap a pattern and see if someone can copy it?",),
-    "supertux": ("Can you jump over three things in the garden?",),
-    "tuxmath": ("Can you count how many chairs are in the house?",),
-    "kolf": ("Can you roll something into a cup on the floor?",),
-    "kiwix": ("Can you tell someone one thing you found out today?",),
+    "gcompris": (N_("Can you teach a grown-up one of the games you played?"),),
+    "ktuberling": (N_("Can you make a funny face with your own face in a mirror?"),),
+    "klettres": (N_("Can you find a letter you know somewhere in the room?"),),
+    "blinken": (N_("Can you clap a pattern and see if someone can copy it?"),),
+    "supertux": (N_("Can you jump over three things in the garden?"),),
+    "tuxmath": (N_("Can you count how many chairs are in the house?"),),
+    "kolf": (N_("Can you roll something into a cup on the floor?"),),
+    "kiwix": (N_("Can you tell someone one thing you found out today?"),),
 }
 
 BY_CATEGORY: dict[str, tuple[str, ...]] = {
     "make": (
-        "Can you make one more, out of paper?",
-        "Can you show someone what you made and tell them about it?",
+        N_("Can you make one more, out of paper?"),
+        N_("Can you show someone what you made and tell them about it?"),
     ),
-    "learn": ("Can you tell someone one thing you found out today?",),
-    "play": ("Can you play that game outside, with your feet?",),
+    "learn": (N_("Can you tell someone one thing you found out today?"),),
+    "play": (N_("Can you play that game outside, with your feet?"),),
 }
 
 GENERAL: tuple[str, ...] = (
-    "Can you find three things in the room that are the same colour?",
-    "Can you draw what you did today on paper?",
+    N_("Can you find three things in the room that are the same colour?"),
+    N_("Can you draw what you did today on paper?"),
 )
 
 
@@ -55,4 +57,4 @@ def offline_suggestion(
     """Pick the line for the Goodbye screen. Always returns something."""
     options = BY_ACTIVITY.get(activity_id) or BY_CATEGORY.get(category) or GENERAL
     day = today or date.today()
-    return options[day.toordinal() % len(options)]
+    return _(options[day.toordinal() % len(options)])

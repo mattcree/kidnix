@@ -98,6 +98,12 @@ class AccessConfig:
     sound_volume: float = 1.0
     #: Silence: no earcons, no read-aloud. Safe *because* captions default on.
     mute: bool = False
+    #: **The machine's language** (ADR-0012). ``""`` means "whatever the
+    #: environment says", which on the image is ``en_GB``. A profile's own
+    #: ``language`` wins over this one, because a bilingual household is a
+    #: household where the *children* differ (docs/research/06 §4.7).
+    #: Anything gettext understands: ``"cy"``, ``"pl"``, ``"en_GB"``.
+    language: str = ""
 
     def with_overrides(self, **changes: Any) -> AccessConfig:
         return replace(self, **changes)
@@ -160,11 +166,17 @@ def parse_access(raw: Any, source: str = "parent.toml") -> AccessConfig:
         volume = 1.0
     elif not 0.0 <= float(volume) <= 1.0:
         log.warning("%s: access.sound_volume %r is outside 0.0-1.0; clamping", source, volume)
+    language = raw.get("language", "")
+    if not isinstance(language, str):
+        log.warning('%s: access.language must be a string like "cy"; ignoring', source)
+        language = ""
+
     return AccessConfig(
         captions=flag("captions", True),
         calm=flag("calm", False),
         sound_volume=max(0.0, min(1.0, float(volume))),
         mute=flag("mute", False),
+        language=language.strip(),
     )
 
 

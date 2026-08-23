@@ -68,6 +68,66 @@ demo-small SCREEN="1280x800@102" *ARGS:
 validate-manifests DIR="../system_files/usr/share/kidnix/activities":
     {{ python }} -m kidnix_shell --validate-manifests {{ DIR }}
 
+# --- translations (ADR-0012, docs/design/i18n.md) ----------------------------
+#
+# GNU gettext, domain `kidnix`, msgids in en_GB. `xgettext` and `msgfmt` come
+# from the `gettext` RPM, which the image already has; there is deliberately no
+# pybabel, because a Python build-time dependency for a job two C programs do
+# in 40 ms is a dependency.
+
+# Rescan the source for translatable strings -> po/kidnix.pot.
+po-extract:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p po
+    # Sorted so the .pot does not churn on filesystem order.
+    mapfile -t sources < <(find kidnix_shell kidnix_activity -name '*.py' | sort)
+    xgettext \
+        --language=Python \
+        --from-code=UTF-8 \
+        --keyword=_ \
+        --keyword=N_ \
+        --keyword=ngettext:1,2 \
+        --keyword=NP_:1,2 \
+        --package-name=kidnix \
+        --package-version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' kidnix_shell/__init__.py)" \
+        --msgid-bugs-address=https://github.com/mattcree/kidnix/issues \
+        --copyright-holder="kidnix contributors" \
+        --add-comments=TRANSLATORS \
+        --sort-by-file \
+        --output=po/kidnix.pot \
+        "${sources[@]}"
+    echo "po/kidnix.pot: $(grep -c '^msgid ' po/kidnix.pot) entries"
+
+# Merge the .pot into every language's .po (keeps translations, marks fuzzies).
+po-update: po-extract
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for po in po/*.po; do
+        msgmerge --update --backup=none --quiet "${po}" po/kidnix.pot
+        echo "updated ${po}"
+    done
+
+# Compile every .po to the .mo tree the shell reads in a dev checkout.
+# (The image gets its copy from build_files/60-shell.sh, same sources.)
+po-compile:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for po in po/*.po; do
+        lang="$(basename "${po}" .po)"
+        mkdir -p "po/${lang}/LC_MESSAGES"
+        msgfmt --check --statistics --output-file="po/${lang}/LC_MESSAGES/kidnix.mo" "${po}"
+    done
+
+# Check every .po parses and its plural rule is well-formed. Part of `just ci`.
+po-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for po in po/*.po; do
+        msgfmt --check --output-file=/dev/null "${po}"
+        echo "  ok ${po}"
+    done
+
 # --- the activity SDK (kidnix_activity, docs/design/activity-sdk.md) ---------
 
 # Check a first-party activity's manifest against the SDK's extra rules:
@@ -94,7 +154,7 @@ hello-draw DISPLAY_NUMBER="107":
         {{ python }} -m kidnix_activity.examples.hello_draw
 
 # Everything CI runs for this directory.
-ci: lint test-headless validate-manifests validate-activity
+ci: lint test-headless po-check validate-manifests validate-activity
 
 clean:
     rm -rf .venv .pytest_cache .ruff_cache .mypy_cache

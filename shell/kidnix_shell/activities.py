@@ -376,6 +376,47 @@ def _expand(raw: str, home: Path | None = None) -> Path:
     return Path(text)
 
 
+# --- per-locale manifest fields (ADR-0012, docs/design/i18n.md section 4) ---
+#
+# A manifest is **content**, not code: its ``name`` and ``audio_label`` are
+# what a child reads and hears, and they are not in the shell's gettext
+# catalogue because they come from a package we did not write. So a manifest
+# carries its own translations, as suffixed keys:
+#
+#     name = "Letters & numbers"
+#     name_cy = "Llythrennau a rhifau"
+#     audio_label = "Letters and numbers. Games about letters."
+#     audio_label_cy = "Llythrennau a rhifau. Gemau am lythrennau."
+#
+# Looked up most specific first (``name_pl_PL``, then ``name_pl``), then the
+# bare key. Anything missing simply falls back, so a manifest with no
+# translations is exactly the manifest it was.
+
+#: Which suffixed keys to try, and in which order.
+LOCALISED_FIELDS = ("name", "audio_label", "goal", "shelf_group_name", "shelf_group_audio_label")
+
+
+def localised(data: dict[str, Any], key: str, language: str = "") -> str:
+    """The value of ``key`` for ``language``, or the plain one. Pure.
+
+    ``language`` defaults to whatever :mod:`kidnix_shell.i18n` has installed,
+    which is what every caller wants; it is an argument so a test can ask for
+    a locale without installing one.
+    """
+    from .i18n import candidates, current_language
+
+    for suffix in candidates(language or current_language()):
+        value = data.get(f"{key}_{suffix}")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _localised_or(data: dict[str, Any], key: str, fallback: str) -> str:
+    """``key_<lang>`` if the manifest has one, else what was already parsed."""
+    return localised(data, key) or fallback
+
+
 def _require_str(data: dict[str, Any], key: str, path: Path) -> str:
     value = data.get(key)
     if not isinstance(value, str) or not value.strip():
@@ -447,7 +488,13 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
             path, f"schema {schema} is newer than this shell understands ({SUPPORTED_SCHEMA})"
         )
 
-    unknown = set(data) - KNOWN_KEYS
+    # ``name_cy``, ``audio_label_pl_PL`` and friends are known fields for a
+    # language this shell has not been told about, not typos (:func:`localised`).
+    unknown = {
+        key
+        for key in set(data) - KNOWN_KEYS
+        if not any(key.startswith(f"{field}_") for field in LOCALISED_FIELDS)
+    }
     if unknown:
         log.debug("%s: ignoring unknown fields %s", path, sorted(unknown))
 
@@ -521,10 +568,10 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
 
     return Activity(
         id=activity_id,
-        name=_require_str(data, "name", path),
+        name=_localised_or(data, "name", _require_str(data, "name", path)),
         exec_argv=_argv(data, "exec", path, required=True),
         source_path=path,
-        audio_label=_opt_str(data, "audio_label", path),
+        audio_label=_localised_or(data, "audio_label", _opt_str(data, "audio_label", path)),
         icon=_opt_str(data, "icon", path),
         icon_kind=icon_kind,
         exec_resume=_argv(data, "exec_resume", path, required=False),
@@ -537,7 +584,7 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
         network_required=_opt_bool(data, "network_required", path, False),
         journal_watch=tuple(_expand(w, home) for w in watch_raw),
         journal_glob=_opt_str(data, "journal_glob", path, "*") or "*",
-        goal=_opt_str(data, "goal", path),
+        goal=_localised_or(data, "goal", _opt_str(data, "goal", path)),
         order=order,
         show_when_unavailable=_opt_bool(data, "show_when_unavailable", path, False),
         wayland_native=_opt_bool(data, "wayland_native", path, True),
@@ -547,8 +594,12 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
         kind=kind,
         children_dir=children_dir,
         shelf_group=_opt_str(data, "shelf_group", path),
-        shelf_group_name=_opt_str(data, "shelf_group_name", path),
-        shelf_group_audio_label=_opt_str(data, "shelf_group_audio_label", path),
+        shelf_group_name=_localised_or(
+            data, "shelf_group_name", _opt_str(data, "shelf_group_name", path)
+        ),
+        shelf_group_audio_label=_localised_or(
+            data, "shelf_group_audio_label", _opt_str(data, "shelf_group_audio_label", path)
+        ),
         undo_key=_opt_str(data, "undo_key", path),
     )
 

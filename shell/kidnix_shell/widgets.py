@@ -26,6 +26,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gtk, Pango  # noqa: E402
 
+from .i18n import N_, _  # noqa: E402
 from .labels import (  # noqa: E402
     LabelFit,
     Wrapper,
@@ -518,13 +519,14 @@ class ActivityTile(ChildButton):
         on_activate: Callable[[], None],
         *,
         allowed: bool = True,
-        denial: str = "Ask a grown-up for this one.",
+        denial: str = "",
         thumbnail: Path | None = None,
         extra_css: tuple[str, ...] = (),
         label_points: float | None = None,
         label_height: int | None = None,
     ) -> None:
         speak = getattr(activity, "speak_text", "")
+        denial = denial or _(NOT_ALLOWED_LINE)
         if not allowed:
             # Outline-only, never greyed out, and it always says why -- the
             # reason is the caller's (not allowed, or not installed).
@@ -593,14 +595,26 @@ class ActivityTile(ChildButton):
         self.set_child(box)
 
 
+#: SYNTHESIS G3's denial, and the default an :class:`ActivityTile` uses when
+#: the caller does not name a reason. A msgid, translated at construction:
+#: a default argument is evaluated at import, which is too early to know the
+#: language (:mod:`kidnix_shell.i18n`).
+NOT_ALLOWED_LINE = N_("Ask a grown-up for this one.")
+
+#: What the pager arrows say. ``{what}`` is the thing being paged -- itself a
+#: msgid the caller marks (``"activities"``, ``"things"``) -- and it is a named
+#: placeholder so a translator may put it first.
+PAGER_BACK = N_("Back a page of {what}")
+PAGER_FORWARD = N_("More {what}")
+
 #: What the mic button says before, during and after a recording. Short, because
 #: every one of them is spoken *and* captioned.
-MIC_SPEAK = "Tell me about it"
-MIC_STOP_SPEAK = "Stop"
+MIC_SPEAK = N_("Tell me about it")
+MIC_STOP_SPEAK = N_("Stop")
 #: The quiet "again?" -- said only when a child presses a mic that already has a
 #: note behind it, and only then. There is no retakes dialogue: a second
 #: recording simply replaces the first (:mod:`kidnix_shell.voice`).
-MIC_AGAIN_SPEAK = "Again?"
+MIC_AGAIN_SPEAK = N_("Again?")
 
 
 class MicButton(Gtk.Box):
@@ -630,7 +644,7 @@ class MicButton(Gtk.Box):
         target = size or max(metrics.min_target, metrics.design(96))
 
         self.button = ChildButton(
-            speak_text=MIC_SPEAK,
+            speak_text=_(MIC_SPEAK),
             on_activate=on_press,
             speech_ui=speech_ui,
             css_classes=("mic",),
@@ -657,7 +671,7 @@ class MicButton(Gtk.Box):
         self.meter.set_visible(recording)
         if not recording:
             self.meter.set_fraction(0.0)
-        self.button.set_speak_text(MIC_STOP_SPEAK if recording else MIC_SPEAK)
+        self.button.set_speak_text(_(MIC_STOP_SPEAK) if recording else _(MIC_SPEAK))
         if recording:
             self.button.add_css_class("recording")
         else:
@@ -712,7 +726,7 @@ class Pager(Gtk.Box):
 
         arrow = max(metrics.min_target, metrics.design(96))
         self.back = ChildButton(
-            speak_text=f"Back a page of {what}",
+            speak_text=_(PAGER_BACK).format(what=_(what)),
             on_activate=lambda: self.go(self.page - 1),
             speech_ui=speech_ui,
             css_classes=("pager",),
@@ -720,7 +734,7 @@ class Pager(Gtk.Box):
         )
         self.back.set_child(icon_image("kidnix-arrow-left", "icon-name", int(arrow * 0.6)))
         self.forward = ChildButton(
-            speak_text=f"More {what}",
+            speak_text=_(PAGER_FORWARD).format(what=_(what)),
             on_activate=lambda: self.go(self.page + 1),
             speech_ui=speech_ui,
             css_classes=("pager",),

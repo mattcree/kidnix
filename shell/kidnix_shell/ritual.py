@@ -51,6 +51,7 @@ from __future__ import annotations
 from enum import Enum
 
 from .activities import QUIT_CONFIRM
+from .i18n import N_, _
 from .session import Phase
 from .state import State
 
@@ -94,19 +95,19 @@ class OfferAnswer(Enum):
 
     @property
     def speech(self) -> str:
-        return OFFER_SPEECH[self]
+        return _(OFFER_SPEECH[self])
 
 
 #: What each answer says out loud. Every one of them is *true of the machine*
 #: after the answer, which is the whole point of the ruling.
 OFFER_SPEECH: dict[OfferAnswer, str] = {
-    OfferAnswer.FINISH_THIS: "Finish this one. When the sun is down, we'll keep it.",
-    OfferAnswer.ONE_MORE: "One last little thing, then we'll keep it.",
-    OfferAnswer.ASK: "A grown-up can add time.",
+    OfferAnswer.FINISH_THIS: N_("Finish this one. When the sun is down, we'll keep it."),
+    OfferAnswer.ONE_MORE: N_("One last little thing, then we'll keep it."),
+    OfferAnswer.ASK: N_("A grown-up can add time."),
 }
 
 #: The question itself, asked once, on the screen and in the band.
-OFFER_QUESTION = "The sun is going down. Finish this one, or one last little thing?"
+OFFER_QUESTION = N_("The sun is going down. Finish this one, or one last little thing?")
 
 
 class RitualAction(Enum):
@@ -250,20 +251,26 @@ def next_action(
 #: Where to point a child whose Undo press landed inside an activity. Kept
 #: short: it is spoken *and* captioned, and one caption line is ~57 characters
 #: on the narrowest panel kidnix ships for.
-UNDO_ELSEWHERE = "Undo for {name} is in {name}'s own buttons."
-UNDO_WITH_KEY = "Undo in {name} is {key}."
-UNDO_UNKNOWN = "This one has its own undo button."
+UNDO_ELSEWHERE = N_("Undo for {name} is in {name}'s own buttons.")
+UNDO_WITH_KEY = N_("Undo in {name} is {key}.")
+UNDO_UNKNOWN = N_("This one has its own undo button.")
 
 #: How a manifest's ``undo_key`` is said out loud. A pre-reader cannot read
 #: "ctrl+z", and espeak says it as a word; a grown-up sitting next to them can.
 KEY_WORDS = {
-    "ctrl": "Control",
-    "control": "Control",
-    "shift": "Shift",
-    "alt": "Alt",
-    "super": "Super",
-    "cmd": "Command",
+    "ctrl": N_("Control"),
+    "control": N_("Control"),
+    "shift": N_("Shift"),
+    "alt": N_("Alt"),
+    "super": N_("Super"),
+    "cmd": N_("Command"),
 }
+
+#: How two or three key names are joined out loud. A list separator and a
+#: conjunction are grammar, not punctuation, and neither survives being
+#: hard-coded: ``" and "`` is ``" a "`` in Welsh and ``" i "`` in Polish.
+KEY_LIST_SEPARATOR = N_("{first}, {second}")
+KEY_LIST_LAST = N_("{first} and {last}")
 
 
 def spoken_key(undo_key: str) -> str:
@@ -272,14 +279,20 @@ def spoken_key(undo_key: str) -> str:
     if not parts:
         return ""
     words = [
-        KEY_WORDS.get(part.lower(), part.upper() if len(part) == 1 else part) for part in parts
+        _(KEY_WORDS[part.lower()])
+        if part.lower() in KEY_WORDS
+        else (part.upper() if len(part) == 1 else part)
+        for part in parts
     ]
     if len(words) == 1:
         return words[0]
     # "Control and Z"; "Control, Shift and Z". Commas are ~200 ms of breath to
     # speech-dispatcher, which is what keeps three key names from running into
     # one another for a grown-up reading it out to the child.
-    return " and ".join([", ".join(words[:-1]), words[-1]])
+    listed = words[0]
+    for word in words[1:-1]:
+        listed = _(KEY_LIST_SEPARATOR).format(first=listed, second=word)
+    return _(KEY_LIST_LAST).format(first=listed, last=words[-1])
 
 
 def undo_line(name: str, undo_key: str = "") -> str:
@@ -291,11 +304,11 @@ def undo_line(name: str, undo_key: str = "") -> str:
     of. None of them claims the press did anything.
     """
     if not name:
-        return UNDO_UNKNOWN
+        return _(UNDO_UNKNOWN)
     key = spoken_key(undo_key)
     if key:
-        return UNDO_WITH_KEY.format(name=name, key=key)
-    return UNDO_ELSEWHERE.format(name=name)
+        return _(UNDO_WITH_KEY).format(name=name, key=key)
+    return _(UNDO_ELSEWHERE).format(name=name)
 
 
 # --- what Put away says, and why it is not always the same sentence ------
@@ -303,19 +316,19 @@ def undo_line(name: str, undo_key: str = "") -> str:
 
 #: The line the whole ritual is named after. True whenever the activity has
 #: gone quietly, or has been given the chance to save and taken it.
-KEEP_LINE = "Let's keep that."
+KEEP_LINE = N_("Let's keep that.")
 
 #: The ``confirm`` version. Tux Paint is now showing its own tick and cross and
 #: nothing on that screen tells a pre-reader that the question is theirs, so
 #: the band says so. Two sentences rather than spec 7c's dash: an em dash is a
 #: comma to espeak and the pause is what makes "press the tick" an instruction.
-CONFIRM_LINE = "Let's keep that. Press the tick."
+CONFIRM_LINE = N_("Let's keep that. Press the tick.")
 
 #: And the honest one. If the hard stop had to SIGKILL, whatever was on that
 #: canvas is gone, and "Let's keep that" would be the worst sentence in the
 #: shell (§19.3's option 3, which is exactly why the ruling rejected it). The
 #: shell says something true instead and does not pretend the loss away.
-LOST_LINE = "Time to stop now."
+LOST_LINE = N_("Time to stop now.")
 
 
 def put_away_line(quit_mode: str, *, lost: bool = False) -> str:
@@ -326,7 +339,7 @@ def put_away_line(quit_mode: str, *, lost: bool = False) -> str:
     the same sentence and one test can hold both of them to it.
     """
     if lost:
-        return LOST_LINE
+        return _(LOST_LINE)
     if quit_mode == QUIT_CONFIRM:
-        return CONFIRM_LINE
-    return KEEP_LINE
+        return _(CONFIRM_LINE)
+    return _(KEEP_LINE)

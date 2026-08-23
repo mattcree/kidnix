@@ -1,0 +1,69 @@
+# Sounds & words -- what your child's school has already taught.
+#
+# THIS FILE IS YOURS. kidnix ships it with every line commented out, and bootc's
+# three-way merge keeps your edits across every update. Nothing in kidnix ever
+# writes to it, and the child's session cannot: it is root-owned, and a
+# child-writable ceiling is not a ceiling.
+#
+# ---------------------------------------------------------------------------
+# WHAT IT DOES
+# ---------------------------------------------------------------------------
+#
+# Sounds & words will never show your child a letter sound their school has not
+# taught yet. This file is how it knows where to stop. There is no test, no
+# assessment and no guessing: the only thing that moves the line is you editing
+# it, and the only thing you have to know is the last thing they were taught.
+#
+# While every line below is commented out, Sounds & words uses its built-in
+# starting point -- Letters and Sounds Phase 2, set 3 (`s a t p i n m d g o c k`,
+# twelve sounds and seventy-two words) -- and says so in the log. That is
+# deliberately low. A five-year-old re-reading `sat, pat, tap` is not harmed;
+# a guess that went too high would show them a sound nobody has taught them,
+# which is the one thing this activity may never do.
+#
+# ---------------------------------------------------------------------------
+# HOW TO SET IT
+# ---------------------------------------------------------------------------
+#
+# Uncomment the three lines at the bottom and change `last_grapheme` to the
+# last letter or letter-pair on your child's most recent phonics sheet. Save.
+# It takes effect the next time they open the activity.
+#
+# `scheme` names the teaching order the letters are read in. kidnix ships one:
+#
+#   letters_and_sounds   Letters and Sounds (2007), DFES-00281-2007,
+#                        (c) Crown copyright 2007, Open Government Licence v3.0.
+#
+# A word about that, honestly: Letters and Sounds is NOT on the Department for
+# Education's list of validated systematic synthetic phonics programmes, and
+# kidnix does not claim it is. It is the only complete English phonics
+# progression published under a licence that lets us ship it, so it is what the
+# ordering and the word bank come from. If your school uses Read Write Inc,
+# Little Wandle, Sounds-Write or another scheme, the *order* will differ a
+# little from theirs -- so set `last_grapheme` from your school's sheet, and if
+# in doubt set it one step lower than you think. Going too low costs nothing.
+#
+# `last_grapheme` is a grapheme: one letter (`t`, `k`), or a letter-pair or
+# triple that spells one sound (`sh`, `ch`, `ai`, `igh`). Phase 2 of Letters
+# and Sounds runs, in order:
+#
+#   set 1   s a t p
+#   set 2   i n m d
+#   set 3   g o c k
+#   set 4   ck e u r
+#   set 5   h b f l
+#
+# and Phase 3 goes on through `j v w x y z zz qu ch sh th ng` and the vowel
+# digraphs `ai ee igh oa oo ar or ur ow oi ear air ure er`.
+#
+# Everything up to and including the grapheme you name is allowed. Nothing past
+# it is -- not in a word, and not as a wrong answer either.
+#
+# A typo here is not a disaster and never stops the activity starting: an
+# unknown scheme, an unknown grapheme or a broken file all fall back to the
+# built-in starting point above and write one line in the journal saying so.
+# It never falls back *upwards*.
+
+# [ceiling]
+# scheme = "letters_and_sounds"
+# last_grapheme = "k"

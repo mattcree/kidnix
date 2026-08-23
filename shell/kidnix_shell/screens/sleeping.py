@@ -29,6 +29,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
+from ..i18n import N_  # noqa: E402
 from ..resting import SLEEPING_LINE, TapSpeechLimiter, rest_line, rest_title  # noqa: E402
 from ..widgets import big_label, icon_image  # noqa: E402
 from . import Screen  # noqa: E402
@@ -37,7 +38,7 @@ __all__ = ["SLEEPING_LINE", "SleepingScreen"]
 
 
 class SleepingScreen(Screen):
-    name = "Resting"
+    name = N_("Resting")
 
     def build(self) -> None:
         metrics = self.ctx.metrics

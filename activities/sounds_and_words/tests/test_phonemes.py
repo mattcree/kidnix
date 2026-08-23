@@ -15,6 +15,7 @@ import pytest
 from sounds_and_words.ceiling import ceiling_for_grapheme
 from sounds_and_words.phonemes import (
     CLIP_DIR,
+    CLIP_LEDGER,
     GCOMPRIS_BUNDLE_DIR,
     Source,
     missing_recordings,
@@ -111,7 +112,11 @@ def test_the_missing_list_is_in_teaching_order(corpus, tmp_path):
 
 def test_the_two_paths_that_matter_are_named_in_the_code():
     """Both are follow-ups somebody has to find. A design note is not enough."""
-    assert str(CLIP_DIR) == "/usr/share/kidnix/sounds-and-words/phonemes"
+    # The directory build_files/64-first-party-activities.sh creates, and the
+    # one tests/image/test_first_party.sh asserts against the built image. It
+    # is per language because a phoneme is.
+    assert str(CLIP_DIR) == "/usr/share/kidnix/phonemes/en_GB"
+    assert CLIP_LEDGER == CLIP_DIR / "phonemes.toml"
     assert "gcompris" in str(GCOMPRIS_BUNDLE_DIR)
 
 

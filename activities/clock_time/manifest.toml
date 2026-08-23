@@ -1,0 +1,62 @@
+# Clock -- the kidnix clock-and-time activity.
+#
+# The shell reads this at start-up (spec section 4) and
+# `kidnix-activity validate manifest.toml` checks it; `tests/test_manifest.py`
+# runs the same validator, so a manifest that would be rejected on the machine
+# is rejected in CI first.
+#
+# NOT yet installed on the image. A later image wave copies the package beside
+# the shell and this file into /usr/share/kidnix/activities/ -- see
+# docs/design/clock-time.md section 11 for that plan. Until then the tile does
+# not exist, which is correct: a tile that opens a half-built activity is worse
+# than no tile.
+schema = 1
+
+id = "clock-time"
+name = "Clock"
+
+# What the shell says when a child hovers or focuses the tile. Written for the
+# ear, and it says what *happens* rather than what it is for -- the goal line
+# below is the sentence for the grown-up.
+audio_label = "Play with the clock. Move the hands and find out what happens when."
+
+# One honest line for a parent, and the sentence the whole activity is held to.
+# It does not claim to teach telling the time, because a clock a child plays
+# with for ten minutes is practice and not a curriculum -- and because the last
+# clause is the load-bearing half: nothing here is marked, scored or recorded
+# against them.
+goal = "Playing with a clock: o'clock and half past, and what happens when. Not a test."
+
+# A drawing, not a glyph: a clock face with a sun behind it. For a child with
+# no English, low vision or CVD the picture is the only persistent channel
+# there is (ADR-0011). The path is where the package lands on the image; in a
+# checkout the same file is activities/clock_time/clock_time/icon.svg.
+icon = "/usr/lib/kidnix/clock_time/icon.svg"
+icon_kind = "path"
+
+category = "learn"
+# Overlap, not containment: a 4-5 profile and a 6-8 profile both see this.
+# Reception plays with the hands; Year 1 and Year 2 are where the statutory
+# content is (National Curriculum KS1 Measurement).
+age_band = "4-8"
+
+exec = ["/usr/bin/kidnix-clock-time"]
+
+# The SDK saves on SIGTERM and never shows a quit dialogue
+# (kidnix_activity.lifecycle; docs/design/activity-sdk.md 3.3). Five seconds is
+# spec 7a's autosave grace, and what it covers here is one small PNG.
+quit = "signal"
+quit_grace = 5.0
+
+# The child session has no egress (SYNTHESIS H1), and this activity has no use
+# for it: the clock is arithmetic, the routine is a local TOML file, and the
+# only clock it reads is the machine's own.
+network_required = false
+
+# No journal_watch and no journal_glob, deliberately. The activity writes its
+# own entry with kidnix_activity.journal.save_entry, so there is nothing for
+# the shell's importer to notice two seconds later -- and an importer watching
+# a scratch directory would keep the same card twice
+# (docs/design/activity-sdk.md 8).
+
+notes = "The day the pictures show is set by a grown-up in /etc/kidnix/clock_time.toml. See docs/design/clock-time.md."

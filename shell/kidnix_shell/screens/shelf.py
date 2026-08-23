@@ -37,6 +37,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..activities import Activity, ShelfGroup, in_age_band, shelf_groups  # noqa: E402
+from ..i18n import N_, _  # noqa: E402
 from ..util import paginate  # noqa: E402
 from ..widgets import (  # noqa: E402
     ActivityTile,
@@ -49,11 +50,20 @@ from ..widgets import (  # noqa: E402
 from . import Screen  # noqa: E402
 from .home import NOT_ALLOWED_LINE, NOT_READY_LINE  # noqa: E402
 
+#: What the screen is called when the shelf tile has no name of its own, and
+#: the surface's accessible name.
+CHOOSE_A_GAME = N_("Choose a game")
+#: The one honest thing to say when a shelf's children vanished mid-session.
+SHELF_EMPTY = N_("There's nothing here. Press Back to go home.")
+#: Heading, then the first group, as two sentences. Named placeholders: the
+#: shelf's own name is content, and a translator may want it last.
+SHELF_INTRO = N_("{shelf}. {group}.")
+
 
 class ShelfScreen(Screen):
     """One shelf tile's children, a group to a page."""
 
-    name = "Choose a game"
+    name = CHOOSE_A_GAME
 
     def build(self) -> None:
         metrics = self.ctx.metrics
@@ -76,7 +86,7 @@ class ShelfScreen(Screen):
         self.carousel.set_vexpand(True)
         self.append(self.carousel)
 
-        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what="games")
+        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what=N_("games"))
         self.pager.set_margin_bottom(metrics.gap)
         self.append(self.pager)
 
@@ -207,10 +217,14 @@ class ShelfScreen(Screen):
             # reachable if the children vanished mid-session. Say something
             # true rather than showing a blank page.
             self.title.set_label(shelf.name if shelf else "")
-            self.ctx.speech.speak("There's nothing here. Press Back to go home.")
+            self.ctx.speech.speak(_(SHELF_EMPTY))
             return
         first = self._page_groups[0]
-        self.ctx.speech.speak(f"{shelf.name if shelf else 'Choose a game'}. {first.speak_text}.")
+        self.ctx.speech.speak(
+            _(SHELF_INTRO).format(
+                shelf=shelf.name if shelf else _(CHOOSE_A_GAME), group=first.speak_text
+            )
+        )
 
     def on_leave(self) -> None:
         # The heading is rebuilt on every arrival; nothing here outlives the

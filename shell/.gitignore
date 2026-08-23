@@ -5,3 +5,9 @@
 # Earcons are generated (kidnix_shell/sound.py), never committed: see
 # kidnix_shell/data/sounds/README.md.
 kidnix_shell/data/sounds/*.wav
+
+# Compiled message catalogues. Derived from po/*.po by `just po-compile` (for
+# a dev checkout) and by build_files/60-shell.sh (for the image); a repository
+# that carried both would have two sources of truth and no way to notice when
+# they disagreed. See docs/design/i18n.md.
+po/*/LC_MESSAGES/*.mo

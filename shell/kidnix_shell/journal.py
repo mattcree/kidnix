@@ -31,6 +31,17 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from .i18n import N_, _
+from .words import (
+    AFTERNOON,
+    EVENING,
+    MORNING,
+    NIGHT,
+    long_ago,
+    this_day_part,
+    yesterday_day_part,
+)
+
 log = logging.getLogger(__name__)
 
 THUMB_NAME = "thumb.png"
@@ -42,9 +53,9 @@ THUMB_SIZE = 256
 #: child can always re-star it.
 MAX_FAVOURITES = 8
 
-TODAY = "Today"
-YESTERDAY = "Yesterday"
-BEFORE = "Before"
+TODAY = N_("Today")
+YESTERDAY = N_("Yesterday")
+BEFORE = N_("Before")
 
 #: 01 #19 / 03 #32: the child never *sees* a digit in kidnix, and until v0.1.3
 #: they could still hear one -- ``friendly_title`` produced "Draw 14:32" and
@@ -54,28 +65,16 @@ BEFORE = "Before"
 #: So a title carries no time at all, and *when* is composed at speaking time
 #: from the entry's ISO ``created`` (which stays in ``entry.json`` untouched --
 #: the parent's file view is the place for exact times, F4).
-MORNING, AFTERNOON, EVENING, NIGHT = "morning", "afternoon", "evening", "night"
+#: The four buckets themselves live in :mod:`kidnix_shell.words`, with the
+#: words for them, so a translator meets the whole day on one page.
 #: Local-clock boundaries. Coarse on purpose: "after lunch" is the unit a
 #: five-year-old has, and no boundary here needs defending to the minute.
 AFTERNOON_FROM_HOUR = 12
 EVENING_FROM_HOUR = 17
 NIGHT_FROM_HOUR = 21
 
-_THIS = {
-    MORNING: "this morning",
-    AFTERNOON: "this afternoon",
-    EVENING: "this evening",
-    NIGHT: "tonight",
-}
-_YESTERDAY = {
-    MORNING: "yesterday morning",
-    AFTERNOON: "yesterday afternoon",
-    EVENING: "yesterday evening",
-    NIGHT: "last night",
-}
 #: Anything older gets the same word the Journal's own day heading uses, so
 #: what the child hears and what they read are the same vocabulary.
-LONG_AGO = "before"
 
 
 def sha256_file(path: Path) -> str:
@@ -211,7 +210,7 @@ def make_thumbnail(source: Path, destination: Path, size: int = THUMB_SIZE) -> b
 
 
 def guess_mime(path: Path) -> str:
-    mime, _ = mimetypes.guess_type(path.name)
+    mime, _encoding = mimetypes.guess_type(path.name)
     return mime or "application/octet-stream"
 
 
@@ -237,10 +236,18 @@ def when_words(created: datetime, now: datetime) -> str:
     days = (now.date() - created.date()).days
     part = part_of_day(created)
     if days <= 0:  # <= so a clock that has slipped backwards still says "this"
-        return _THIS[part]
+        return this_day_part(part)
     if days == 1:
-        return _YESTERDAY[part]
-    return LONG_AGO
+        return yesterday_day_part(part)
+    return long_ago()
+
+
+#: What a Journal card is called when nothing named it.
+UNTITLED = N_("A thing I made")
+
+#: ``"Draw, from this morning"``. The comma is a breath, not punctuation, and
+#: a language that puts the time first should be free to.
+SPOKEN_TITLE = N_("{name}, from {when}")
 
 
 def spoken_title(title: str, created: datetime, now: datetime) -> str:
@@ -250,8 +257,8 @@ def spoken_title(title: str, created: datetime, now: datetime) -> str:
     child reads: speech-dispatcher gives it a ~200 ms pause, which is what
     stops the name and the time running into one another.
     """
-    name = title.strip() or "A thing I made"
-    return f"{name}, from {when_words(created, now)}"
+    name = title.strip() or _(UNTITLED)
+    return _(SPOKEN_TITLE).format(name=name, when=when_words(created, now))
 
 
 #: A stem of four digits or more is a timestamp, not a name a child gave it.
@@ -439,7 +446,12 @@ class Journal:
                 buckets[YESTERDAY].append(entry)
             else:
                 buckets[BEFORE].append(entry)
-        return [(label, buckets[label]) for label in (TODAY, YESTERDAY, BEFORE) if buckets[label]]
+        # Translated here rather than in the screen: the heading is the only
+        # text S4 writes, and it is also what the pager speaks, so the two must
+        # be the same string.
+        return [
+            (_(label), buckets[label]) for label in (TODAY, YESTERDAY, BEFORE) if buckets[label]
+        ]
 
     def favourites(self) -> list[Entry]:
         """The shelf: starred, most recently starred first, at most 8."""
@@ -503,7 +515,7 @@ def build_pages(
             page.append(("card", entry))
             cards += 1
 
-    if any(kind == "card" for kind, _ in page):
+    if any(kind == "card" for kind, _payload in page):
         pages.append(page)
     return pages or [[]]
 

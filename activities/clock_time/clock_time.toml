@@ -1,0 +1,70 @@
+# The grown-up's copy of this family's day.
+#
+# This is the file the image ships as /usr/share/kidnix/clock_time.toml. A
+# parent's own copy goes at /etc/kidnix/clock_time.toml and wins: bootc's
+# three-way merge makes /etc theirs and /usr/share ours.
+#
+# Root-owned, both of them. The child owns $XDG_CONFIG_HOME, and a year band a
+# child can edit is not a statement about what their school has taught.
+#
+# Nothing here ever stops the activity from opening. A typo drops the line it
+# is on, says so in the journal, and the rest of the day still works.
+
+[clock]
+# "y1" -- o'clock and half past. The default.
+# "y2" -- the quarters and the five-minute marks as well.
+#
+# National Curriculum KS1 Measurement: Year 1 is "tell the time to the hour and
+# half past the hour"; Year 2 adds "quarter past/to the hour" and five-minute
+# intervals. Nothing in the activity advances this on its own -- the only way
+# it moves is a grown-up editing this line.
+mode = "y1"
+
+# Six to eight moments, in any order (they are sorted by time). `id` is also
+# the picture's filename; the drawings that ship are wake, breakfast, school,
+# lunch, home, tea, bath and bed. An entry naming a picture we do not have
+# still works -- it just shows the name without a drawing -- so a family can
+# rename "tea" to "dinner" today and get a drawing for it later.
+#
+# `time` is 24-hour, "HH:MM". The dial is a twelve-hour one, so the activity
+# works out from this whether half past seven means breakfast or bath.
+
+[[routine]]
+id = "wake"
+name = "Wake up"
+time = "07:00"
+
+[[routine]]
+id = "breakfast"
+name = "Breakfast"
+time = "07:30"
+
+[[routine]]
+id = "school"
+name = "School"
+time = "09:00"
+
+[[routine]]
+id = "lunch"
+name = "Lunch"
+time = "12:00"
+
+[[routine]]
+id = "home"
+name = "Home"
+time = "15:30"
+
+[[routine]]
+id = "tea"
+name = "Tea"
+time = "17:30"
+
+[[routine]]
+id = "bath"
+name = "Bath"
+time = "18:30"
+
+[[routine]]
+id = "bed"
+name = "Bed"
+time = "19:00"

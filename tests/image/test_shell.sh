@@ -262,6 +262,56 @@ assert SYSTEM_ACTIVITY_DIR.is_dir()
 assert_run "every shipped activity manifest validates" \
     /usr/bin/kidnix-shell-app --validate-manifests /usr/share/kidnix/activities
 
+section "translations (ADR-0012, docs/design/i18n.md)"
+
+# The compiled catalogues, where `gettext.translation()` actually looks. One
+# domain, `kidnix`, shared by the shell and the activity SDK.
+assert_file /usr/share/locale/cy/LC_MESSAGES/kidnix.mo
+assert_file /usr/share/locale/pl/LC_MESSAGES/kidnix.mo
+
+# **en_GB has no catalogue and must never grow one.** The msgids *are* the
+# en_GB strings, so an en_GB/kidnix.mo would mean English had been translated
+# into English and every sentence in the shell now had two spellings, one of
+# which nobody reviews.
+assert_absent /usr/share/locale/en_GB/LC_MESSAGES/kidnix.mo
+
+# A .mo the build wrote and the shell cannot open is the failure the whole
+# stage exists to prevent, and it is invisible from the filesystem: the domain
+# name, the directory layout and the file's own magic all have to agree.
+assert_run "the shell loads the Welsh and Polish catalogues" \
+    python3 -c '
+from kidnix_shell import i18n
+
+for language in ("cy", "pl"):
+    i18n.install(language, localedirs=[i18n.SYSTEM_LOCALE_DIR])
+    assert i18n.has_catalogue(), language
+'
+
+# The claim the whole design is arranged around: with the catalogues present
+# and en_GB in force, the shell says exactly what it said before there were
+# any catalogues at all.
+assert_run "en_GB is still the source language, not a translation" \
+    python3 -c '
+from kidnix_shell import i18n
+from kidnix_shell.feedback import count_phrase
+
+i18n.install("en_GB", localedirs=[i18n.SYSTEM_LOCALE_DIR])
+assert i18n.gettext("Nothing to undo.") == "Nothing to undo."
+assert count_phrase(2) == "two things", count_phrase(2)
+'
+
+# Read-aloud follows the shell, and its default has not moved.
+assert_run "the voice language follows the shell and defaults to en-GB" \
+    python3 -c '
+from kidnix_shell import i18n
+
+i18n.install("en_GB")
+assert i18n.speech_language() == "en-GB", i18n.speech_language()
+i18n.install("pl")
+assert i18n.speech_language() == "pl", i18n.speech_language()
+i18n.install("en_GB")
+'
+
 section "build hygiene"
 # The source tree the Containerfile copied in must not survive.
 assert_absent /tmp/shell

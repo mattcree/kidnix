@@ -57,6 +57,7 @@ from .access import (  # noqa: E402
     SWITCH_WINDOW_SECONDS,
     SwitchHold,
 )
+from .i18n import _  # noqa: E402
 from .metrics import BAND_CHROME_PX, Metrics  # noqa: E402
 from .session import NOT_RUNNING  # noqa: E402
 from .sun import (  # noqa: E402
@@ -487,10 +488,14 @@ class Band(Gtk.Box):
 
         # Left: Back, Undo, My Things -- >= 80 px, >= 32 px apart (spec).
         left = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap)
-        self.back = self._button("Back", "kidnix-back", target, icon_px, actions.on_back, speech_ui)
-        self.undo = self._button("Undo", "kidnix-undo", target, icon_px, actions.on_undo, speech_ui)
+        self.back = self._button(
+            _("Back"), "kidnix-back", target, icon_px, actions.on_back, speech_ui
+        )
+        self.undo = self._button(
+            _("Undo"), "kidnix-undo", target, icon_px, actions.on_undo, speech_ui
+        )
         self.my_things = self._button(
-            "My Things", "kidnix-my-things", target, icon_px, actions.on_my_things, speech_ui
+            _("My Things"), "kidnix-my-things", target, icon_px, actions.on_my_things, speech_ui
         )
         # The ending offer, when the child is inside an activity and there is no
         # shell surface to put it on (v0.1.5). They are built here, in their own
@@ -498,7 +503,7 @@ class Band(Gtk.Box):
         # them rather than instead of them (panel ruling, 2026-08-23). See
         # :meth:`set_offer_mode`.
         self.finish_this = self._button(
-            "Finish this one",
+            _("Finish this one"),
             "kidnix-finish",
             target,
             icon_px,
@@ -507,7 +512,7 @@ class Band(Gtk.Box):
         )
         self._finish_icon = self.finish_this.get_child()
         self.one_more = self._button(
-            "One last little thing",
+            _("One last little thing"),
             "kidnix-one-more",
             target,
             icon_px,
@@ -531,7 +536,7 @@ class Band(Gtk.Box):
         # Centre: the sun -- and it is a target, not a picture (08 section 4.6).
         self.sun = Sun(metrics)
         self.sun_button = ChildButton(
-            speak_text=NOT_RUNNING,
+            speak_text=_(NOT_RUNNING),
             on_activate=actions.on_sun or (lambda: None),
             speech_ui=speech_ui,
             css_classes=("sun",),
@@ -548,12 +553,12 @@ class Band(Gtk.Box):
         # Right: Ear, Grown-up (hold 3 s). Ask is absent (spec 7a).
         right = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap)
         self.ear = self._button(
-            "Say it again", "kidnix-ear", target, icon_px, actions.on_ear, speech_ui
+            _("Say it again"), "kidnix-ear", target, icon_px, actions.on_ear, speech_ui
         )
         self.ask: ChildButton | None = None
         if SHOW_ASK and actions.on_ask is not None:
             self.ask = self._button(
-                "Ask a grown-up", "kidnix-ask", target, icon_px, actions.on_ask, speech_ui
+                _("Ask a grown-up"), "kidnix-ask", target, icon_px, actions.on_ask, speech_ui
             )
             self.ask.add_css_class("outline-only")
 
@@ -562,7 +567,7 @@ class Band(Gtk.Box):
         self.hold_progress.set_visible(False)
 
         self.grownup = HoldButton(
-            speak_text="Grown-up. Hold this for three seconds.",
+            speak_text=_("Grown-up. Hold this for three seconds."),
             on_hold=actions.on_grownup,
             progress=self.hold_progress,
             css_classes=("grownup-gate",),
@@ -622,14 +627,18 @@ class Band(Gtk.Box):
 
     # -- state --
 
-    def set_progress(self, fraction: float, warm: bool, words: str = NOT_RUNNING) -> None:
+    def set_progress(self, fraction: float, warm: bool, words: str = "") -> None:
         """Move the sun, and keep what it *says* in step with where it is.
 
         ``speak_text`` is both the accessible name and what a tap or a hover
         reads aloud, so setting it here is all the wiring the tap needs.
         """
         self.sun.set_progress(fraction, warm)
-        if words and words != self.sun_button.speak_text:
+        # Translated *here* and not in the signature: a default argument is
+        # evaluated once, at import, which is before anybody knows which child
+        # is sitting down (kidnix_shell.i18n).
+        words = words or _(NOT_RUNNING)
+        if words != self.sun_button.speak_text:
             self.sun_button.set_speak_text(words)
 
     def set_journal_sensitive(self, sensitive: bool) -> None:

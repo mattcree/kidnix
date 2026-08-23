@@ -25,6 +25,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from ..context import ShellContext  # noqa: E402
+from ..i18n import N_, NP_, _, ngettext  # noqa: E402
 from ..session import MAX_SESSION_MINUTES, MIN_SESSION_MINUTES, StartRefusal  # noqa: E402
 from ..settings import SYSTEM_CONFIG_DIR, rewrite_pin  # noqa: E402
 
@@ -33,8 +34,8 @@ log = logging.getLogger(__name__)
 PIN_LENGTH = 4
 GRANTS = (5, 15, 30)
 
-LENGTH_SUBTITLE = "Minutes. No number here is evidence-based; 25 is the precaution."
-READ_ONLY_SUBTITLE = (
+LENGTH_SUBTITLE = N_("Minutes. No number here is evidence-based; 25 is the precaution.")
+READ_ONLY_SUBTITLE = N_(
     "Kept for this boot only: /etc/kidnix/parent.toml is root-owned, "
     "which is what keeps the PIN out of the child's hands."
 )
@@ -44,8 +45,8 @@ READ_ONLY_SUBTITLE = (
 #: pin_hash -- so the warning was suppressed by the very file that left the
 #: gate open (forum #44, #56). It is keyed off the hash now
 #: (:attr:`ParentConfig.pin_is_starter`).
-STARTER_PIN_TITLE = "This machine still has the starter PIN -- set your own"
-STARTER_PIN_SUBTITLE = (
+STARTER_PIN_TITLE = N_("This machine still has the starter PIN -- set your own")
+STARTER_PIN_SUBTITLE = N_(
     "1234 is written down in the documentation and is the same on every install. "
     "A six-year-old watching you type four buttons in a row has the gate."
 )
@@ -55,12 +56,15 @@ STARTER_PIN_SUBTITLE = (
 #: its own root helper (``kidnix-shell --set-pin``, or ``kidnix-set-pin``).
 #: Never a pretend save.
 SET_PIN_COMMAND = "sudo kidnix-set-pin"
-SET_PIN_READ_ONLY = (
+#: Composed as **one** msgid rather than assembled from fragments: a
+#: translator needs the whole paragraph to get its grammar right, and
+#: ``sudo kidnix-set-pin`` is a command, which nobody translates.
+SET_PIN_READ_ONLY = N_(
     "Kept for this session. /etc/kidnix/parent.toml is root-owned -- that is what keeps "
     "the PIN out of the child's hands -- and kidnix-set-pin could not be reached from "
     "here. The gate is closed with your PIN until the machine restarts. To keep it, "
     "run:\n\n"
-    f"    {SET_PIN_COMMAND}\n\n"
+    "    sudo kidnix-set-pin\n\n"
     "from a terminal on this machine, or from the parent account, and it will ask you "
     "for the PIN again."
 )
@@ -101,23 +105,48 @@ LOCKED_OUT_MARKER = "too many wrong pins"
 #: The tail every unwritten outcome carries: the PIN is in force *now* either
 #: way (``ParentConfig.set_pin`` is what closes the gate), and the sheet has
 #: never been allowed to claim a save it did not make.
-KEPT_FOR_THIS_SESSION = (
+KEPT_FOR_THIS_SESSION = N_(
     "The PIN you chose is in force until the machine restarts. To keep it, run "
-    f"{SET_PIN_COMMAND} from a terminal or from the grown-up's own account."
+    "sudo kidnix-set-pin from a terminal or from the grown-up's own account."
 )
 
 #: The two sentences this wave exists to be able to say. Adult typography,
 #: adult surface: written, never spoken, and never with a digit in them.
-WRONG_CURRENT_PIN = "That wasn't the current PIN"
-TOO_MANY_TRIES = "Too many tries -- wait a minute"
+WRONG_CURRENT_PIN = N_("That wasn't the current PIN")
+TOO_MANY_TRIES = N_("Too many tries -- wait a minute")
 
-WRONG_CURRENT_PIN_MESSAGE = f"{WRONG_CURRENT_PIN}, so nothing was written. {KEPT_FOR_THIS_SESSION}"
-TOO_MANY_TRIES_MESSAGE = (
-    f"{TOO_MANY_TRIES}, then try again. Nothing was written. {KEPT_FOR_THIS_SESSION}"
+WRONG_CURRENT_PIN_MESSAGE = N_(
+    "That wasn't the current PIN, so nothing was written. The PIN you chose is in force "
+    "until the machine restarts. To keep it, run sudo kidnix-set-pin from a terminal or "
+    "from the grown-up's own account."
 )
-ALREADY_SET_MESSAGE = (
+TOO_MANY_TRIES_MESSAGE = N_(
+    "Too many tries -- wait a minute, then try again. Nothing was written. The PIN you "
+    "chose is in force until the machine restarts. To keep it, run sudo kidnix-set-pin "
+    "from a terminal or from the grown-up's own account."
+)
+ALREADY_SET_MESSAGE = N_(
     "This machine already has a PIN, and the current one was not sent with the new "
-    f"one. Nothing was written. {KEPT_FOR_THIS_SESSION}"
+    "one. Nothing was written. The PIN you chose is in force until the machine "
+    "restarts. To keep it, run sudo kidnix-set-pin from a terminal or from the "
+    "grown-up's own account."
+)
+
+
+#: The one good outcome. A path, not a PIN: nothing in this module ever
+#: interpolates a PIN, a length or a first digit into a sentence.
+PIN_SAVED_TO = N_("New PIN saved to {path}.")
+#: And the one where the file is there but will not take it.
+PIN_WRITE_FAILED = N_("Could not write {path}: {error}\n\nRun sudo kidnix-set-pin.")
+
+#: Why a ``+N`` grant was refused. Two forms, because "1 minute" and
+#: "2 minutes" are two forms in English and up to six in Welsh -- and this is
+#: an adult surface, so the numbers are numerals.
+GRANT_REFUSED = NP_(
+    "Not added. Today's budget has {left} minute left, and the shortest session is "
+    "{floor} minutes. Raise the daily budget in session.toml, or let today finish.",
+    "Not added. Today's budget has {left} minutes left, and the shortest session is "
+    "{floor} minutes. Raise the daily budget in session.toml, or let today finish.",
 )
 
 
@@ -141,13 +170,13 @@ def helper_outcome(returncode: int, stdout: str, stderr: str) -> HelperOutcome:
     """
     if returncode == EXIT_OK:
         path = stdout.strip() or str(SYSTEM_CONFIG_DIR / "parent.toml")
-        return HelperOutcome(True, f"New PIN saved to {path}.", False)
+        return HelperOutcome(True, _(PIN_SAVED_TO).format(path=path), False)
     if returncode == EXIT_BAD_PIN:
         if LOCKED_OUT_MARKER in stderr.lower():
-            return HelperOutcome(False, TOO_MANY_TRIES_MESSAGE, True)
-        return HelperOutcome(False, WRONG_CURRENT_PIN_MESSAGE, True)
+            return HelperOutcome(False, _(TOO_MANY_TRIES_MESSAGE), True)
+        return HelperOutcome(False, _(WRONG_CURRENT_PIN_MESSAGE), True)
     if returncode == EXIT_ALREADY_SET:
-        return HelperOutcome(False, ALREADY_SET_MESSAGE, True)
+        return HelperOutcome(False, _(ALREADY_SET_MESSAGE), True)
     return HelperOutcome(False, SET_PIN_READ_ONLY, True)
 
 
@@ -200,8 +229,8 @@ def call_set_pin(
 #: The first thing a grown-up sees on a machine nobody has set up. Not the
 #: pad, not the actions: the gate is unset and the only thing to do is set it
 #: (spec 7d #11).
-NO_PIN_TITLE = "This machine has no grown-up PIN yet"
-NO_PIN_SUBTITLE = (
+NO_PIN_TITLE = N_("This machine has no grown-up PIN yet")
+NO_PIN_SUBTITLE = N_(
     "Nothing else in here opens until you have chosen four numbers. "
     "Pick them somewhere they are not looking."
 )
@@ -210,7 +239,7 @@ NO_PIN_SUBTITLE = (
 #: a sentence on the screen: it is not a formality, it is the only thing that
 #: makes the numbers stick (helper stdin line 2), and it is what stops a child
 #: who watched a grown-up at the gate from choosing their own.
-CHANGE_PIN_SUBTITLE = (
+CHANGE_PIN_SUBTITLE = N_(
     "The current one first -- that is what lets the new one be saved for good, "
     "rather than only until the machine restarts."
 )
@@ -224,12 +253,7 @@ def grant_refusal(minutes: int, floor_minutes: int, left_minutes: int) -> str:
     one control they were given to break their child's afternoon, and the child
     will conclude the machine did it (forum #59, #60).
     """
-    return (
-        f"Not added. Today's budget has {left_minutes} minute"
-        f"{'' if left_minutes == 1 else 's'} left, and the shortest session is "
-        f"{floor_minutes} minutes. Raise the daily budget in session.toml, or "
-        f"let today finish."
-    )
+    return ngettext(*GRANT_REFUSED, left_minutes).format(left=left_minutes, floor=floor_minutes)
 
 
 def no_cut(row: Adw.PreferencesRow) -> Adw.PreferencesRow:
@@ -246,6 +270,26 @@ def no_cut(row: Adw.PreferencesRow) -> Adw.PreferencesRow:
     if isinstance(row, Adw.ActionRow):
         row.set_subtitle_lines(0)
     return row
+
+
+#: The sheet's own chrome. Adult typography, adult surface -- and still
+#: translated: a Polish household's grown-up sheet is a Polish grown-up's.
+GROWNUP_TITLE = N_("Grown-up")
+ENTER_PIN = N_("Enter the grown-up PIN")
+TYPE_CURRENT_PIN = N_("Type the current grown-up PIN")
+CHOOSE_NEW_PIN = N_("Choose a new grown-up PIN")
+TYPE_IT_AGAIN = N_("Type it again")
+PINS_DID_NOT_MATCH = N_("Those two did not match. Start again.")
+PIN_NOT_RIGHT = N_("That PIN is not right.")
+WRONG_CURRENT_PIN_TRY_AGAIN = N_("That wasn't the current PIN. Try again.")
+CLEAR = N_("Clear")
+CANCEL = N_("Cancel")
+
+#: The status row. Minutes are numerals here (it is not the child's surface)
+#: but the noun still has to agree with them.
+RUNNING = NP_("Running, about {left} minute left", "Running, about {left} minutes left")
+NOT_RUNNING_ROW = N_("Not running")
+USED_TODAY = N_("Used {spent} of {budget} minutes today")
 
 
 def wrapping_button(label: str) -> Gtk.Button:
@@ -267,7 +311,7 @@ class GrownupSheet(Adw.Dialog):
         super().__init__()
         self.ctx = ctx
         self._pin = ""
-        self.set_title("Grown-up")
+        self.set_title(_(GROWNUP_TITLE))
         self.set_content_width(560)
         self.set_content_height(640)
         self.add_css_class("grownup")
@@ -295,7 +339,7 @@ class GrownupSheet(Adw.Dialog):
 
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar()
-        header.set_title_widget(Adw.WindowTitle.new("Grown-up", ""))
+        header.set_title_widget(Adw.WindowTitle.new(_(GROWNUP_TITLE), ""))
         toolbar.add_top_bar(header)
         toolbar.set_content(self._stack)
         self.set_child(toolbar)
@@ -322,7 +366,7 @@ class GrownupSheet(Adw.Dialog):
         box.set_margin_end(24)
         box.set_valign(Gtk.Align.CENTER)
 
-        self._pin_title = Gtk.Label(label="Enter the grown-up PIN")
+        self._pin_title = Gtk.Label(label=_(ENTER_PIN))
         self._pin_title.add_css_class("title")
         self._pin_title.set_wrap(True)
         self._pin_title.set_justify(Gtk.Justification.CENTER)
@@ -351,11 +395,11 @@ class GrownupSheet(Adw.Dialog):
         pad.set_halign(Gtk.Align.CENTER)
         for index in range(9):
             pad.attach(self._digit(str(index + 1)), index % 3, index // 3, 1, 1)
-        clear = wrapping_button("Clear")
+        clear = wrapping_button(_(CLEAR))
         clear.connect("clicked", lambda _b: self._reset_pin())
         pad.attach(clear, 0, 3, 1, 1)
         pad.attach(self._digit("0"), 1, 3, 1, 1)
-        cancel = wrapping_button("Cancel")
+        cancel = wrapping_button(_(CANCEL))
         cancel.connect("clicked", lambda _b: self._cancel_pin())
         pad.attach(cancel, 2, 3, 1, 1)
         box.append(pad)
@@ -444,12 +488,12 @@ class GrownupSheet(Adw.Dialog):
         # PIN held in a widget for the length of a session is a PIN stored.
         self._asking_current = not mandatory and self.ctx.config.pin_configured
         if self._asking_current:
-            self._pin_title.set_label("Type the current grown-up PIN")
-            self._pin_help.set_label(CHANGE_PIN_SUBTITLE)
+            self._pin_title.set_label(_(TYPE_CURRENT_PIN))
+            self._pin_help.set_label(_(CHANGE_PIN_SUBTITLE))
             self._pin_help.set_visible(True)
         else:
-            self._pin_title.set_label(NO_PIN_TITLE if mandatory else "Choose a new grown-up PIN")
-            self._pin_help.set_label(NO_PIN_SUBTITLE if mandatory else "")
+            self._pin_title.set_label(_(NO_PIN_TITLE) if mandatory else _(CHOOSE_NEW_PIN))
+            self._pin_help.set_label(_(NO_PIN_SUBTITLE) if mandatory else "")
             self._pin_help.set_visible(mandatory)
         self._stack.set_visible_child_name("pin")
 
@@ -461,7 +505,7 @@ class GrownupSheet(Adw.Dialog):
         self._asking_current = False
         self._reset_pin()
         self._pin_help.set_visible(False)
-        self._pin_title.set_label("Enter the grown-up PIN")
+        self._pin_title.set_label(_(ENTER_PIN))
 
     def _check_setting(self) -> None:
         entered, self._pin = self._pin, ""
@@ -471,23 +515,23 @@ class GrownupSheet(Adw.Dialog):
             # costs a sentence rather than a round trip through pkexec and two
             # seconds of the helper's rate limit.
             if not self.ctx.config.check_pin(entered):
-                self._error.set_label(f"{WRONG_CURRENT_PIN}. Try again.")
+                self._error.set_label(_(WRONG_CURRENT_PIN_TRY_AGAIN))
                 return
             self._current_pin = entered
             self._asking_current = False
-            self._pin_title.set_label("Choose a new grown-up PIN")
+            self._pin_title.set_label(_(CHOOSE_NEW_PIN))
             self._pin_help.set_visible(False)
             self._error.set_label("")
             return
         if self._new_pin is None:
             self._new_pin = entered
-            self._pin_title.set_label("Type it again")
+            self._pin_title.set_label(_(TYPE_IT_AGAIN))
             self._error.set_label("")
             return
         if entered != self._new_pin:
             self._new_pin = None
-            self._pin_title.set_label("Choose a new grown-up PIN")
-            self._error.set_label("Those two did not match. Start again.")
+            self._pin_title.set_label(_(CHOOSE_NEW_PIN))
+            self._error.set_label(_(PINS_DID_NOT_MATCH))
             return
         self._finish_setting_pin(entered)
 
@@ -543,11 +587,11 @@ class GrownupSheet(Adw.Dialog):
             except OSError as exc:
                 log.warning("could not write the new PIN to %s: %s", target, exc)
                 return HelperOutcome(
-                    False, f"Could not write {target}: {exc}\n\nRun {SET_PIN_COMMAND}.", True
+                    False, _(PIN_WRITE_FAILED).format(path=target, error=exc), True
                 )
-            return HelperOutcome(True, f"New PIN saved to {target}.", False)
+            return HelperOutcome(True, _(PIN_SAVED_TO).format(path=target), False)
         if not Path(SET_PIN_HELPER).is_file() or shutil.which("pkexec") is None:
-            return HelperOutcome(False, SET_PIN_READ_ONLY, True)
+            return HelperOutcome(False, _(SET_PIN_READ_ONLY), True)
         return call_set_pin(pin, current)
 
     def _pin_error_row(self, text: str, *, warn: bool = True) -> None:
@@ -593,19 +637,21 @@ class GrownupSheet(Adw.Dialog):
         else:
             # Adult typography, adult surface: the grown-up who mistyped is
             # told so in writing. Nothing is spoken -- the gate is not voiced.
-            self._error.set_label("That PIN is not right.")
+            self._error.set_label(_(PIN_NOT_RIGHT))
 
     # -- actions --
 
     def _actions_page(self) -> Gtk.Widget:
         page = Adw.PreferencesPage()
 
-        session_group = Adw.PreferencesGroup(title="This session")
-        self._status = no_cut(Adw.ActionRow(title="Session"))
+        session_group = Adw.PreferencesGroup(title=_("This session"))
+        self._status = no_cut(Adw.ActionRow(title=_("Session")))
         session_group.add(self._status)
 
-        start = no_cut(Adw.ActionRow(title="Start a session", subtitle="Uses the default length"))
-        start_button = wrapping_button("Start")
+        start = no_cut(
+            Adw.ActionRow(title=_("Start a session"), subtitle=_("Uses the default length"))
+        )
+        start_button = wrapping_button(_("Start"))
         start_button.add_css_class("suggested-action")
         start_button.set_valign(Gtk.Align.CENTER)
         start_button.connect("clicked", lambda _b: self._start())
@@ -615,8 +661,8 @@ class GrownupSheet(Adw.Dialog):
 
         grants = no_cut(
             Adw.ActionRow(
-                title="Add time",
-                subtitle=(
+                title=_("Add time"),
+                subtitle=_(
                     "Bounded by today's budget. A grant the budget would cut below the "
                     "minimum session is refused rather than half-given."
                 ),
@@ -634,11 +680,11 @@ class GrownupSheet(Adw.Dialog):
 
         end = no_cut(
             Adw.ActionRow(
-                title="End the session now",
-                subtitle="Runs the same put-away and goodbye the child knows",
+                title=_("End the session now"),
+                subtitle=_("Runs the same put-away and goodbye the child knows"),
             )
         )
-        end_button = wrapping_button("End now")
+        end_button = wrapping_button(_("End now"))
         end_button.add_css_class("destructive-action")
         end_button.set_valign(Gtk.Align.CENTER)
         end_button.connect("clicked", lambda _b: self._end())
@@ -655,16 +701,16 @@ class GrownupSheet(Adw.Dialog):
         # sheet rather than in the parent panel because the parent panel does
         # not exist yet and a child having a bad afternoon cannot wait for it.
         access_group = Adw.PreferencesGroup(
-            title="Sound and calm",
-            description=(
+            title=_("Sound and calm"),
+            description=_(
                 "The 70% hardware volume ceiling is underneath all of this and "
                 "cannot be raised from here."
             ),
         )
 
         volume = no_cut(Adw.SpinRow.new_with_range(0, 100, 10))
-        volume.set_title("Volume")
-        volume.set_subtitle("Earcons and read-aloud. Captions keep working at zero.")
+        volume.set_title(_("Volume"))
+        volume.set_subtitle(_("Earcons and read-aloud. Captions keep working at zero."))
         volume.set_value(round(self.ctx.config.access.sound_volume * 100))
         volume.connect("notify::value", self._on_volume_changed)
         self._volume_row = volume
@@ -672,8 +718,8 @@ class GrownupSheet(Adw.Dialog):
 
         mute = no_cut(
             Adw.SwitchRow(
-                title="Mute",
-                subtitle="Silence, not a broken machine: every line is still captioned.",
+                title=_("Mute"),
+                subtitle=_("Silence, not a broken machine: every line is still captioned."),
             )
         )
         mute.set_active(self.ctx.config.access.mute)
@@ -683,8 +729,8 @@ class GrownupSheet(Adw.Dialog):
 
         calm = no_cut(
             Adw.SwitchRow(
-                title="Calm mode",
-                subtitle=(
+                title=_("Calm mode"),
+                subtitle=_(
                     "Reduced motion, a slower voice, and only the 'kept it' sound. "
                     "One switch for a sensory-sensitive, anxious or overloaded day."
                 ),
@@ -697,8 +743,8 @@ class GrownupSheet(Adw.Dialog):
 
         captions = no_cut(
             Adw.SwitchRow(
-                title="Captions",
-                subtitle=(
+                title=_("Captions"),
+                subtitle=_(
                     "Every spoken line, written under the band for four seconds. "
                     "On by default. Turning it off takes effect at the next start."
                 ),
@@ -710,10 +756,10 @@ class GrownupSheet(Adw.Dialog):
         access_group.add(captions)
         page.add(access_group)
 
-        settings_group = Adw.PreferencesGroup(title="Settings")
+        settings_group = Adw.PreferencesGroup(title=_("Settings"))
         length = no_cut(Adw.SpinRow.new_with_range(MIN_SESSION_MINUTES, MAX_SESSION_MINUTES, 5))
-        length.set_title("Default session length")
-        length.set_subtitle(LENGTH_SUBTITLE)
+        length.set_title(_("Default session length"))
+        length.set_subtitle(_(LENGTH_SUBTITLE))
         length.set_value(self.ctx.config.default_session_minutes)
         length.connect("notify::value", self._on_length_changed)
         self._length_row = length
@@ -722,21 +768,21 @@ class GrownupSheet(Adw.Dialog):
         # The gate's own state, told plainly, on every machine that still has
         # the shipped PIN -- not only on the ones with no config at all.
         self._starter_row = no_cut(
-            Adw.ActionRow(title=STARTER_PIN_TITLE, subtitle=STARTER_PIN_SUBTITLE)
+            Adw.ActionRow(title=_(STARTER_PIN_TITLE), subtitle=_(STARTER_PIN_SUBTITLE))
         )
         self._starter_row.add_css_class("pin-error")
         settings_group.add(self._starter_row)
 
         set_pin = no_cut(
             Adw.ActionRow(
-                title="Set the grown-up PIN",
-                subtitle=(
+                title=_("Set the grown-up PIN"),
+                subtitle=_(
                     "The current PIN, then a new four-digit one twice. "
                     "Somewhere they are not looking."
                 ),
             )
         )
-        set_pin_button = wrapping_button("Set PIN")
+        set_pin_button = wrapping_button(_("Set PIN"))
         set_pin_button.set_valign(Gtk.Align.CENTER)
         set_pin_button.connect("clicked", lambda _b: self._begin_setting_pin())
         set_pin.add_suffix(set_pin_button)
@@ -751,10 +797,11 @@ class GrownupSheet(Adw.Dialog):
 
         panel = no_cut(
             Adw.ActionRow(
-                title="Parent panel", subtitle="Allow-lists, budgets, their things -- not in v0.1"
+                title=_("Parent panel"),
+                subtitle=_("Allow-lists, budgets, their things -- not in v0.1"),
             )
         )
-        panel_button = wrapping_button("Open")
+        panel_button = wrapping_button(_("Open"))
         panel_button.set_valign(Gtk.Align.CENTER)
         panel_button.connect("clicked", lambda _b: self._open_panel())
         panel.add_suffix(panel_button)
@@ -763,8 +810,8 @@ class GrownupSheet(Adw.Dialog):
         page.add(settings_group)
 
         exit_group = Adw.PreferencesGroup()
-        logout = no_cut(Adw.ActionRow(title="Log out", subtitle="Back to the login screen"))
-        logout_button = wrapping_button("Log out")
+        logout = no_cut(Adw.ActionRow(title=_("Log out"), subtitle=_("Back to the login screen")))
+        logout_button = wrapping_button(_("Log out"))
         logout_button.set_valign(Gtk.Align.CENTER)
         logout_button.connect("clicked", lambda _b: self._logout())
         logout.add_suffix(logout_button)
@@ -778,12 +825,12 @@ class GrownupSheet(Adw.Dialog):
         session = self.ctx.session
         if session.running:
             left = session.remaining(datetime.now()) // 60
-            self._status.set_subtitle(f"Running, about {left} minutes left")
+            self._status.set_subtitle(ngettext(*RUNNING, left).format(left=left))
         else:
-            self._status.set_subtitle("Not running")
+            self._status.set_subtitle(_(NOT_RUNNING_ROW))
         spent = session.usage.seconds // 60
         budget = session.policy.daily_budget // 60
-        self._status.set_title(f"Used {spent} of {budget} minutes today")
+        self._status.set_title(_(USED_TODAY).format(spent=spent, budget=budget))
         self._refresh_pin_rows()
 
     def _refresh_pin_rows(self) -> None:
@@ -793,12 +840,12 @@ class GrownupSheet(Adw.Dialog):
         # that fixes it), "still the starter PIN" is one carrying the hash the
         # image used to ship.
         if config.must_set_pin:
-            self._starter_row.set_title(NO_PIN_TITLE)
-            self._starter_row.set_subtitle(NO_PIN_SUBTITLE)
+            self._starter_row.set_title(_(NO_PIN_TITLE))
+            self._starter_row.set_subtitle(_(NO_PIN_SUBTITLE))
             self._starter_row.set_visible(True)
             return
-        self._starter_row.set_title(STARTER_PIN_TITLE)
-        self._starter_row.set_subtitle(STARTER_PIN_SUBTITLE)
+        self._starter_row.set_title(_(STARTER_PIN_TITLE))
+        self._starter_row.set_subtitle(_(STARTER_PIN_SUBTITLE))
         self._starter_row.set_visible(config.pin_is_starter)
 
     def _start(self) -> None:
@@ -872,7 +919,7 @@ class GrownupSheet(Adw.Dialog):
             # is not a PIN), and the shell runs as the child. The change holds
             # for this boot; making it permanent is the parent panel's job,
             # from the parent's own account.
-            row.set_subtitle(READ_ONLY_SUBTITLE)
+            row.set_subtitle(_(READ_ONLY_SUBTITLE))
             log.info("session length set to %d minutes for this boot only", minutes)
             return
         try:
@@ -882,10 +929,10 @@ class GrownupSheet(Adw.Dialog):
 
     def _open_panel(self) -> None:
         about = Adw.AboutDialog(
-            application_name="kidnix parent panel",
+            application_name=_("kidnix parent panel"),
             application_icon="preferences-system",
-            version="not yet built",
-            comments=(
+            version=_("not yet built"),
+            comments=_(
                 "The parent panel is not in shell v0.1. It will hold children, "
                 "time, activities, requests, their things, family and calm mode. "
                 "Until then, the Journal is a plain directory tree under "

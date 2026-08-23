@@ -63,6 +63,7 @@ from ..feedback import (  # noqa: E402
     descriptive_line,
     words_for,
 )
+from ..i18n import N_, _  # noqa: E402
 from ..journal import Entry  # noqa: E402
 from ..metrics import (  # noqa: E402
     GOODBYE_BUTTON_WIDTH_MM,
@@ -89,6 +90,10 @@ MAX_THUMBNAILS = GOODBYE_THUMBNAILS
 #: theme.css ``button.ritual``: 28 px of padding and a 3 px border either side.
 RITUAL_CHROME_X_PX = 62
 
+#: S7's other button. "Show a grown-up" is an invitation, not an instruction:
+#: nothing happens if nobody comes.
+SHOW_A_GROWNUP = N_("Show a grown-up")
+
 # **Every size on this screen now comes from `Metrics`** (`goodbye_*`), and
 # that is the fix for the clipping the e2e photographed rather than a tidy-up:
 # a screen whose sizes are its own cannot be *budgeted* for, so
@@ -99,7 +104,7 @@ RITUAL_CHROME_X_PX = 62
 
 
 class GoodbyeScreen(Screen):
-    name = "Goodbye"
+    name = N_("Goodbye")
 
     def build(self) -> None:
         metrics = self.ctx.metrics
@@ -136,8 +141,8 @@ class GoodbyeScreen(Screen):
         # sizes read as one of them mattering more.
         # Both vocabularies are measured, not just today's: the type size must
         # not change under a child because the clock crossed 19:00.
-        points, _ = page_label_fit(
-            ("Show a grown-up", BEDTIME_GOODNIGHT_LABEL, DAYTIME_GOODNIGHT_LABEL),
+        points, _height = page_label_fit(
+            (_(SHOW_A_GROWNUP), _(BEDTIME_GOODNIGHT_LABEL), _(DAYTIME_GOODNIGHT_LABEL)),
             inner,
             base_pt=base,
             floor_pt=metrics.label_floor_pt,
@@ -148,14 +153,14 @@ class GoodbyeScreen(Screen):
         self._label_base = base
 
         self.show_button = ChildButton(
-            speak_text="Show a grown-up",
+            speak_text=_(SHOW_A_GROWNUP),
             on_activate=self.ctx.host.show_a_grownup,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual",),
             width=metrics.target_mm(GOODBYE_BUTTON_WIDTH_MM),
             height=metrics.goodbye_button,
         )
-        self.show_button.set_child(self._button_label("Show a grown-up"))
+        self.show_button.set_child(self._button_label(_(SHOW_A_GROWNUP)))
         buttons.append(self.show_button)
 
         # Daytime words until `on_enter` asks the clock. The wrong default is
@@ -280,7 +285,7 @@ class GoodbyeScreen(Screen):
         chosen = self.ctx.next_after
         if chosen is None:
             self.next_after_icon.set_visible(False)
-            return ALL_DONE_HEADLINE
+            return _(ALL_DONE_HEADLINE)
 
         self.remove(self.next_after_icon)
         self.next_after_icon = icon_image(

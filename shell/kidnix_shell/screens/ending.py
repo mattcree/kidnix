@@ -31,6 +31,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..band import Sun  # noqa: E402
+from ..i18n import N_, _  # noqa: E402
 from ..ritual import KEEP_LINE, OFFER_QUESTION, OfferAnswer, put_away_line  # noqa: E402
 from ..sound import KEEP  # noqa: E402
 from ..theme import points_for  # noqa: E402
@@ -59,9 +60,19 @@ RITUAL_CHROME_X_PX = 62
 #: ``button.ritual.secondary``: the same padding, a lighter border.
 RITUAL_SECONDARY_CHROME_X_PX = 56
 
+#: S5's three answers, as msgids: the two buttons that fit on one line and the
+#: quieter third. The **same** two strings are the label and what the button
+#: says out loud, which is why they are named once here rather than repeated.
+FINISH_THIS_LABEL = N_("Finish this one")
+ONE_MORE_LABEL = N_("One last little thing")
+ASK_FOR_MORE_LABEL = N_("Ask for more time")
+#: The headline over them. A full stop the screen title does not have: the
+#: title is a name and this is a sentence.
+SUN_GOING_DOWN = N_("The sun is going down.")
+
 
 class EndingOfferScreen(Screen):
-    name = "The sun is going down"
+    name = N_("The sun is going down")
 
     def build(self) -> None:
         metrics = self.ctx.metrics
@@ -81,7 +92,7 @@ class EndingOfferScreen(Screen):
         sun.set_progress(OFFER_SUN_FRACTION, True)
         self.sun = sun
         self.append(sun)
-        self.append(big_label("The sun is going down."))
+        self.append(big_label(_(SUN_GOING_DOWN)))
 
         choices = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap * 2)
         choices.set_halign(Gtk.Align.CENTER)
@@ -89,20 +100,20 @@ class EndingOfferScreen(Screen):
         # may be cut, and neither may be wider than the other's button, so the
         # pair is fitted to the same width (spec S5, SYNTHESIS B4).
         inner = max(1, metrics.target_mm(60) - RITUAL_CHROME_X_PX)
-        choices_text = ("Finish this one", "One last little thing")
-        points, _ = page_label_fit(
+        choices_text = (_(FINISH_THIS_LABEL), _(ONE_MORE_LABEL))
+        points, _height = page_label_fit(
             choices_text,
             inner,
             base_pt=points_for(metrics, ".big-line"),
             floor_pt=metrics.label_floor_pt,
             widget=choices,
         )
-        for label, speak, answer in (
-            (choices_text[0], "Finish this one", OfferAnswer.FINISH_THIS),
-            (choices_text[1], "One last little thing", OfferAnswer.ONE_MORE),
+        for label, answer in (
+            (choices_text[0], OfferAnswer.FINISH_THIS),
+            (choices_text[1], OfferAnswer.ONE_MORE),
         ):
             button = ChildButton(
-                speak_text=speak,
+                speak_text=label,
                 on_activate=partial(self.ctx.host.dismiss_offer, answer),
                 speech_ui=self.ctx.speech_ui,
                 css_classes=("ritual",),
@@ -123,7 +134,7 @@ class EndingOfferScreen(Screen):
         self.append(choices)
 
         more = ChildButton(
-            speak_text="Ask for more time",
+            speak_text=_(ASK_FOR_MORE_LABEL),
             on_activate=self._ask_for_more,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual", "secondary"),
@@ -132,7 +143,7 @@ class EndingOfferScreen(Screen):
         )
         more.set_child(
             big_label(
-                "Ask for more time",
+                _(ASK_FOR_MORE_LABEL),
                 "quiet-line",
                 width=max(1, metrics.target_mm(50) - RITUAL_SECONDARY_CHROME_X_PX),
                 base_pt=points_for(metrics, "button.ritual.secondary"),
@@ -156,13 +167,13 @@ class EndingOfferScreen(Screen):
         self.ctx.host.dismiss_offer(OfferAnswer.ASK)
 
     def on_enter(self) -> None:
-        self.ctx.speech.speak(OFFER_QUESTION)
+        self.ctx.speech.speak(_(OFFER_QUESTION))
 
 
 class PutAwayScreen(Screen):
     """No buttons. Nothing here is a decision."""
 
-    name = "Let's keep that"
+    name = N_("Let's keep that")
 
     def build(self) -> None:
         metrics = self.ctx.metrics
@@ -180,7 +191,7 @@ class PutAwayScreen(Screen):
         self._picture.set_size_request(metrics.mm(45), metrics.mm(45))
         self._travel.put(self._picture, metrics.mm(38), 0)
 
-        self.headline = big_label(KEEP_LINE)
+        self.headline = big_label(_(KEEP_LINE))
         self.append(self.headline)
         self._animation: Adw.TimedAnimation | None = None
 
@@ -217,7 +228,7 @@ class PutAwayScreen(Screen):
             voice.stop()
             return
         if has_note(entry_dir):
-            self.ctx.speech.speak(MIC_AGAIN_SPEAK)
+            self.ctx.speech.speak(_(MIC_AGAIN_SPEAK))
         voice.start(entry_dir)
 
     def _mic_state(self, recording: bool) -> None:
@@ -276,7 +287,7 @@ class PutAwayScreen(Screen):
         # "Tell me about it" -- the invitation, spoken and captioned, only when
         # there is actually something to be told about.
         if self.mic is not None and self.mic.get_visible():
-            self.ctx.speech.speak_then(line, MIC_SPEAK)
+            self.ctx.speech.speak_then(line, _(MIC_SPEAK))
         else:
             self.ctx.speech.speak(line)
         if not lost:

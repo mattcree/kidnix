@@ -52,6 +52,14 @@ from .activities import Activity  # noqa: E402
 from .band import Band, BandActions, CaptionStrip  # noqa: E402
 from .captions import CaptionListener  # noqa: E402
 from .context import ShellContext  # noqa: E402
+from .i18n import (  # noqa: E402
+    N_,
+    _,
+    current_language,
+    resolve_language,
+    speech_language,
+)
+from .i18n import install as install_language  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
 from .keyboard import Keyboard  # noqa: E402
 from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
@@ -106,6 +114,27 @@ from .widgets import SpeechUI  # noqa: E402
 log = logging.getLogger(__name__)
 
 APP_ID = "org.kidnix.Shell"
+
+#: The shell's own sentences -- the ones that do not belong to a screen or to
+#: the ritual. Msgids: they are read inside methods, which is after the
+#: language is chosen (:mod:`kidnix_shell.i18n`).
+#:
+#: SYNTHESIS C3: an activity that will not open is said out loud, in the
+#: child's words, and the reason goes to the journal for the parent.
+WOULD_NOT_OPEN = N_("That one didn't want to open. Try another.")
+DID_NOT_OPEN = N_("That one didn't open. Let's try something else.")
+GONE_AWAY = N_("That one isn't here any more.")
+#: Spec 7c: the moment a deaf child would lose a drawing, which is why it is
+#: captioned as well as spoken. ``{name}`` is the activity's own name, from
+#: its manifest, and is not translated here.
+ASKING_IF_DONE = N_("{name} is asking if you're done.")
+#: When the manifest's name has been lost. "It" is the subject of the sentence
+#: above, so it is marked separately -- a language that inflects it needs to.
+SOMETHING = N_("It")
+ALREADY_HOME = N_("You're home.")
+NOTHING_TO_UNDO = N_("Nothing to undo.")
+NOTHING_SAID_YET = N_("I haven't said anything yet.")
+ASK_COMING_SOON = N_("Asking a grown-up is coming soon.")
 TICK_MS = 500
 #: S7: "Show a grown-up" borrows My Things, and now **keeps** it.
 #:
@@ -595,6 +624,7 @@ class ShellWindow(Adw.ApplicationWindow):
         # it on the *first* profile too -- which is the one this method is
         # called with when nothing has changed yet.
         self.launcher.profile_id = profile.id
+        self._use_language(profile)
         paths = self.paths.for_profile(profile.id)
         if paths == self.profile_paths:
             return
@@ -612,6 +642,43 @@ class ShellWindow(Adw.ApplicationWindow):
             self.kid_state.sessions_completed,
             self.session.usage.seconds // 60,
         )
+
+    def _use_language(self, profile: Profile) -> None:
+        """Make this child's language the one the shell speaks and writes.
+
+        **Nothing happens at all when the language has not changed**, which is
+        every switch on a monolingual machine -- so the en_GB path is exactly
+        the code it was before ADR-0012.
+
+        When it *has* changed there are two halves:
+
+        * the **voice**, immediately: speech-dispatcher takes ``SET SELF
+          LANGUAGE`` on the open connection, so the next utterance is in the
+          new language even if it is already queued behind this one;
+        * the **text**, on the next main-loop turn. A GTK label is a string
+          that was built once, so the screens have to be built again --
+          :meth:`_build_content` is written for exactly this (it is what a
+          monitor change does) and screens own no state that outlives them.
+          It is deferred with ``idle_add`` because this runs from inside the
+          profile button's own activation, and tearing down the widget that is
+          mid-signal is how a shell crashes in front of a child.
+        """
+        wanted = resolve_language(
+            profile_language=profile.language,
+            access_language=self.ctx.config.access.language,
+        )
+        if wanted == current_language():
+            return
+        install_language(wanted)
+        self.speech.set_language(speech_language(wanted))
+        log.info("profile %r speaks %s; rebuilding the screens", profile.id, wanted)
+        GLib.idle_add(self._rebuild_for_language)
+
+    def _rebuild_for_language(self) -> bool:
+        """Throw the surfaces away and build them again in the new language."""
+        self._build_content()
+        self._show_state()
+        return False
 
     # -- access (captions, calm, volume) ------------------------------
 
@@ -1132,7 +1199,7 @@ class ShellWindow(Adw.ApplicationWindow):
                 continue
             sizes.append((height, f"{name} {width}x{height}"))
         sizes.sort(reverse=True)
-        return ", ".join(row for _, row in sizes[:3])
+        return ", ".join(row for _label, row in sizes[:3])
 
     def _check_monitor(self) -> None:
         """The panel may change under us (a projector, a dock, a hotplug)."""
@@ -1355,7 +1422,7 @@ class ShellWindow(Adw.ApplicationWindow):
         log.info("ending offer, in the band (the child is in an activity)")
         self._offer_on_band = True
         self.band.set_offer_mode(True)
-        self.speech.speak(OFFER_QUESTION)
+        self.speech.speak(_(OFFER_QUESTION))
         if self._band_offer_handle is not None:
             GLib.source_remove(self._band_offer_handle)
         self._band_offer_handle = GLib.timeout_add_seconds(
@@ -1600,13 +1667,36 @@ class ShellWindow(Adw.ApplicationWindow):
         # that started there would end up on top of a screen with no way back.
         if self.launcher.running or not self.machine.can(Event.LAUNCH_ACTIVITY):
             return
+        self._raise_band_for_escape()
         running = self.launcher.launch(activity, resume)
         if running is None:
             # C3: back to a known-good state with a friendly line.
-            self.speech.speak("That one didn't want to open. Try another.")
+            self.speech.speak(_(WOULD_NOT_OPEN))
             return
         self.earcons.play(TAP)
         self.machine.try_fire(Event.LAUNCH_ACTIVITY)
+
+    def _raise_band_for_escape(self) -> None:
+        """Make the **band** the shell's most-recently-used window. One line.
+
+        ``docs/spikes/keyboard-escape.md`` section 4: the lockdown re-enables
+        exactly ``<Super>Tab`` so a keyboard or switch user can get out of an
+        activity, and mutter's ``meta_window_activate`` *raises* what it
+        focuses. The shell's most recently used toplevel during an activity is
+        the **content** window -- it is what the child was looking at when they
+        pressed the tile -- so the chord put Home over the child's drawing:
+        91.3% of the pixels below the band changed, and the child then answered
+        Tux Paint's "really quit?" with their picture hidden.
+
+        Presenting the band instead costs nothing: it is 96 px tall, already
+        ``set-above``, and covers nothing. The activity still takes focus when
+        it maps, so the child sees exactly what they saw before. On the
+        one-window fallback there is no separate band to raise and this does
+        nothing at all.
+        """
+        if self._one_window:
+            return
+        self.band_window.present()
 
     def open_shelf(self, shelf: Activity) -> None:
         """A shelf tile was tapped: one more screen of tiles, and only one.
@@ -1629,7 +1719,7 @@ class ShellWindow(Adw.ApplicationWindow):
     def resume_entry(self, entry: Entry) -> None:
         activity = next((a for a in self.ctx.activities if a.id == entry.activity_id), None)
         if activity is None:
-            self.speech.speak("That one isn't here any more.")
+            self.speech.speak(_(GONE_AWAY))
             return
         path = entry.latest_path if activity.supports_resume else None
         self.launch(activity, path)
@@ -1654,7 +1744,7 @@ class ShellWindow(Adw.ApplicationWindow):
                 running.ran_for(),
                 tail or "(nothing on stderr)",
             )
-            self.speech.speak("That one didn't open. Let's try something else.")
+            self.speech.speak(_(DID_NOT_OPEN))
         elif kept:
             self.earcons.play(KEEP)
         self._activity_finished()
@@ -1759,9 +1849,9 @@ class ShellWindow(Adw.ApplicationWindow):
         # Whatever the child asked for, they are still in the activity, so a
         # Journal that opens later would arrive from nowhere.
         self._journal_after_activity = False
-        name = self._running_activity_name() or "It"
+        name = self._running_activity_name() or _(SOMETHING)
         log.info("%s is still running after SIGTERM; it is asking the child something", name)
-        self.speech.speak(f"{name} is asking if you're done.")
+        self.speech.speak(_(ASKING_IF_DONE).format(name=name))
         return False
 
     def _running_activity(self) -> Activity | None:
@@ -1960,7 +2050,7 @@ class ShellWindow(Adw.ApplicationWindow):
         is what lets ``tests/test_ritual.py`` assert there is no second row.
         """
         if self.machine.state is State.HOME:
-            self.speech.speak("You're home.")
+            self.speech.speak(_(ALREADY_HOME))
             return
         if self._put_away_pending:
             # Put away is already asking (spec 7c). Back means the same thing
@@ -2019,14 +2109,14 @@ class ShellWindow(Adw.ApplicationWindow):
         in_journal = self.machine.state is State.JOURNAL
         if in_journal and isinstance(journal_screen, JournalScreen) and journal_screen.undo_star():
             return
-        self.speech.speak("Nothing to undo.")
+        self.speech.speak(_(NOTHING_TO_UNDO))
 
     def on_ear(self) -> None:
         if not self.speech.repeat():
-            self.speech.speak("I haven't said anything yet.")
+            self.speech.speak(_(NOTHING_SAID_YET))
 
     def on_ask(self) -> None:
-        self.speech.speak("Asking a grown-up is coming soon.")
+        self.speech.speak(_(ASK_COMING_SOON))
 
     def on_sun(self) -> None:
         """Tapping the sun (08 section 4.6).

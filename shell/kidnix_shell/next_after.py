@@ -30,6 +30,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from .i18n import N_, _
+
 log = logging.getLogger(__name__)
 
 #: 09 section 6 / spec 7b: "6-9 picture options". Fewer than six is not a
@@ -79,7 +81,7 @@ class NextAfter:
 
     @property
     def name(self) -> str:
-        return self.label
+        return _(self.label)
 
     @property
     def icon_kind(self) -> str:
@@ -91,45 +93,62 @@ class NextAfter:
 
     @property
     def speak_text(self) -> str:
-        return self.audio_label or self.label
+        return _(self.audio_label or self.label)
 
     @property
     def phrase(self) -> str:
         """How it reads mid-sentence: "Outside" -> "go outside"."""
         if self.phrase_override:
-            return self.phrase_override
+            return _(self.phrase_override)
         if not self.label:
             return ""
-        return self.label[0].lower() + self.label[1:]
+        label = _(self.label)
+        return label[0].lower() + label[1:]
 
     @property
     def ready_line(self) -> str:
         """S7's line, in Coco's own words: "Ready to go outside?"."""
-        return f"Ready to {self.phrase}?"
+        return _(READY_LINE).format(phrase=self.phrase)
 
+
+#: S7's line, in Coco's own words. A named placeholder, because "Ready to go
+#: outside?" puts the verb where English puts it and nowhere else does.
+READY_LINE = N_("Ready to {phrase}?")
 
 #: The shipped set. Nine, at the top of 09's 6-9: eight things a five-year-old
 #: can start on their own, in a normal house, in the next five minutes -- which
 #: is the only test that matters for those -- and a ninth that is a way out of
 #: the question (:data:`SKIP_ID`).
 DEFAULT_NEXT_AFTER: tuple[NextAfter, ...] = (
-    NextAfter("outside", "Outside", "Going outside", "kidnix-next-outside", "go outside"),
-    NextAfter("book", "A book", "Reading a book", "kidnix-next-book", "read a book"),
-    NextAfter("build", "Building", "Building with blocks", "kidnix-next-build", "build something"),
-    NextAfter("draw", "Drawing", "Drawing on paper", "kidnix-next-draw", "draw on paper"),
-    NextAfter("snack", "A snack", "Having a snack", "kidnix-next-snack", "have a snack"),
-    NextAfter("bath", "Bath time", "Bath time", "kidnix-next-bath", "have a bath"),
-    NextAfter("cook", "Help cook", "Helping cook", "kidnix-next-cook", "help cook"),
+    NextAfter(
+        "outside", N_("Outside"), N_("Going outside"), "kidnix-next-outside", N_("go outside")
+    ),
+    NextAfter("book", N_("A book"), N_("Reading a book"), "kidnix-next-book", N_("read a book")),
+    NextAfter(
+        "build",
+        N_("Building"),
+        N_("Building with blocks"),
+        "kidnix-next-build",
+        N_("build something"),
+    ),
+    NextAfter(
+        "draw", N_("Drawing"), N_("Drawing on paper"), "kidnix-next-draw", N_("draw on paper")
+    ),
+    NextAfter(
+        "snack", N_("A snack"), N_("Having a snack"), "kidnix-next-snack", N_("have a snack")
+    ),
+    NextAfter("bath", N_("Bath time"), N_("Bath time"), "kidnix-next-bath", N_("have a bath")),
+    NextAfter("cook", N_("Help cook"), N_("Helping cook"), "kidnix-next-cook", N_("help cook")),
     NextAfter(
         "someone",
-        "With someone",
-        "Playing with someone",
+        N_("With someone"),
+        N_("Playing with someone"),
         "kidnix-next-someone",
-        "play with someone",
+        N_("play with someone"),
     ),
     # The ninth. It is deliberately last and deliberately plain: it is a way
     # out of the question, not a competing answer to it.
-    NextAfter(SKIP_ID, "Not sure", "Not sure yet. That's fine.", "kidnix-ask", ""),
+    NextAfter(SKIP_ID, N_("Not sure"), N_("Not sure yet. That's fine."), "kidnix-ask", ""),
 )
 
 

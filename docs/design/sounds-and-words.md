@@ -724,7 +724,7 @@ live with.
 
 **Every phoneme a child hears today is a placeholder.** `phonemes.py` resolves
 a GPC to a recording if there is one at
-`/usr/share/kidnix/sounds-and-words/phonemes/<gpc-id>.ogg`, and otherwise to the
+`/usr/share/kidnix/phonemes/en_GB/<gpc-id>.ogg`, and otherwise to the
 corpus's kidnix-safe *spelled* label — "sss", "shh", "ay" — spoken by the
 ordinary voice. Those spellings are the ones §2.2's schwa blacklist already
 checks, they are good for `sss` and thin for `ck`, and `Source.SPELLED` marks
@@ -733,11 +733,18 @@ every one of them as what it is.
 Two things stand between that and real recordings, and neither is in this
 activity's hands:
 
-1. **The a–z clips exist and are not readable.** GCompris's `voices-en_GB`
-   bundle is in the image and `build_files/55-gcompris.sh` already asserts
-   `alphabet/U0061.ogg`…`U007A.ogg` are in it — but it is a Qt `.rcc` archive,
-   not loose files. Unpacking it once, at build time, into the directory above
-   is a `build_files/` job and this activity does not own that directory.
+1. ~~**The a–z clips exist and are not readable.**~~ **Answered, 2026-08-23,
+   and not the way this section assumed.** They were readable —
+   `build_files/lib/rcc.py` is a reader for the Qt `.rcc` format, because `rcc`
+   itself has no `--reverse` — and they are the letters' **names**, not their
+   sounds: "ay bee see", the alphabet song. Measured three ways in
+   `docs/spikes/first-party-install.md` §3.2; the tell is that `z` is the one
+   letter of `b c d e g p t v z` whose tail is *not* the shared /iː/ vowel,
+   because an en_GB speaker says "zed". Playing "ess" for /s/ is worse than
+   "sss", not better, so they are shipped at
+   `/usr/share/kidnix/phonemes/en_GB/letter-names/` labelled as what they are
+   and nothing reads them. The directory above is created, empty of phonemes,
+   with `phonemes.toml` beside it saying so for all 114 GPCs.
 2. **No digraph clip exists anywhere.** ~20 clips, one adult, one morning
    (research 10 §5 and open question 8), and they become kidnix's own
    CC-BY-SA-4.0 asset.
@@ -772,7 +779,20 @@ cannot reach it.
 
 ---
 
-## 13. Getting it onto the image — not done yet
+## 13. Getting it onto the image — **done, 2026-08-23**
+
+> Items 1–7 below landed in `build_files/64-first-party-activities.sh`,
+> `system_files/usr/share/kidnix/activities/sounds-and-words.toml`,
+> `system_files/etc/kidnix/sounds_and_words.toml` and
+> `tests/image/test_first_party.sh`. Item 8 (the e2e step) has not.
+> `docs/spikes/first-party-install.md` is the write-up, and it records three
+> places where the plan below was wrong: the corpus is not where
+> `corpus.data_dir()` looks once installed (§2.2 there); the default ceiling is
+> shipped **commented out** rather than written out, because a `/etc` file that
+> set it would be read as a parent's own answer (§2.5); and item 6's icon
+> exists, drawn, in the activity's own package rather than deferred to
+> `icons-brief.md`. The phoneme clips did not land — see §12.6, which now says
+> why.
 
 Nothing here is installed. `manifest.toml` is deliberately **not** in
 `system_files/usr/share/kidnix/activities/`, so there is no tile, because a tile

@@ -50,6 +50,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..activities import Activity, in_age_band  # noqa: E402
+from ..i18n import N_, _  # noqa: E402
 from ..util import paginate  # noqa: E402
 from ..widgets import (  # noqa: E402
     ActivityTile,
@@ -94,8 +95,13 @@ def all_done_index(per_page: int) -> int:
 #: SYNTHESIS G3: never a silent denial. Two different reasons, two different
 #: sentences -- a child told "ask a grown-up" about something that is simply
 #: not installed would be sent to ask for something nobody can give them.
-NOT_ALLOWED_LINE = "Ask a grown-up for this one."
-NOT_READY_LINE = "This one isn't ready yet. Ask a grown-up."
+NOT_ALLOWED_LINE = N_("Ask a grown-up for this one.")
+NOT_READY_LINE = N_("This one isn't ready yet. Ask a grown-up.")
+
+
+#: What Home says on arrival. Not :attr:`Screen.intro`, because Home speaks it
+#: after a refresh rather than before one.
+HOME_INTRO = N_("Home. What shall we make?")
 
 
 @dataclass(frozen=True)
@@ -103,11 +109,21 @@ class AllDone:
     """The "I'm finished" tile, shaped like an activity so it lays out like one."""
 
     id: str = ALL_DONE_ID
-    name: str = "All done"
+    #: Msgids. A frozen dataclass default is evaluated at import, so the
+    #: translation happens in the two properties below.
+    name_msgid: str = N_("All done")
     icon: str = "kidnix-moon"
     icon_kind: str = "icon-name"
     category: str = "make"
-    speak_text: str = "All done for today?"
+    speak_msgid: str = N_("All done for today?")
+
+    @property
+    def name(self) -> str:
+        return _(self.name_msgid)
+
+    @property
+    def speak_text(self) -> str:
+        return _(self.speak_msgid)
 
 
 ALL_DONE = AllDone()
@@ -136,7 +152,7 @@ def lay_out(activities: Sequence[T], index: int) -> list[T | AllDone | None]:
 
 
 class HomeScreen(Screen):
-    name = "Home"
+    name = N_("Home")
 
     def build(self) -> None:
         metrics = self.ctx.metrics
@@ -148,7 +164,7 @@ class HomeScreen(Screen):
         self.carousel.set_vexpand(True)
         self.append(self.carousel)
 
-        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what="activities")
+        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what=N_("activities"))
         self.pager.set_margin_bottom(metrics.gap)
         self.append(self.pager)
 
@@ -282,7 +298,7 @@ class HomeScreen(Screen):
             self.ctx.speech_ui,
             on_activate=partial(self._activate, cell),
             allowed=denial is None,
-            denial=denial or NOT_ALLOWED_LINE,
+            denial=denial or _(NOT_ALLOWED_LINE),
             thumbnail=latest.thumbnail if latest is not None else None,
             label_points=points,
             label_height=label_height,
@@ -297,9 +313,9 @@ class HomeScreen(Screen):
         so it gets the other line.
         """
         if not self.ctx.config.is_allowed(activity.id):
-            return NOT_ALLOWED_LINE
+            return _(NOT_ALLOWED_LINE)
         if not getattr(activity, "usable", True):
-            return NOT_READY_LINE
+            return _(NOT_READY_LINE)
         return None
 
     def _activate(self, activity: Activity) -> None:
@@ -330,4 +346,4 @@ class HomeScreen(Screen):
 
     def on_enter(self) -> None:
         self.refresh()
-        self.ctx.speech.speak("Home. What shall we make?")
+        self.ctx.speech.speak(_(HOME_INTRO))

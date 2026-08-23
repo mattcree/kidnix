@@ -316,6 +316,11 @@ SHIPPED_LABELS = {
     "kolf": ("Mini golf", "Mini golf"),
     "supertux": ("Jump and run", "Jump and run"),
     "kiwix": ("Library", "Library"),
+    # The first kidnix-written activity to reach a tile (wave: first-party).
+    "sounds-and-words": (
+        "Sounds & words",
+        "Sounds and words. Find the sound, then push the sounds together to make a word.",
+    ),
 }
 
 

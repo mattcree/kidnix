@@ -13,14 +13,19 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
 from ..context import ShellContext  # noqa: E402
+from ..i18n import _  # noqa: E402
 
 
 class Screen(Gtk.Box):
     """Base surface: a vertical box that fills the area under the band."""
 
-    #: Stack name, also the accessible name of the surface.
+    #: The accessible name of the surface. A **msgid** (the stack name is the
+    #: key in ``app.ShellWindow.screens``, not this), translated where it is
+    #: handed to GTK below -- a class attribute is evaluated at import time,
+    #: which is before the language is known (:mod:`kidnix_shell.i18n`).
     name = "screen"
-    #: Spoken once when the child arrives here. Empty means "say nothing".
+    #: Spoken once when the child arrives here. A msgid too; empty means
+    #: "say nothing".
     intro = ""
 
     def __init__(self, ctx: ShellContext) -> None:
@@ -29,7 +34,7 @@ class Screen(Gtk.Box):
         self.set_hexpand(True)
         self.set_vexpand(True)
         self.add_css_class("surface")
-        self.update_property([Gtk.AccessibleProperty.LABEL], [self.name])
+        self.update_property([Gtk.AccessibleProperty.LABEL], [_(self.name)])
         self.build()
 
     def build(self) -> None:
@@ -38,7 +43,7 @@ class Screen(Gtk.Box):
     def on_enter(self) -> None:
         """The child just arrived. Refresh anything stale and speak the intro."""
         if self.intro:
-            self.ctx.speech.speak(self.intro)
+            self.ctx.speech.speak(_(self.intro))
 
     def on_leave(self) -> None:
         """The child just left."""

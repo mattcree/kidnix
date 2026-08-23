@@ -22,6 +22,8 @@ from .activities import (
     resolve_availability,
     resolve_shelves,
 )
+from .i18n import install as install_language
+from .i18n import resolve_language
 from .metrics import ScreenOverride, parse_screen
 from .research import discover as discover_research
 from .session import SessionPolicy, load_policy
@@ -244,6 +246,19 @@ def main(argv: list[str] | None = None) -> int:
     # The parent config is read only from root-owned locations; --config is a
     # developer naming a file, and is the only other path we will ever read.
     config = ParentConfig.discover(args.config)
+
+    # **Before a single sentence is built** (ADR-0012). Every child-facing
+    # string in the shell is a msgid until something calls `_()` on it, and the
+    # first thing that does is a screen, which is built by `ShellApplication`
+    # below. The profile taken here is the one the shell will *start* on --
+    # Who's here? may hand it a different child, and `ShellWindow._use_profile`
+    # reinstalls and rebuilds if that child's language differs.
+    language = resolve_language(
+        profile_language=config.profiles[0].language if config.profiles else "",
+        access_language=config.access.language,
+    )
+    install_language(language)
+    log.info("language: %s", language)
 
     if args.demo:
         from .demo import build_demo_world

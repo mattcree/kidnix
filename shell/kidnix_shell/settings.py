@@ -360,6 +360,17 @@ class Profile:
     #: and it is still one more thing between a child and the thing they came
     #: to do, so a parent may turn it off per child.
     skip_next_choice: bool = False
+    #: **This child's language** (ADR-0012, docs/design/i18n.md). ``""`` means
+    #: "the machine's" (``[access] language``, then the environment). It is per
+    #: *child* and not per machine because 23.8% of English primary pupils have
+    #: a first language other than English (DfE Jan 2026) and a bilingual
+    #: household is one where the siblings do not always match. Anything
+    #: gettext understands: ``"cy"``, ``"pl"``, ``"en_GB"``.
+    #:
+    #: Changing it mid-session reinstalls the catalogue and **rebuilds the
+    #: screens** (:meth:`kidnix_shell.app.ShellWindow._use_profile`); a
+    #: same-language switch does nothing at all.
+    language: str = ""
 
     @property
     def speak_text(self) -> str:
@@ -638,6 +649,7 @@ class ParentConfig:
                     badge=_badge(raw.get("badge"), len(profiles)),
                     age_band=str(raw.get("age_band", base.age_band)),
                     skip_next_choice=bool(raw.get("skip_next_choice", base.skip_next_choice)),
+                    language=str(raw.get("language", base.language) or "").strip(),
                 )
             )
 
@@ -718,6 +730,7 @@ class ParentConfig:
             f"calm = {str(self.access.calm).lower()}",
             f"sound_volume = {self.access.sound_volume}",
             f"mute = {str(self.access.mute).lower()}",
+            f"language = {_toml_str(self.access.language)}",
             "",
             "[home]",
             f"initial_tiles = {self.home.initial_tiles}",
@@ -736,6 +749,7 @@ class ParentConfig:
                 f"badge = {_toml_str(profile.badge)}",
                 f"age_band = {_toml_str(profile.age_band)}",
                 f"skip_next_choice = {str(profile.skip_next_choice).lower()}",
+                f"language = {_toml_str(profile.language)}",
             ]
         for option in self.next_after:
             lines += [

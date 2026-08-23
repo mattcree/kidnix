@@ -66,12 +66,16 @@ def tile_fit(name: str, metrics: Metrics) -> LabelFit:
     )
 
 
-# --- the ten names on the panels we ship for ------------------------------
+# --- the shipped names on the panels we ship for --------------------------
+
+#: How many tiles the image ships. A guard, not a target: if it moves, the
+#: measurements below were taken against a different set and want re-taking.
+SHIPPED_ACTIVITY_COUNT = 11
 
 
-def test_the_image_still_ships_ten_activities() -> None:
+def test_the_image_still_ships_the_measured_set() -> None:
     """If this changes, the numbers below were measured against the wrong set."""
-    assert len(shipped_names()) == 10
+    assert len(shipped_names()) == SHIPPED_ACTIVITY_COUNT
 
 
 @pytest.mark.parametrize(("width", "height", "dpi"), PANELS)

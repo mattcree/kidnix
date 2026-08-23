@@ -17,16 +17,22 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk  # noqa: E402
 
+from ..i18n import N_, _  # noqa: E402
 from ..labels import text_width_px  # noqa: E402
 from ..metrics import TILE_CHROME_X_PX  # noqa: E402
 from ..settings import Profile  # noqa: E402
 from ..widgets import ChildButton, big_label, fit_gtk_label, icon_image, next_key  # noqa: E402
 from . import Screen  # noqa: E402
 
+#: The headline, and the plain corner tile. Both msgids: they are read at
+#: build time, which is after the language is chosen.
+WHOS_HERE_TITLE = N_("Who's here?")
+GROWNUP_TILE = N_("Grown-up")
+
 
 class WhosHereScreen(Screen):
-    name = "Who's here?"
-    intro = "Who's here?"
+    name = N_("Who's here?")
+    intro = N_("Who's here?")
 
     def build(self) -> None:
         metrics = self.ctx.metrics
@@ -37,7 +43,7 @@ class WhosHereScreen(Screen):
         self.set_margin_end(metrics.gap)
         self.set_margin_bottom(metrics.gap)
 
-        title = big_label("Who's here?", "screen-title")
+        title = big_label(_(WHOS_HERE_TITLE), "screen-title")
         # One gap, not two, above and below the faces. Who's here is the
         # tallest surface in the shell on a dense panel -- a 30 mm face floor,
         # a 20 mm corner tile and a 40 pt headline are all floors that cannot
@@ -64,12 +70,12 @@ class WhosHereScreen(Screen):
         corner.set_vexpand(True)
         corner.set_margin_top(metrics.gap)
         grownup = ChildButton(
-            speak_text="Grown-up",
+            speak_text=_(GROWNUP_TILE),
             on_activate=self.ctx.host.open_grownup,
             width=metrics.target_mm(40),
             height=metrics.min_target,
         )
-        grownup.set_child(Gtk.Label(label="Grown-up"))
+        grownup.set_child(Gtk.Label(label=_(GROWNUP_TILE)))
         corner.append(grownup)
         self.append(corner)
 

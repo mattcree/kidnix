@@ -19,6 +19,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
+from ..i18n import N_, _  # noqa: E402
 from ..journal import Entry, build_pages  # noqa: E402
 from ..theme import points_for  # noqa: E402
 from ..voice import has_note  # noqa: E402
@@ -38,6 +39,18 @@ from . import Screen  # noqa: E402
 CARDS_PER_PAGE = 8
 CARD_COLUMNS = 4
 
+#: What is written on this screen, as msgids. Everything else on S4 is a
+#: picture: the cards carry no captions at all (08 section 4.3).
+MY_THINGS = N_("My Things")
+MY_FAVOURITES = N_("My favourites")
+NOTHING_YET = N_("Nothing here yet. Go and make something!")
+STARRED = N_("One of my favourites")
+NOT_STARRED = N_("Make this a favourite")
+ADDED_TO_FAVOURITES = N_("Added to my favourites.")
+REMOVED_FROM_FAVOURITES = N_("Taken out of my favourites.")
+MY_THINGS_EMPTY_INTRO = N_("My Things. Nothing here yet.")
+MY_THINGS_INTRO = N_("My Things.")
+
 # S4's cards are deliberately caption-less: the card *is* the thumbnail (08
 # section 4.3), and the only title we have for an entry carries a clock time
 # ("Draw 14:32"), which there are no digits for anywhere in the child's shell.
@@ -54,7 +67,7 @@ def _text_width(screen: Screen) -> int:
 
 
 class JournalScreen(Screen):
-    name = "My Things"
+    name = MY_THINGS
 
     #: Set by the host for S7's "Show a grown-up": read-only, no resuming.
     showing_mode = False
@@ -66,7 +79,7 @@ class JournalScreen(Screen):
 
         text_width = _text_width(self)
         self.shelf_heading = big_label(
-            "My favourites",
+            _(MY_FAVOURITES),
             "shelf-heading",
             width=text_width,
             base_pt=points_for(metrics, ".shelf-heading"),
@@ -84,7 +97,7 @@ class JournalScreen(Screen):
         self.append(self.carousel)
 
         self.empty = big_label(
-            "Nothing here yet. Go and make something!",
+            _(NOTHING_YET),
             "big-line",
             width=text_width,
             base_pt=points_for(metrics, ".big-line"),
@@ -94,7 +107,7 @@ class JournalScreen(Screen):
         self.empty.set_valign(Gtk.Align.CENTER)
         self.append(self.empty)
 
-        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what="things")
+        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what=N_("things"))
         self.pager.set_margin_bottom(metrics.gap)
         self.append(self.pager)
 
@@ -139,7 +152,7 @@ class JournalScreen(Screen):
             self.shelf.append(self._card(entry, size=int(metrics.card_size * 0.7)))
 
         groups = self.ctx.journal.grouped()
-        has_entries = any(entries for _, entries in groups)
+        has_entries = any(entries for _label, entries in groups)
         self.empty.set_visible(not has_entries)
         self.carousel.set_visible(has_entries)
         if not has_entries:
@@ -273,7 +286,7 @@ class JournalScreen(Screen):
 
     @staticmethod
     def _star_text(entry: Entry) -> str:
-        return "One of my favourites" if entry.starred else "Make this a favourite"
+        return _(STARRED) if entry.starred else _(NOT_STARRED)
 
     # -- actions --
 
@@ -316,7 +329,7 @@ class JournalScreen(Screen):
         if has_note(entry.directory):
             # The whole of the retakes UI: one quiet word, and only when there
             # was already a note. A second recording replaces the first.
-            self.ctx.speech.speak(MIC_AGAIN_SPEAK)
+            self.ctx.speech.speak(_(MIC_AGAIN_SPEAK))
         voice.start(entry.directory)
 
     def _mic_state(self, recording: bool) -> None:
@@ -337,9 +350,7 @@ class JournalScreen(Screen):
 
     def _toggle_star(self, entry: Entry) -> None:
         starred = self.ctx.journal.toggle_star(entry)
-        self.ctx.speech.speak(
-            "Added to my favourites." if starred else "Taken out of my favourites."
-        )
+        self.ctx.speech.speak(_(ADDED_TO_FAVOURITES) if starred else _(REMOVED_FROM_FAVOURITES))
         self.refresh()
 
     def undo_star(self) -> bool:
@@ -348,7 +359,7 @@ class JournalScreen(Screen):
         if not favourites:
             return False
         self.ctx.journal.set_starred(favourites[0], False)
-        self.ctx.speech.speak("Taken out of my favourites.")
+        self.ctx.speech.speak(_(REMOVED_FROM_FAVOURITES))
         self.refresh()
         return True
 
@@ -370,11 +381,11 @@ class JournalScreen(Screen):
             self.mic.set_visible(False)
         count = len(self.ctx.journal.entries)
         if count == 0:
-            self.ctx.speech.speak("My Things. Nothing here yet.")
+            self.ctx.speech.speak(_(MY_THINGS_EMPTY_INTRO))
         elif self.showing_mode:
-            self.ctx.speech.speak_then("My Things.", MIC_SPEAK)
+            self.ctx.speech.speak_then(_(MY_THINGS_INTRO), _(MIC_SPEAK))
         else:
-            self.ctx.speech.speak("My Things.")
+            self.ctx.speech.speak(_(MY_THINGS_INTRO))
 
     def on_leave(self) -> None:
         if self.ctx.voice is not None and self.ctx.voice.recording:

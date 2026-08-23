@@ -70,6 +70,12 @@ readonly ALLOWED_MANIFEST_LICENCES=(
     MIT Apache-2.0 BSD-3-Clause OFL-1.1
     CC-BY-SA-4.0 CC-BY-4.0 CC0-1.0 public-domain
     GPL-2.0-or-later GPL-3.0-or-later LGPL-2.1-or-later AGPL-3.0-only
+    # UK Crown copyright content. The Open Government Licence v3.0 grants a
+    # worldwide, royalty-free, perpetual licence to copy and distribute, and the
+    # National Archives state it is interoperable with CC-BY-4.0. The one
+    # obligation is the attribution line, which every file carrying this licence
+    # in the image has at the top of it. Added for the Letters and Sounds corpus.
+    OGL-UK-3.0
 )
 
 # Trees that hold vendored, non-RPM content. Anything here without a manifest
@@ -80,6 +86,9 @@ readonly VENDORED_TREES=(
     /usr/share/kidnix/voices
     /usr/share/gcompris-qt/rcc/data3
     /usr/share/backgrounds/kidnix
+    # Unpacked out of the GCompris bundle above by build_files/lib/rcc.py, so
+    # the same CC-BY-SA-4.0 obligation follows them out of the .rcc.
+    /usr/share/kidnix/phonemes
 )
 
 printf '\033[1mkidnix licence gate\033[0m -- %s\n' "$(sed -n 's/^PRETTY_NAME="\(.*\)"$/\1/p' /usr/lib/os-release)"
@@ -253,14 +262,47 @@ done
 
 # The voice licence is stated in the model's own card and nowhere else, so the
 # card is the evidence and it has to travel with the model.
+#
+# Two acceptable answers, not one. Public domain owes nothing. CC-BY-4.0 owes an
+# attribution, so it is only acceptable while the attribution is actually in the
+# image -- which is why the second branch checks for the file rather than just
+# for the licence. en_GB-alba-medium (the default voice since 2026-08-23) is the
+# CC-BY-4.0 case; en_GB-cori is the public-domain one.
+VOICE_ATTRIBUTION=/usr/share/licenses/kidnix-voices/ATTRIBUTION
 for card in /usr/share/kidnix/voices/*.MODEL_CARD; do
     [[ -s "${card}" ]] || continue
+    name="$(basename "${card}")"
     if grep -qi 'public domain' "${card}"; then
-        ok "$(basename "${card}") still states public domain"
+        ok "${name} states public domain (nothing owed)"
+    elif grep -qiE 'creativecommons\.org/licenses/by/4\.0|CC-?BY-?4\.0' "${card}"; then
+        if [[ -s "${VOICE_ATTRIBUTION}" ]] && grep -qF "${name%.MODEL_CARD}" "${VOICE_ATTRIBUTION}"; then
+            ok "${name} is CC-BY-4.0 and its credit is in ${VOICE_ATTRIBUTION}"
+        else
+            no "${name} is CC-BY-4.0 and its credit is in ${VOICE_ATTRIBUTION}" \
+                "the licence obliges an attribution and the image does not carry one for this voice"
+        fi
     else
-        no "$(basename "${card}") still states public domain" "$(head -3 "${card}" | tr '\n' ' ')"
+        no "${name} states a licence this image is allowed to redistribute" \
+            "$(head -3 "${card}" | tr '\n' ' ')"
     fi
 done
+
+# The same shape for the one other recorded-audio obligation kidnix took on:
+# the GCompris letter-name clips build_files/64-first-party-activities.sh
+# unpacks out of the .rcc. Inside the bundle the attribution travelled with it;
+# unpacked into loose files it has to travel with them, and CC-BY-SA-4.0 owes
+# both a credit and the licence's name.
+LETTER_NAMES=/usr/share/kidnix/phonemes/en_GB/letter-names
+if [[ -d "${LETTER_NAMES}" ]]; then
+    if [[ -s "${LETTER_NAMES}/ATTRIBUTION" ]] \
+       && grep -qiE 'creativecommons\.org/licenses/by-sa/4\.0|CC-?BY-?SA-?4\.0' "${LETTER_NAMES}/ATTRIBUTION" \
+       && grep -qi 'gcompris' "${LETTER_NAMES}/ATTRIBUTION"; then
+        ok "the unpacked GCompris clips carry their CC-BY-SA-4.0 credit"
+    else
+        no "the unpacked GCompris clips carry their CC-BY-SA-4.0 credit" \
+            "${LETTER_NAMES}/ATTRIBUTION is missing, empty, or names neither the licence nor GCompris"
+    fi
+fi
 
 # docs/LICENSES.md §6: upstream's piper tarball bundles a prebuilt GPL-3.0
 # espeak-ng, and shipping someone else's prebuilt GPL binary means owing its

@@ -36,10 +36,27 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .i18n import N_, NP_, _, ngettext
+from .words import number_word as _number_word
+
 log = logging.getLogger(__name__)
 
-#: Words, not digits. Shared with the Goodbye headline.
+#: Words, not digits. Shared with the Goodbye headline. The words themselves
+#: live in :mod:`kidnix_shell.words` (0-20, translatable); this is the slice
+#: the Goodbye sentence is willing to say out loud.
 WORDS = ("nothing", "one", "two", "three", "four", "five")
+
+#: "one thing" / "two things", as a msgid pair. The *form* is chosen by the
+#: catalogue's ``Plural-Forms`` -- Welsh has six of them -- and the count is
+#: substituted as a **word**, never a digit.
+THINGS = NP_("{count} thing", "{count} things")
+
+#: The E1 sentence, and the two ways it grows. Named placeholders throughout:
+#: a translator may put the verb last, which Welsh does.
+MADE_SENTENCE = N_("You {verb} {count} {noun}")
+COLOUR_CLAUSE = NP_("used {count} colour", "used {count} colours")
+AND_JOIN = N_("{made} and {clause}")
+FULL_STOP = N_("{sentence}.")
 
 #: Above this the shell stops counting out loud and says "lots". A five-year-old
 #: has no use for "eleven colours", and neither has the sentence.
@@ -49,33 +66,31 @@ MANY_ABOVE = 5
 def count_phrase(count: int) -> str:
     """ "two things", "five things" -- and never a numeral (03 #32)."""
     if count <= 0:
-        return "nothing"
-    if count == 1:
-        return "one thing"
-    if count < len(WORDS):
-        return f"{WORDS[count]} things"
-    return f"{count} things"
+        return _number_word(0)
+    # Past the words this sentence is willing to say, the number itself is the
+    # least bad answer -- it is a grown-up-facing count by then. Everything
+    # below that is a word, and the noun's form is the catalogue's business.
+    word = _number_word(count) if count < len(WORDS) else str(count)
+    return ngettext(*THINGS, count).format(count=word)
 
 
 def number_word(count: int) -> str:
     """ "two", or "lots" once the number stops being useful."""
-    if count > MANY_ABOVE or count >= len(WORDS):
-        return "lots of"
-    return WORDS[count]
+    return _number_word(count, many_above=MANY_ABOVE)
 
 
 #: What the child did, by activity, then by category. Present tense is wrong
 #: here: the session is over, and the sentence is about what happened.
 BY_ACTIVITY: dict[str, tuple[str, str, str]] = {
-    "tuxpaint": ("drew", "picture", "pictures"),
-    "ktuberling": ("made", "face", "faces"),
+    "tuxpaint": (N_("drew"), *NP_("picture", "pictures")),
+    "ktuberling": (N_("made"), *NP_("face", "faces")),
 }
 BY_CATEGORY: dict[str, tuple[str, str, str]] = {
-    "make": ("made", "thing", "things"),
-    "learn": ("found out about", "thing", "things"),
-    "play": ("played", "game", "games"),
+    "make": (N_("made"), *NP_("thing", "things")),
+    "learn": (N_("found out about"), *NP_("thing", "things")),
+    "play": (N_("played"), *NP_("game", "games")),
 }
-DEFAULT_WORDS = ("made", "thing", "things")
+DEFAULT_WORDS = (N_("made"), *NP_("thing", "things"))
 
 
 def words_for(activity_ids: Iterable[str], categories: Iterable[str]) -> tuple[str, str, str]:
@@ -113,11 +128,18 @@ def descriptive_line(summary: MadeSummary) -> str:
     """E1's line. Empty string when there is nothing true to say."""
     if summary.count <= 0:
         return ""
-    noun = summary.singular if summary.count == 1 else summary.plural
-    what = f"You {summary.verb} {number_word(summary.count)} {noun}"
+    # The noun's form is the catalogue's decision, not ours: "singular or
+    # plural" is an English answer, and Welsh has six forms.
+    noun = ngettext(summary.singular, summary.plural, summary.count)
+    what = _(MADE_SENTENCE).format(
+        verb=_(summary.verb), count=number_word(summary.count), noun=noun
+    )
     if summary.colours and summary.colours > 1:
-        what += f" and used {number_word(summary.colours)} colours"
-    return what + "."
+        clause = ngettext(*COLOUR_CLAUSE, summary.colours).format(
+            count=number_word(summary.colours)
+        )
+        what = _(AND_JOIN).format(made=what, clause=clause)
+    return _(FULL_STOP).format(sentence=what)
 
 
 # --- counting the colours in a picture -----------------------------------

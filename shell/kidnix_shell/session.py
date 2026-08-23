@@ -18,6 +18,8 @@ from datetime import date, datetime, time, timedelta
 from enum import Enum
 from pathlib import Path
 
+from .i18n import N_, _
+
 log = logging.getLogger(__name__)
 
 
@@ -586,16 +588,16 @@ class Session:
 # one (01 #19, 01 #30 -- a countdown is an anxiety animation).
 
 #: More than two thirds of the sitting still ahead.
-LOTS_LEFT = "Lots of time left."
+LOTS_LEFT = N_("Lots of time left.")
 #: A third to two thirds -- about ten minutes of a twenty-five minute session,
 #: which is a bedtime story. The unit a child already owns.
-ONE_STORY_LEFT = "About as long as one story."
+ONE_STORY_LEFT = N_("About as long as one story.")
 #: Inside the last third, but before the ending offer.
-A_LITTLE_LEFT = "A little bit of time left."
+A_LITTLE_LEFT = N_("A little bit of time left.")
 #: The last tenth. The same words the ritual is about to use, said early.
-NEARLY_TIME = "Nearly time to put things away."
+NEARLY_TIME = N_("Nearly time to put things away.")
 #: No session running: Goodbye, or the shell sitting idle. Honest, not sad.
-NOT_RUNNING = "The sun has gone down for today."
+NOT_RUNNING = N_("The sun has gone down for today.")
 
 LOTS_ABOVE = 2.0 / 3.0
 ONE_STORY_ABOVE = 1.0 / 3.0
@@ -610,12 +612,12 @@ def time_left_words(fraction_left: float, *, running: bool = True) -> str:
     twelve words or fewer (01 #16).
     """
     if not running:
-        return NOT_RUNNING
+        return _(NOT_RUNNING)
     fraction = max(0.0, min(1.0, fraction_left))
     if fraction > LOTS_ABOVE:
-        return LOTS_LEFT
+        return _(LOTS_LEFT)
     if fraction > ONE_STORY_ABOVE:
-        return ONE_STORY_LEFT
+        return _(ONE_STORY_LEFT)
     if fraction > A_LITTLE_ABOVE:
-        return A_LITTLE_LEFT
-    return NEARLY_TIME
+        return _(A_LITTLE_LEFT)
+    return _(NEARLY_TIME)

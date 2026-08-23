@@ -35,6 +35,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
+from ..i18n import N_, _  # noqa: E402
 from ..next_after import NextAfter  # noqa: E402
 from ..util import paginate  # noqa: E402
 from ..widgets import (  # noqa: E402
@@ -47,9 +48,9 @@ from ..widgets import (  # noqa: E402
 )
 from . import Screen  # noqa: E402
 
-TITLE = "What's next after?"
+TITLE = N_("What's next after?")
 #: Said once on arrival. Two short sentences, no digits, no obligation (01 #16).
-INTRO = "What's next, after the computer? Pick one."
+INTRO = N_("What's next, after the computer? Pick one.")
 
 
 class NextAfterScreen(Screen):
@@ -61,14 +62,14 @@ class NextAfterScreen(Screen):
         self.set_margin_end(metrics.gap * 2)
         self.set_margin_top(metrics.gap)
 
-        title = big_label(TITLE, "screen-title")
+        title = big_label(_(TITLE), "screen-title")
         self.append(title)
 
         self.carousel: Adw.Carousel = quiet_carousel()
         self.carousel.set_vexpand(True)
         self.append(self.carousel)
 
-        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what="things")
+        self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what=N_("things"))
         self.pager.set_margin_bottom(metrics.gap)
         self.append(self.pager)
 

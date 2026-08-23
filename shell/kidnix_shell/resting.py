@@ -43,25 +43,27 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from .i18n import N_, _
+
 # --- the words -----------------------------------------------------------
 
 #: Daytime. Named for what the machine is doing, not for a time of day.
-RESTING_TITLE = "Resting"
+RESTING_TITLE = N_("Resting")
 #: Bedtime. The one place the night vocabulary is true.
-SLEEPING_TITLE = "Goodnight"
+SLEEPING_TITLE = N_("Goodnight")
 
 #: Daytime, when there is a window later today.
-RESTING_LATER_TODAY = "kidnix is resting. Back after tea."
+RESTING_LATER_TODAY = N_("kidnix is resting. Back after tea.")
 #: Daytime, when there is not.
-RESTING_TOMORROW = "kidnix is resting. Back tomorrow."
+RESTING_TOMORROW = N_("kidnix is resting. Back tomorrow.")
 #: Bedtime. No demand in it: the child is not being sent to find anybody.
-SLEEPING_LINE = "kidnix is sleeping."
+SLEEPING_LINE = N_("kidnix is sleeping.")
 
 #: What "Goodnight" is called at four in the afternoon. The child already
 #: knows this phrase -- it is the Home tile they press when they have had
 #: enough -- and it is true at any hour.
-DAYTIME_GOODNIGHT_LABEL = "All done"
-BEDTIME_GOODNIGHT_LABEL = "Goodnight"
+DAYTIME_GOODNIGHT_LABEL = N_("All done")
+BEDTIME_GOODNIGHT_LABEL = N_("Goodnight")
 
 #: **What that button says out loud, and what the caption under the band
 #: carries.** The label was switched on ``is_bedtime`` and the *voice* was not,
@@ -74,21 +76,28 @@ BEDTIME_GOODNIGHT_LABEL = "Goodnight"
 #: "Time to rest" is the *machine* resting -- it is the name of the screen this
 #: button leads to (:data:`RESTING_TITLE`) and the line that screen speaks. It
 #: is not an instruction to the child to go and rest; nothing here instructs.
-DAYTIME_GOODNIGHT_SPEECH = "All done. Time to rest."
-BEDTIME_GOODNIGHT_SPEECH = "Goodnight"
+DAYTIME_GOODNIGHT_SPEECH = N_("All done. Time to rest.")
+BEDTIME_GOODNIGHT_SPEECH = N_("Goodnight")
 
 #: Who's here, when the day's computer time is gone. Warm, non-explanatory,
 #: and it points at something to do rather than at the machine's own return
 #: (D6: the system has no interest in whether the child comes back). No
 #: "tomorrow", no "next time" -- see forum #28, #47.
-BUDGET_SPENT_REFUSAL = "That's all the computer time for today. Ready to go and play?"
+BUDGET_SPENT_REFUSAL = N_("That's all the computer time for today. Ready to go and play?")
 #: The same shape at bedtime, where night words are true.
-BEDTIME_REFUSAL = "It's night time. kidnix is going to sleep."
+BEDTIME_REFUSAL = N_("It's night time. kidnix is going to sleep.")
 
 #: Goodbye's headline when the child chose no destination. Warm, about the
 #: turn being over rather than about producing anything, and it never promises
 #: a return (forum #28: "See you next time" was firing on the flattest day).
-ALL_DONE_HEADLINE = "All done for today."
+ALL_DONE_HEADLINE = N_("All done for today.")
+
+
+#: The two answers :func:`back_when_words` gives, as msgids. "After tea" is a
+#: unit a five-year-old owns and a clock is not; a translator gets to pick the
+#: meal their households actually name.
+LATER_TODAY_WORDS = N_("after tea")
+TOMORROW_WORDS = N_("tomorrow")
 
 
 def back_when_words(now: datetime, next_open: datetime) -> str:
@@ -98,27 +107,27 @@ def back_when_words(now: datetime, next_open: datetime) -> str:
     and there are no digits anywhere in the child-facing shell.
     """
     if next_open > now and next_open.date() == now.date():
-        return "after tea"
-    return "tomorrow"
+        return _(LATER_TODAY_WORDS)
+    return _(TOMORROW_WORDS)
 
 
 def resting_line(now: datetime, next_open: datetime) -> str:
     """The daytime line, with when in it."""
-    if back_when_words(now, next_open) == "after tea":
-        return RESTING_LATER_TODAY
-    return RESTING_TOMORROW
+    if back_when_words(now, next_open) == _(LATER_TODAY_WORDS):
+        return _(RESTING_LATER_TODAY)
+    return _(RESTING_TOMORROW)
 
 
 def rest_title(*, bedtime: bool) -> str:
-    return SLEEPING_TITLE if bedtime else RESTING_TITLE
+    return _(SLEEPING_TITLE) if bedtime else _(RESTING_TITLE)
 
 
 def rest_line(now: datetime, next_open: datetime, *, bedtime: bool) -> str:
-    return SLEEPING_LINE if bedtime else resting_line(now, next_open)
+    return _(SLEEPING_LINE) if bedtime else resting_line(now, next_open)
 
 
 def goodnight_label(*, bedtime: bool) -> str:
-    return BEDTIME_GOODNIGHT_LABEL if bedtime else DAYTIME_GOODNIGHT_LABEL
+    return _(BEDTIME_GOODNIGHT_LABEL) if bedtime else _(DAYTIME_GOODNIGHT_LABEL)
 
 
 def goodnight_speech(*, bedtime: bool) -> str:
@@ -128,11 +137,11 @@ def goodnight_speech(*, bedtime: bool) -> str:
     and the utterance can afford a second clause -- not because the two may
     disagree about what time of day it is.
     """
-    return BEDTIME_GOODNIGHT_SPEECH if bedtime else DAYTIME_GOODNIGHT_SPEECH
+    return _(BEDTIME_GOODNIGHT_SPEECH) if bedtime else _(DAYTIME_GOODNIGHT_SPEECH)
 
 
 def refusal_line(*, bedtime: bool) -> str:
-    return BEDTIME_REFUSAL if bedtime else BUDGET_SPENT_REFUSAL
+    return _(BEDTIME_REFUSAL) if bedtime else _(BUDGET_SPENT_REFUSAL)
 
 
 # --- what the screen does when a child hits it ---------------------------

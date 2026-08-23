@@ -11,10 +11,10 @@ So there are two routes to a sound, and this module is the one place that knows
 which one a given GPC is on:
 
 ``RECORDED``
-    A real recording of an adult saying the phoneme, played as audio. The a-z
-    clips exist already: GCompris ships ``voices-en_GB``, CC-BY-SA-4.0, and it
-    is in the image (``docs/LICENSES.md``). See :data:`GCOMPRIS_BUNDLE_DIR` for
-    why they are not readable *yet*.
+    A real recording of an adult saying the phoneme, played as audio.
+    :data:`CLIP_DIR` is where one would be, and **it is empty on the image
+    today**: the a-z clips in GCompris' ``voices-en_GB`` turned out to be the
+    letters' *names*, not their sounds. See below.
 
 ``SPELLED``
     A **placeholder**, and marked as one everywhere it is used. The phoneme's
@@ -32,14 +32,16 @@ in calm mode or with the voice muted the caption still carries the line.
 The two things a reader should not have to find out the hard way
 ---------------------------------------------------------------
 
-1. **The GCompris clips are inside a Qt ``.rcc`` bundle, not on disk.**
-   ``/usr/share/gcompris-qt/rcc/data3/voices-ogg/voices-en_GB-*.rcc`` is a Qt
-   resource archive; ``build_files/55-gcompris.sh`` already reads its name table
-   to assert ``alphabet/U0061.ogg`` .. ``U007A.ogg`` are present. Getting them
-   out is a build-stage job (unpack once into :data:`CLIP_DIR`), it belongs in
-   ``build_files/``, and this activity does not own that directory. Until that
-   lands every GPC resolves to ``SPELLED``, which is why the fallback had to be
-   good enough to ship on its own.
+1. **The GCompris a-z clips are letter NAMES, not letter sounds.** They were
+   unpacked out of the ``.rcc`` on 2026-08-23 (``build_files/lib/rcc.py``, a
+   reader for the Qt resource format, because ``rcc`` has no ``--reverse``) and
+   measured: the tail of ``b c d e g p t v`` is the same vowel, ``z`` is not
+   (an en_GB speaker says "zed"), and ``w`` is the only clip with three
+   syllables in it. That is the alphabet song, not phonics. A child taught to
+   blend who is played "ess ay tee" hears nothing they can use, so those clips
+   are **rejected** -- they ship at ``CLIP_DIR/letter-names/`` labelled as what
+   they are, and nothing here reads them. ``docs/spikes/first-party-install.md``
+   has the numbers.
 
 2. **A digraph clip does not exist anywhere yet.** Research 10 section 5 and
    open question 8: ~20 clips, one adult, one morning, and they become kidnix's
@@ -60,6 +62,7 @@ from .corpus import Gpc
 
 __all__ = [
     "CLIP_DIR",
+    "CLIP_LEDGER",
     "GCOMPRIS_BUNDLE_DIR",
     "Phoneme",
     "Source",
@@ -69,11 +72,22 @@ __all__ = [
     "yes_line",
 ]
 
-#: Where an unpacked phoneme clip would live, one ``.ogg`` per **GPC id** --
+#: Where a phoneme clip lives on the image, one ``.ogg`` per **GPC id** --
 #: ``oo_long.ogg`` and ``oo_short.ogg`` are different sounds and must be
 #: different files, which is the whole reason the corpus gives every GPC an id
 #: rather than keying on the grapheme.
-CLIP_DIR = Path("/usr/share/kidnix/sounds-and-words/phonemes")
+#:
+#: The directory is per language because a phoneme is, and it is created by
+#: ``build_files/64-first-party-activities.sh`` along with ``phonemes.toml``
+#: beside it -- the ledger that says, for every GPC, whether a clip exists and
+#: where it came from. **Today it holds no clips at all** and every GPC falls
+#: through to :attr:`Source.SPELLED`; see the module docstring for why.
+CLIP_DIR = Path("/usr/share/kidnix/phonemes/en_GB")
+
+#: The ledger beside the clips. Not read here -- resolving a sound must not
+#: depend on a file being parseable -- but named so that whoever asks "why is
+#: this still a placeholder?" is one ``cat`` away from the answer.
+CLIP_LEDGER = CLIP_DIR / "phonemes.toml"
 
 #: The GCompris bundles the a-z recordings are currently locked inside. Named
 #: here so that the follow-up is findable from the code that needs it, not only

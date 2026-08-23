@@ -82,6 +82,78 @@ python3 -m compileall -q -f --invalidation-mode unchecked-hash \
     || die "byte-compiling kidnix_shell failed"
 
 # -----------------------------------------------------------------------------
+# 1b. The translation catalogues (ADR-0012, docs/design/i18n.md)
+# -----------------------------------------------------------------------------
+#
+# One gettext domain, `kidnix`, shared by the shell and the activity SDK
+# (they are one release, see above). The msgids are the en_GB strings, so a
+# machine with no catalogue at all is exactly the machine it was -- which is
+# also why a missing `.mo` is not a fatal error further down, and a missing
+# `msgfmt` is.
+#
+# WHY COMPILE HERE rather than committing the `.mo`: a `.mo` is a compiled
+# artefact of the `.po` beside it, and a repository that carries both has two
+# sources of truth and no way to tell when they disagree. `gettext` is already
+# in the image (it arrives with the KDE activity stack), so this costs one
+# process per language and nothing on disk.
+
+command -v msgfmt >/dev/null || die "msgfmt is missing (rpm: gettext) -- cannot build the kidnix translation catalogues"
+
+LOCALE_DIR=/usr/share/locale
+shopt -s nullglob
+po_files=("${SRC}"/po/*.po)
+shopt -u nullglob
+
+if (( ${#po_files[@]} == 0 )); then
+    log "no translation catalogues in ${SRC}/po (the image will be en_GB only)"
+else
+    for po in "${po_files[@]}"; do
+        lang="$(basename "${po}" .po)"
+        install -d "${LOCALE_DIR}/${lang}/LC_MESSAGES"
+        msgfmt --check --output-file="${LOCALE_DIR}/${lang}/LC_MESSAGES/kidnix.mo" "${po}" \
+            || die "msgfmt rejected ${po}"
+        log "language ${lang}: $(msgfmt --statistics --output-file=/dev/null "${po}" 2>&1)"
+    done
+    # And the shell has to be able to *find* what we just wrote, in the
+    # directory it actually looks in -- a .mo one level up from where
+    # `gettext.translation()` searches is a file nobody ever reads.
+    for po in "${po_files[@]}"; do
+        lang="$(basename "${po}" .po)"
+        [[ -f "${LOCALE_DIR}/${lang}/LC_MESSAGES/kidnix.mo" ]] \
+            || die "kidnix.mo for ${lang} is not where kidnix_shell.i18n looks"
+    done
+    # And the shell has to be able to *load* them: a .mo the build wrote and
+    # `gettext.translation()` cannot open is the failure this whole stage
+    # exists to prevent, and it is invisible from the filesystem.
+    languages=()
+    for po in "${po_files[@]}"; do languages+=("$(basename "${po}" .po)"); done
+    ( cd / && python3 -c '
+import sys
+
+from kidnix_shell import i18n
+
+# The sample catalogues are deliberately partial (docs/design/i18n.md
+# section 5), so what is asserted is that the machinery finds one -- not that
+# any particular sentence is translated.
+for language in sys.argv[1:]:
+    i18n.install(language, localedirs=[i18n.SYSTEM_LOCALE_DIR])
+    if not i18n.has_catalogue():
+        sys.exit("no loadable catalogue for " + language)
+# And that en_GB is still the source: no catalogue, msgids straight through.
+i18n.install("en_GB", localedirs=[i18n.SYSTEM_LOCALE_DIR])
+if i18n.gettext("Nothing to undo.") != "Nothing to undo.":
+    sys.exit("en_GB is no longer the source language")
+' "${languages[@]}" ) || die "the shell cannot load the catalogues this stage just wrote"
+fi
+
+# The one that actually matters, and it is a *negative*: en_GB has no
+# catalogue and must not acquire one, because en_GB is the source. A
+# /usr/share/locale/en_GB/LC_MESSAGES/kidnix.mo would mean somebody had
+# translated English into English and every string now has two spellings.
+[[ ! -e "${LOCALE_DIR}/en_GB/LC_MESSAGES/kidnix.mo" ]] \
+    || die "en_GB is the source language and must not have a kidnix catalogue"
+
+# -----------------------------------------------------------------------------
 # 2. The entry point
 # -----------------------------------------------------------------------------
 

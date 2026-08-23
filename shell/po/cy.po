@@ -1,0 +1,1117 @@
+# Welsh (Cymraeg) translation of kidnix.
+# Copyright (C) 2026 kidnix contributors
+# This file is distributed under the same license as the kidnix package.
+#
+# *** THIS IS A PIPELINE SAMPLE, NOT A REVIEWED TRANSLATION. ***
+#
+# It exists to prove three things end to end and nothing else:
+#   1. that `just po-extract` -> `just po-compile` -> the running shell works;
+#   2. that a language with **six** plural forms survives the round trip
+#      (Welsh is the reason ADR-0012 uses ngettext everywhere rather than
+#      `if count == 1`); and
+#   3. that a partly-translated catalogue degrades to en_GB per string rather
+#      than per file.
+#
+# The ~20 strings below are ordinary, well-known words. Everything else is
+# deliberately left untranslated. Before this ships to a family it needs a
+# Welsh speaker, ideally one who teaches five-year-olds: docs/research/06 §4.7
+# records the fall of 6.0 percentage points in Welsh among 5-15 year olds,
+# which is why a Welsh kidnix is worth doing properly and not approximately.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: kidnix 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
+"POT-Creation-Date: 2026-08-23 15:25+0100\n"
+"PO-Revision-Date: 2026-08-23 12:00+0100\n"
+"Last-Translator: kidnix contributors <noreply@example.invalid>\n"
+"Language-Team: Welsh <cy@li.org>\n"
+"Language: cy\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n==3 ? "
+"3 : n==6 ? 4 : 5);\n"
+
+#: kidnix_shell/app.py:124
+msgid "That one didn't want to open. Try another."
+msgstr ""
+
+#: kidnix_shell/app.py:125
+msgid "That one didn't open. Let's try something else."
+msgstr ""
+
+#: kidnix_shell/app.py:126
+msgid "That one isn't here any more."
+msgstr ""
+
+#: kidnix_shell/app.py:130
+#, python-brace-format
+msgid "{name} is asking if you're done."
+msgstr ""
+
+#: kidnix_shell/app.py:133
+msgid "It"
+msgstr ""
+
+#: kidnix_shell/app.py:134
+msgid "You're home."
+msgstr ""
+
+#: kidnix_shell/app.py:135
+msgid "Nothing to undo."
+msgstr ""
+
+#: kidnix_shell/app.py:136
+msgid "I haven't said anything yet."
+msgstr ""
+
+#: kidnix_shell/app.py:137
+msgid "Asking a grown-up is coming soon."
+msgstr ""
+
+#: kidnix_shell/band.py:492
+msgid "Back"
+msgstr "Yn ôl"
+
+#: kidnix_shell/band.py:495
+msgid "Undo"
+msgstr "Dadwneud"
+
+#: kidnix_shell/band.py:498 kidnix_shell/screens/journal.py:44
+msgid "My Things"
+msgstr "Fy Mhethau"
+
+#: kidnix_shell/band.py:506 kidnix_shell/screens/ending.py:66
+msgid "Finish this one"
+msgstr ""
+
+#: kidnix_shell/band.py:515 kidnix_shell/screens/ending.py:67
+msgid "One last little thing"
+msgstr ""
+
+#: kidnix_shell/band.py:556 kidnix_shell/speech.py:561
+msgid "Say it again"
+msgstr ""
+
+#: kidnix_shell/band.py:561
+msgid "Ask a grown-up"
+msgstr ""
+
+#: kidnix_shell/band.py:570
+msgid "Grown-up. Hold this for three seconds."
+msgstr ""
+
+# The six forms, which is the whole reason this file is here. Welsh mutates
+# the noun after a numeral -- "dau beth", "tri pheth", "chwe pheth" -- and no
+# amount of "singular or plural" can express that.
+#: kidnix_shell/feedback.py:52
+#, python-brace-format
+msgid "{count} thing"
+msgid_plural "{count} things"
+msgstr[0] "{count} peth"
+msgstr[1] "{count} peth"
+msgstr[2] "{count} beth"
+msgstr[3] "{count} pheth"
+msgstr[4] "{count} pheth"
+msgstr[5] "{count} peth"
+
+#: kidnix_shell/feedback.py:56
+#, python-brace-format
+msgid "You {verb} {count} {noun}"
+msgstr ""
+
+#: kidnix_shell/feedback.py:57
+#, python-brace-format
+msgid "used {count} colour"
+msgid_plural "used {count} colours"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+msgstr[4] ""
+msgstr[5] ""
+
+#: kidnix_shell/feedback.py:58
+#, python-brace-format
+msgid "{made} and {clause}"
+msgstr ""
+
+#: kidnix_shell/feedback.py:59
+#, python-brace-format
+msgid "{sentence}."
+msgstr ""
+
+#: kidnix_shell/feedback.py:85
+msgid "drew"
+msgstr ""
+
+#: kidnix_shell/feedback.py:85
+msgid "picture"
+msgid_plural "pictures"
+msgstr[0] "llun"
+msgstr[1] "llun"
+msgstr[2] "lun"
+msgstr[3] "llun"
+msgstr[4] "llun"
+msgstr[5] "llun"
+
+#: kidnix_shell/feedback.py:86
+msgid "face"
+msgid_plural "faces"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+msgstr[4] ""
+msgstr[5] ""
+
+#: kidnix_shell/feedback.py:86 kidnix_shell/feedback.py:89
+#: kidnix_shell/feedback.py:93
+msgid "made"
+msgstr ""
+
+#: kidnix_shell/feedback.py:89 kidnix_shell/feedback.py:90
+#: kidnix_shell/feedback.py:93
+msgid "thing"
+msgid_plural "things"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+msgstr[4] ""
+msgstr[5] ""
+
+#: kidnix_shell/feedback.py:90
+msgid "found out about"
+msgstr ""
+
+#: kidnix_shell/feedback.py:91
+msgid "game"
+msgid_plural "games"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+msgstr[4] ""
+msgstr[5] ""
+
+#: kidnix_shell/feedback.py:91
+msgid "played"
+msgstr ""
+
+#: kidnix_shell/journal.py:56
+msgid "Today"
+msgstr "Heddiw"
+
+#: kidnix_shell/journal.py:57
+msgid "Yesterday"
+msgstr "Ddoe"
+
+#: kidnix_shell/journal.py:58
+msgid "Before"
+msgstr "Cynt"
+
+#: kidnix_shell/journal.py:246
+msgid "A thing I made"
+msgstr ""
+
+#: kidnix_shell/journal.py:250
+#, python-brace-format
+msgid "{name}, from {when}"
+msgstr ""
+
+#: kidnix_shell/next_after.py:116
+#, python-brace-format
+msgid "Ready to {phrase}?"
+msgstr ""
+
+#: kidnix_shell/next_after.py:124
+msgid "Going outside"
+msgstr ""
+
+#: kidnix_shell/next_after.py:124
+msgid "Outside"
+msgstr ""
+
+#: kidnix_shell/next_after.py:124
+msgid "go outside"
+msgstr ""
+
+#: kidnix_shell/next_after.py:126
+msgid "A book"
+msgstr ""
+
+#: kidnix_shell/next_after.py:126
+msgid "Reading a book"
+msgstr ""
+
+#: kidnix_shell/next_after.py:126
+msgid "read a book"
+msgstr ""
+
+#: kidnix_shell/next_after.py:129
+msgid "Building"
+msgstr ""
+
+#: kidnix_shell/next_after.py:130
+msgid "Building with blocks"
+msgstr ""
+
+#: kidnix_shell/next_after.py:132
+msgid "build something"
+msgstr ""
+
+#: kidnix_shell/next_after.py:135
+msgid "Drawing"
+msgstr ""
+
+#: kidnix_shell/next_after.py:135
+msgid "Drawing on paper"
+msgstr ""
+
+#: kidnix_shell/next_after.py:135
+msgid "draw on paper"
+msgstr ""
+
+#: kidnix_shell/next_after.py:138
+msgid "A snack"
+msgstr ""
+
+#: kidnix_shell/next_after.py:138
+msgid "Having a snack"
+msgstr ""
+
+#: kidnix_shell/next_after.py:138
+msgid "have a snack"
+msgstr ""
+
+#: kidnix_shell/next_after.py:140
+msgid "Bath time"
+msgstr ""
+
+#: kidnix_shell/next_after.py:140
+msgid "have a bath"
+msgstr ""
+
+#: kidnix_shell/next_after.py:141
+msgid "Help cook"
+msgstr ""
+
+#: kidnix_shell/next_after.py:141
+msgid "Helping cook"
+msgstr ""
+
+#: kidnix_shell/next_after.py:141
+msgid "help cook"
+msgstr ""
+
+#: kidnix_shell/next_after.py:144
+msgid "With someone"
+msgstr ""
+
+#: kidnix_shell/next_after.py:145
+msgid "Playing with someone"
+msgstr ""
+
+#: kidnix_shell/next_after.py:147
+msgid "play with someone"
+msgstr ""
+
+#: kidnix_shell/next_after.py:151
+msgid "Not sure"
+msgstr ""
+
+#: kidnix_shell/next_after.py:151
+msgid "Not sure yet. That's fine."
+msgstr ""
+
+#: kidnix_shell/resting.py:51 kidnix_shell/screens/sleeping.py:41
+msgid "Resting"
+msgstr "Gorffwys"
+
+#: kidnix_shell/resting.py:53 kidnix_shell/resting.py:66
+#: kidnix_shell/resting.py:80
+msgid "Goodnight"
+msgstr "Nos da"
+
+#: kidnix_shell/resting.py:56
+msgid "kidnix is resting. Back after tea."
+msgstr ""
+
+#: kidnix_shell/resting.py:58
+msgid "kidnix is resting. Back tomorrow."
+msgstr ""
+
+#: kidnix_shell/resting.py:60
+msgid "kidnix is sleeping."
+msgstr ""
+
+#: kidnix_shell/resting.py:65 kidnix_shell/screens/home.py:114
+msgid "All done"
+msgstr "Wedi gorffen"
+
+#: kidnix_shell/resting.py:79
+msgid "All done. Time to rest."
+msgstr ""
+
+#: kidnix_shell/resting.py:86
+msgid "That's all the computer time for today. Ready to go and play?"
+msgstr ""
+
+#: kidnix_shell/resting.py:88
+msgid "It's night time. kidnix is going to sleep."
+msgstr ""
+
+#: kidnix_shell/resting.py:93
+msgid "All done for today."
+msgstr ""
+
+#: kidnix_shell/resting.py:99
+msgid "after tea"
+msgstr ""
+
+#: kidnix_shell/resting.py:100
+msgid "tomorrow"
+msgstr ""
+
+#: kidnix_shell/ritual.py:104
+msgid "Finish this one. When the sun is down, we'll keep it."
+msgstr ""
+
+#: kidnix_shell/ritual.py:105
+msgid "One last little thing, then we'll keep it."
+msgstr ""
+
+#: kidnix_shell/ritual.py:106
+msgid "A grown-up can add time."
+msgstr ""
+
+#: kidnix_shell/ritual.py:110
+msgid "The sun is going down. Finish this one, or one last little thing?"
+msgstr ""
+
+#: kidnix_shell/ritual.py:254
+#, python-brace-format
+msgid "Undo for {name} is in {name}'s own buttons."
+msgstr ""
+
+#: kidnix_shell/ritual.py:255
+#, python-brace-format
+msgid "Undo in {name} is {key}."
+msgstr ""
+
+#: kidnix_shell/ritual.py:256
+msgid "This one has its own undo button."
+msgstr ""
+
+#: kidnix_shell/ritual.py:261 kidnix_shell/ritual.py:262
+msgid "Control"
+msgstr ""
+
+#: kidnix_shell/ritual.py:263
+msgid "Shift"
+msgstr ""
+
+#: kidnix_shell/ritual.py:264
+msgid "Alt"
+msgstr ""
+
+#: kidnix_shell/ritual.py:265
+msgid "Super"
+msgstr ""
+
+#: kidnix_shell/ritual.py:266
+msgid "Command"
+msgstr ""
+
+#: kidnix_shell/ritual.py:272
+#, python-brace-format
+msgid "{first}, {second}"
+msgstr ""
+
+#: kidnix_shell/ritual.py:273
+#, python-brace-format
+msgid "{first} and {last}"
+msgstr ""
+
+#: kidnix_shell/ritual.py:319
+msgid "Let's keep that."
+msgstr ""
+
+#: kidnix_shell/ritual.py:325
+msgid "Let's keep that. Press the tick."
+msgstr ""
+
+#: kidnix_shell/ritual.py:331
+msgid "Time to stop now."
+msgstr ""
+
+#: kidnix_shell/screens/ending.py:68
+msgid "Ask for more time"
+msgstr ""
+
+#: kidnix_shell/screens/ending.py:71
+msgid "The sun is going down."
+msgstr ""
+
+#: kidnix_shell/screens/ending.py:75
+msgid "The sun is going down"
+msgstr ""
+
+#: kidnix_shell/screens/ending.py:176
+msgid "Let's keep that"
+msgstr ""
+
+#: kidnix_shell/screens/goodbye.py:95
+msgid "Show a grown-up"
+msgstr ""
+
+#: kidnix_shell/screens/goodbye.py:107
+msgid "Goodbye"
+msgstr "Hwyl fawr"
+
+#: kidnix_shell/screens/grownup.py:37
+msgid "Minutes. No number here is evidence-based; 25 is the precaution."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:39
+msgid ""
+"Kept for this boot only: /etc/kidnix/parent.toml is root-owned, which is "
+"what keeps the PIN out of the child's hands."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:48
+msgid "This machine still has the starter PIN -- set your own"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:50
+msgid ""
+"1234 is written down in the documentation and is the same on every install. "
+"A six-year-old watching you type four buttons in a row has the gate."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:63
+msgid ""
+"Kept for this session. /etc/kidnix/parent.toml is root-owned -- that is what "
+"keeps the PIN out of the child's hands -- and kidnix-set-pin could not be "
+"reached from here. The gate is closed with your PIN until the machine "
+"restarts. To keep it, run:\n"
+"\n"
+"    sudo kidnix-set-pin\n"
+"\n"
+"from a terminal on this machine, or from the parent account, and it will ask "
+"you for the PIN again."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:109
+msgid ""
+"The PIN you chose is in force until the machine restarts. To keep it, run "
+"sudo kidnix-set-pin from a terminal or from the grown-up's own account."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:115
+msgid "That wasn't the current PIN"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:116
+msgid "Too many tries -- wait a minute"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:119
+msgid ""
+"That wasn't the current PIN, so nothing was written. The PIN you chose is in "
+"force until the machine restarts. To keep it, run sudo kidnix-set-pin from a "
+"terminal or from the grown-up's own account."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:124
+msgid ""
+"Too many tries -- wait a minute, then try again. Nothing was written. The "
+"PIN you chose is in force until the machine restarts. To keep it, run sudo "
+"kidnix-set-pin from a terminal or from the grown-up's own account."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:129
+msgid ""
+"This machine already has a PIN, and the current one was not sent with the "
+"new one. Nothing was written. The PIN you chose is in force until the "
+"machine restarts. To keep it, run sudo kidnix-set-pin from a terminal or "
+"from the grown-up's own account."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:138
+#, python-brace-format
+msgid "New PIN saved to {path}."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:140
+#, python-brace-format
+msgid ""
+"Could not write {path}: {error}\n"
+"\n"
+"Run sudo kidnix-set-pin."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:146
+#, python-brace-format
+msgid ""
+"Not added. Today's budget has {left} minute left, and the shortest session "
+"is {floor} minutes. Raise the daily budget in session.toml, or let today "
+"finish."
+msgid_plural ""
+"Not added. Today's budget has {left} minutes left, and the shortest session "
+"is {floor} minutes. Raise the daily budget in session.toml, or let today "
+"finish."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+msgstr[4] ""
+msgstr[5] ""
+
+#: kidnix_shell/screens/grownup.py:232
+msgid "This machine has no grown-up PIN yet"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:234
+msgid ""
+"Nothing else in here opens until you have chosen four numbers. Pick them "
+"somewhere they are not looking."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:243
+msgid ""
+"The current one first -- that is what lets the new one be saved for good, "
+"rather than only until the machine restarts."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:277 kidnix_shell/screens/whos_here.py:30
+msgid "Grown-up"
+msgstr "Oedolyn"
+
+#: kidnix_shell/screens/grownup.py:278
+msgid "Enter the grown-up PIN"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:279
+msgid "Type the current grown-up PIN"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:280
+msgid "Choose a new grown-up PIN"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:281
+msgid "Type it again"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:282
+msgid "Those two did not match. Start again."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:283
+msgid "That PIN is not right."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:284
+msgid "That wasn't the current PIN. Try again."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:285
+msgid "Clear"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:286
+msgid "Cancel"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:290
+#, python-brace-format
+msgid "Running, about {left} minute left"
+msgid_plural "Running, about {left} minutes left"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+msgstr[4] ""
+msgstr[5] ""
+
+#: kidnix_shell/screens/grownup.py:291
+msgid "Not running"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:292
+#, python-brace-format
+msgid "Used {spent} of {budget} minutes today"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:647
+msgid "This session"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:648
+msgid "Session"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:652
+msgid "Start a session"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:652
+msgid "Uses the default length"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:654
+msgid "Start"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:664
+msgid "Add time"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:666
+msgid ""
+"Bounded by today's budget. A grant the budget would cut below the minimum "
+"session is refused rather than half-given."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:683
+msgid "End the session now"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:684
+msgid "Runs the same put-away and goodbye the child knows"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:687
+msgid "End now"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:704
+msgid "Sound and calm"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:706
+msgid ""
+"The 70% hardware volume ceiling is underneath all of this and cannot be "
+"raised from here."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:712
+msgid "Volume"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:713
+msgid "Earcons and read-aloud. Captions keep working at zero."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:721
+msgid "Mute"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:722
+msgid "Silence, not a broken machine: every line is still captioned."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:732
+msgid "Calm mode"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:734
+msgid ""
+"Reduced motion, a slower voice, and only the 'kept it' sound. One switch for "
+"a sensory-sensitive, anxious or overloaded day."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:746
+msgid "Captions"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:748
+msgid ""
+"Every spoken line, written under the band for four seconds. On by default. "
+"Turning it off takes effect at the next start."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:759
+msgid "Settings"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:761
+msgid "Default session length"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:778
+msgid "Set the grown-up PIN"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:780
+msgid ""
+"The current PIN, then a new four-digit one twice. Somewhere they are not "
+"looking."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:785
+msgid "Set PIN"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:800
+msgid "Parent panel"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:801
+msgid "Allow-lists, budgets, their things -- not in v0.1"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:804
+msgid "Open"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:813
+msgid "Back to the login screen"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:813 kidnix_shell/screens/grownup.py:814
+msgid "Log out"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:932
+msgid "kidnix parent panel"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:934
+msgid "not yet built"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:936
+msgid ""
+"The parent panel is not in shell v0.1. It will hold children, time, "
+"activities, requests, their things, family and calm mode. Until then, the "
+"Journal is a plain directory tree under ~/.local/share/kidnix/journal that "
+"you can open in Files."
+msgstr ""
+
+#: kidnix_shell/screens/home.py:98 kidnix_shell/widgets.py:602
+msgid "Ask a grown-up for this one."
+msgstr ""
+
+#: kidnix_shell/screens/home.py:99
+msgid "This one isn't ready yet. Ask a grown-up."
+msgstr ""
+
+#: kidnix_shell/screens/home.py:104
+msgid "Home. What shall we make?"
+msgstr ""
+
+#: kidnix_shell/screens/home.py:118
+msgid "All done for today?"
+msgstr ""
+
+#: kidnix_shell/screens/home.py:155
+msgid "Home"
+msgstr "Cartref"
+
+#: kidnix_shell/screens/home.py:167
+msgid "activities"
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:45
+msgid "My favourites"
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:46
+msgid "Nothing here yet. Go and make something!"
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:47
+msgid "One of my favourites"
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:48
+msgid "Make this a favourite"
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:49
+msgid "Added to my favourites."
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:50
+msgid "Taken out of my favourites."
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:51
+msgid "My Things. Nothing here yet."
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:52
+msgid "My Things."
+msgstr ""
+
+#: kidnix_shell/screens/journal.py:110 kidnix_shell/screens/next_after.py:72
+msgid "things"
+msgstr ""
+
+#: kidnix_shell/screens/next_after.py:51
+msgid "What's next after?"
+msgstr ""
+
+#: kidnix_shell/screens/next_after.py:53
+msgid "What's next, after the computer? Pick one."
+msgstr ""
+
+#: kidnix_shell/screens/shelf.py:55
+msgid "Choose a game"
+msgstr ""
+
+#: kidnix_shell/screens/shelf.py:57
+msgid "There's nothing here. Press Back to go home."
+msgstr ""
+
+#: kidnix_shell/screens/shelf.py:60
+#, python-brace-format
+msgid "{shelf}. {group}."
+msgstr ""
+
+#: kidnix_shell/screens/shelf.py:89
+msgid "games"
+msgstr ""
+
+#: kidnix_shell/screens/whos_here.py:29 kidnix_shell/screens/whos_here.py:34
+#: kidnix_shell/screens/whos_here.py:35
+msgid "Who's here?"
+msgstr "Pwy sy 'ma?"
+
+#: kidnix_shell/session.py:591
+msgid "Lots of time left."
+msgstr ""
+
+#: kidnix_shell/session.py:594
+msgid "About as long as one story."
+msgstr ""
+
+#: kidnix_shell/session.py:596
+msgid "A little bit of time left."
+msgstr ""
+
+#: kidnix_shell/session.py:598
+msgid "Nearly time to put things away."
+msgstr ""
+
+#: kidnix_shell/session.py:600
+msgid "The sun has gone down for today."
+msgstr ""
+
+#: kidnix_shell/suggestions.py:24
+msgid "You drew something. Can you find something the same colour in the room?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:25
+msgid "You drew something. Can you draw it again on paper, bigger?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:27
+msgid "Can you teach a grown-up one of the games you played?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:28
+msgid "Can you make a funny face with your own face in a mirror?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:29
+msgid "Can you find a letter you know somewhere in the room?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:30
+msgid "Can you clap a pattern and see if someone can copy it?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:31
+msgid "Can you jump over three things in the garden?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:32
+msgid "Can you count how many chairs are in the house?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:33
+msgid "Can you roll something into a cup on the floor?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:34 kidnix_shell/suggestions.py:42
+msgid "Can you tell someone one thing you found out today?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:39
+msgid "Can you make one more, out of paper?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:40
+msgid "Can you show someone what you made and tell them about it?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:43
+msgid "Can you play that game outside, with your feet?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:47
+msgid "Can you find three things in the room that are the same colour?"
+msgstr ""
+
+#: kidnix_shell/suggestions.py:48
+msgid "Can you draw what you did today on paper?"
+msgstr ""
+
+#: kidnix_shell/widgets.py:607
+#, python-brace-format
+msgid "Back a page of {what}"
+msgstr ""
+
+#: kidnix_shell/widgets.py:608
+#, python-brace-format
+msgid "More {what}"
+msgstr ""
+
+#: kidnix_shell/widgets.py:612
+msgid "Tell me about it"
+msgstr ""
+
+#: kidnix_shell/widgets.py:613
+msgid "Stop"
+msgstr ""
+
+#: kidnix_shell/widgets.py:617
+msgid "Again?"
+msgstr ""
+
+#: kidnix_shell/words.py:34
+msgid "nothing"
+msgstr "dim"
+
+#: kidnix_shell/words.py:35
+msgid "one"
+msgstr "un"
+
+#: kidnix_shell/words.py:36
+msgid "two"
+msgstr "dau"
+
+#: kidnix_shell/words.py:37
+msgid "three"
+msgstr "tri"
+
+#: kidnix_shell/words.py:38
+msgid "four"
+msgstr "pedwar"
+
+#: kidnix_shell/words.py:39
+msgid "five"
+msgstr "pump"
+
+#: kidnix_shell/words.py:40
+msgid "six"
+msgstr "chwech"
+
+#: kidnix_shell/words.py:41
+msgid "seven"
+msgstr ""
+
+#: kidnix_shell/words.py:42
+msgid "eight"
+msgstr ""
+
+#: kidnix_shell/words.py:43
+msgid "nine"
+msgstr ""
+
+#: kidnix_shell/words.py:44
+msgid "ten"
+msgstr ""
+
+#: kidnix_shell/words.py:45
+msgid "eleven"
+msgstr ""
+
+#: kidnix_shell/words.py:46
+msgid "twelve"
+msgstr ""
+
+#: kidnix_shell/words.py:47
+msgid "thirteen"
+msgstr ""
+
+#: kidnix_shell/words.py:48
+msgid "fourteen"
+msgstr ""
+
+#: kidnix_shell/words.py:49
+msgid "fifteen"
+msgstr ""
+
+#: kidnix_shell/words.py:50
+msgid "sixteen"
+msgstr ""
+
+#: kidnix_shell/words.py:51
+msgid "seventeen"
+msgstr ""
+
+#: kidnix_shell/words.py:52
+msgid "eighteen"
+msgstr ""
+
+#: kidnix_shell/words.py:53
+msgid "nineteen"
+msgstr ""
+
+#: kidnix_shell/words.py:54
+msgid "twenty"
+msgstr ""
+
+#: kidnix_shell/words.py:59
+msgid "lots of"
+msgstr ""
+
+# The six forms, which is the whole reason this file is here. Welsh mutates
+# the noun after a numeral -- "dau beth", "tri pheth", "chwe pheth" -- and no
+# amount of "singular or plural" can express that.
+#: kidnix_shell/words.py:87
+#, python-brace-format
+msgid "{count} {noun}"
+msgstr ""
+
+#: kidnix_shell/words.py:112
+msgid "this morning"
+msgstr ""
+
+#: kidnix_shell/words.py:113
+msgid "this afternoon"
+msgstr ""
+
+#: kidnix_shell/words.py:114
+msgid "this evening"
+msgstr ""
+
+#: kidnix_shell/words.py:115
+msgid "tonight"
+msgstr "heno"
+
+#: kidnix_shell/words.py:120
+msgid "yesterday morning"
+msgstr ""
+
+#: kidnix_shell/words.py:121
+msgid "yesterday afternoon"
+msgstr ""
+
+#: kidnix_shell/words.py:122
+msgid "yesterday evening"
+msgstr ""
+
+#: kidnix_shell/words.py:123
+msgid "last night"
+msgstr "neithiwr"
+
+#: kidnix_shell/words.py:127
+msgid "before"
+msgstr ""

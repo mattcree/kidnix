@@ -1,12 +1,17 @@
 [Desktop Entry]
 Type=Application
 Name=Parent Panel
-GenericName=kidnix parental controls
-Comment=Allow-lists, time budgets and the Journal for your child's computer
+GenericName=kidnix settings for a grown-up
+Comment=Children, time limits, activities, sound, their drawings and updates
 Exec=/usr/bin/kidnix-parent-panel
 TryExec=/usr/bin/kidnix-parent-panel
 Icon=preferences-system-parental-controls
-Terminal=true
-Categories=System;Settings;
-Keywords=kidnix;parental;child;kid;controls;
-StartupNotify=false
+# The panel is a libadwaita window, not a script that prints a message. It was
+# Terminal=true while /usr/bin/kidnix-parent-panel was a placeholder that said
+# "not built yet"; opening a terminal behind the real one would put a black
+# rectangle in front of a parent on their first run.
+Terminal=false
+Categories=Settings;
+Keywords=kidnix;parental;child;kid;controls;screen time;bedtime;
+StartupNotify=true
+StartupWMClass=org.kidnix.ParentPanel
