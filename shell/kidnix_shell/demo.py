@@ -13,6 +13,13 @@ This module is also run *as a script* by the launcher (``python demo.py
 functions or at the top without relative imports.
 """
 
+# NOT TRANSLATED, on purpose. Everything below is a fake **manifest**, and a
+# manifest's `name`/`audio_label` are content rather than code: a real one
+# carries its own per-locale keys (`name_cy`, `audio_label_pl`) and is read by
+# `kidnix_shell.activities.localised`. See docs/design/i18n.md section 4.
+# `--demo` is a developer's world; giving it msgids would put fifteen invented
+# tile names in the catalogue a translator has to work through.
+
 from __future__ import annotations
 
 import argparse

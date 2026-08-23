@@ -319,6 +319,7 @@ assert_grep '^KIDNIX_PIPER_MODEL=/usr/share/kidnix/voices/en_GB-alba-medium.onnx
 # ...and it must point at a model that is actually in the image. A default
 # naming an absent file does not fail loudly: kidnix-piperd logs "voice model
 # missing", exits, and every utterance quietly takes the espeak-ng path.
+# shellcheck disable=SC2016  # the $(…) is meant for the inner bash, not this one
 assert_run "the default voice in tts.env exists on disk" bash -c '
 model=$(sed -n "s/^KIDNIX_PIPER_MODEL=//p" /etc/kidnix/tts.env)
 [[ -f "${model}" ]] || { echo "${model} is not in the image"; exit 1; }

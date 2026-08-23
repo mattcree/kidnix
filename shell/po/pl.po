@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kidnix 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
-"POT-Creation-Date: 2026-08-23 15:25+0100\n"
+"POT-Creation-Date: 2026-08-23 15:46+0100\n"
 "PO-Revision-Date: 2026-08-23 12:00+0100\n"
 "Last-Translator: kidnix contributors <noreply@example.invalid>\n"
 "Language-Team: Polish <pl@li.org>\n"
@@ -1052,38 +1052,38 @@ msgstr ""
 msgid "{count} {noun}"
 msgstr ""
 
-#: kidnix_shell/words.py:112
+#: kidnix_shell/words.py:110
 msgid "this morning"
 msgstr ""
 
-#: kidnix_shell/words.py:113
+#: kidnix_shell/words.py:111
 msgid "this afternoon"
 msgstr ""
 
-#: kidnix_shell/words.py:114
+#: kidnix_shell/words.py:112
 msgid "this evening"
 msgstr ""
 
-#: kidnix_shell/words.py:115
+#: kidnix_shell/words.py:113
 msgid "tonight"
 msgstr "dziś wieczorem"
 
-#: kidnix_shell/words.py:120
+#: kidnix_shell/words.py:118
 msgid "yesterday morning"
 msgstr ""
 
-#: kidnix_shell/words.py:121
+#: kidnix_shell/words.py:119
 msgid "yesterday afternoon"
 msgstr ""
 
-#: kidnix_shell/words.py:122
+#: kidnix_shell/words.py:120
 msgid "yesterday evening"
 msgstr ""
 
-#: kidnix_shell/words.py:123
+#: kidnix_shell/words.py:121
 msgid "last night"
 msgstr "wczoraj w nocy"
 
-#: kidnix_shell/words.py:127
+#: kidnix_shell/words.py:125
 msgid "before"
 msgstr ""

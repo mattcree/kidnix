@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import IO, Any
 
 from .activities import QUIT_CONFIRM, QUIT_SIGNAL
+from .i18n import current_language
 
 log = logging.getLogger(__name__)
 
@@ -171,6 +172,7 @@ def build_env(
     home: Path,
     parent_env: Mapping[str, str] | None = None,
     extra: Mapping[str, str] | None = None,
+    language: str = "",
 ) -> dict[str, str]:
     """The environment an activity is given. Deliberately small."""
     source = os.environ if parent_env is None else parent_env
@@ -181,6 +183,14 @@ def build_env(
 
     env.setdefault("PATH", DEFAULT_PATH)
     env.setdefault("LANG", "en_GB.UTF-8")
+    # **The child's language, not the session's** (ADR-0012). `LANG` above is
+    # the machine's locale and stays what it was -- it is what sorts and
+    # formats -- but `LANGUAGE` is gettext's own override, and it is what makes
+    # an activity (and its own catalogue, via `kidnix_activity.i18n`) speak the
+    # language of the profile that launched it rather than the one in
+    # /etc/locale.conf. A monolingual machine sets it to en_GB, which no
+    # catalogue answers to, which is the unchanged behaviour.
+    env["LANGUAGE"] = language or current_language()
     env["HOME"] = str(home)
     env["USER"] = os.environ.get("USER", "kid")
     env["XDG_DATA_HOME"] = str(home / ".local" / "share")
