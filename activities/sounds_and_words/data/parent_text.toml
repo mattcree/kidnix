@@ -1,0 +1,106 @@
+# Every word a parent reads about Sounds & Words.
+#
+# Rules this file is held to by tests/test_parent_text.py:
+#   - no score, no percentage, no star, no streak, no badge, no level, no rank
+#   - no age, no reading age, no percentile, no comparison to other children
+#   - no prediction of the phonics screening check
+#   - no red/amber/green flag
+#   - nothing that reads as an assessment of the child
+# kidnix has no normative data and must not imply it does. If a parent needs a
+# red flag, the correct output is "talk to his teacher".
+
+version = 1
+
+# --------------------------------------------------------------------------
+# First run: the two questions, asked once
+# --------------------------------------------------------------------------
+
+[setup]
+title = "Two questions, then we're done"
+intro = "Sounds & Words practises what the school is teaching. To do that without getting ahead of them, it needs to know two things."
+
+scheme_question = "Which phonics programme does the school use?"
+scheme_help = "It is usually on a letter home, or the class teacher will know in a second. If you are not sure, choose \"I don't know\" — that is a perfectly good answer."
+scheme_unknown_label = "I don't know"
+scheme_unknown_result = "Sounds & Words will start at the very beginning: s, a, t, p. Nobody is harmed by reading \"sat\" and \"pat\" again. When you find out, you can change it here."
+
+grapheme_question = "What is the most recent sound they have taught?"
+grapheme_help = "Tap the one that came home most recently. Most parents know this as \"he brought home 'ai' this week\" rather than by a phase number, so that is how we ask."
+grapheme_result = "Sounds & Words will use that sound and everything before it, and nothing after it."
+
+conservative_notice = "We do not have this programme's own order of sounds, so we are using the Letters and Sounds order. That may hold back a sound the school has already taught. It will never go ahead of them."
+
+recheck_title = "A monthly check"
+recheck_body = "Once a month we will ask you again what the most recent sound is. Sounds & Words never moves on by itself — it will not decide the school has taught something new because your child got good at something old."
+
+# --------------------------------------------------------------------------
+# The parent panel: three panes, no scores
+# --------------------------------------------------------------------------
+
+[pane_school]
+title = "What the school has taught"
+body = "This is what you told us. It is your statement, not ours, and you can change it whenever you like. Everything in Sounds & Words is built from this list, and nothing outside it is ever put in front of your child."
+edit_label = "Change this"
+empty = "Nothing set yet. Sounds & Words is waiting."
+
+[pane_seen]
+title = "What we've seen him read here"
+body = "Each sound is in one of three states."
+state_not_tried = "not tried"
+state_tried = "tried"
+state_correct = "read correctly on 3 different days"
+honesty = "This is what happened on this computer. It is not an assessment, and it is not a substitute for what his teacher sees. Children read differently for a machine than for a person."
+no_data = "Nothing here yet. That is not a problem — it just means Sounds & Words has not been opened much."
+
+[pane_made]
+title = "What he made"
+body = "Recordings, spellings and captions, with the date each one was made. This is the part worth sitting down and looking at together."
+prompt = "Ask him about one of these. \"Tell me about this one\" is enough."
+empty = "Nothing saved yet."
+
+# --------------------------------------------------------------------------
+# "What this is not"
+# --------------------------------------------------------------------------
+
+[what_this_is_not]
+title = "What this is not"
+
+not_a_reading_programme = "Sounds & Words is not a reading programme, and it does not teach your child to read. It practises the sounds and words the school has already taught. No app in this area has evidence that it teaches reading, and two of the best-funded attempts made things slightly worse. What the evidence does say is that these tools work when a grown-up is doing them with the child, and do almost nothing when the child is left alone with them. That is why every session asks for you."
+
+not_handwriting = "Sounds & Words does not teach handwriting. It does not teach letter formation, joins, or lead-in strokes, and it never will. Handwriting is learned with a pencil, on paper, with someone watching how the pencil is held. The keyboard here is for putting words down quickly once the letters are known — that is a different job, and it does not replace the first one."
+
+not_the_school = "The school decides the next sound, not this computer. Sounds & Words will not move ahead of them, will not import their weekly word list, and will not pretend to be their app. If it is holding your child back, tell it — do not wait for it to work that out on its own."
+
+not_an_assessment = "There are no scores, no levels and no comparisons here, and there will not be any. We have no way of knowing how your child compares to any other child, so we are not going to imply that we do. If you are worried about his reading, the person to talk to is his teacher."
+
+not_graded_aloud = "Sounds & Words never listens to your child read and marks it. Reading aloud is for a person. We can record it and keep it, so you can hear it later — that is all."
+
+no_rewards = "There are no stars, streaks, badges, coins or characters to unlock. Those make children do more of something and care about it less, and there is a lot of evidence for that. Missing a weekend costs nothing here."
+
+# --------------------------------------------------------------------------
+# The grown-up turn: the one thing that carries the evidence
+# --------------------------------------------------------------------------
+
+[grown_up_turn]
+title = "Your turn"
+invite = "Sit with him for this bit."
+prompts = [
+  "Ask him to say the word out loud to you.",
+  "Ask him what the word means. If he does not know, tell him.",
+  "Read the sentence to him first, then let him read it back.",
+  "Ask him which sound he found hardest today.",
+]
+why = "The single clearest finding about phonics software is that it works when an adult is involved and barely works when they are not. This screen is not decoration."
+
+# --------------------------------------------------------------------------
+# Lines the child may hear or see
+# --------------------------------------------------------------------------
+
+[child]
+find_it = "Find the one that says"
+blend_it = "Say the sounds, then push them together."
+read_it = "Read it to someone."
+say_it_aloud = "Now say it out loud."
+done = "That's the lot for today."
+nothing_due = "Nothing to practise today. Go and find a book."
+no_correction = "Have another go."

@@ -1,0 +1,110 @@
+# The DfE Reading Framework's own worked demonstration of what a Reception
+# child can and cannot decode, used as kidnix's acceptance test.
+#
+# Source: "The reading framework: teaching the foundations of literacy",
+# Department for Education, 2023, Appendix 7 ("Decodable texts for pupils
+# beginning to learn to read"), printed pages 144-145.
+# https://assets.publishing.service.gov.uk/media/664f600c05e5fe28788fc437/The_reading_framework_.pdf
+# Retrieved 2026-08-23. © Crown copyright.
+# Contains public sector information licensed under the Open Government
+# Licence v3.0.
+# https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
+#
+# Provenance: transcribed verbatim from the PDF (pdftotext -layout), including
+# the framework's own footnote 158.
+
+[fixture]
+name = "reading_framework_appendix7"
+source = "reading_framework_2023"
+pages = "144-145"
+retrieved = "2026-08-23"
+verbatim = true
+
+stated_knowledge = """
+A Reception child learning through a typical systematic synthetic phonics (SSP)
+programme might know:
+  - the phonemes corresponding to each letter of the alphabet
+  - the phonemes corresponding to 'ck', 'sh', 'th', 'ng', 'ee', 'oo', 'or', 'ar'
+  - exception words: 'to', 'the', 'we'.
+The child would not be able to decode any of the deleted words in the first two
+books below (Books 1 and 2).
+"""
+framework_footnote = "158. The GPCs are not quoted from a published programme; they are examples only."
+after_books_1_2 = "The child could decode every word in the next two books below (Books 3 and 4)."
+
+# The ceiling, as GPC ids in the kidnix corpus.
+# "each letter of the alphabet" is read as each letter's Phase Two / Phase Three
+# sound, plus 'qu' (there is no GPC for a bare 'q' in Letters and Sounds).
+alphabet_gpcs = [
+  "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+  "n", "o", "p", "qu", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+]
+named_gpcs = ["ck", "sh", "th", "th_voiced", "ng", "ee", "oo_long", "oo_short", "or", "ar"]
+exception_words = ["to", "the", "we"]
+
+# The framework names no doubled-consonant graphemes, but Book 3 contains 'off'
+# and 'will' and Book 4 contains 'dropping' and 'getting'. Adding them is
+# recorded here, in the fixture, rather than quietly inside the test -- an
+# acceptance test that widens its own ceiling in private is not one.
+added_gpcs = ["ff", "ll", "ss", "zz", "bb", "dd", "gg", "mm", "nn", "pp", "rr", "tt"]
+added_gpcs_reason = "doubled consonants; not named by the framework but needed by its own Books 3 and 4"
+footnote_variant_gpcs = ["s_z", "f_v"]
+footnote_variant_reason = "Letters and Sounds, p.69 footnote **: the /z/ of as, is, has, his and the /v/ of of"
+
+[[book]]
+number = 1
+title = "What do they like to eat?"
+expected = "reject"
+lines = [
+  "What does a bird like to eat?",
+  "A bird likes to eat worms.",
+  "What does a giraffe like to eat?",
+  "A giraffe likes to eat leaves.",
+  "What does a seal like to eat?",
+  "A seal likes to eat fish.",
+  "What do you like to eat?",
+]
+# Words the framework says the child cannot decode, and what blocks each here.
+must_block = ["what", "does", "bird", "like", "eat", "likes", "worms", "giraffe", "leaves", "seal", "you", "do"]
+
+[[book]]
+number = 2
+title = "Splash!"
+expected = "reject"
+lines = [
+  "Josh and Alex got their boots.",
+  "They went to the park.",
+  "Josh saw a big puddle. He jumped in it.",
+  "Splash! Alex got wet.",
+  "He kicked the water.",
+  "Splash! Josh got wet.",
+  "Then they went home.",
+  "Their boots were full of water!",
+]
+must_block = ["their", "they", "saw", "puddle", "he", "jumped", "kicked", "water", "home", "were", "full"]
+
+[[book]]
+number = 3
+title = "A Trip to a Planet"
+expected = "accept"
+lines = [
+  "Look up! A ship!",
+  "Will it land?",
+  "Yes. Let's run and see it.",
+  "A thing with three legs and six arms got off. Can we get in?",
+  "Yes, get in!",
+  "Up, up, up we went on a trip to a far planet. We had fun.",
+  "Then we went back.",
+]
+
+[[book]]
+number = 4
+title = "Shark Facts"
+expected = "accept"
+lines = [
+  "A shark is a fish.",
+  "It has fins and a soft skeleton to help it swim fast.",
+  "As soon as a shark pup is born, it can fend for itself.",
+  "Sharks keep dropping worn teeth and getting extra teeth.",
+  "A carpet shark can get as long as a truck.",
+]

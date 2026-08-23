@@ -1,0 +1,3 @@
+# Tool caches the root .gitignore does not already cover.
+.pytest_cache/
+.mypy_cache/

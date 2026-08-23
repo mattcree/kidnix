@@ -1,0 +1,37 @@
+# The one ordering kidnix ships in full.
+#
+# Contains public sector information licensed under the Open Government Licence
+# v3.0. (c) Crown copyright 2007. Source: Letters and Sounds: Principles and
+# Practice of High Quality Phonics (DFES-00281-2007).
+#
+# This is a *default ordering and a licensed word corpus*. Letters and Sounds is
+# NOT on the DfE's validated list of systematic synthetic phonics programmes and
+# kidnix must never describe it as one.
+
+[[scheme]]
+id = "letters_and_sounds"
+name = "Letters and Sounds (2007)"
+status = "shipped"
+source = "https://assets.publishing.service.gov.uk/media/5a7aa7b6e5274a34770e630c/Letters_and_Sounds_-_DFES-00281-2007.pdf"
+note = "The full order, as printed in the suggested timetables for Phases Two to Five."
+order = [
+  "s", "s_z", "a", "t", "p", "i",
+  "n", "m", "d", "g", "o", "c",
+  "k", "ck", "e", "u", "bb", "dd",
+  "gg", "mm", "nn", "pp", "r", "rr",
+  "tt", "h", "b", "f", "f_v", "ff",
+  "l", "ll", "ss", "j", "v", "w",
+  "x", "y", "z", "zz", "qu", "ch",
+  "sh", "th", "th_voiced", "ng", "ai", "ee",
+  "igh", "oa", "oo_long", "oo_short", "ar", "or",
+  "ur", "ow", "oi", "ear", "air", "ure",
+  "er", "ay", "ou", "ie", "ea", "oy",
+  "ir", "ue_oo", "ue_yoo", "aw", "wh", "ph",
+  "ew_oo", "ew_yoo", "oe", "au", "ey_ee", "a-e",
+  "e-e", "i-e", "o-e", "u-e_oo", "u-e_yoo", "a_ay",
+  "a_ah", "a_o", "e_ee", "i_eye", "o_oh", "u_yoo",
+  "u_oo", "ow_oh", "ie_ee", "ea_e", "er_ur", "ou_oo",
+  "ou_uu", "ou_oh", "y_eye", "y_i", "y_ee", "ch_k",
+  "ch_sh", "c_s", "g_j", "ey_ay", "tch", "ture",
+  "dge", "mb", "gn", "kn", "wr", "or_er",
+]

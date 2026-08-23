@@ -1,0 +1,358 @@
+# Generated from Letters and Sounds (2007), DFES-00281-2007.
+# Contains public sector information licensed under the Open Government Licence v3.0.
+# (c) Crown copyright 2007.
+# See LICENSES.md and data/sources.toml. Do not edit by hand -- see the design doc.
+
+
+[[tricky_word]]
+text = "to"
+phase = 2
+graphemes = ["t", "o_oo"]
+source = "ls2007:p.50"
+after_order = 16
+
+[[tricky_word]]
+text = "the"
+phase = 2
+graphemes = ["th_voiced", "e_ee"]
+source = "ls2007:p.50"
+after_order = 16
+
+[[tricky_word]]
+text = "no"
+phase = 2
+graphemes = ["n", "o_oh"]
+source = "ls2007:p.50"
+after_order = 23
+
+[[tricky_word]]
+text = "go"
+phase = 2
+graphemes = ["g", "o_oh"]
+source = "ls2007:p.50"
+after_order = 23
+
+[[tricky_word]]
+text = "i"
+phase = 2
+graphemes = ["i_eye"]
+source = "ls2007:p.50"
+after_order = 23
+
+[[tricky_word]]
+text = "he"
+phase = 3
+graphemes = ["h", "e_ee"]
+source = "ls2007:p.76"
+after_order = 31
+
+[[tricky_word]]
+text = "she"
+phase = 3
+graphemes = ["sh", "e_ee"]
+source = "ls2007:p.76"
+after_order = 31
+
+[[tricky_word]]
+text = "we"
+phase = 3
+graphemes = ["w", "e_ee"]
+source = "ls2007:p.76"
+after_order = 35
+
+[[tricky_word]]
+text = "me"
+phase = 3
+graphemes = ["m", "e_ee"]
+source = "ls2007:p.76"
+after_order = 35
+
+[[tricky_word]]
+text = "be"
+phase = 3
+graphemes = ["b", "e_ee"]
+source = "ls2007:p.76"
+after_order = 35
+
+[[tricky_word]]
+text = "was"
+phase = 3
+graphemes = ["w", "a_o", "s_z"]
+source = "ls2007:p.76"
+after_order = 39
+
+[[tricky_word]]
+text = "my"
+phase = 3
+graphemes = ["m", "y_eye"]
+source = "ls2007:p.77"
+after_order = 46
+
+[[tricky_word]]
+text = "you"
+phase = 3
+graphemes = ["y", "ou_oo"]
+source = "ls2007:p.77"
+after_order = 46
+
+[[tricky_word]]
+text = "her"
+phase = 3
+graphemes = ["h", "er_ur"]
+source = "ls2007:p.77"
+after_order = 50
+
+[[tricky_word]]
+text = "they"
+phase = 3
+graphemes = ["th_voiced", "ey_ay"]
+source = "ls2007:p.77"
+after_order = 50
+
+[[tricky_word]]
+text = "all"
+phase = 3
+graphemes = ["a_or", "ll"]
+source = "ls2007:p.77"
+after_order = 50
+
+[[tricky_word]]
+text = "are"
+phase = 3
+graphemes = ["ar", "e_silent"]
+source = "ls2007:p.77"
+after_order = 50
+
+[[tricky_word]]
+text = "said"
+phase = 4
+graphemes = ["s", "ai_e", "d"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "so"
+phase = 4
+graphemes = ["s", "o_oh"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "do"
+phase = 4
+graphemes = ["d", "o_oo"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "have"
+phase = 4
+graphemes = ["h", "a", "v", "e_silent"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "like"
+phase = 4
+graphemes = ["l", "i-e", "k"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "some"
+phase = 4
+graphemes = ["s", "o_u", "m", "e_silent"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "come"
+phase = 4
+graphemes = ["c", "o_u", "m", "e_silent"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "were"
+phase = 4
+graphemes = ["w", "ere_er"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "there"
+phase = 4
+graphemes = ["th_voiced", "ere_er"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "little"
+phase = 4
+graphemes = ["l", "i", "tt", "le"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "one"
+phase = 4
+graphemes = ["o_u", "n", "e_silent"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "when"
+phase = 4
+graphemes = ["wh", "e", "n"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "out"
+phase = 4
+graphemes = ["ou", "t"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "what"
+phase = 4
+graphemes = ["wh", "a_o", "t"]
+source = "ls2007:p.114"
+
+[[tricky_word]]
+text = "oh"
+phase = 5
+graphemes = ["o_oh", "silent"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "their"
+phase = 5
+graphemes = ["th_voiced", "ei", "r"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "people"
+phase = 5
+graphemes = ["p", "eo", "p", "le"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "mr"
+phase = 5
+graphemes = ["m", "silent", "r"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "mrs"
+phase = 5
+graphemes = ["m", "silent", "r", "s"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "looked"
+phase = 5
+graphemes = ["l", "oo_short", "k", "ed_t"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "called"
+phase = 5
+graphemes = ["c", "a_or", "ll", "ed_d"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "asked"
+phase = 5
+graphemes = ["a", "s", "k", "ed_t"]
+source = "ls2007:p.132"
+
+[[tricky_word]]
+text = "water"
+phase = 5
+graphemes = ["w", "a_or", "t", "er"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "where"
+phase = 5
+graphemes = ["wh", "ere_er"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "who"
+phase = 5
+graphemes = ["wh", "o_oo"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "again"
+phase = 5
+graphemes = ["a", "g", "ai", "n"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "thought"
+phase = 5
+graphemes = ["th", "ough"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "through"
+phase = 5
+graphemes = ["th", "r", "ough"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "work"
+phase = 5
+graphemes = ["w", "or_er", "k"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "mouse"
+phase = 5
+graphemes = ["m", "ou", "s", "e_silent"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "many"
+phase = 5
+graphemes = ["m", "a", "n", "y_ee"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "laughed"
+phase = 5
+graphemes = ["l", "augh", "ed_t"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "because"
+phase = 5
+graphemes = ["b", "e_ee", "c", "au", "s_z", "e_silent"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "different"
+phase = 5
+graphemes = ["d", "i", "ff", "er", "e", "n", "t"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "any"
+phase = 5
+graphemes = ["a", "n", "y_ee"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "eyes"
+phase = 5
+graphemes = ["ei", "y_eye", "e_silent", "s_z"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "friends"
+phase = 5
+graphemes = ["f", "r", "silent", "e", "n", "d", "s_z"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "once"
+phase = 5
+graphemes = ["o_u", "n", "c_s", "e_silent"]
+source = "ls2007:p.133"
+
+[[tricky_word]]
+text = "please"
+phase = 5
+graphemes = ["p", "l", "ea", "s_z", "e_silent"]
+source = "ls2007:p.133"

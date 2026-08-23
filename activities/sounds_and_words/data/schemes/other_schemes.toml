@@ -1,0 +1,68 @@
+# Other phonics programmes: stubs, on purpose.
+#
+# A school's programme is used for exactly one thing -- turning the parent's
+# answer ("the last sound they brought home was 'ai'") into a ceiling. kidnix
+# never shows a scheme's name to a child, never uses its vocabulary ("Fred
+# talk" and friends are trademarked and off-limits), and never claims to be
+# the school's app.
+#
+# None of these has `order` filled in. Until one does, `resolve_ceiling` falls
+# back to the Letters and Sounds prefix and marks the ceiling `conservative`,
+# and the parent pane says so in plain words. That is the safe direction: a
+# five-year-old re-reading `sat, pat, tap` is not harmed; a five-year-old shown
+# a grapheme his school has not taught undermines his school.
+#
+# Filling one in means transcribing that programme's published order of GPCs.
+# Each is a separate licensing question -- these are commercial programmes and
+# their materials are not openly licensed -- so each needs its own decision
+# recorded in LICENSES.md before any order lands here. A *bare ordered list of
+# graphemes* is very likely not protectable, but "very likely" is not a
+# decision, and the conservative-intersection fallback means we do not need one
+# to ship.
+#
+# When an order is added, `schemes.resolve_ceiling` switches automatically to
+# the conservative intersection: only the GPCs that BOTH that scheme and
+# Letters and Sounds have taught by that point are permitted. Research 10,
+# section 4.5, and its open question 6: nobody has measured what that
+# under-permitting costs in boredom. That is a thing to test with a child, not
+# to guess at.
+
+[[scheme]]
+id = "read_write_inc"
+name = "Read Write Inc. Phonics"
+status = "stub"
+source = "https://www.oxfordowl.co.uk/"
+order = []
+note = "kidnix does not ship Read Write Inc.'s own order of sounds, so it is using the Letters and Sounds order instead. That may mean it holds back a sound the school has already taught. It will never go ahead of them."
+
+[[scheme]]
+id = "sounds_write"
+name = "Sounds-Write"
+status = "stub"
+source = "https://www.sounds-write.co.uk/"
+order = []
+note = "kidnix does not ship Sounds-Write's own order of sounds, so it is using the Letters and Sounds order instead. That may mean it holds back a sound the school has already taught. It will never go ahead of them."
+
+[[scheme]]
+id = "little_wandle"
+name = "Little Wandle Letters and Sounds Revised"
+status = "stub"
+source = "https://www.littlewandlelettersandsounds.org.uk/"
+order = []
+note = "Little Wandle is a revision of Letters and Sounds, so the order kidnix uses is close but not identical. It may hold back a sound the school has already taught. It will never go ahead of them."
+
+[[scheme]]
+id = "essential_letters_and_sounds"
+name = "Essential Letters and Sounds"
+status = "stub"
+source = "https://www.esslondon.org/"
+order = []
+note = "kidnix does not ship this programme's own order of sounds, so it is using the Letters and Sounds order instead. That may mean it holds back a sound the school has already taught. It will never go ahead of them."
+
+[[scheme]]
+id = "unlocking_letters_and_sounds"
+name = "Unlocking Letters and Sounds"
+status = "stub"
+source = "https://unlockingletters.co.uk/"
+order = []
+note = "kidnix does not ship this programme's own order of sounds, so it is using the Letters and Sounds order instead. That may mean it holds back a sound the school has already taught. It will never go ahead of them."

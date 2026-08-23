@@ -1,0 +1,63 @@
+[project]
+name = "kidnix-sounds-and-words"
+version = "0.1.0"
+description = "Sounds & Words -- the kidnix literacy activity: corpus, ceiling and schedule"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+# Deliberately no runtime dependencies. The corpus is TOML (stdlib tomllib) and
+# the logic is pure Python. GTK arrives in week 2 via kidnix_activity, which
+# comes from the system, not from a wheel.
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sounds_and_words"]
+artifacts = ["data/**"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"data" = "sounds_and_words/data"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["sounds_and_words", "tests", "tools"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # import order
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "RUF",
+]
+ignore = [
+    "E501",  # line length is the formatter's job
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+# The transcription carries IPA symbols. ambiguous-unicode-character-string
+# would have us replace them with lookalike ASCII, which is exactly wrong.
+"tools/lsdata.py" = ["RUF001", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sounds_and_words"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

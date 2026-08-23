@@ -1,0 +1,1620 @@
+# Generated from Letters and Sounds (2007), DFES-00281-2007.
+# Contains public sector information licensed under the Open Government Licence v3.0.
+# (c) Crown copyright 2007.
+# See LICENSES.md and data/sources.toml. Do not edit by hand -- see the design doc.
+
+scheme = "letters_and_sounds"
+version = 1
+
+[[gpc]]
+id = "s"
+grapheme = "s"
+order = 1
+phase = 2
+ipa = "s"
+spoken_label = "sss"
+stretchable = true
+kind = "single"
+example_words = ["sat", "sit", "us"]
+source = "ls2007:p.50"
+set = 1
+
+[[gpc]]
+id = "s_z"
+grapheme = "s"
+order = 1
+phase = 2
+ipa = "z"
+spoken_label = "zzz"
+stretchable = true
+kind = "single"
+example_words = ["as", "is", "has", "his"]
+source = "ls2007:p.69 (footnote **)"
+set = 1
+variant_of = "s"
+note = "L&S footnote, p.69: 'The sounds represented by f in of, and by s in as, is, has and his should also not cause problems at this stage'."
+
+[[gpc]]
+id = "a"
+grapheme = "a"
+order = 2
+phase = 2
+ipa = "a"
+spoken_label = "aaa"
+stretchable = true
+kind = "single"
+example_words = ["at", "sat", "pat"]
+source = "ls2007:p.50"
+set = 1
+
+[[gpc]]
+id = "t"
+grapheme = "t"
+order = 3
+phase = 2
+ipa = "t"
+spoken_label = "t"
+stretchable = false
+kind = "single"
+example_words = ["tap", "sat", "it"]
+source = "ls2007:p.50"
+set = 1
+
+[[gpc]]
+id = "p"
+grapheme = "p"
+order = 4
+phase = 2
+ipa = "p"
+spoken_label = "p"
+stretchable = false
+kind = "single"
+example_words = ["pat", "tap", "pip"]
+source = "ls2007:p.50"
+set = 1
+
+[[gpc]]
+id = "i"
+grapheme = "i"
+order = 5
+phase = 2
+ipa = "ɪ"
+spoken_label = "iii"
+stretchable = true
+kind = "single"
+example_words = ["it", "in", "sit"]
+source = "ls2007:p.50"
+set = 2
+
+[[gpc]]
+id = "n"
+grapheme = "n"
+order = 6
+phase = 2
+ipa = "n"
+spoken_label = "nnn"
+stretchable = true
+kind = "single"
+example_words = ["nip", "in", "pan"]
+source = "ls2007:p.50"
+set = 2
+
+[[gpc]]
+id = "m"
+grapheme = "m"
+order = 7
+phase = 2
+ipa = "m"
+spoken_label = "mmm"
+stretchable = true
+kind = "single"
+example_words = ["mat", "man", "am"]
+source = "ls2007:p.50"
+set = 2
+
+[[gpc]]
+id = "d"
+grapheme = "d"
+order = 8
+phase = 2
+ipa = "d"
+spoken_label = "d"
+stretchable = false
+kind = "single"
+example_words = ["dad", "did", "dip"]
+source = "ls2007:p.50"
+set = 2
+
+[[gpc]]
+id = "g"
+grapheme = "g"
+order = 9
+phase = 2
+ipa = "ɡ"
+spoken_label = "g"
+stretchable = false
+kind = "single"
+example_words = ["tag", "gap", "dig"]
+source = "ls2007:p.50"
+set = 3
+
+[[gpc]]
+id = "o"
+grapheme = "o"
+order = 10
+phase = 2
+ipa = "ɒ"
+spoken_label = "o"
+stretchable = true
+kind = "single"
+example_words = ["on", "got", "top"]
+source = "ls2007:p.50"
+set = 3
+
+[[gpc]]
+id = "c"
+grapheme = "c"
+order = 11
+phase = 2
+ipa = "k"
+spoken_label = "c"
+stretchable = false
+kind = "single"
+example_words = ["can", "cat", "cot"]
+source = "ls2007:p.50"
+set = 3
+
+[[gpc]]
+id = "k"
+grapheme = "k"
+order = 12
+phase = 2
+ipa = "k"
+spoken_label = "k"
+stretchable = false
+kind = "single"
+example_words = ["kid", "kit"]
+source = "ls2007:p.50"
+set = 3
+
+[[gpc]]
+id = "ck"
+grapheme = "ck"
+order = 13
+phase = 2
+ipa = "k"
+spoken_label = "k"
+stretchable = false
+kind = "digraph"
+example_words = ["kick", "sock", "back"]
+source = "ls2007:p.50, p.69"
+set = 4
+note = "L&S p.69: 'Teach that ck together stands for the same sound as c and k separately - ck never comes at the beginning of a word, but often comes at the end or near the end.'"
+
+[[gpc]]
+id = "e"
+grapheme = "e"
+order = 14
+phase = 2
+ipa = "e"
+spoken_label = "e"
+stretchable = true
+kind = "single"
+example_words = ["get", "pen", "ten"]
+source = "ls2007:p.50"
+set = 4
+
+[[gpc]]
+id = "u"
+grapheme = "u"
+order = 15
+phase = 2
+ipa = "ʌ"
+spoken_label = "u"
+stretchable = true
+kind = "single"
+example_words = ["up", "mum", "run"]
+source = "ls2007:p.50"
+set = 4
+
+[[gpc]]
+id = "bb"
+grapheme = "bb"
+order = 16
+phase = 2
+set = 4
+ipa = "b"
+spoken_label = "b"
+stretchable = false
+kind = "doubled"
+example_words = ["rabbit", "rubbish"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "b"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "dd"
+grapheme = "dd"
+order = 16
+phase = 2
+set = 4
+ipa = "d"
+spoken_label = "d"
+stretchable = false
+kind = "doubled"
+example_words = ["ladder", "sudden"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "d"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "gg"
+grapheme = "gg"
+order = 16
+phase = 2
+set = 4
+ipa = "ɡ"
+spoken_label = "g"
+stretchable = false
+kind = "doubled"
+example_words = ["digging", "wiggle"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "g"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "mm"
+grapheme = "mm"
+order = 16
+phase = 2
+set = 4
+ipa = "m"
+spoken_label = "mmm"
+stretchable = true
+kind = "doubled"
+example_words = ["hammer", "summer"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "m"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "nn"
+grapheme = "nn"
+order = 16
+phase = 2
+set = 4
+ipa = "n"
+spoken_label = "nnn"
+stretchable = true
+kind = "doubled"
+example_words = ["dinner", "banner"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "n"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "pp"
+grapheme = "pp"
+order = 16
+phase = 2
+set = 4
+ipa = "p"
+spoken_label = "p"
+stretchable = false
+kind = "doubled"
+example_words = ["supper", "dropping"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "p"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "r"
+grapheme = "r"
+order = 16
+phase = 2
+ipa = "ɹ"
+spoken_label = "rrr"
+stretchable = true
+kind = "single"
+example_words = ["rim", "rat", "rug"]
+source = "ls2007:p.50"
+set = 4
+
+[[gpc]]
+id = "rr"
+grapheme = "rr"
+order = 16
+phase = 2
+set = 4
+ipa = "ɹ"
+spoken_label = "rrr"
+stretchable = true
+kind = "doubled"
+example_words = ["carrot", "sorry"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "r"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "tt"
+grapheme = "tt"
+order = 16
+phase = 2
+set = 4
+ipa = "t"
+spoken_label = "t"
+stretchable = false
+kind = "doubled"
+example_words = ["letter", "better"]
+source = "kidnix"
+added_by = "kidnix"
+variant_of = "t"
+note = "L&S never introduces this doubled consonant as a GPC, but uses it in its own word banks from set 4 onward (rocket, carrot, rabbit). Added at order 16 so those words segment into the right number of phonemes."
+
+[[gpc]]
+id = "h"
+grapheme = "h"
+order = 17
+phase = 2
+ipa = "h"
+spoken_label = "h"
+stretchable = false
+kind = "single"
+example_words = ["had", "him", "hot"]
+source = "ls2007:p.50"
+set = 5
+
+[[gpc]]
+id = "b"
+grapheme = "b"
+order = 18
+phase = 2
+ipa = "b"
+spoken_label = "b"
+stretchable = false
+kind = "single"
+example_words = ["but", "big", "bed"]
+source = "ls2007:p.50"
+set = 5
+
+[[gpc]]
+id = "f"
+grapheme = "f"
+order = 19
+phase = 2
+ipa = "f"
+spoken_label = "fff"
+stretchable = true
+kind = "single"
+example_words = ["fit", "fun", "fog"]
+source = "ls2007:p.50"
+set = 5
+
+[[gpc]]
+id = "f_v"
+grapheme = "f"
+order = 19
+phase = 2
+ipa = "v"
+spoken_label = "vvv"
+stretchable = true
+kind = "single"
+example_words = ["of"]
+source = "ls2007:p.69 (footnote **)"
+set = 5
+variant_of = "f"
+note = "L&S footnote, p.69: the f in 'of' stands for /v/ and 'should not cause problems'."
+
+[[gpc]]
+id = "ff"
+grapheme = "ff"
+order = 20
+phase = 2
+ipa = "f"
+spoken_label = "fff"
+stretchable = true
+kind = "doubled"
+example_words = ["off", "puff", "huff"]
+source = "ls2007:p.50, p.70"
+set = 5
+note = "L&S p.70: 'When the letters l, s and f double at the ends of some words and c is joined by k, it is a good idea to draw a line underneath both letters to show that they represent one phoneme (e.g. hill, pick)'."
+
+[[gpc]]
+id = "l"
+grapheme = "l"
+order = 21
+phase = 2
+ipa = "l"
+spoken_label = "lll"
+stretchable = true
+kind = "single"
+example_words = ["lap", "let", "leg"]
+source = "ls2007:p.50"
+set = 5
+
+[[gpc]]
+id = "ll"
+grapheme = "ll"
+order = 22
+phase = 2
+ipa = "l"
+spoken_label = "lll"
+stretchable = true
+kind = "doubled"
+example_words = ["bell", "fill", "doll"]
+source = "ls2007:p.50, p.70"
+set = 5
+
+[[gpc]]
+id = "ss"
+grapheme = "ss"
+order = 23
+phase = 2
+ipa = "s"
+spoken_label = "sss"
+stretchable = true
+kind = "doubled"
+example_words = ["less", "hiss", "kiss"]
+source = "ls2007:p.50, p.70"
+set = 5
+
+[[gpc]]
+id = "j"
+grapheme = "j"
+order = 24
+phase = 3
+ipa = "dʒ"
+spoken_label = "j"
+stretchable = false
+kind = "single"
+example_words = ["jam", "jet", "jog"]
+source = "ls2007:p.76"
+set = 6
+
+[[gpc]]
+id = "v"
+grapheme = "v"
+order = 25
+phase = 3
+ipa = "v"
+spoken_label = "vvv"
+stretchable = true
+kind = "single"
+example_words = ["van", "vet", "visit"]
+source = "ls2007:p.76"
+set = 6
+
+[[gpc]]
+id = "w"
+grapheme = "w"
+order = 26
+phase = 3
+ipa = "w"
+spoken_label = "w"
+stretchable = false
+kind = "single"
+example_words = ["will", "win", "web"]
+source = "ls2007:p.76"
+set = 6
+
+[[gpc]]
+id = "x"
+grapheme = "x"
+order = 27
+phase = 3
+ipa = "ks"
+spoken_label = "ks"
+stretchable = false
+kind = "single"
+example_words = ["mix", "box", "six"]
+source = "ls2007:p.76"
+set = 6
+
+[[gpc]]
+id = "y"
+grapheme = "y"
+order = 28
+phase = 3
+ipa = "j"
+spoken_label = "y"
+stretchable = false
+kind = "single"
+example_words = ["yes", "yet", "yell"]
+source = "ls2007:p.76"
+set = 7
+
+[[gpc]]
+id = "z"
+grapheme = "z"
+order = 29
+phase = 3
+ipa = "z"
+spoken_label = "zzz"
+stretchable = true
+kind = "single"
+example_words = ["zip", "zigzag"]
+source = "ls2007:p.76"
+set = 7
+
+[[gpc]]
+id = "zz"
+grapheme = "zz"
+order = 30
+phase = 3
+ipa = "z"
+spoken_label = "zzz"
+stretchable = true
+kind = "doubled"
+example_words = ["buzz", "jazz"]
+source = "ls2007:p.76"
+set = 7
+
+[[gpc]]
+id = "qu"
+grapheme = "qu"
+order = 31
+phase = 3
+ipa = "kw"
+spoken_label = "kw"
+stretchable = false
+kind = "digraph"
+example_words = ["quiz", "quit", "quack"]
+source = "ls2007:p.76"
+set = 7
+
+[[gpc]]
+id = "ch"
+grapheme = "ch"
+order = 32
+phase = 3
+ipa = "tʃ"
+spoken_label = "ch"
+stretchable = false
+kind = "digraph"
+example_words = ["chop", "chin", "much"]
+source = "ls2007:p.76, p.101"
+
+[[gpc]]
+id = "sh"
+grapheme = "sh"
+order = 33
+phase = 3
+ipa = "ʃ"
+spoken_label = "shh"
+stretchable = true
+kind = "digraph"
+example_words = ["ship", "shop", "fish"]
+source = "ls2007:p.76, p.101"
+
+[[gpc]]
+id = "th"
+grapheme = "th"
+order = 34
+phase = 3
+ipa = "θ"
+spoken_label = "th (unvoiced, as in thin)"
+stretchable = true
+kind = "digraph"
+example_words = ["thin", "thick", "with"]
+source = "ls2007:p.76, p.101"
+
+[[gpc]]
+id = "th_voiced"
+grapheme = "th"
+order = 34
+phase = 3
+ipa = "ð"
+spoken_label = "th (voiced, as in them)"
+stretchable = true
+kind = "digraph"
+example_words = ["them", "then", "that", "this"]
+source = "ls2007:p.101"
+variant_of = "th"
+note = "L&S lists both pronunciations in one 'th' column (p.101); they are taught together."
+
+[[gpc]]
+id = "ng"
+grapheme = "ng"
+order = 35
+phase = 3
+ipa = "ŋ"
+spoken_label = "ng"
+stretchable = true
+kind = "digraph"
+example_words = ["ring", "song", "king"]
+source = "ls2007:p.76, p.101"
+
+[[gpc]]
+id = "ai"
+grapheme = "ai"
+order = 36
+phase = 3
+ipa = "eɪ"
+spoken_label = "ay"
+stretchable = true
+kind = "digraph"
+example_words = ["rain", "wait", "sail"]
+source = "ls2007:p.76, p.102"
+
+[[gpc]]
+id = "ee"
+grapheme = "ee"
+order = 37
+phase = 3
+ipa = "iː"
+spoken_label = "ee"
+stretchable = true
+kind = "digraph"
+example_words = ["see", "week", "feet"]
+source = "ls2007:p.76, p.102"
+
+[[gpc]]
+id = "igh"
+grapheme = "igh"
+order = 38
+phase = 3
+ipa = "aɪ"
+spoken_label = "igh (as in night)"
+stretchable = true
+kind = "trigraph"
+example_words = ["high", "night", "light"]
+source = "ls2007:p.76, p.102"
+
+[[gpc]]
+id = "oa"
+grapheme = "oa"
+order = 39
+phase = 3
+ipa = "əʊ"
+spoken_label = "oh"
+stretchable = true
+kind = "digraph"
+example_words = ["coat", "goat", "road"]
+source = "ls2007:p.76, p.102"
+
+[[gpc]]
+id = "oo_long"
+grapheme = "oo"
+order = 40
+phase = 3
+ipa = "uː"
+spoken_label = "oo (long, as in moon)"
+stretchable = true
+kind = "digraph"
+example_words = ["moon", "boot", "too"]
+source = "ls2007:p.76, p.102"
+variant_of = "oo"
+
+[[gpc]]
+id = "oo_short"
+grapheme = "oo"
+order = 41
+phase = 3
+ipa = "ʊ"
+spoken_label = "oo (short, as in book)"
+stretchable = true
+kind = "digraph"
+example_words = ["book", "look", "good"]
+source = "ls2007:p.76, p.102"
+variant_of = "oo"
+
+[[gpc]]
+id = "ar"
+grapheme = "ar"
+order = 42
+phase = 3
+ipa = "ɑː"
+spoken_label = "ar"
+stretchable = true
+kind = "digraph"
+example_words = ["car", "park", "farm"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "or"
+grapheme = "or"
+order = 43
+phase = 3
+ipa = "ɔː"
+spoken_label = "or"
+stretchable = true
+kind = "digraph"
+example_words = ["for", "fork", "born"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "ur"
+grapheme = "ur"
+order = 44
+phase = 3
+ipa = "ɜː"
+spoken_label = "ur"
+stretchable = true
+kind = "digraph"
+example_words = ["fur", "turn", "burn"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "ow"
+grapheme = "ow"
+order = 45
+phase = 3
+ipa = "aʊ"
+spoken_label = "ow (as in cow)"
+stretchable = true
+kind = "digraph"
+example_words = ["now", "down", "cow"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "oi"
+grapheme = "oi"
+order = 46
+phase = 3
+ipa = "ɔɪ"
+spoken_label = "oy"
+stretchable = true
+kind = "digraph"
+example_words = ["oil", "coin", "join"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "ear"
+grapheme = "ear"
+order = 47
+phase = 3
+ipa = "ɪə"
+spoken_label = "ear"
+stretchable = true
+kind = "trigraph"
+example_words = ["ear", "hear", "near"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "air"
+grapheme = "air"
+order = 48
+phase = 3
+ipa = "ɛə"
+spoken_label = "air"
+stretchable = true
+kind = "trigraph"
+example_words = ["air", "hair", "pair"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "ure"
+grapheme = "ure"
+order = 49
+phase = 3
+ipa = "ʊə"
+spoken_label = "ure (as in sure)"
+stretchable = true
+kind = "trigraph"
+example_words = ["sure", "pure", "cure"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "er"
+grapheme = "er"
+order = 50
+phase = 3
+ipa = "ə"
+spoken_label = "uh (as at the end of letter)"
+stretchable = true
+kind = "digraph"
+example_words = ["letter", "hammer", "summer"]
+source = "ls2007:p.77, p.102"
+
+[[gpc]]
+id = "ay"
+grapheme = "ay"
+order = 51
+phase = 5
+ipa = "eɪ"
+spoken_label = "ay"
+stretchable = true
+kind = "digraph"
+example_words = ["day", "play", "say"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ou"
+grapheme = "ou"
+order = 52
+phase = 5
+ipa = "aʊ"
+spoken_label = "ow (as in out)"
+stretchable = true
+kind = "digraph"
+example_words = ["out", "about", "sound"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ie"
+grapheme = "ie"
+order = 53
+phase = 5
+ipa = "aɪ"
+spoken_label = "eye"
+stretchable = true
+kind = "digraph"
+example_words = ["pie", "tie", "cried"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ea"
+grapheme = "ea"
+order = 54
+phase = 5
+ipa = "iː"
+spoken_label = "ee"
+stretchable = true
+kind = "digraph"
+example_words = ["sea", "seat", "meat"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "oy"
+grapheme = "oy"
+order = 55
+phase = 5
+ipa = "ɔɪ"
+spoken_label = "oy"
+stretchable = true
+kind = "digraph"
+example_words = ["boy", "toy", "joy"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ir"
+grapheme = "ir"
+order = 56
+phase = 5
+ipa = "ɜː"
+spoken_label = "ur"
+stretchable = true
+kind = "digraph"
+example_words = ["girl", "bird", "shirt"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ue_oo"
+grapheme = "ue"
+order = 57
+phase = 5
+ipa = "uː"
+spoken_label = "oo (as in blue)"
+stretchable = true
+kind = "digraph"
+example_words = ["clue", "blue", "true"]
+source = "ls2007:p.151"
+variant_of = "ue"
+
+[[gpc]]
+id = "ue_yoo"
+grapheme = "ue"
+order = 58
+phase = 5
+ipa = "juː"
+spoken_label = "yoo (as in cue)"
+stretchable = true
+kind = "digraph"
+example_words = ["cue", "due", "value"]
+source = "ls2007:p.151"
+variant_of = "ue"
+
+[[gpc]]
+id = "aw"
+grapheme = "aw"
+order = 59
+phase = 5
+ipa = "ɔː"
+spoken_label = "or"
+stretchable = true
+kind = "digraph"
+example_words = ["saw", "paw", "lawn"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "wh"
+grapheme = "wh"
+order = 60
+phase = 5
+ipa = "w"
+spoken_label = "w"
+stretchable = false
+kind = "digraph"
+example_words = ["when", "which", "wheel"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ph"
+grapheme = "ph"
+order = 61
+phase = 5
+ipa = "f"
+spoken_label = "fff"
+stretchable = true
+kind = "digraph"
+example_words = ["phonics", "dolphin", "elephant"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ew_oo"
+grapheme = "ew"
+order = 62
+phase = 5
+ipa = "uː"
+spoken_label = "oo (as in blew)"
+stretchable = true
+kind = "digraph"
+example_words = ["blew", "grew", "flew"]
+source = "ls2007:p.151"
+variant_of = "ew"
+
+[[gpc]]
+id = "ew_yoo"
+grapheme = "ew"
+order = 63
+phase = 5
+ipa = "juː"
+spoken_label = "yoo (as in stew)"
+stretchable = true
+kind = "digraph"
+example_words = ["stew", "few", "new"]
+source = "ls2007:p.151"
+variant_of = "ew"
+
+[[gpc]]
+id = "oe"
+grapheme = "oe"
+order = 64
+phase = 5
+ipa = "əʊ"
+spoken_label = "oh"
+stretchable = true
+kind = "digraph"
+example_words = ["toe", "hoe", "goes"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "au"
+grapheme = "au"
+order = 65
+phase = 5
+ipa = "ɔː"
+spoken_label = "or"
+stretchable = true
+kind = "digraph"
+example_words = ["haul", "launch", "author"]
+source = "ls2007:p.151"
+
+[[gpc]]
+id = "ey_ee"
+grapheme = "ey"
+order = 66
+phase = 5
+ipa = "iː"
+spoken_label = "ee"
+stretchable = true
+kind = "digraph"
+example_words = ["money", "honey", "donkey"]
+source = "ls2007:p.151"
+variant_of = "ey"
+
+[[gpc]]
+id = "a-e"
+grapheme = "a-e"
+order = 67
+phase = 5
+ipa = "eɪ"
+spoken_label = "ay"
+stretchable = true
+kind = "split_digraph"
+example_words = ["came", "make", "game"]
+source = "ls2007:p.152"
+split = true
+
+[[gpc]]
+id = "e-e"
+grapheme = "e-e"
+order = 68
+phase = 5
+ipa = "iː"
+spoken_label = "ee"
+stretchable = true
+kind = "split_digraph"
+example_words = ["these", "even", "theme"]
+source = "ls2007:p.152"
+split = true
+
+[[gpc]]
+id = "i-e"
+grapheme = "i-e"
+order = 69
+phase = 5
+ipa = "aɪ"
+spoken_label = "eye"
+stretchable = true
+kind = "split_digraph"
+example_words = ["like", "time", "shine"]
+source = "ls2007:p.152"
+split = true
+
+[[gpc]]
+id = "o-e"
+grapheme = "o-e"
+order = 70
+phase = 5
+ipa = "əʊ"
+spoken_label = "oh"
+stretchable = true
+kind = "split_digraph"
+example_words = ["bone", "home", "stone"]
+source = "ls2007:p.152"
+split = true
+
+[[gpc]]
+id = "u-e_oo"
+grapheme = "u-e"
+order = 71
+phase = 5
+ipa = "uː"
+spoken_label = "oo (as in rule)"
+stretchable = true
+kind = "split_digraph"
+example_words = ["rule", "flute", "prune"]
+source = "ls2007:p.152"
+split = true
+variant_of = "u-e"
+
+[[gpc]]
+id = "u-e_yoo"
+grapheme = "u-e"
+order = 72
+phase = 5
+ipa = "juː"
+spoken_label = "yoo (as in cube)"
+stretchable = true
+kind = "split_digraph"
+example_words = ["huge", "cube", "use"]
+source = "ls2007:p.152"
+split = true
+variant_of = "u-e"
+
+[[gpc]]
+id = "a_ay"
+grapheme = "a"
+order = 73
+phase = 5
+ipa = "eɪ"
+spoken_label = "ay"
+stretchable = true
+kind = "single"
+example_words = ["acorn", "bacon", "apron"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "a"
+
+[[gpc]]
+id = "a_ah"
+grapheme = "a"
+order = 74
+phase = 5
+ipa = "ɑː"
+spoken_label = "ar"
+stretchable = true
+kind = "single"
+example_words = ["fast", "path", "bath"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "a"
+note = "L&S p.153: applies in the South of England only."
+
+[[gpc]]
+id = "a_o"
+grapheme = "a"
+order = 75
+phase = 5
+ipa = "ɒ"
+spoken_label = "o"
+stretchable = true
+kind = "single"
+example_words = ["was", "what", "wash", "wasp"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "a"
+
+[[gpc]]
+id = "e_ee"
+grapheme = "e"
+order = 76
+phase = 5
+ipa = "iː"
+spoken_label = "ee"
+stretchable = true
+kind = "single"
+example_words = ["he", "me", "she", "be"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "e"
+
+[[gpc]]
+id = "i_eye"
+grapheme = "i"
+order = 77
+phase = 5
+ipa = "aɪ"
+spoken_label = "eye"
+stretchable = true
+kind = "single"
+example_words = ["mind", "find", "wild"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "i"
+
+[[gpc]]
+id = "o_oh"
+grapheme = "o"
+order = 78
+phase = 5
+ipa = "əʊ"
+spoken_label = "oh"
+stretchable = true
+kind = "single"
+example_words = ["no", "so", "go", "old"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "o"
+
+[[gpc]]
+id = "u_yoo"
+grapheme = "u"
+order = 79
+phase = 5
+ipa = "juː"
+spoken_label = "yoo"
+stretchable = true
+kind = "single"
+example_words = ["unit", "union", "music"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "u"
+
+[[gpc]]
+id = "u_oo"
+grapheme = "u"
+order = 80
+phase = 5
+ipa = "ʊ"
+spoken_label = "oo (short)"
+stretchable = true
+kind = "single"
+example_words = ["put", "pull", "full", "push"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "u"
+note = "L&S p.153: applies in the South of England only."
+
+[[gpc]]
+id = "ow_oh"
+grapheme = "ow"
+order = 81
+phase = 5
+ipa = "əʊ"
+spoken_label = "oh"
+stretchable = true
+kind = "digraph"
+example_words = ["low", "grow", "snow"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ow"
+
+[[gpc]]
+id = "ie_ee"
+grapheme = "ie"
+order = 82
+phase = 5
+ipa = "iː"
+spoken_label = "ee"
+stretchable = true
+kind = "digraph"
+example_words = ["chief", "field", "thief"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ie"
+
+[[gpc]]
+id = "ea_e"
+grapheme = "ea"
+order = 83
+phase = 5
+ipa = "e"
+spoken_label = "e"
+stretchable = true
+kind = "digraph"
+example_words = ["head", "bread", "deaf"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ea"
+
+[[gpc]]
+id = "er_ur"
+grapheme = "er"
+order = 84
+phase = 5
+ipa = "ɜː"
+spoken_label = "ur"
+stretchable = true
+kind = "digraph"
+example_words = ["her", "fern", "stern"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "er"
+
+[[gpc]]
+id = "ou_oo"
+grapheme = "ou"
+order = 85
+phase = 5
+ipa = "uː"
+spoken_label = "oo (long)"
+stretchable = true
+kind = "digraph"
+example_words = ["you", "soup", "group"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ou"
+
+[[gpc]]
+id = "ou_uu"
+grapheme = "ou"
+order = 86
+phase = 5
+ipa = "ʊ"
+spoken_label = "oo (short)"
+stretchable = true
+kind = "digraph"
+example_words = ["could", "would", "should"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ou"
+
+[[gpc]]
+id = "ou_oh"
+grapheme = "ou"
+order = 87
+phase = 5
+ipa = "əʊ"
+spoken_label = "oh"
+stretchable = true
+kind = "digraph"
+example_words = ["mould", "shoulder", "boulder"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ou"
+
+[[gpc]]
+id = "y_eye"
+grapheme = "y"
+order = 88
+phase = 5
+ipa = "aɪ"
+spoken_label = "eye"
+stretchable = true
+kind = "single"
+example_words = ["by", "my", "try", "sky"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "y"
+
+[[gpc]]
+id = "y_i"
+grapheme = "y"
+order = 89
+phase = 5
+ipa = "ɪ"
+spoken_label = "iii"
+stretchable = true
+kind = "single"
+example_words = ["gym", "crystal", "pyramid"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "y"
+
+[[gpc]]
+id = "y_ee"
+grapheme = "y"
+order = 90
+phase = 5
+ipa = "iː"
+spoken_label = "ee"
+stretchable = true
+kind = "single"
+example_words = ["very", "happy", "funny"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "y"
+
+[[gpc]]
+id = "ch_k"
+grapheme = "ch"
+order = 91
+phase = 5
+ipa = "k"
+spoken_label = "k"
+stretchable = false
+kind = "digraph"
+example_words = ["school", "christmas", "chemist"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ch"
+
+[[gpc]]
+id = "ch_sh"
+grapheme = "ch"
+order = 92
+phase = 5
+ipa = "ʃ"
+spoken_label = "shh"
+stretchable = true
+kind = "digraph"
+example_words = ["chef", "machine", "brochure"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ch"
+
+[[gpc]]
+id = "c_s"
+grapheme = "c"
+order = 93
+phase = 5
+ipa = "s"
+spoken_label = "sss"
+stretchable = true
+kind = "single"
+example_words = ["cell", "central", "cycle"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "c"
+
+[[gpc]]
+id = "g_j"
+grapheme = "g"
+order = 94
+phase = 5
+ipa = "dʒ"
+spoken_label = "j"
+stretchable = false
+kind = "single"
+example_words = ["gent", "gem", "ginger"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "g"
+
+[[gpc]]
+id = "ey_ay"
+grapheme = "ey"
+order = 95
+phase = 5
+ipa = "eɪ"
+spoken_label = "ay"
+stretchable = true
+kind = "digraph"
+example_words = ["they", "grey", "obey"]
+source = "ls2007:p.153"
+alternative_pronunciation = true
+variant_of = "ey"
+
+[[gpc]]
+id = "tch"
+grapheme = "tch"
+order = 96
+phase = 5
+ipa = "tʃ"
+spoken_label = "ch"
+stretchable = false
+kind = "trigraph"
+example_words = ["catch", "fetch", "match"]
+source = "ls2007:p.154"
+
+[[gpc]]
+id = "ture"
+grapheme = "ture"
+order = 97
+phase = 5
+ipa = "tʃə"
+spoken_label = "cher"
+stretchable = true
+kind = "quadgraph"
+example_words = ["picture", "nature", "future"]
+source = "ls2007:p.154"
+
+[[gpc]]
+id = "dge"
+grapheme = "dge"
+order = 98
+phase = 5
+ipa = "dʒ"
+spoken_label = "j"
+stretchable = false
+kind = "trigraph"
+example_words = ["fudge", "hedge", "bridge"]
+source = "ls2007:p.154"
+
+[[gpc]]
+id = "mb"
+grapheme = "mb"
+order = 99
+phase = 5
+ipa = "m"
+spoken_label = "mmm"
+stretchable = true
+kind = "digraph"
+example_words = ["lamb", "climb", "thumb"]
+source = "ls2007:p.154"
+
+[[gpc]]
+id = "gn"
+grapheme = "gn"
+order = 100
+phase = 5
+ipa = "n"
+spoken_label = "nnn"
+stretchable = true
+kind = "digraph"
+example_words = ["gnat", "gnaw", "gnome"]
+source = "ls2007:p.154"
+
+[[gpc]]
+id = "kn"
+grapheme = "kn"
+order = 101
+phase = 5
+ipa = "n"
+spoken_label = "nnn"
+stretchable = true
+kind = "digraph"
+example_words = ["knit", "knee", "knock"]
+source = "ls2007:p.154"
+
+[[gpc]]
+id = "wr"
+grapheme = "wr"
+order = 102
+phase = 5
+ipa = "ɹ"
+spoken_label = "rrr"
+stretchable = true
+kind = "digraph"
+example_words = ["wrap", "wren", "write"]
+source = "ls2007:p.154"
+
+[[gpc]]
+id = "or_er"
+grapheme = "or"
+order = 103
+phase = 5
+ipa = "ɜː"
+spoken_label = "ur"
+stretchable = true
+kind = "digraph"
+example_words = ["word", "worm", "work"]
+source = "kidnix"
+alternative_pronunciation = true
+variant_of = "or"
+added_by = "kidnix"
+note = "Not in the L&S alternative-pronunciation table. Added because the DfE Reading Framework's Appendix 7 turns on it: a child taught 'or' as /or/ can read 'worn' but not 'worms'. Without this GPC the acceptance test cannot distinguish them."
+
+[[untaught]]
+id = "e_silent"
+grapheme = "e"
+description = "silent final e (the second half of a split digraph, or a lone marker)"
+example_words = ["giraffe", "leaves", "have"]
+taught = false
+
+[[untaught]]
+id = "le"
+grapheme = "le"
+description = "final consonant-le syllable"
+example_words = ["puddle", "little", "table"]
+taught = false
+
+[[untaught]]
+id = "ed_t"
+grapheme = "ed"
+description = "-ed suffix pronounced /t/"
+example_words = ["jumped", "kicked", "asked"]
+taught = false
+
+[[untaught]]
+id = "ed_d"
+grapheme = "ed"
+description = "-ed suffix pronounced /d/"
+example_words = ["called", "filled"]
+taught = false
+
+[[untaught]]
+id = "ei"
+grapheme = "ei"
+description = "the 'ei' of their/vein"
+example_words = ["their", "vein"]
+taught = false
+
+[[untaught]]
+id = "ere_er"
+grapheme = "ere"
+description = "the 'ere' of were"
+example_words = ["were"]
+taught = false
+
+[[untaught]]
+id = "oe_u"
+grapheme = "oe"
+description = "the 'oe' of does"
+example_words = ["does"]
+taught = false
+
+[[untaught]]
+id = "a_or"
+grapheme = "a"
+description = "'a' after w pronounced /ɔː/"
+example_words = ["water", "warm", "war"]
+taught = false
+
+[[untaught]]
+id = "o_u"
+grapheme = "o"
+description = "'o' pronounced /ʌ/"
+example_words = ["some", "come", "one", "money"]
+taught = false
+
+[[untaught]]
+id = "o_oo"
+grapheme = "o"
+description = "'o' pronounced /uː/"
+example_words = ["into", "do", "who"]
+taught = false
+
+[[untaught]]
+id = "augh"
+grapheme = "augh"
+description = "the 'augh' of laughed/caught"
+example_words = ["laughed", "caught"]
+taught = false
+
+[[untaught]]
+id = "ough"
+grapheme = "ough"
+description = "the 'ough' family"
+example_words = ["thought", "through", "though"]
+taught = false
+
+[[untaught]]
+id = "ai_e"
+grapheme = "ai"
+description = "the 'ai' of said"
+example_words = ["said"]
+taught = false
+
+[[untaught]]
+id = "eo"
+grapheme = "eo"
+description = "the 'eo' of people"
+example_words = ["people"]
+taught = false
+
+[[untaught]]
+id = "silent"
+grapheme = ""
+description = "a letter that stands for no phoneme at all"
+example_words = ["friend", "island"]
+taught = false

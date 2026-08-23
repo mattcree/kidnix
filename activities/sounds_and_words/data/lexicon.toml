@@ -1,0 +1,1018 @@
+# Generated from Letters and Sounds (2007), DFES-00281-2007.
+# Contains public sector information licensed under the Open Government Licence v3.0.
+# (c) Crown copyright 2007.
+# See LICENSES.md and data/sources.toml. Do not edit by hand -- see the design doc.
+
+# Words that are not in the word banks but appear in L&S captions and
+# sentences, in the DfE Reading Framework's Appendix 7 fixtures, or that
+# longest-match segmentation would get wrong. The lexicon is authoritative.
+
+[[entry]]
+word = "afraid"
+graphemes = ["a", "f", "r", "ai", "d"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "after"
+graphemes = ["a", "f", "t", "er"]
+source = "ls2007:p.103 -- short-a ('northern') pronunciation, the one L&S itself assumes when it lists fast/last/ask as Phase Four words"
+
+[[entry]]
+word = "alex"
+graphemes = ["a", "l", "e", "x"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "arms"
+graphemes = ["ar", "m", "s_z"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "azam"
+graphemes = ["a", "z", "a", "m"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "bang"
+graphemes = ["b", "a", "ng"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "been"
+graphemes = ["b", "ee", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "bits"
+graphemes = ["b", "i", "t", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "black"
+graphemes = ["b", "l", "a", "ck"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "boat"
+graphemes = ["b", "oa", "t"]
+source = "ls2007:p.102"
+
+[[entry]]
+word = "boats"
+graphemes = ["b", "oa", "t", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "books"
+graphemes = ["b", "oo_short", "k", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "boots"
+graphemes = ["b", "oo_long", "t", "s"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "brett"
+graphemes = ["b", "r", "e", "tt"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "bumping"
+graphemes = ["b", "u", "m", "p", "i", "ng"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "by"
+graphemes = ["b", "y_eye"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "cannot"
+graphemes = ["c", "a", "nn", "o", "t"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "carl"
+graphemes = ["c", "ar", "l"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "carpet"
+graphemes = ["c", "ar", "p", "e", "t"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "cats"
+graphemes = ["c", "a", "t", "s"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "chat"
+graphemes = ["ch", "a", "t"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "chickens"
+graphemes = ["ch", "i", "ck", "e", "n", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "children's"
+graphemes = ["ch", "i", "l", "d", "r", "e", "n", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "chimps"
+graphemes = ["ch", "i", "m", "p", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "chips"
+graphemes = ["ch", "i", "p", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "chucks"
+graphemes = ["ch", "u", "ck", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "clock"
+graphemes = ["c", "l", "o", "ck"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "coals"
+graphemes = ["c", "oa", "l", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "coins"
+graphemes = ["c", "oi", "n", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "cooks"
+graphemes = ["c", "oo_short", "k", "s"]
+source = "kidnix (inflection of a L&S word)"
+
+[[entry]]
+word = "corn"
+graphemes = ["c", "or", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "corner"
+graphemes = ["c", "or", "n", "er"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "cows"
+graphemes = ["c", "ow", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "crab"
+graphemes = ["c", "r", "a", "b"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "crabs"
+graphemes = ["c", "r", "a", "b", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "crack"
+graphemes = ["c", "r", "a", "ck"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "cross"
+graphemes = ["c", "r", "o", "ss"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "cubs"
+graphemes = ["c", "u", "b", "s_z"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "cups"
+graphemes = ["c", "u", "p", "s"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "dark"
+graphemes = ["d", "ar", "k"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "dashes"
+graphemes = ["d", "a", "sh", "e", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "den"
+graphemes = ["d", "e", "n"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "digging"
+graphemes = ["d", "i", "gg", "i", "ng"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "dish"
+graphemes = ["d", "i", "sh"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "does"
+graphemes = ["d", "oe_u", "s_z"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+never_decodable = true
+
+[[entry]]
+word = "dogs"
+graphemes = ["d", "o", "g", "s_z"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "drip"
+graphemes = ["d", "r", "i", "p"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "dropping"
+graphemes = ["d", "r", "o", "pp", "i", "ng"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "drops"
+graphemes = ["d", "r", "o", "p", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "drum"
+graphemes = ["d", "r", "u", "m"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "duck"
+graphemes = ["d", "u", "ck"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "ducks"
+graphemes = ["d", "u", "ck", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "eat"
+graphemes = ["ea", "t"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "eel"
+graphemes = ["ee", "l"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "egg"
+graphemes = ["e", "gg"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "ever"
+graphemes = ["e", "v", "er"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "extra"
+graphemes = ["e", "x", "t", "r", "a"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "far"
+graphemes = ["f", "ar"]
+source = "ls2007:p.102"
+
+[[entry]]
+word = "farm"
+graphemes = ["f", "ar", "m"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "feed"
+graphemes = ["f", "ee", "d"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "feels"
+graphemes = ["f", "ee", "l", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "fend"
+graphemes = ["f", "e", "n", "d"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "fins"
+graphemes = ["f", "i", "n", "s_z"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "flowers"
+graphemes = ["f", "l", "ow", "er", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "fox"
+graphemes = ["f", "o", "x"]
+source = "ls2007:p.100"
+
+[[entry]]
+word = "foxes"
+graphemes = ["f", "o", "x", "e", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "fred"
+graphemes = ["f", "r", "e", "d"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "frogs"
+graphemes = ["f", "r", "o", "g", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "full"
+graphemes = ["f", "u_oo", "ll"]
+source = "ls2007:p.153"
+
+[[entry]]
+word = "garden"
+graphemes = ["g", "ar", "d", "e", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "gets"
+graphemes = ["g", "e", "t", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "getting"
+graphemes = ["g", "e", "tt", "i", "ng"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "giraffe"
+graphemes = ["g_j", "i", "r", "a_ah", "ff", "e_silent"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+never_decodable = true
+
+[[entry]]
+word = "goats"
+graphemes = ["g", "oa", "t", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "gurdeep"
+graphemes = ["g", "ur", "d", "ee", "p"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "hands"
+graphemes = ["h", "a", "n", "d", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "having"
+graphemes = ["h", "a", "v", "i", "ng"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "hen"
+graphemes = ["h", "e", "n"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "hens"
+graphemes = ["h", "e", "n", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "hill"
+graphemes = ["h", "i", "ll"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "hob"
+graphemes = ["h", "o", "b"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "hoot"
+graphemes = ["h", "oo_long", "t"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "into"
+graphemes = ["i", "n", "t", "o_oo"]
+source = "ls2007:p.101 -- L&S uses 'into' in a Phase Three sentence, but its final 'o' stands for /oo/, which L&S does not teach until Phase Five"
+never_decodable = true
+
+[[entry]]
+word = "its"
+graphemes = ["i", "t", "s"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "itself"
+graphemes = ["i", "t", "s", "e", "l", "f"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "janaki"
+graphemes = ["j", "a", "n", "a", "k", "i"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "jeevan"
+graphemes = ["j", "ee", "v", "a", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "jeff"
+graphemes = ["j", "e", "ff"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "jim"
+graphemes = ["j", "i", "m"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "jon"
+graphemes = ["j", "o", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "josh"
+graphemes = ["j", "o", "sh"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "jumped"
+graphemes = ["j", "u", "m", "p", "ed_t"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+never_decodable = true
+
+[[entry]]
+word = "jumps"
+graphemes = ["j", "u", "m", "p", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "kath"
+graphemes = ["k", "a", "th"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "kennel"
+graphemes = ["k", "e", "nn", "e", "l"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "kevin's"
+graphemes = ["k", "e", "v", "i", "n", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "kicked"
+graphemes = ["k", "i", "ck", "ed_t"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+never_decodable = true
+
+[[entry]]
+word = "leaves"
+graphemes = ["l", "ea", "v", "e_silent", "s_z"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+never_decodable = true
+
+[[entry]]
+word = "left"
+graphemes = ["l", "e", "f", "t"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "legs"
+graphemes = ["l", "e", "g", "s_z"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "lemon"
+graphemes = ["l", "e", "m", "o", "n"]
+source = "ls2007:p.100"
+
+[[entry]]
+word = "let's"
+graphemes = ["l", "e", "t", "s"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "letters"
+graphemes = ["l", "e", "tt", "er", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "lid"
+graphemes = ["l", "i", "d"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "likes"
+graphemes = ["l", "i-e", "k", "s"]
+source = "kidnix (inflection)"
+
+[[entry]]
+word = "liz"
+graphemes = ["l", "i", "z"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "log"
+graphemes = ["l", "o", "g"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "looks"
+graphemes = ["l", "oo_short", "k", "s"]
+source = "kidnix (inflection of a L&S word)"
+
+[[entry]]
+word = "lots"
+graphemes = ["l", "o", "t", "s"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "mark"
+graphemes = ["m", "ar", "k"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "mars"
+graphemes = ["m", "ar", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "max"
+graphemes = ["m", "a", "x"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "morning"
+graphemes = ["m", "or", "n", "i", "ng"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "mugs"
+graphemes = ["m", "u", "g", "s_z"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "must"
+graphemes = ["m", "u", "s", "t"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "nan"
+graphemes = ["n", "a", "n"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "natasha"
+graphemes = ["n", "a", "t", "a", "sh", "a"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "nut"
+graphemes = ["n", "u", "t"]
+source = "kidnix (singular of a L&S caption word)"
+
+[[entry]]
+word = "nuts"
+graphemes = ["n", "u", "t", "s"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "pans"
+graphemes = ["p", "a", "n", "s_z"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "peck"
+graphemes = ["p", "e", "ck"]
+source = "ls2007:p.100"
+
+[[entry]]
+word = "planet"
+graphemes = ["p", "l", "a", "n", "e", "t"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "plums"
+graphemes = ["p", "l", "u", "m", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "ponds"
+graphemes = ["p", "o", "n", "d", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "port"
+graphemes = ["p", "or", "t"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "pots"
+graphemes = ["p", "o", "t", "s"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "puddle"
+graphemes = ["p", "u", "dd", "le"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+never_decodable = true
+
+[[entry]]
+word = "pup"
+graphemes = ["p", "u", "p"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "queen"
+graphemes = ["qu", "ee", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "rabbits"
+graphemes = ["r", "a", "bb", "i", "t", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "rats"
+graphemes = ["r", "a", "t", "s"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "red"
+graphemes = ["r", "e", "d"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "river"
+graphemes = ["r", "i", "v", "er"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "robin"
+graphemes = ["r", "o", "b", "i", "n"]
+source = "ls2007:p.100"
+
+[[entry]]
+word = "rock"
+graphemes = ["r", "o", "ck"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "rocking-chair"
+graphemes = ["r", "o", "ck", "i", "ng", "ch", "air"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "rocks"
+graphemes = ["r", "o", "ck", "s"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "runs"
+graphemes = ["r", "u", "n", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "rushes"
+graphemes = ["r", "u", "sh", "e", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "sang"
+graphemes = ["s", "a", "ng"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "sasha"
+graphemes = ["s", "a", "sh", "a"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "seal"
+graphemes = ["s", "ea", "l"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "seen"
+graphemes = ["s", "ee", "n"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "sees"
+graphemes = ["s", "ee", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "seven"
+graphemes = ["s", "e", "v", "e", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "sharks"
+graphemes = ["sh", "ar", "k", "s"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "shep"
+graphemes = ["sh", "e", "p"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "ships"
+graphemes = ["sh", "i", "p", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "shops"
+graphemes = ["sh", "o", "p", "s"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "silver"
+graphemes = ["s", "i", "l", "v", "er"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "sister"
+graphemes = ["s", "i", "s", "t", "er"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "sits"
+graphemes = ["s", "i", "t", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "sitting"
+graphemes = ["s", "i", "tt", "i", "ng"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "sixteen"
+graphemes = ["s", "i", "x", "t", "ee", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "skeleton"
+graphemes = ["s", "k", "e", "l", "e", "t", "o", "n"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "snail"
+graphemes = ["s", "n", "ai", "l"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "snapping"
+graphemes = ["s", "n", "a", "pp", "i", "ng"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "socks"
+graphemes = ["s", "o", "ck", "s"]
+source = "ls2007:p.71"
+
+[[entry]]
+word = "songs"
+graphemes = ["s", "o", "ng", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "soon"
+graphemes = ["s", "oo_long", "n"]
+source = "ls2007: high-frequency word list; also DfE Reading Framework, Appendix 7"
+
+[[entry]]
+word = "spain"
+graphemes = ["s", "p", "ai", "n"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "spent"
+graphemes = ["s", "p", "e", "n", "t"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "splash"
+graphemes = ["s", "p", "l", "a", "sh"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "spots"
+graphemes = ["s", "p", "o", "t", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "stairs"
+graphemes = ["s", "t", "air", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "stamps"
+graphemes = ["s", "t", "a", "m", "p", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "stars"
+graphemes = ["s", "t", "ar", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "steep"
+graphemes = ["s", "t", "ee", "p"]
+source = "ls2007:p.127"
+
+[[entry]]
+word = "stuck"
+graphemes = ["s", "t", "u", "ck"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "swims"
+graphemes = ["s", "w", "i", "m", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "tanya"
+graphemes = ["t", "a", "n", "y", "a"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "their"
+graphemes = ["th_voiced", "ei", "r"]
+source = "ls2007:p.132"
+never_decodable = true
+
+[[entry]]
+word = "they"
+graphemes = ["th_voiced", "ey_ay"]
+source = "ls2007:p.77"
+
+[[entry]]
+word = "things"
+graphemes = ["th", "i", "ng", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "three"
+graphemes = ["th", "r", "ee"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "thud"
+graphemes = ["th", "u", "d"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "thunderstorms"
+graphemes = ["th", "u", "n", "d", "er", "s", "t", "or", "m", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "tools"
+graphemes = ["t", "oo_long", "l", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "tracks"
+graphemes = ["t", "r", "a", "ck", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "trains"
+graphemes = ["t", "r", "ai", "n", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "trees"
+graphemes = ["t", "r", "ee", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "tricks"
+graphemes = ["t", "r", "i", "ck", "s"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "truck"
+graphemes = ["t", "r", "u", "ck"]
+source = "ls2007:p.128; also DfE Reading Framework, Appendix 7"
+
+[[entry]]
+word = "twigs"
+graphemes = ["t", "w", "i", "g", "s_z"]
+source = "ls2007:p.128"
+
+[[entry]]
+word = "us"
+graphemes = ["u", "s"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "vikram"
+graphemes = ["v", "i", "k", "r", "a", "m"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "water"
+graphemes = ["w", "a_or", "t", "er"]
+source = "ls2007:p.133"
+never_decodable = true
+
+[[entry]]
+word = "well"
+graphemes = ["w", "e", "ll"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "were"
+graphemes = ["w", "ere_er"]
+source = "ls2007:p.114"
+never_decodable = true
+
+[[entry]]
+word = "wet"
+graphemes = ["w", "e", "t"]
+source = "ls2007:p.100"
+
+[[entry]]
+word = "what"
+graphemes = ["wh", "a_o", "t"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "wigwam"
+graphemes = ["w", "i", "g", "w", "a", "m"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "wings"
+graphemes = ["w", "i", "ng", "s_z"]
+source = "ls2007:p.101"
+
+[[entry]]
+word = "wooden"
+graphemes = ["w", "oo_short", "d", "e", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "woods"
+graphemes = ["w", "oo_short", "d", "s_z"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "worms"
+graphemes = ["w", "or_er", "m", "s_z"]
+source = "kidnix (DfE Reading Framework, Appendix 7)"
+
+[[entry]]
+word = "yasha"
+graphemes = ["y", "a", "sh", "a"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "yasmin"
+graphemes = ["y", "a", "s", "m", "i", "n"]
+source = "ls2007:p.103"
+
+[[entry]]
+word = "zebra"
+graphemes = ["z", "e", "b", "r", "a"]
+source = "ls2007:p.100"
+
+[[entry]]
+word = "zinat's"
+graphemes = ["z", "i", "n", "a", "t", "s"]
+source = "ls2007:p.101"

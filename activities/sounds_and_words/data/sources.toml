@@ -1,0 +1,231 @@
+# Where every line of this corpus came from, and under what licence.
+#
+# AGENTS.md section 5: bundled content must be redistributable, and licences
+# must be recorded. This file is the machine-readable half of LICENSES.md.
+
+[corpus]
+name = "kidnix Sounds & Words corpus"
+version = 1
+generated_from = "Letters and Sounds (2007) and the DfE Reading Framework (2023)"
+lowercase = true
+note = """
+Everything a child is shown is lowercase. Word banks, graphemes and tricky
+words are stored lowercase. Captions, sentences and book text are stored twice:
+`text` exactly as printed in the source (so the transcription can be checked
+against the PDF) and `text_lower` for display.
+"""
+
+# --------------------------------------------------------------------------
+# Primary sources
+# --------------------------------------------------------------------------
+
+[[source]]
+id = "ls2007"
+title = "Letters and Sounds: Principles and Practice of High Quality Phonics"
+reference = "DFES-00281-2007"
+publisher = "Department for Education and Skills / Primary National Strategy"
+year = 2007
+url = "https://assets.publishing.service.gov.uk/media/5a7aa7b6e5274a34770e630c/Letters_and_Sounds_-_DFES-00281-2007.pdf"
+landing_page = "https://www.gov.uk/government/publications/letters-and-sounds"
+retrieved = "2026-08-23"
+copyright = "© Crown copyright 2007"
+licence = "Open Government Licence v3.0"
+licence_url = "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+attribution = "Contains public sector information licensed under the Open Government Licence v3.0."
+verified = true
+pages_used = [
+  "p.50 -- suggested timetable for Phase Two: the set order and the tricky words",
+  "p.69 -- bank of suggested words, Phase Two sets 1-4, and the two footnotes on 'a' and on s/f in as, is, has, his, of",
+  "p.70 -- bank of suggested words, Phase Two set 5, and the note on doubled l, s, f and on ck",
+  "p.71 -- bank of suggested captions, Phase Two",
+  "p.76 -- suggested timetable for Phase Three: sets 6-7, the consonant digraphs, the first vowel digraphs, and the tricky words",
+  "p.77 -- suggested timetable for Phase Three, weeks 9-10",
+  "p.99 -- Phase Three assessment criteria",
+  "p.100 -- bank of words, sets 1-7, and the yes/no questions",
+  "p.101 -- Phase Three sentences, and the four consonant digraph word lists",
+  "p.102 -- the Phase Three vowel grapheme word lists",
+  "p.103 -- combination words, captions, sentences, and the five end-of-Phase-Three texts",
+  "p.114 -- Phase Four tricky words for reading",
+  "p.125 -- Phase Four assessment criteria",
+  "p.126 -- Phase Four CVCC word bank",
+  "p.127 -- Phase Four CCV/CCVC and CCVCC/CCCVC word banks",
+  "p.128 -- Phase Four sentences and yes/no questions",
+  "p.132 -- Phase Five timetable, weeks 1-4: new graphemes and tricky words",
+  "p.133 -- Phase Five timetable, weeks 5-7",
+  "p.151 -- Phase Five: some new graphemes for reading",
+  "p.152 -- Phase Five: split digraphs",
+  "p.153 -- Phase Five: known graphemes for reading, alternative pronunciations",
+  "p.154 -- Phase Five: alternative spellings for each phoneme",
+  "p.197-198 -- Appendix: progress check for each phase",
+]
+residual_risk = """
+L&S credits its word and high-frequency-word tables to Masterson, J., Stuart,
+M., Dixon, M. and Lovejoy, S. (2003), Children's Printed Word Database, an
+ESRC-funded project (R00023406), on p.195. The tables as published sit inside
+an OGL document and are redistributed here on that basis, but the *derived
+frequency ranking* should be treated as third-party and is cited accordingly.
+kidnix ships no frequency data of its own and needs none: L&S's lists are
+matched to the progression, which is what actually matters.
+"""
+
+[[source]]
+id = "reading_framework_2023"
+title = "The reading framework: teaching the foundations of literacy"
+publisher = "Department for Education"
+year = 2023
+url = "https://assets.publishing.service.gov.uk/media/664f600c05e5fe28788fc437/The_reading_framework_.pdf"
+landing_page = "https://www.gov.uk/government/publications/the-reading-framework-teaching-the-foundations-of-literacy"
+retrieved = "2026-08-23"
+copyright = "© Crown copyright"
+licence = "Open Government Licence v3.0"
+licence_url = "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+attribution = "Contains public sector information licensed under the Open Government Licence v3.0."
+verified = true
+pages_used = [
+  "pp.144-145 -- Appendix 7, 'Decodable texts for pupils beginning to learn to read': the stated GPC set, the three exception words, and the four exemplar books",
+]
+
+[[source]]
+id = "nc_english_appendix_1"
+title = "National Curriculum in England: English Appendix 1 (Spelling)"
+publisher = "Department for Education"
+year = 2013
+url = "https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/239784/English_Appendix_1_-_Spelling.pdf"
+licence = "Open Government Licence v3.0"
+attribution = "Contains public sector information licensed under the Open Government Licence v3.0."
+verified = true
+note = """
+The statutory Year 1 common exception word list is the authoritative superset
+for tricky words. Not yet transcribed into this corpus: the L&S list is a
+subset of it and is what the progression is matched to. Adding the statutory
+list is a v1.1 job and needs no new licence decision.
+"""
+
+# --------------------------------------------------------------------------
+# The Reading Framework acceptance test
+# --------------------------------------------------------------------------
+
+[acceptance_test]
+name = "Reading Framework Appendix 7"
+source = "reading_framework_2023"
+pages = "pp.144-145"
+stated_gpcs = """
+'A Reception child learning through a typical systematic synthetic phonics (SSP)
+programme might know: the phonemes corresponding to each letter of the alphabet;
+the phonemes corresponding to "ck", "sh", "th", "ng", "ee", "oo", "or", "ar";
+exception words: "to", "the", "we".'
+"""
+framework_footnote = "'The GPCs are not quoted from a published programme; they are examples only.'"
+expected = "Books 1 and 2 rejected; Books 3 and 4 accepted."
+kidnix_additions_to_the_stated_set = """
+The framework's list names no doubled-consonant graphemes, but Book 3 contains
+'off' and 'will' and Book 4 contains 'dropping' and 'getting'. The fixture
+ceiling therefore adds ff, ll, ss, zz and the kidnix doublets (bb dd gg mm nn
+pp rr tt), and the two L&S footnote variants s->/z/ and f->/v/. Recorded here
+rather than buried in the fixture, because an acceptance test that quietly
+widens its own ceiling is not an acceptance test.
+"""
+
+# --------------------------------------------------------------------------
+# What kidnix added, and why
+# --------------------------------------------------------------------------
+
+[[addition]]
+kind = "gpc"
+ids = ["bb", "dd", "gg", "mm", "nn", "pp", "rr", "tt"]
+added_by = "kidnix"
+order = 16
+reason = """
+L&S teaches ff, ll and ss explicitly at Phase Two set 5, and says (p.70) that a
+doubled letter 'represents one phoneme'. It never introduces the other doubled
+consonants as GPCs, but uses them freely in its own word banks from set 4 on:
+rocket, carrot, ticket, pocket, rabbit, sitting, letter, ladder, supper. Without
+them those words segment into the wrong number of phonemes, which would put the
+wrong number of sound buttons under them. Introduced at order 16, where they
+first appear in the banks.
+"""
+
+[[addition]]
+kind = "gpc"
+ids = ["or_er"]
+added_by = "kidnix"
+order = 103
+reason = """
+'or' standing for /ur/, as in word, worm, work. Not in L&S's alternative-
+pronunciation table. Added because the Reading Framework's Appendix 7 turns on
+exactly this distinction: a child taught 'or' as /or/ can read 'worn' (Book 4)
+but not 'worms' (Book 1). Both segment into the same taught graphemes; only the
+pronunciation separates them. Without this GPC the acceptance test cannot tell
+the two books apart, and neither could the filter.
+"""
+
+[[addition]]
+kind = "untaught_pseudo_gpcs"
+count = 15
+added_by = "kidnix"
+reason = """
+Pseudo-GPCs (e_silent, le, ed_t, ei, ere_er, ough, augh, ...) that are never in
+any ceiling at any phase. They exist so the corpus can say precisely *why* a
+word is not decodable rather than merely that it is not. They are what makes
+'puddle', 'jumped', 'their' and 'were' reject with an explanation.
+"""
+
+# --------------------------------------------------------------------------
+# What was left out of the L&S banks, and why
+# --------------------------------------------------------------------------
+
+[[omitted]]
+word = "ass"
+source = "ls2007:p.70"
+reason = "in the (+ss) column; not a word a five-year-old's machine should offer unprompted"
+
+[[omitted]]
+word = "god"
+source = "ls2007:p.69"
+reason = "in the (+o) column; a religious proper noun has no place in a phonics word bank"
+
+[[omitted]]
+word = "queue"
+source = "ls2007:p.151"
+reason = "listed under 'ue' but not analysable as a decodable string at all"
+
+[[omitted]]
+word = "whistle"
+source = "ls2007:p.151"
+reason = "listed under 'wh' but needs the final 'le' syllable, which L&S never teaches as a GPC"
+
+[[omitted]]
+word = "scene"
+source = "ls2007:p.152"
+reason = "listed under 'e-e' but its 'c' stands for no phoneme at all, so it could never pass any ceiling and would sit in the bank unusable"
+
+# --------------------------------------------------------------------------
+# Places where L&S's own material does not pass its own gate
+# --------------------------------------------------------------------------
+
+[[audit]]
+finding = "L&S captions and sentences that are not fully decodable at the phase they are printed in"
+detail = """
+Transcribing the banks and then running them back through the filter turns up a
+short list. 'into' appears in a Phase Three sentence (p.101, p.103) but its
+final 'o' stands for /oo/, a Phase Five alternative pronunciation. 'may' appears
+in an end-of-Phase-Three text (p.103) but 'ay' is a Phase Five grapheme. 'by'
+appears in a Phase Four question (p.128) but 'y' as /igh/ is Phase Five. 'Ken'
+is printed in the set 3 (+k) column though the 'e' it needs is a set 4 letter.
+These are not transcription errors; they are in the document. kidnix's filter
+rejects those sentences at those phases, which is the correct behaviour and the
+whole point of having a filter. The list is asserted in
+tests/test_letters_and_sounds_audit.py so that it cannot drift silently.
+"""
+
+[[audit]]
+finding = "L&S's northern/southern vowel notes"
+detail = """
+p.126 marks ask, fast, last, daft, task, glass, grass, brass as Phase Four
+words 'in the North of England, where the letter a is pronounced /a/', and
+p.153 says the alternative pronunciations of 'a' and 'u' apply in the South
+only. kidnix takes the short-a reading for those words, which is what makes
+them decodable at Phase Four at all, and records the choice here rather than
+pretending the question does not exist. A future release could make it a
+parent setting; the evidence that it matters at five is [absent].
+"""

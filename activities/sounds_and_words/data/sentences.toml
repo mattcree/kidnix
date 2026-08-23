@@ -1,0 +1,1240 @@
+# Generated from Letters and Sounds (2007), DFES-00281-2007.
+# Contains public sector information licensed under the Open Government Licence v3.0.
+# (c) Crown copyright 2007.
+# See LICENSES.md and data/sources.toml. Do not edit by hand -- see the design doc.
+
+
+[[sentence]]
+text = "pat a dog"
+text_lower = "pat a dog"
+tokens = ["pat", "a", "dog"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a cat in a hat"
+text_lower = "a cat in a hat"
+tokens = ["a", "cat", "in", "a", "hat"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a sad man"
+text_lower = "a sad man"
+tokens = ["a", "sad", "man"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a pin on a map"
+text_lower = "a pin on a map"
+tokens = ["a", "pin", "on", "a", "map"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "pots and pans"
+text_lower = "pots and pans"
+tokens = ["pots", "and", "pans"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "dad and nan"
+text_lower = "dad and nan"
+tokens = ["dad", "and", "nan"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a nap in a cot"
+text_lower = "a nap in a cot"
+tokens = ["a", "nap", "in", "a", "cot"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a kid in a cap"
+text_lower = "a kid in a cap"
+tokens = ["a", "kid", "in", "a", "cap"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a tin can"
+text_lower = "a tin can"
+tokens = ["a", "tin", "can"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "cats and dogs"
+text_lower = "cats and dogs"
+tokens = ["cats", "and", "dogs"]
+kind = "caption"
+phase = 2
+after_order = 12
+group = "Captions with sets 1-3 words"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a red rug"
+text_lower = "a red rug"
+tokens = ["a", "red", "rug"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "get to the top"
+text_lower = "get to the top"
+tokens = ["get", "to", "the", "top"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "socks on a mat"
+text_lower = "socks on a mat"
+tokens = ["socks", "on", "a", "mat"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a cap on a peg"
+text_lower = "a cap on a peg"
+tokens = ["a", "cap", "on", "a", "peg"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a run in the sun"
+text_lower = "a run in the sun"
+tokens = ["a", "run", "in", "the", "sun"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "rats on a sack"
+text_lower = "rats on a sack"
+tokens = ["rats", "on", "a", "sack"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a pup in the mud"
+text_lower = "a pup in the mud"
+tokens = ["a", "pup", "in", "the", "mud"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "run to the den"
+text_lower = "run to the den"
+tokens = ["run", "to", "the", "den"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "mugs and cups"
+text_lower = "mugs and cups"
+tokens = ["mugs", "and", "cups"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "an egg in an egg cup"
+text_lower = "an egg in an egg cup"
+tokens = ["an", "egg", "in", "an", "egg", "cup"]
+kind = "caption"
+phase = 2
+after_order = 16
+group = "Captions with sets 1-4 words + to, the"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a hug and a kiss"
+text_lower = "a hug and a kiss"
+tokens = ["a", "hug", "and", "a", "kiss"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "on top of the rock"
+text_lower = "on top of the rock"
+tokens = ["on", "top", "of", "the", "rock"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a bag of nuts"
+text_lower = "a bag of nuts"
+tokens = ["a", "bag", "of", "nuts"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "to huff and puff"
+text_lower = "to huff and puff"
+tokens = ["to", "huff", "and", "puff"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "go to the log hut"
+text_lower = "go to the log hut"
+tokens = ["go", "to", "the", "log", "hut"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a hot hob"
+text_lower = "a hot hob"
+tokens = ["a", "hot", "hob"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "sit back to back"
+text_lower = "sit back to back"
+tokens = ["sit", "back", "to", "back"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a duck and a hen"
+text_lower = "a duck and a hen"
+tokens = ["a", "duck", "and", "a", "hen"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a cat on a bed"
+text_lower = "a cat on a bed"
+tokens = ["a", "cat", "on", "a", "bed"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "to the top of the hill"
+text_lower = "to the top of the hill"
+tokens = ["to", "the", "top", "of", "the", "hill"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "get off the bus"
+text_lower = "get off the bus"
+tokens = ["get", "off", "the", "bus"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "no lid on the pan"
+text_lower = "no lid on the pan"
+tokens = ["no", "lid", "on", "the", "pan"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "pack a pen in a bag"
+text_lower = "pack a pen in a bag"
+tokens = ["pack", "a", "pen", "in", "a", "bag"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a doll in a cot"
+text_lower = "a doll in a cot"
+tokens = ["a", "doll", "in", "a", "cot"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "a cat and a big fat rat"
+text_lower = "a cat and a big fat rat"
+tokens = ["a", "cat", "and", "a", "big", "fat", "rat"]
+kind = "caption"
+phase = 2
+after_order = 23
+group = "Captions, instructions and signs with sets 1-5 words + to, the, no, go"
+source = "ls2007:p.71"
+
+[[sentence]]
+text = "Is the sun wet?"
+text_lower = "is the sun wet?"
+tokens = ["is", "the", "sun", "wet"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can wax get hot?"
+text_lower = "can wax get hot?"
+tokens = ["can", "wax", "get", "hot"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Has a fox got six legs?"
+text_lower = "has a fox got six legs?"
+tokens = ["has", "a", "fox", "got", "six", "legs"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a vet fix a jet?"
+text_lower = "can a vet fix a jet?"
+tokens = ["can", "a", "vet", "fix", "a", "jet"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Will a pen fit in a box?"
+text_lower = "will a pen fit in a box?"
+tokens = ["will", "a", "pen", "fit", "in", "a", "box"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can men jog to get fit?"
+text_lower = "can men jog to get fit?"
+tokens = ["can", "men", "jog", "to", "get", "fit"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Has a pot of jam got a lid?"
+text_lower = "has a pot of jam got a lid?"
+tokens = ["has", "a", "pot", "of", "jam", "got", "a", "lid"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a taxi hop?"
+text_lower = "can a taxi hop?"
+tokens = ["can", "a", "taxi", "hop"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a van go up a hill?"
+text_lower = "can a van go up a hill?"
+tokens = ["can", "a", "van", "go", "up", "a", "hill"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Has a cat got a web?"
+text_lower = "has a cat got a web?"
+tokens = ["has", "a", "cat", "got", "a", "web"]
+kind = "question"
+phase = 3
+after_order = 27
+group = "Yes/no questions with words containing sets 1-6 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a duck quack?"
+text_lower = "can a duck quack?"
+tokens = ["can", "a", "duck", "quack"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Is a zebra a pet?"
+text_lower = "is a zebra a pet?"
+tokens = ["is", "a", "zebra", "a", "pet"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can dogs yap?"
+text_lower = "can dogs yap?"
+tokens = ["can", "dogs", "yap"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a fox get wet?"
+text_lower = "can a fox get wet?"
+tokens = ["can", "a", "fox", "get", "wet"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Will a box fit in a van?"
+text_lower = "will a box fit in a van?"
+tokens = ["will", "a", "box", "fit", "in", "a", "van"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a rabbit yell at a man?"
+text_lower = "can a rabbit yell at a man?"
+tokens = ["can", "a", "rabbit", "yell", "at", "a", "man"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a hen peck?"
+text_lower = "can a hen peck?"
+tokens = ["can", "a", "hen", "peck"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Is a lemon red?"
+text_lower = "is a lemon red?"
+tokens = ["is", "a", "lemon", "red"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Is a robin as big as a jet?"
+text_lower = "is a robin as big as a jet?"
+tokens = ["is", "a", "robin", "as", "big", "as", "a", "jet"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "Can a web buzz?"
+text_lower = "can a web buzz?"
+tokens = ["can", "a", "web", "buzz"]
+kind = "question"
+phase = 3
+after_order = 31
+group = "Yes/no questions with words containing sets 1-7 GPCs"
+source = "ls2007:p.100"
+
+[[sentence]]
+text = "She will fill the bucket at the well."
+text_lower = "she will fill the bucket at the well."
+tokens = ["she", "will", "fill", "the", "bucket", "at", "the", "well"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences using words containing sets 1-7 GPCs and he, we and she"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "If the dog has a bad leg, the vet can fix it."
+text_lower = "if the dog has a bad leg, the vet can fix it."
+tokens = ["if", "the", "dog", "has", "a", "bad", "leg", "the", "vet", "can", "fix", "it"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences using words containing sets 1-7 GPCs and he, we and she"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "Will Azam and Liz win the quiz? Yes!"
+text_lower = "will azam and liz win the quiz? yes!"
+tokens = ["will", "azam", "and", "liz", "win", "the", "quiz", "yes"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences using words containing sets 1-7 GPCs and he, we and she"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "He did up the zip on Zinat's jacket."
+text_lower = "he did up the zip on zinat's jacket."
+tokens = ["he", "did", "up", "the", "zip", "on", "zinat's", "jacket"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences using words containing sets 1-7 GPCs and he, we and she"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "The fox and vixen had cubs in a den."
+text_lower = "the fox and vixen had cubs in a den."
+tokens = ["the", "fox", "and", "vixen", "had", "cubs", "in", "a", "den"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences using words containing sets 1-7 GPCs and he, we and she"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "We can get the big bed into the van."
+text_lower = "we can get the big bed into the van."
+tokens = ["we", "can", "get", "the", "big", "bed", "into", "the", "van"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences using words containing sets 1-7 GPCs and he, we and she"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "I am in such a rush to get to the shops."
+text_lower = "i am in such a rush to get to the shops."
+tokens = ["i", "am", "in", "such", "a", "rush", "to", "get", "to", "the", "shops"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "A man is rich if he has lots of cash."
+text_lower = "a man is rich if he has lots of cash."
+tokens = ["a", "man", "is", "rich", "if", "he", "has", "lots", "of", "cash"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "Natasha sang a song to me."
+text_lower = "natasha sang a song to me."
+tokens = ["natasha", "sang", "a", "song", "to", "me"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "The van will chug up the long hill."
+text_lower = "the van will chug up the long hill."
+tokens = ["the", "van", "will", "chug", "up", "the", "long", "hill"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "Sasha had a quick chat with Kath and me."
+text_lower = "sasha had a quick chat with kath and me."
+tokens = ["sasha", "had", "a", "quick", "chat", "with", "kath", "and", "me"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "A moth can be fat, but its wings are thin."
+text_lower = "a moth can be fat, but its wings are thin."
+tokens = ["a", "moth", "can", "be", "fat", "but", "its", "wings", "are", "thin"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "The ship hit the rocks with a thud."
+text_lower = "the ship hit the rocks with a thud."
+tokens = ["the", "ship", "hit", "the", "rocks", "with", "a", "thud"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "Lots of shops sell chicken as well as fish and chips."
+text_lower = "lots of shops sell chicken as well as fish and chips."
+tokens = ["lots", "of", "shops", "sell", "chicken", "as", "well", "as", "fish", "and", "chips"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "Josh had a shock as he got a bash on the chin."
+text_lower = "josh had a shock as he got a bash on the chin."
+tokens = ["josh", "had", "a", "shock", "as", "he", "got", "a", "bash", "on", "the", "chin"]
+kind = "sentence"
+phase = 3
+after_order = 35
+group = "Sentences with sets 1-7 letters plus the four consonant digraphs and some tricky words"
+source = "ls2007:p.101"
+
+[[sentence]]
+text = "tools in the shed"
+text_lower = "tools in the shed"
+tokens = ["tools", "in", "the", "shed"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "ships in port"
+text_lower = "ships in port"
+tokens = ["ships", "in", "port"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "boats on the river"
+text_lower = "boats on the river"
+tokens = ["boats", "on", "the", "river"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "fish and chips on a dish"
+text_lower = "fish and chips on a dish"
+tokens = ["fish", "and", "chips", "on", "a", "dish"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "a goat and a cow"
+text_lower = "a goat and a cow"
+tokens = ["a", "goat", "and", "a", "cow"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "sixteen trees"
+text_lower = "sixteen trees"
+tokens = ["sixteen", "trees"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "looking at books"
+text_lower = "looking at books"
+tokens = ["looking", "at", "books"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "the light of a torch"
+text_lower = "the light of a torch"
+tokens = ["the", "light", "of", "a", "torch"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "digging in the soil"
+text_lower = "digging in the soil"
+tokens = ["digging", "in", "the", "soil"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "goats in a farmyard"
+text_lower = "goats in a farmyard"
+tokens = ["goats", "in", "a", "farmyard"]
+kind = "caption"
+phase = 3
+after_order = 50
+group = "Captions"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "Mark and Carl got wet in the rain."
+text_lower = "mark and carl got wet in the rain."
+tokens = ["mark", "and", "carl", "got", "wet", "in", "the", "rain"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "Jill has fair hair but Jack has dark hair."
+text_lower = "jill has fair hair but jack has dark hair."
+tokens = ["jill", "has", "fair", "hair", "but", "jack", "has", "dark", "hair"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "I can hear an owl hoot at night."
+text_lower = "i can hear an owl hoot at night."
+tokens = ["i", "can", "hear", "an", "owl", "hoot", "at", "night"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "Bow down to the king and queen."
+text_lower = "bow down to the king and queen."
+tokens = ["bow", "down", "to", "the", "king", "and", "queen"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "I can see a pair of boots on the mat."
+text_lower = "i can see a pair of boots on the mat."
+tokens = ["i", "can", "see", "a", "pair", "of", "boots", "on", "the", "mat"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "The farmer gets up at six in the morning."
+text_lower = "the farmer gets up at six in the morning."
+tokens = ["the", "farmer", "gets", "up", "at", "six", "in", "the", "morning"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "Jim has seven silver coins."
+text_lower = "jim has seven silver coins."
+tokens = ["jim", "has", "seven", "silver", "coins"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "Nan is sitting in the rocking-chair."
+text_lower = "nan is sitting in the rocking-chair."
+tokens = ["nan", "is", "sitting", "in", "the", "rocking-chair"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "Gurdeep had a chat with his dad."
+text_lower = "gurdeep had a chat with his dad."
+tokens = ["gurdeep", "had", "a", "chat", "with", "his", "dad"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "It has been hot this year."
+text_lower = "it has been hot this year."
+tokens = ["it", "has", "been", "hot", "this", "year"]
+kind = "sentence"
+phase = 3
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.103"
+
+[[sentence]]
+text = "Fred and Brett spent a week in Spain."
+text_lower = "fred and brett spent a week in spain."
+tokens = ["fred", "and", "brett", "spent", "a", "week", "in", "spain"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "I kept bumping into things in the dark."
+text_lower = "i kept bumping into things in the dark."
+tokens = ["i", "kept", "bumping", "into", "things", "in", "the", "dark"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Milk is good for children's teeth."
+text_lower = "milk is good for children's teeth."
+tokens = ["milk", "is", "good", "for", "children's", "teeth"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "The clown did tricks with a chimpanzee."
+text_lower = "the clown did tricks with a chimpanzee."
+tokens = ["the", "clown", "did", "tricks", "with", "a", "chimpanzee"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "The frog jumps in the pond and swims off."
+text_lower = "the frog jumps in the pond and swims off."
+tokens = ["the", "frog", "jumps", "in", "the", "pond", "and", "swims", "off"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "I must not tramp on the flowers."
+text_lower = "i must not tramp on the flowers."
+tokens = ["i", "must", "not", "tramp", "on", "the", "flowers"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "A crab crept into a crack in the rock."
+text_lower = "a crab crept into a crack in the rock."
+tokens = ["a", "crab", "crept", "into", "a", "crack", "in", "the", "rock"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "A drip from the tap drops in the sink."
+text_lower = "a drip from the tap drops in the sink."
+tokens = ["a", "drip", "from", "the", "tap", "drops", "in", "the", "sink"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "I can hear twigs snapping in the wind."
+text_lower = "i can hear twigs snapping in the wind."
+tokens = ["i", "can", "hear", "twigs", "snapping", "in", "the", "wind"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "It is fun to camp in a tent."
+text_lower = "it is fun to camp in a tent."
+tokens = ["it", "is", "fun", "to", "camp", "in", "a", "tent"]
+kind = "sentence"
+phase = 4
+after_order = 50
+group = "Sentences"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Can a clock get cross?"
+text_lower = "can a clock get cross?"
+tokens = ["can", "a", "clock", "get", "cross"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Can crabs clap hands?"
+text_lower = "can crabs clap hands?"
+tokens = ["can", "crabs", "clap", "hands"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Are you fond of plums?"
+text_lower = "are you fond of plums?"
+tokens = ["are", "you", "fond", "of", "plums"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Did a shark ever jump up a tree?"
+text_lower = "did a shark ever jump up a tree?"
+tokens = ["did", "a", "shark", "ever", "jump", "up", "a", "tree"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Can frogs swim in ponds?"
+text_lower = "can frogs swim in ponds?"
+tokens = ["can", "frogs", "swim", "in", "ponds"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Is the moon green?"
+text_lower = "is the moon green?"
+tokens = ["is", "the", "moon", "green"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Can you bang on a big drum?"
+text_lower = "can you bang on a big drum?"
+tokens = ["can", "you", "bang", "on", "a", "big", "drum"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Have you ever slept in a tent?"
+text_lower = "have you ever slept in a tent?"
+tokens = ["have", "you", "ever", "slept", "in", "a", "tent"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Are all children good at sport?"
+text_lower = "are all children good at sport?"
+tokens = ["are", "all", "children", "good", "at", "sport"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Have you seen a trail left by a snail?"
+text_lower = "have you seen a trail left by a snail?"
+tokens = ["have", "you", "seen", "a", "trail", "left", "by", "a", "snail"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Are you afraid of thunderstorms?"
+text_lower = "are you afraid of thunderstorms?"
+tokens = ["are", "you", "afraid", "of", "thunderstorms"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Can a spoon grab a fork?"
+text_lower = "can a spoon grab a fork?"
+tokens = ["can", "a", "spoon", "grab", "a", "fork"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Do chimps come from Mars?"
+text_lower = "do chimps come from mars?"
+tokens = ["do", "chimps", "come", "from", "mars"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Can letters have stamps stuck on them?"
+text_lower = "can letters have stamps stuck on them?"
+tokens = ["can", "letters", "have", "stamps", "stuck", "on", "them"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Do trains run on tracks?"
+text_lower = "do trains run on tracks?"
+tokens = ["do", "trains", "run", "on", "tracks"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Will a truck go up steep stairs?"
+text_lower = "will a truck go up steep stairs?"
+tokens = ["will", "a", "truck", "go", "up", "steep", "stairs"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Do some dogs have black spots?"
+text_lower = "do some dogs have black spots?"
+tokens = ["do", "some", "dogs", "have", "black", "spots"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Are you glad when you have a pain?"
+text_lower = "are you glad when you have a pain?"
+tokens = ["are", "you", "glad", "when", "you", "have", "a", "pain"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[sentence]]
+text = "Can we see the stars on a clear night?"
+text_lower = "can we see the stars on a clear night?"
+tokens = ["can", "we", "see", "the", "stars", "on", "a", "clear", "night"]
+kind = "question"
+phase = 4
+after_order = 50
+group = "Yes/no questions"
+source = "ls2007:p.128"
+
+[[text]]
+title = "on the farm"
+phase = 3
+after_order = 50
+lines = ["I will soon visit my nan at her farm.", "She will let me feed the hens and chickens.", "They peck up corn in the farmyard.", "She has goats and cows as well as hens.", "She gets the hens into a shed at night - foxes might get them."]
+lines_lower = ["i will soon visit my nan at her farm.", "she will let me feed the hens and chickens.", "they peck up corn in the farmyard.", "she has goats and cows as well as hens.", "she gets the hens into a shed at night - foxes might get them."]
+tokens = ["a", "and", "as", "at", "chickens", "corn", "cows", "farm", "farmyard", "feed", "foxes", "get", "gets", "goats", "has", "hens", "her", "i", "in", "into", "let", "me", "might", "my", "nan", "night", "peck", "she", "shed", "soon", "the", "them", "they", "up", "visit", "well", "will"]
+source = "ls2007:p.103"
+
+[[text]]
+title = "in town"
+phase = 3
+after_order = 50
+lines = ["You and I can meet on the corner.", "We can get the bus to the fish and chip shop.", "Janaki and her sister may join us.", "They can get fish and chips, too.", "Then we can all run to the park."]
+lines_lower = ["you and i can meet on the corner.", "we can get the bus to the fish and chip shop.", "janaki and her sister may join us.", "they can get fish and chips, too.", "then we can all run to the park."]
+tokens = ["all", "and", "bus", "can", "chip", "chips", "corner", "fish", "get", "her", "i", "janaki", "join", "may", "meet", "on", "park", "run", "shop", "sister", "the", "then", "they", "to", "too", "us", "we", "you"]
+source = "ls2007:p.103"
+
+[[text]]
+title = "in a wigwam"
+phase = 3
+after_order = 50
+lines = ["Kevin has a wigwam in the garden.", "Alex, Jon and Jeevan visit him.", "Kevin's dad cooks chicken for them on hot coals.", "Having food in the wigwam is fun.", "Then they sing songs."]
+lines_lower = ["kevin has a wigwam in the garden.", "alex, jon and jeevan visit him.", "kevin's dad cooks chicken for them on hot coals.", "having food in the wigwam is fun.", "then they sing songs."]
+tokens = ["a", "alex", "and", "chicken", "coals", "cooks", "dad", "food", "for", "fun", "garden", "has", "having", "him", "hot", "in", "is", "jeevan", "jon", "kevin", "kevin's", "on", "sing", "songs", "the", "them", "then", "they", "visit", "wigwam"]
+source = "ls2007:p.103"
+
+[[text]]
+title = "at the river"
+phase = 3
+after_order = 50
+lines = ["Max and Vikram sail a wooden boat.", "Jeff chucks bits of bun in the river for the ducks.", "Yasmin sits on a rock and looks for fish.", "Tanya and Yasha see an eel.", "Shep the dog sits down in the mud and gets in a mess."]
+lines_lower = ["max and vikram sail a wooden boat.", "jeff chucks bits of bun in the river for the ducks.", "yasmin sits on a rock and looks for fish.", "tanya and yasha see an eel.", "shep the dog sits down in the mud and gets in a mess."]
+tokens = ["a", "an", "and", "bits", "boat", "bun", "chucks", "dog", "down", "ducks", "eel", "fish", "for", "gets", "in", "jeff", "looks", "max", "mess", "mud", "of", "on", "river", "rock", "sail", "see", "shep", "sits", "tanya", "the", "vikram", "wooden", "yasha", "yasmin"]
+source = "ls2007:p.103"
+
+[[text]]
+title = "in the woods"
+phase = 3
+after_order = 50
+lines = ["Chip the dog runs to the woods.", "He is looking for rabbits but sees a fox.", "The fox sees him and rushes off to its den.", "Chip dashes after it but cannot see it.", "He feels sad and runs back to his kennel."]
+lines_lower = ["chip the dog runs to the woods.", "he is looking for rabbits but sees a fox.", "the fox sees him and rushes off to its den.", "chip dashes after it but cannot see it.", "he feels sad and runs back to his kennel."]
+tokens = ["a", "after", "and", "back", "but", "cannot", "chip", "dashes", "den", "dog", "feels", "for", "fox", "he", "him", "his", "is", "it", "its", "kennel", "looking", "off", "rabbits", "runs", "rushes", "sad", "see", "sees", "the", "to", "woods"]
+source = "ls2007:p.103"

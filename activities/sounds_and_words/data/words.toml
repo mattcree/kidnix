@@ -1,0 +1,7669 @@
+# Generated from Letters and Sounds (2007), DFES-00281-2007.
+# Contains public sector information licensed under the Open Government Licence v3.0.
+# (c) Crown copyright 2007.
+# See LICENSES.md and data/sources.toml. Do not edit by hand -- see the design doc.
+
+source = "ls2007"
+count = 846
+
+[[word]]
+text = "a"
+phase = 2
+order = 2
+graphemes = ["a"]
+groups = ["sets 1"]
+source = "ls2007:p.69"
+set = 1
+
+[[word]]
+text = "as"
+phase = 2
+order = 2
+graphemes = ["a", "s_z"]
+groups = ["sets 1"]
+source = "ls2007:p.69"
+set = 1
+
+[[word]]
+text = "at"
+phase = 2
+order = 3
+graphemes = ["a", "t"]
+groups = ["sets 1"]
+source = "ls2007:p.69"
+set = 1
+high_frequency = true
+
+[[word]]
+text = "sat"
+phase = 2
+order = 3
+graphemes = ["s", "a", "t"]
+groups = ["sets 1"]
+source = "ls2007:p.69"
+set = 1
+
+[[word]]
+text = "pat"
+phase = 2
+order = 4
+graphemes = ["p", "a", "t"]
+groups = ["sets 1"]
+source = "ls2007:p.69"
+set = 1
+
+[[word]]
+text = "sap"
+phase = 2
+order = 4
+graphemes = ["s", "a", "p"]
+groups = ["sets 1"]
+source = "ls2007:p.69"
+set = 1
+
+[[word]]
+text = "tap"
+phase = 2
+order = 4
+graphemes = ["t", "a", "p"]
+groups = ["sets 1"]
+source = "ls2007:p.69"
+set = 1
+
+[[word]]
+text = "is"
+phase = 2
+order = 5
+graphemes = ["i", "s_z"]
+groups = ["sets 1-2 (+i)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "i"
+high_frequency = true
+
+[[word]]
+text = "it"
+phase = 2
+order = 5
+graphemes = ["i", "t"]
+groups = ["sets 1-2 (+i)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "i"
+high_frequency = true
+
+[[word]]
+text = "it's"
+phase = 4
+order = 5
+graphemes = ["i", "t", "s"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+high_frequency = true
+
+[[word]]
+text = "pip"
+phase = 2
+order = 5
+graphemes = ["p", "i", "p"]
+groups = ["sets 1-2 (+i)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "i"
+
+[[word]]
+text = "pit"
+phase = 2
+order = 5
+graphemes = ["p", "i", "t"]
+groups = ["sets 1-2 (+i)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "i"
+
+[[word]]
+text = "sip"
+phase = 2
+order = 5
+graphemes = ["s", "i", "p"]
+groups = ["sets 1-2 (+i)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "i"
+
+[[word]]
+text = "sit"
+phase = 2
+order = 5
+graphemes = ["s", "i", "t"]
+groups = ["sets 1-2 (+i)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "i"
+
+[[word]]
+text = "tip"
+phase = 2
+order = 5
+graphemes = ["t", "i", "p"]
+groups = ["sets 1-2 (+i)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "i"
+
+[[word]]
+text = "an"
+phase = 2
+order = 6
+graphemes = ["a", "n"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+
+[[word]]
+text = "in"
+phase = 2
+order = 6
+graphemes = ["i", "n"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+high_frequency = true
+
+[[word]]
+text = "nap"
+phase = 2
+order = 6
+graphemes = ["n", "a", "p"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+
+[[word]]
+text = "nip"
+phase = 2
+order = 6
+graphemes = ["n", "i", "p"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+
+[[word]]
+text = "pan"
+phase = 2
+order = 6
+graphemes = ["p", "a", "n"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+
+[[word]]
+text = "pin"
+phase = 2
+order = 6
+graphemes = ["p", "i", "n"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+
+[[word]]
+text = "spin"
+phase = 4
+order = 6
+graphemes = ["s", "p", "i", "n"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "tan"
+phase = 2
+order = 6
+graphemes = ["t", "a", "n"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+
+[[word]]
+text = "tin"
+phase = 2
+order = 6
+graphemes = ["t", "i", "n"]
+groups = ["sets 1-2 (+n)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "n"
+
+[[word]]
+text = "am"
+phase = 2
+order = 7
+graphemes = ["a", "m"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+
+[[word]]
+text = "mam"
+phase = 2
+order = 7
+graphemes = ["m", "a", "m"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+
+[[word]]
+text = "man"
+phase = 2
+order = 7
+graphemes = ["m", "a", "n"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+
+[[word]]
+text = "map"
+phase = 2
+order = 7
+graphemes = ["m", "a", "p"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+
+[[word]]
+text = "mat"
+phase = 2
+order = 7
+graphemes = ["m", "a", "t"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+
+[[word]]
+text = "pam"
+phase = 2
+order = 7
+graphemes = ["p", "a", "m"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+proper_noun = true
+
+[[word]]
+text = "sam"
+phase = 2
+order = 7
+graphemes = ["s", "a", "m"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+proper_noun = true
+
+[[word]]
+text = "stamp"
+phase = 4
+order = 7
+graphemes = ["s", "t", "a", "m", "p"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "tim"
+phase = 2
+order = 7
+graphemes = ["t", "i", "m"]
+groups = ["sets 1-2 (+m)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "m"
+proper_noun = true
+
+[[word]]
+text = "and"
+phase = 2
+order = 8
+graphemes = ["a", "n", "d"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+high_frequency = true
+
+[[word]]
+text = "dad"
+phase = 2
+order = 8
+graphemes = ["d", "a", "d"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+
+[[word]]
+text = "damp"
+phase = 4
+order = 8
+graphemes = ["d", "a", "m", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "did"
+phase = 2
+order = 8
+graphemes = ["d", "i", "d"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+
+[[word]]
+text = "dim"
+phase = 2
+order = 8
+graphemes = ["d", "i", "m"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+
+[[word]]
+text = "din"
+phase = 2
+order = 8
+graphemes = ["d", "i", "n"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+
+[[word]]
+text = "dip"
+phase = 2
+order = 8
+graphemes = ["d", "i", "p"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+
+[[word]]
+text = "sad"
+phase = 2
+order = 8
+graphemes = ["s", "a", "d"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+
+[[word]]
+text = "sandpit"
+phase = 4
+order = 8
+graphemes = ["s", "a", "n", "d", "p", "i", "t"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "sid"
+phase = 2
+order = 8
+graphemes = ["s", "i", "d"]
+groups = ["sets 1-2 (+d)"]
+source = "ls2007:p.69"
+set = 2
+target_gpc = "d"
+proper_noun = true
+
+[[word]]
+text = "stand"
+phase = 4
+order = 8
+graphemes = ["s", "t", "a", "n", "d"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "dig"
+phase = 2
+order = 9
+graphemes = ["d", "i", "g"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "gag"
+phase = 2
+order = 9
+graphemes = ["g", "a", "g"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "gap"
+phase = 2
+order = 9
+graphemes = ["g", "a", "p"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "gas"
+phase = 2
+order = 9
+graphemes = ["g", "a", "s"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "gig"
+phase = 2
+order = 9
+graphemes = ["g", "i", "g"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "nag"
+phase = 2
+order = 9
+graphemes = ["n", "a", "g"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "pig"
+phase = 2
+order = 9
+graphemes = ["p", "i", "g"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "sag"
+phase = 2
+order = 9
+graphemes = ["s", "a", "g"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "tag"
+phase = 2
+order = 9
+graphemes = ["t", "a", "g"]
+groups = ["sets 1-3 (+g)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "g"
+
+[[word]]
+text = "dog"
+phase = 2
+order = 10
+graphemes = ["d", "o", "g"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+
+[[word]]
+text = "got"
+phase = 2
+order = 10
+graphemes = ["g", "o", "t"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+
+[[word]]
+text = "mog"
+phase = 2
+order = 10
+graphemes = ["m", "o", "g"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+proper_noun = true
+
+[[word]]
+text = "not"
+phase = 2
+order = 10
+graphemes = ["n", "o", "t"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+
+[[word]]
+text = "on"
+phase = 2
+order = 10
+graphemes = ["o", "n"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+
+[[word]]
+text = "pond"
+phase = 4
+order = 10
+graphemes = ["p", "o", "n", "d"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "pop"
+phase = 2
+order = 10
+graphemes = ["p", "o", "p"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+
+[[word]]
+text = "pot"
+phase = 2
+order = 10
+graphemes = ["p", "o", "t"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+
+[[word]]
+text = "spot"
+phase = 4
+order = 10
+graphemes = ["s", "p", "o", "t"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "stop"
+phase = 4
+order = 10
+graphemes = ["s", "t", "o", "p"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "top"
+phase = 2
+order = 10
+graphemes = ["t", "o", "p"]
+groups = ["sets 1-3 (+o)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "o"
+
+[[word]]
+text = "camp"
+phase = 4
+order = 11
+graphemes = ["c", "a", "m", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "can"
+phase = 2
+order = 11
+graphemes = ["c", "a", "n"]
+groups = ["sets 1-3 (+c)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "c"
+
+[[word]]
+text = "cap"
+phase = 2
+order = 11
+graphemes = ["c", "a", "p"]
+groups = ["sets 1-3 (+c)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "c"
+
+[[word]]
+text = "cat"
+phase = 2
+order = 11
+graphemes = ["c", "a", "t"]
+groups = ["sets 1-3 (+c)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "c"
+
+[[word]]
+text = "cod"
+phase = 2
+order = 11
+graphemes = ["c", "o", "d"]
+groups = ["sets 1-3 (+c)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "c"
+
+[[word]]
+text = "cop"
+phase = 2
+order = 11
+graphemes = ["c", "o", "p"]
+groups = ["sets 1-3 (+c)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "c"
+
+[[word]]
+text = "cost"
+phase = 4
+order = 11
+graphemes = ["c", "o", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "cot"
+phase = 2
+order = 11
+graphemes = ["c", "o", "t"]
+groups = ["sets 1-3 (+c)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "c"
+
+[[word]]
+text = "ask"
+phase = 4
+order = 12
+graphemes = ["a", "s", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "kid"
+phase = 2
+order = 12
+graphemes = ["k", "i", "d"]
+groups = ["sets 1-3 (+k)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "k"
+
+[[word]]
+text = "kim"
+phase = 2
+order = 12
+graphemes = ["k", "i", "m"]
+groups = ["sets 1-3 (+k)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "k"
+proper_noun = true
+
+[[word]]
+text = "kit"
+phase = 2
+order = 12
+graphemes = ["k", "i", "t"]
+groups = ["sets 1-3 (+k)"]
+source = "ls2007:p.69"
+set = 3
+target_gpc = "k"
+
+[[word]]
+text = "sink"
+phase = 4
+order = 12
+graphemes = ["s", "i", "n", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "task"
+phase = 4
+order = 12
+graphemes = ["t", "a", "s", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "dock"
+phase = 2
+order = 13
+graphemes = ["d", "o", "ck"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "kick"
+phase = 2
+order = 13
+graphemes = ["k", "i", "ck"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "pack"
+phase = 2
+order = 13
+graphemes = ["p", "a", "ck"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "pick"
+phase = 2
+order = 13
+graphemes = ["p", "i", "ck"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "sack"
+phase = 2
+order = 13
+graphemes = ["s", "a", "ck"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "sick"
+phase = 2
+order = 13
+graphemes = ["s", "i", "ck"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "sock"
+phase = 2
+order = 13
+graphemes = ["s", "o", "ck"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "dent"
+phase = 4
+order = 14
+graphemes = ["d", "e", "n", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "desktop"
+phase = 4
+order = 14
+graphemes = ["d", "e", "s", "k", "t", "o", "p"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "get"
+phase = 2
+order = 14
+graphemes = ["g", "e", "t"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "ken"
+phase = 2
+order = 14
+graphemes = ["k", "e", "n"]
+groups = ["sets 1-3 (+k)"]
+source = "ls2007:p.69"
+order_exceeds_group = true
+note = "L&S prints this word in the 'sets 1-3 (+k)' column, but decoding it needs a GPC not taught until order 14. The order field, not the column, is what the ceiling gates on."
+set = 3
+target_gpc = "k"
+proper_noun = true
+
+[[word]]
+text = "kept"
+phase = 4
+order = 14
+graphemes = ["k", "e", "p", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "men"
+phase = 2
+order = 14
+graphemes = ["m", "e", "n"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "met"
+phase = 2
+order = 14
+graphemes = ["m", "e", "t"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "neck"
+phase = 2
+order = 14
+graphemes = ["n", "e", "ck"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "nest"
+phase = 4
+order = 14
+graphemes = ["n", "e", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "net"
+phase = 2
+order = 14
+graphemes = ["n", "e", "t"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "peg"
+phase = 2
+order = 14
+graphemes = ["p", "e", "g"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "pen"
+phase = 2
+order = 14
+graphemes = ["p", "e", "n"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "pet"
+phase = 2
+order = 14
+graphemes = ["p", "e", "t"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "pocket"
+phase = 2
+order = 14
+graphemes = ["p", "o", "ck", "e", "t"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "speck"
+phase = 4
+order = 14
+graphemes = ["s", "p", "e", "ck"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "spend"
+phase = 4
+order = 14
+graphemes = ["s", "p", "e", "n", "d"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "step"
+phase = 4
+order = 14
+graphemes = ["s", "t", "e", "p"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "ten"
+phase = 2
+order = 14
+graphemes = ["t", "e", "n"]
+groups = ["sets 1-4 (+e)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "e"
+
+[[word]]
+text = "tent"
+phase = 4
+order = 14
+graphemes = ["t", "e", "n", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "ticket"
+phase = 2
+order = 14
+graphemes = ["t", "i", "ck", "e", "t"]
+groups = ["sets 1-4 (+ck)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "ck"
+
+[[word]]
+text = "cup"
+phase = 2
+order = 15
+graphemes = ["c", "u", "p"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "gust"
+phase = 4
+order = 15
+graphemes = ["g", "u", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "mud"
+phase = 2
+order = 15
+graphemes = ["m", "u", "d"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "mug"
+phase = 2
+order = 15
+graphemes = ["m", "u", "g"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "mum"
+phase = 2
+order = 15
+graphemes = ["m", "u", "m"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "skunk"
+phase = 4
+order = 15
+graphemes = ["s", "k", "u", "n", "k"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "stunt"
+phase = 4
+order = 15
+graphemes = ["s", "t", "u", "n", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "sun"
+phase = 2
+order = 15
+graphemes = ["s", "u", "n"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "sunset"
+phase = 2
+order = 15
+graphemes = ["s", "u", "n", "s", "e", "t"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "tuck"
+phase = 2
+order = 15
+graphemes = ["t", "u", "ck"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "tusk"
+phase = 4
+order = 15
+graphemes = ["t", "u", "s", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "up"
+phase = 2
+order = 15
+graphemes = ["u", "p"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "carrot"
+phase = 2
+order = 16
+graphemes = ["c", "a", "rr", "o", "t"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "cramp"
+phase = 4
+order = 16
+graphemes = ["c", "r", "a", "m", "p"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "cream"
+phase = 4
+order = 16
+graphemes = ["c", "r", "e", "a", "m"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "crept"
+phase = 4
+order = 16
+graphemes = ["c", "r", "e", "p", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "crisp"
+phase = 4
+order = 16
+graphemes = ["c", "r", "i", "s", "p"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "crust"
+phase = 4
+order = 16
+graphemes = ["c", "r", "u", "s", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "drank"
+phase = 4
+order = 16
+graphemes = ["d", "r", "a", "n", "k"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "drop"
+phase = 4
+order = 16
+graphemes = ["d", "r", "o", "p"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "gran"
+phase = 4
+order = 16
+graphemes = ["g", "r", "a", "n"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "grant"
+phase = 4
+order = 16
+graphemes = ["g", "r", "a", "n", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "grasp"
+phase = 4
+order = 16
+graphemes = ["g", "r", "a", "s", "p"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "grip"
+phase = 4
+order = 16
+graphemes = ["g", "r", "i", "p"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "grunt"
+phase = 4
+order = 16
+graphemes = ["g", "r", "u", "n", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "rabbit"
+phase = 2
+order = 16
+graphemes = ["r", "a", "bb", "i", "t"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "rag"
+phase = 2
+order = 16
+graphemes = ["r", "a", "g"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "ram"
+phase = 2
+order = 16
+graphemes = ["r", "a", "m"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "rat"
+phase = 2
+order = 16
+graphemes = ["r", "a", "t"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "rim"
+phase = 2
+order = 16
+graphemes = ["r", "i", "m"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "rip"
+phase = 2
+order = 16
+graphemes = ["r", "i", "p"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "rocket"
+phase = 2
+order = 16
+graphemes = ["r", "o", "ck", "e", "t"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "rot"
+phase = 2
+order = 16
+graphemes = ["r", "o", "t"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "rug"
+phase = 2
+order = 16
+graphemes = ["r", "u", "g"]
+groups = ["sets 1-4 (+r)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "r"
+
+[[word]]
+text = "run"
+phase = 2
+order = 16
+graphemes = ["r", "u", "n"]
+groups = ["sets 1-4 (+u)"]
+source = "ls2007:p.69"
+set = 4
+target_gpc = "u"
+
+[[word]]
+text = "scrap"
+phase = 4
+order = 16
+graphemes = ["s", "c", "r", "a", "p"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "strap"
+phase = 4
+order = 16
+graphemes = ["s", "t", "r", "a", "p"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "track"
+phase = 4
+order = 16
+graphemes = ["t", "r", "a", "ck"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "tramp"
+phase = 4
+order = 16
+graphemes = ["t", "r", "a", "m", "p"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "trend"
+phase = 4
+order = 16
+graphemes = ["t", "r", "e", "n", "d"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "trip"
+phase = 4
+order = 16
+graphemes = ["t", "r", "i", "p"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "trunk"
+phase = 4
+order = 16
+graphemes = ["t", "r", "u", "n", "k"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "trust"
+phase = 4
+order = 16
+graphemes = ["t", "r", "u", "s", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "hack"
+phase = 2
+order = 17
+graphemes = ["h", "a", "ck"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "had"
+phase = 2
+order = 17
+graphemes = ["h", "a", "d"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hand"
+phase = 4
+order = 17
+graphemes = ["h", "a", "n", "d"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "handstand"
+phase = 4
+order = 17
+graphemes = ["h", "a", "n", "d", "s", "t", "a", "n", "d"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "has"
+phase = 2
+order = 17
+graphemes = ["h", "a", "s_z"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hat"
+phase = 2
+order = 17
+graphemes = ["h", "a", "t"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "him"
+phase = 2
+order = 17
+graphemes = ["h", "i", "m"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "his"
+phase = 2
+order = 17
+graphemes = ["h", "i", "s_z"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hit"
+phase = 2
+order = 17
+graphemes = ["h", "i", "t"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hop"
+phase = 2
+order = 17
+graphemes = ["h", "o", "p"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hot"
+phase = 2
+order = 17
+graphemes = ["h", "o", "t"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hug"
+phase = 2
+order = 17
+graphemes = ["h", "u", "g"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hum"
+phase = 2
+order = 17
+graphemes = ["h", "u", "m"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "hump"
+phase = 4
+order = 17
+graphemes = ["h", "u", "m", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "hunt"
+phase = 4
+order = 17
+graphemes = ["h", "u", "n", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "husk"
+phase = 4
+order = 17
+graphemes = ["h", "u", "s", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "hut"
+phase = 2
+order = 17
+graphemes = ["h", "u", "t"]
+groups = ["sets 1-5 (+h)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "h"
+
+[[word]]
+text = "back"
+phase = 2
+order = 18
+graphemes = ["b", "a", "ck"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bad"
+phase = 2
+order = 18
+graphemes = ["b", "a", "d"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bag"
+phase = 2
+order = 18
+graphemes = ["b", "a", "g"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "band"
+phase = 4
+order = 18
+graphemes = ["b", "a", "n", "d"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "bank"
+phase = 4
+order = 18
+graphemes = ["b", "a", "n", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "bat"
+phase = 2
+order = 18
+graphemes = ["b", "a", "t"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "beast"
+phase = 4
+order = 18
+graphemes = ["b", "e", "a", "s", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "beckon"
+phase = 2
+order = 18
+graphemes = ["b", "e", "ck", "o", "n"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bed"
+phase = 2
+order = 18
+graphemes = ["b", "e", "d"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "beg"
+phase = 2
+order = 18
+graphemes = ["b", "e", "g"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "ben"
+phase = 2
+order = 18
+graphemes = ["b", "e", "n"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+proper_noun = true
+
+[[word]]
+text = "best"
+phase = 4
+order = 18
+graphemes = ["b", "e", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "bet"
+phase = 2
+order = 18
+graphemes = ["b", "e", "t"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "big"
+phase = 2
+order = 18
+graphemes = ["b", "i", "g"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bit"
+phase = 2
+order = 18
+graphemes = ["b", "i", "t"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "brand"
+phase = 4
+order = 18
+graphemes = ["b", "r", "a", "n", "d"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "bucket"
+phase = 2
+order = 18
+graphemes = ["b", "u", "ck", "e", "t"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bud"
+phase = 2
+order = 18
+graphemes = ["b", "u", "d"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bug"
+phase = 2
+order = 18
+graphemes = ["b", "u", "g"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bun"
+phase = 2
+order = 18
+graphemes = ["b", "u", "n"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bunk"
+phase = 4
+order = 18
+graphemes = ["b", "u", "n", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "bus"
+phase = 2
+order = 18
+graphemes = ["b", "u", "s"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "bust"
+phase = 4
+order = 18
+graphemes = ["b", "u", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "but"
+phase = 2
+order = 18
+graphemes = ["b", "u", "t"]
+groups = ["sets 1-5 (+b)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "b"
+
+[[word]]
+text = "grab"
+phase = 4
+order = 18
+graphemes = ["g", "r", "a", "b"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "daft"
+phase = 4
+order = 19
+graphemes = ["d", "a", "f", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "drift"
+phase = 4
+order = 19
+graphemes = ["d", "r", "i", "f", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "fact"
+phase = 4
+order = 19
+graphemes = ["f", "a", "c", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "fan"
+phase = 2
+order = 19
+graphemes = ["f", "a", "n"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "fast"
+phase = 4
+order = 19
+graphemes = ["f", "a", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "fat"
+phase = 2
+order = 19
+graphemes = ["f", "a", "t"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "fig"
+phase = 2
+order = 19
+graphemes = ["f", "i", "g"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "fin"
+phase = 2
+order = 19
+graphemes = ["f", "i", "n"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "fit"
+phase = 2
+order = 19
+graphemes = ["f", "i", "t"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "fog"
+phase = 2
+order = 19
+graphemes = ["f", "o", "g"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "fond"
+phase = 4
+order = 19
+graphemes = ["f", "o", "n", "d"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "frog"
+phase = 4
+order = 19
+graphemes = ["f", "r", "o", "g"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "from"
+phase = 4
+order = 19
+graphemes = ["f", "r", "o", "m"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+high_frequency = true
+
+[[word]]
+text = "frost"
+phase = 4
+order = 19
+graphemes = ["f", "r", "o", "s", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "fun"
+phase = 2
+order = 19
+graphemes = ["f", "u", "n"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "gift"
+phase = 4
+order = 19
+graphemes = ["g", "i", "f", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "graft"
+phase = 4
+order = 19
+graphemes = ["g", "r", "a", "f", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "if"
+phase = 2
+order = 19
+graphemes = ["i", "f"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "of"
+phase = 2
+order = 19
+graphemes = ["o", "f_v"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "soft"
+phase = 4
+order = 19
+graphemes = ["s", "o", "f", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "softest"
+phase = 4
+order = 19
+graphemes = ["s", "o", "f", "t", "e", "s", "t"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "tuft"
+phase = 4
+order = 19
+graphemes = ["t", "u", "f", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "cuff"
+phase = 2
+order = 20
+graphemes = ["c", "u", "ff"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "huff"
+phase = 2
+order = 20
+graphemes = ["h", "u", "ff"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "off"
+phase = 2
+order = 20
+graphemes = ["o", "ff"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "puff"
+phase = 2
+order = 20
+graphemes = ["p", "u", "ff"]
+groups = ["sets 1-5 (+f and ff)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ff"
+
+[[word]]
+text = "sniff"
+phase = 4
+order = 20
+graphemes = ["s", "n", "i", "ff"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "belt"
+phase = 4
+order = 21
+graphemes = ["b", "e", "l", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "blank"
+phase = 4
+order = 21
+graphemes = ["b", "l", "a", "n", "k"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "blast"
+phase = 4
+order = 21
+graphemes = ["b", "l", "a", "s", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "blend"
+phase = 4
+order = 21
+graphemes = ["b", "l", "e", "n", "d"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "blink"
+phase = 4
+order = 21
+graphemes = ["b", "l", "i", "n", "k"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "clap"
+phase = 4
+order = 21
+graphemes = ["c", "l", "a", "p"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "felt"
+phase = 4
+order = 21
+graphemes = ["f", "e", "l", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "flag"
+phase = 4
+order = 21
+graphemes = ["f", "l", "a", "g"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "glad"
+phase = 4
+order = 21
+graphemes = ["g", "l", "a", "d"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "glint"
+phase = 4
+order = 21
+graphemes = ["g", "l", "i", "n", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "golf"
+phase = 4
+order = 21
+graphemes = ["g", "o", "l", "f"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "gulp"
+phase = 4
+order = 21
+graphemes = ["g", "u", "l", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "help"
+phase = 4
+order = 21
+graphemes = ["h", "e", "l", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+high_frequency = true
+
+[[word]]
+text = "helpdesk"
+phase = 4
+order = 21
+graphemes = ["h", "e", "l", "p", "d", "e", "s", "k"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "lamp"
+phase = 4
+order = 21
+graphemes = ["l", "a", "m", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "land"
+phase = 4
+order = 21
+graphemes = ["l", "a", "n", "d"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "lap"
+phase = 2
+order = 21
+graphemes = ["l", "a", "p"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "laptop"
+phase = 2
+order = 21
+graphemes = ["l", "a", "p", "t", "o", "p"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "last"
+phase = 4
+order = 21
+graphemes = ["l", "a", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "leg"
+phase = 2
+order = 21
+graphemes = ["l", "e", "g"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "let"
+phase = 2
+order = 21
+graphemes = ["l", "e", "t"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "lift"
+phase = 4
+order = 21
+graphemes = ["l", "i", "f", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "limp"
+phase = 4
+order = 21
+graphemes = ["l", "i", "m", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "link"
+phase = 4
+order = 21
+graphemes = ["l", "i", "n", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "lit"
+phase = 2
+order = 21
+graphemes = ["l", "i", "t"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "lost"
+phase = 4
+order = 21
+graphemes = ["l", "o", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "lot"
+phase = 2
+order = 21
+graphemes = ["l", "o", "t"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "melt"
+phase = 4
+order = 21
+graphemes = ["m", "e", "l", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "milk"
+phase = 4
+order = 21
+graphemes = ["m", "i", "l", "k"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "plan"
+phase = 4
+order = 21
+graphemes = ["p", "l", "a", "n"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "plum"
+phase = 4
+order = 21
+graphemes = ["p", "l", "u", "m"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "plump"
+phase = 4
+order = 21
+graphemes = ["p", "l", "u", "m", "p"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "slant"
+phase = 4
+order = 21
+graphemes = ["s", "l", "a", "n", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "slept"
+phase = 4
+order = 21
+graphemes = ["s", "l", "e", "p", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "tilt"
+phase = 4
+order = 21
+graphemes = ["t", "i", "l", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "bell"
+phase = 2
+order = 22
+graphemes = ["b", "e", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "bill"
+phase = 2
+order = 22
+graphemes = ["b", "i", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+proper_noun = true
+
+[[word]]
+text = "doll"
+phase = 2
+order = 22
+graphemes = ["d", "o", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "dull"
+phase = 2
+order = 22
+graphemes = ["d", "u", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "fill"
+phase = 2
+order = 22
+graphemes = ["f", "i", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "nell"
+phase = 2
+order = 22
+graphemes = ["n", "e", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+proper_noun = true
+
+[[word]]
+text = "sell"
+phase = 2
+order = 22
+graphemes = ["s", "e", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "smell"
+phase = 4
+order = 22
+graphemes = ["s", "m", "e", "ll"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "tell"
+phase = 2
+order = 22
+graphemes = ["t", "e", "ll"]
+groups = ["sets 1-5 (+l and ll)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ll"
+
+[[word]]
+text = "boss"
+phase = 2
+order = 23
+graphemes = ["b", "o", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "brass"
+phase = 4
+order = 23
+graphemes = ["b", "r", "a", "ss"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "fuss"
+phase = 2
+order = 23
+graphemes = ["f", "u", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "fusspot"
+phase = 2
+order = 23
+graphemes = ["f", "u", "ss", "p", "o", "t"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "glass"
+phase = 4
+order = 23
+graphemes = ["g", "l", "a", "ss"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "grass"
+phase = 4
+order = 23
+graphemes = ["g", "r", "a", "ss"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "hiss"
+phase = 2
+order = 23
+graphemes = ["h", "i", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "kiss"
+phase = 2
+order = 23
+graphemes = ["k", "i", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "less"
+phase = 2
+order = 23
+graphemes = ["l", "e", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "mass"
+phase = 2
+order = 23
+graphemes = ["m", "a", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "mess"
+phase = 2
+order = 23
+graphemes = ["m", "e", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "pass"
+phase = 2
+order = 23
+graphemes = ["p", "a", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+
+[[word]]
+text = "tess"
+phase = 2
+order = 23
+graphemes = ["t", "e", "ss"]
+groups = ["sets 1-5 (+ss)"]
+source = "ls2007:p.70"
+set = 5
+target_gpc = "ss"
+proper_noun = true
+
+[[word]]
+text = "jack"
+phase = 3
+order = 24
+graphemes = ["j", "a", "ck"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+proper_noun = true
+
+[[word]]
+text = "jacket"
+phase = 3
+order = 24
+graphemes = ["j", "a", "ck", "e", "t"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+
+[[word]]
+text = "jam"
+phase = 3
+order = 24
+graphemes = ["j", "a", "m"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+
+[[word]]
+text = "jen"
+phase = 3
+order = 24
+graphemes = ["j", "e", "n"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+proper_noun = true
+
+[[word]]
+text = "jet"
+phase = 3
+order = 24
+graphemes = ["j", "e", "t"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+
+[[word]]
+text = "jet-lag"
+phase = 3
+order = 24
+graphemes = ["j", "e", "t", "l", "a", "g"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+
+[[word]]
+text = "jill"
+phase = 3
+order = 24
+graphemes = ["j", "i", "ll"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+proper_noun = true
+
+[[word]]
+text = "jog"
+phase = 3
+order = 24
+graphemes = ["j", "o", "g"]
+groups = ["sets 1-6 (+j)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "j"
+
+[[word]]
+text = "jump"
+phase = 4
+order = 24
+graphemes = ["j", "u", "m", "p"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "just"
+phase = 4
+order = 24
+graphemes = ["j", "u", "s", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+high_frequency = true
+
+[[word]]
+text = "kevin"
+phase = 3
+order = 25
+graphemes = ["k", "e", "v", "i", "n"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+proper_noun = true
+
+[[word]]
+text = "ravi"
+phase = 3
+order = 25
+graphemes = ["r", "a", "v", "i"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+proper_noun = true
+
+[[word]]
+text = "van"
+phase = 3
+order = 25
+graphemes = ["v", "a", "n"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+
+[[word]]
+text = "vat"
+phase = 3
+order = 25
+graphemes = ["v", "a", "t"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+
+[[word]]
+text = "velvet"
+phase = 3
+order = 25
+graphemes = ["v", "e", "l", "v", "e", "t"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+
+[[word]]
+text = "vet"
+phase = 3
+order = 25
+graphemes = ["v", "e", "t"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+
+[[word]]
+text = "vic"
+phase = 3
+order = 25
+graphemes = ["v", "i", "c"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+proper_noun = true
+
+[[word]]
+text = "visit"
+phase = 3
+order = 25
+graphemes = ["v", "i", "s", "i", "t"]
+groups = ["sets 1-6 (+v)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "v"
+
+[[word]]
+text = "cobweb"
+phase = 3
+order = 26
+graphemes = ["c", "o", "b", "w", "e", "b"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+
+[[word]]
+text = "swim"
+phase = 4
+order = 26
+graphemes = ["s", "w", "i", "m"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "twin"
+phase = 4
+order = 26
+graphemes = ["t", "w", "i", "n"]
+groups = ["CCV/CCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "twist"
+phase = 4
+order = 26
+graphemes = ["t", "w", "i", "s", "t"]
+groups = ["CCVCC/CCCVC, sets 1-7 letters"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "wag"
+phase = 3
+order = 26
+graphemes = ["w", "a", "g"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+
+[[word]]
+text = "web"
+phase = 3
+order = 26
+graphemes = ["w", "e", "b"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+
+[[word]]
+text = "went"
+phase = 4
+order = 26
+graphemes = ["w", "e", "n", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+high_frequency = true
+
+[[word]]
+text = "wicked"
+phase = 3
+order = 26
+graphemes = ["w", "i", "ck", "e", "d"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+
+[[word]]
+text = "wig"
+phase = 3
+order = 26
+graphemes = ["w", "i", "g"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+
+[[word]]
+text = "will"
+phase = 3
+order = 26
+graphemes = ["w", "i", "ll"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+high_frequency = true
+
+[[word]]
+text = "win"
+phase = 3
+order = 26
+graphemes = ["w", "i", "n"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+
+[[word]]
+text = "wind"
+phase = 4
+order = 26
+graphemes = ["w", "i", "n", "d"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "windmill"
+phase = 4
+order = 26
+graphemes = ["w", "i", "n", "d", "m", "i", "ll"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "box"
+phase = 3
+order = 27
+graphemes = ["b", "o", "x"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "exit"
+phase = 3
+order = 27
+graphemes = ["e", "x", "i", "t"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "fix"
+phase = 3
+order = 27
+graphemes = ["f", "i", "x"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "giftbox"
+phase = 4
+order = 27
+graphemes = ["g", "i", "f", "t", "b", "o", "x"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "mix"
+phase = 3
+order = 27
+graphemes = ["m", "i", "x"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "next"
+phase = 4
+order = 27
+graphemes = ["n", "e", "x", "t"]
+groups = ["CVCC, sets 1-7 letters"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "six"
+phase = 3
+order = 27
+graphemes = ["s", "i", "x"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "tax"
+phase = 3
+order = 27
+graphemes = ["t", "a", "x"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "taxi"
+phase = 3
+order = 27
+graphemes = ["t", "a", "x", "i"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "vixen"
+phase = 3
+order = 27
+graphemes = ["v", "i", "x", "e", "n"]
+groups = ["sets 1-6 (+x)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "x"
+
+[[word]]
+text = "wax"
+phase = 3
+order = 27
+graphemes = ["w", "a", "x"]
+groups = ["sets 1-6 (+w)"]
+source = "ls2007:p.100"
+set = 6
+target_gpc = "w"
+
+[[word]]
+text = "yap"
+phase = 3
+order = 28
+graphemes = ["y", "a", "p"]
+groups = ["sets 1-7 (+y)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "y"
+
+[[word]]
+text = "yell"
+phase = 3
+order = 28
+graphemes = ["y", "e", "ll"]
+groups = ["sets 1-7 (+y)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "y"
+
+[[word]]
+text = "yes"
+phase = 3
+order = 28
+graphemes = ["y", "e", "s"]
+groups = ["sets 1-7 (+y)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "y"
+
+[[word]]
+text = "yet"
+phase = 3
+order = 28
+graphemes = ["y", "e", "t"]
+groups = ["sets 1-7 (+y)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "y"
+
+[[word]]
+text = "yum-yum"
+phase = 3
+order = 28
+graphemes = ["y", "u", "m", "y", "u", "m"]
+groups = ["sets 1-7 (+y)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "y"
+
+[[word]]
+text = "zak"
+phase = 3
+order = 29
+graphemes = ["z", "a", "k"]
+groups = ["sets 1-7 (+z/zz)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "zz"
+proper_noun = true
+
+[[word]]
+text = "zigzag"
+phase = 3
+order = 29
+graphemes = ["z", "i", "g", "z", "a", "g"]
+groups = ["sets 1-7 (+z/zz)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "zz"
+
+[[word]]
+text = "zip"
+phase = 3
+order = 29
+graphemes = ["z", "i", "p"]
+groups = ["sets 1-7 (+z/zz)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "zz"
+
+[[word]]
+text = "buzz"
+phase = 3
+order = 30
+graphemes = ["b", "u", "zz"]
+groups = ["sets 1-7 (+z/zz)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "zz"
+
+[[word]]
+text = "jazz"
+phase = 3
+order = 30
+graphemes = ["j", "a", "zz"]
+groups = ["sets 1-7 (+z/zz)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "zz"
+
+[[word]]
+text = "liquid"
+phase = 3
+order = 31
+graphemes = ["l", "i", "qu", "i", "d"]
+groups = ["sets 1-7 (+qu)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "qu"
+
+[[word]]
+text = "quack"
+phase = 3
+order = 31
+graphemes = ["qu", "a", "ck"]
+groups = ["sets 1-7 (+qu)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "qu"
+
+[[word]]
+text = "quick"
+phase = 3
+order = 31
+graphemes = ["qu", "i", "ck"]
+groups = ["sets 1-7 (+qu)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "qu"
+
+[[word]]
+text = "quit"
+phase = 3
+order = 31
+graphemes = ["qu", "i", "t"]
+groups = ["sets 1-7 (+qu)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "qu"
+
+[[word]]
+text = "quiz"
+phase = 3
+order = 31
+graphemes = ["qu", "i", "z"]
+groups = ["sets 1-7 (+qu)"]
+source = "ls2007:p.100"
+set = 7
+target_gpc = "qu"
+
+[[word]]
+text = "bench"
+phase = 4
+order = 32
+graphemes = ["b", "e", "n", "ch"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "champ"
+phase = 4
+order = 32
+graphemes = ["ch", "a", "m", "p"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "champion"
+phase = 4
+order = 32
+graphemes = ["ch", "a", "m", "p", "i", "o", "n"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "check"
+phase = 3
+order = 32
+graphemes = ["ch", "e", "ck"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "chest"
+phase = 4
+order = 32
+graphemes = ["ch", "e", "s", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "chicken"
+phase = 3
+order = 32
+graphemes = ["ch", "i", "ck", "e", "n"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "children"
+phase = 4
+order = 32
+graphemes = ["ch", "i", "l", "d", "r", "e", "n"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+high_frequency = true
+
+[[word]]
+text = "chill"
+phase = 3
+order = 32
+graphemes = ["ch", "i", "ll"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "chimp"
+phase = 4
+order = 32
+graphemes = ["ch", "i", "m", "p"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "chin"
+phase = 3
+order = 32
+graphemes = ["ch", "i", "n"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "chip"
+phase = 3
+order = 32
+graphemes = ["ch", "i", "p"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+proper_noun = true
+
+[[word]]
+text = "chop"
+phase = 3
+order = 32
+graphemes = ["ch", "o", "p"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "chug"
+phase = 3
+order = 32
+graphemes = ["ch", "u", "g"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "chunk"
+phase = 4
+order = 32
+graphemes = ["ch", "u", "n", "k"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "crunch"
+phase = 4
+order = 32
+graphemes = ["c", "r", "u", "n", "ch"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "drench"
+phase = 4
+order = 32
+graphemes = ["d", "r", "e", "n", "ch"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "grinch"
+phase = 4
+order = 32
+graphemes = ["g", "r", "i", "n", "ch"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+proper_noun = true
+
+[[word]]
+text = "lunchbox"
+phase = 4
+order = 32
+graphemes = ["l", "u", "n", "ch", "b", "o", "x"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "much"
+phase = 3
+order = 32
+graphemes = ["m", "u", "ch"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "punch"
+phase = 4
+order = 32
+graphemes = ["p", "u", "n", "ch"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "rich"
+phase = 3
+order = 32
+graphemes = ["r", "i", "ch"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "sandwich"
+phase = 4
+order = 32
+graphemes = ["s", "a", "n", "d", "w", "i", "ch"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "scrunch"
+phase = 4
+order = 32
+graphemes = ["s", "c", "r", "u", "n", "ch"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "such"
+phase = 3
+order = 32
+graphemes = ["s", "u", "ch"]
+groups = ["ch"]
+source = "ls2007:p.101"
+target_gpc = "ch"
+
+[[word]]
+text = "trench"
+phase = 4
+order = 32
+graphemes = ["t", "r", "e", "n", "ch"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "bash"
+phase = 3
+order = 33
+graphemes = ["b", "a", "sh"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "brush"
+phase = 4
+order = 33
+graphemes = ["b", "r", "u", "sh"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "cash"
+phase = 3
+order = 33
+graphemes = ["c", "a", "sh"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "crash"
+phase = 4
+order = 33
+graphemes = ["c", "r", "a", "sh"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "fish"
+phase = 3
+order = 33
+graphemes = ["f", "i", "sh"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "fresh"
+phase = 4
+order = 33
+graphemes = ["f", "r", "e", "sh"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "freshness"
+phase = 4
+order = 33
+graphemes = ["f", "r", "e", "sh", "n", "e", "ss"]
+groups = ["CCVC, polysyllabic"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "hush"
+phase = 3
+order = 33
+graphemes = ["h", "u", "sh"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "rush"
+phase = 3
+order = 33
+graphemes = ["r", "u", "sh"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "shed"
+phase = 3
+order = 33
+graphemes = ["sh", "e", "d"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "shelf"
+phase = 4
+order = 33
+graphemes = ["sh", "e", "l", "f"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "shell"
+phase = 3
+order = 33
+graphemes = ["sh", "e", "ll"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "shift"
+phase = 4
+order = 33
+graphemes = ["sh", "i", "f", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "ship"
+phase = 3
+order = 33
+graphemes = ["sh", "i", "p"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "shock"
+phase = 3
+order = 33
+graphemes = ["sh", "o", "ck"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "shop"
+phase = 3
+order = 33
+graphemes = ["sh", "o", "p"]
+groups = ["sh"]
+source = "ls2007:p.101"
+target_gpc = "sh"
+
+[[word]]
+text = "shrink"
+phase = 4
+order = 33
+graphemes = ["sh", "r", "i", "n", "k"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "trash"
+phase = 4
+order = 33
+graphemes = ["t", "r", "a", "sh"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "welsh"
+phase = 4
+order = 33
+graphemes = ["w", "e", "l", "sh"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+proper_noun = true
+
+[[word]]
+text = "bath"
+phase = 3
+order = 34
+graphemes = ["b", "a", "th"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+
+[[word]]
+text = "moth"
+phase = 3
+order = 34
+graphemes = ["m", "o", "th"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+
+[[word]]
+text = "path"
+phase = 3
+order = 34
+graphemes = ["p", "a", "th"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+
+[[word]]
+text = "seventh"
+phase = 4
+order = 34
+graphemes = ["s", "e", "v", "e", "n", "th"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "sixth"
+phase = 4
+order = 34
+graphemes = ["s", "i", "x", "th"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "tenth"
+phase = 4
+order = 34
+graphemes = ["t", "e", "n", "th"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "thank"
+phase = 4
+order = 34
+graphemes = ["th", "a", "n", "k"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "that"
+phase = 3
+order = 34
+graphemes = ["th_voiced", "a", "t"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+high_frequency = true
+
+[[word]]
+text = "theft"
+phase = 4
+order = 34
+graphemes = ["th", "e", "f", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "them"
+phase = 3
+order = 34
+graphemes = ["th_voiced", "e", "m"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+high_frequency = true
+
+[[word]]
+text = "then"
+phase = 3
+order = 34
+graphemes = ["th_voiced", "e", "n"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+high_frequency = true
+
+[[word]]
+text = "thick"
+phase = 3
+order = 34
+graphemes = ["th", "i", "ck"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+
+[[word]]
+text = "thin"
+phase = 3
+order = 34
+graphemes = ["th", "i", "n"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+
+[[word]]
+text = "think"
+phase = 4
+order = 34
+graphemes = ["th", "i", "n", "k"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "this"
+phase = 3
+order = 34
+graphemes = ["th_voiced", "i", "s"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+high_frequency = true
+
+[[word]]
+text = "thrill"
+phase = 4
+order = 34
+graphemes = ["th", "r", "i", "ll"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "thrush"
+phase = 4
+order = 34
+graphemes = ["th", "r", "u", "sh"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "thrust"
+phase = 4
+order = 34
+graphemes = ["th", "r", "u", "s", "t"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "thump"
+phase = 4
+order = 34
+graphemes = ["th", "u", "m", "p"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "with"
+phase = 3
+order = 34
+graphemes = ["w", "i", "th"]
+groups = ["th"]
+source = "ls2007:p.101"
+target_gpc = "th"
+high_frequency = true
+
+[[word]]
+text = "bring"
+phase = 4
+order = 35
+graphemes = ["b", "r", "i", "ng"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "hang"
+phase = 3
+order = 35
+graphemes = ["h", "a", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "king"
+phase = 3
+order = 35
+graphemes = ["k", "i", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "long"
+phase = 3
+order = 35
+graphemes = ["l", "o", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "melting"
+phase = 4
+order = 35
+graphemes = ["m", "e", "l", "t", "i", "ng"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "ping-pong"
+phase = 3
+order = 35
+graphemes = ["p", "i", "ng", "p", "o", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "rang"
+phase = 3
+order = 35
+graphemes = ["r", "a", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "ring"
+phase = 3
+order = 35
+graphemes = ["r", "i", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "rung"
+phase = 3
+order = 35
+graphemes = ["r", "u", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "shelving"
+phase = 4
+order = 35
+graphemes = ["sh", "e", "l", "v", "i", "ng"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "sing"
+phase = 3
+order = 35
+graphemes = ["s", "i", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "song"
+phase = 3
+order = 35
+graphemes = ["s", "o", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "spring"
+phase = 4
+order = 35
+graphemes = ["s", "p", "r", "i", "ng"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "string"
+phase = 4
+order = 35
+graphemes = ["s", "t", "r", "i", "ng"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "swing"
+phase = 4
+order = 35
+graphemes = ["s", "w", "i", "ng"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "thing"
+phase = 3
+order = 35
+graphemes = ["th", "i", "ng"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "twisting"
+phase = 4
+order = 35
+graphemes = ["t", "w", "i", "s", "t", "i", "ng"]
+groups = ["CCVCC, polysyllabic"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "wing"
+phase = 3
+order = 35
+graphemes = ["w", "i", "ng"]
+groups = ["ng"]
+source = "ls2007:p.101"
+target_gpc = "ng"
+
+[[word]]
+text = "aim"
+phase = 3
+order = 36
+graphemes = ["ai", "m"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "bait"
+phase = 3
+order = 36
+graphemes = ["b", "ai", "t"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "chain"
+phase = 3
+order = 36
+graphemes = ["ch", "ai", "n"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "faith"
+phase = 3
+order = 36
+graphemes = ["f", "ai", "th"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "gail"
+phase = 3
+order = 36
+graphemes = ["g", "ai", "l"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+proper_noun = true
+
+[[word]]
+text = "hail"
+phase = 3
+order = 36
+graphemes = ["h", "ai", "l"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "main"
+phase = 3
+order = 36
+graphemes = ["m", "ai", "n"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "pain"
+phase = 3
+order = 36
+graphemes = ["p", "ai", "n"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "paint"
+phase = 4
+order = 36
+graphemes = ["p", "ai", "n", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "rain"
+phase = 3
+order = 36
+graphemes = ["r", "ai", "n"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "sail"
+phase = 3
+order = 36
+graphemes = ["s", "ai", "l"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "tail"
+phase = 3
+order = 36
+graphemes = ["t", "ai", "l"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "trail"
+phase = 4
+order = 36
+graphemes = ["t", "r", "ai", "l"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "train"
+phase = 4
+order = 36
+graphemes = ["t", "r", "ai", "n"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "wait"
+phase = 3
+order = 36
+graphemes = ["w", "ai", "t"]
+groups = ["ai"]
+source = "ls2007:p.102"
+target_gpc = "ai"
+
+[[word]]
+text = "bleed"
+phase = 4
+order = 37
+graphemes = ["b", "l", "ee", "d"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "cheep"
+phase = 3
+order = 37
+graphemes = ["ch", "ee", "p"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "chimpanzee"
+phase = 4
+order = 37
+graphemes = ["ch", "i", "m", "p", "a", "n", "z", "ee"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "creep"
+phase = 4
+order = 37
+graphemes = ["c", "r", "ee", "p"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "deep"
+phase = 3
+order = 37
+graphemes = ["d", "ee", "p"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "feel"
+phase = 3
+order = 37
+graphemes = ["f", "ee", "l"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "feet"
+phase = 3
+order = 37
+graphemes = ["f", "ee", "t"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "green"
+phase = 4
+order = 37
+graphemes = ["g", "r", "ee", "n"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "jeep"
+phase = 3
+order = 37
+graphemes = ["j", "ee", "p"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "keep"
+phase = 3
+order = 37
+graphemes = ["k", "ee", "p"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "meet"
+phase = 3
+order = 37
+graphemes = ["m", "ee", "t"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "pondweed"
+phase = 4
+order = 37
+graphemes = ["p", "o", "n", "d", "w", "ee", "d"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "see"
+phase = 3
+order = 37
+graphemes = ["s", "ee"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+high_frequency = true
+
+[[word]]
+text = "seem"
+phase = 3
+order = 37
+graphemes = ["s", "ee", "m"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "sheep"
+phase = 3
+order = 37
+graphemes = ["sh", "ee", "p"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "sheet"
+phase = 3
+order = 37
+graphemes = ["sh", "ee", "t"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "speech"
+phase = 4
+order = 37
+graphemes = ["s", "p", "ee", "ch"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "street"
+phase = 4
+order = 37
+graphemes = ["s", "t", "r", "ee", "t"]
+groups = ["CCVCC/CCCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "teeth"
+phase = 3
+order = 37
+graphemes = ["t", "ee", "th"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "tree"
+phase = 4
+order = 37
+graphemes = ["t", "r", "ee"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "treetop"
+phase = 4
+order = 37
+graphemes = ["t", "r", "ee", "t", "o", "p"]
+groups = ["CCVC, polysyllabic"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "week"
+phase = 3
+order = 37
+graphemes = ["w", "ee", "k"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "weep"
+phase = 3
+order = 37
+graphemes = ["w", "ee", "p"]
+groups = ["ee"]
+source = "ls2007:p.102"
+target_gpc = "ee"
+
+[[word]]
+text = "fight"
+phase = 3
+order = 38
+graphemes = ["f", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "high"
+phase = 3
+order = 38
+graphemes = ["h", "igh"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "light"
+phase = 3
+order = 38
+graphemes = ["l", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "lightning"
+phase = 3
+order = 38
+graphemes = ["l", "igh", "t", "n", "i", "ng"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "might"
+phase = 3
+order = 38
+graphemes = ["m", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "night"
+phase = 3
+order = 38
+graphemes = ["n", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "right"
+phase = 3
+order = 38
+graphemes = ["r", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "sigh"
+phase = 3
+order = 38
+graphemes = ["s", "igh"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "sight"
+phase = 3
+order = 38
+graphemes = ["s", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "tight"
+phase = 3
+order = 38
+graphemes = ["t", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "tonight"
+phase = 3
+order = 38
+graphemes = ["t", "o", "n", "igh", "t"]
+groups = ["igh"]
+source = "ls2007:p.102"
+target_gpc = "igh"
+
+[[word]]
+text = "boatman"
+phase = 3
+order = 39
+graphemes = ["b", "oa", "t", "m", "a", "n"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "coach"
+phase = 3
+order = 39
+graphemes = ["c", "oa", "ch"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "coat"
+phase = 3
+order = 39
+graphemes = ["c", "oa", "t"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "float"
+phase = 4
+order = 39
+graphemes = ["f", "l", "oa", "t"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "floating"
+phase = 4
+order = 39
+graphemes = ["f", "l", "oa", "t", "i", "ng"]
+groups = ["CCVC, polysyllabic"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "foal"
+phase = 3
+order = 39
+graphemes = ["f", "oa", "l"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "goat"
+phase = 3
+order = 39
+graphemes = ["g", "oa", "t"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "groan"
+phase = 4
+order = 39
+graphemes = ["g", "r", "oa", "n"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "load"
+phase = 3
+order = 39
+graphemes = ["l", "oa", "d"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "loaf"
+phase = 3
+order = 39
+graphemes = ["l", "oa", "f"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "oak"
+phase = 3
+order = 39
+graphemes = ["oa", "k"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "poach"
+phase = 3
+order = 39
+graphemes = ["p", "oa", "ch"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "road"
+phase = 3
+order = 39
+graphemes = ["r", "oa", "d"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "roast"
+phase = 4
+order = 39
+graphemes = ["r", "oa", "s", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "shoal"
+phase = 3
+order = 39
+graphemes = ["sh", "oa", "l"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "soap"
+phase = 3
+order = 39
+graphemes = ["s", "oa", "p"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "toad"
+phase = 3
+order = 39
+graphemes = ["t", "oa", "d"]
+groups = ["oa"]
+source = "ls2007:p.102"
+target_gpc = "oa"
+
+[[word]]
+text = "toast"
+phase = 4
+order = 39
+graphemes = ["t", "oa", "s", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "boost"
+phase = 4
+order = 40
+graphemes = ["b", "oo_long", "s", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "boot"
+phase = 3
+order = 40
+graphemes = ["b", "oo_long", "t"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "cool"
+phase = 3
+order = 40
+graphemes = ["c", "oo_long", "l"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "droop"
+phase = 4
+order = 40
+graphemes = ["d", "r", "oo_long", "p"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "food"
+phase = 3
+order = 40
+graphemes = ["f", "oo_long", "d"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "hoof"
+phase = 3
+order = 40
+graphemes = ["h", "oo_long", "f"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "moon"
+phase = 3
+order = 40
+graphemes = ["m", "oo_long", "n"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "rooftop"
+phase = 3
+order = 40
+graphemes = ["r", "oo_long", "f", "t", "o", "p"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "root"
+phase = 3
+order = 40
+graphemes = ["r", "oo_long", "t"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "scoop"
+phase = 4
+order = 40
+graphemes = ["s", "c", "oo_long", "p"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "shampoo"
+phase = 4
+order = 40
+graphemes = ["sh", "a", "m", "p", "oo_long"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "spoon"
+phase = 4
+order = 40
+graphemes = ["s", "p", "oo_long", "n"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "too"
+phase = 3
+order = 40
+graphemes = ["t", "oo_long"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+high_frequency = true
+
+[[word]]
+text = "tooth"
+phase = 3
+order = 40
+graphemes = ["t", "oo_long", "th"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "zoo"
+phase = 3
+order = 40
+graphemes = ["z", "oo_long"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "zoom"
+phase = 3
+order = 40
+graphemes = ["z", "oo_long", "m"]
+groups = ["oo (long)"]
+source = "ls2007:p.102"
+target_gpc = "oo_long"
+
+[[word]]
+text = "book"
+phase = 3
+order = 41
+graphemes = ["b", "oo_short", "k"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "booth"
+phase = 3
+order = 41
+graphemes = ["b", "oo_short", "th"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "cook"
+phase = 3
+order = 41
+graphemes = ["c", "oo_short", "k"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "driftwood"
+phase = 4
+order = 41
+graphemes = ["d", "r", "i", "f", "t", "w", "oo_short", "d"]
+groups = ["CCVCC, polysyllabic"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "foot"
+phase = 3
+order = 41
+graphemes = ["f", "oo_short", "t"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "good"
+phase = 3
+order = 41
+graphemes = ["g", "oo_short", "d"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "hood"
+phase = 3
+order = 41
+graphemes = ["h", "oo_short", "d"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "hook"
+phase = 3
+order = 41
+graphemes = ["h", "oo_short", "k"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "look"
+phase = 3
+order = 41
+graphemes = ["l", "oo_short", "k"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+high_frequency = true
+
+[[word]]
+text = "looking"
+phase = 3
+order = 41
+graphemes = ["l", "oo_short", "k", "i", "ng"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "shook"
+phase = 3
+order = 41
+graphemes = ["sh", "oo_short", "k"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "took"
+phase = 3
+order = 41
+graphemes = ["t", "oo_short", "k"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "wood"
+phase = 3
+order = 41
+graphemes = ["w", "oo_short", "d"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "wool"
+phase = 3
+order = 41
+graphemes = ["w", "oo_short", "l"]
+groups = ["oo (short)"]
+source = "ls2007:p.102"
+target_gpc = "oo_short"
+
+[[word]]
+text = "arch"
+phase = 3
+order = 42
+graphemes = ["ar", "ch"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "bar"
+phase = 3
+order = 42
+graphemes = ["b", "ar"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "bark"
+phase = 3
+order = 42
+graphemes = ["b", "ar", "k"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "car"
+phase = 3
+order = 42
+graphemes = ["c", "ar"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "card"
+phase = 3
+order = 42
+graphemes = ["c", "ar", "d"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "cart"
+phase = 3
+order = 42
+graphemes = ["c", "ar", "t"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "farmyard"
+phase = 3
+order = 42
+graphemes = ["f", "ar", "m", "y", "ar", "d"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "hard"
+phase = 3
+order = 42
+graphemes = ["h", "ar", "d"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "harsh"
+phase = 3
+order = 42
+graphemes = ["h", "ar", "sh"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "jar"
+phase = 3
+order = 42
+graphemes = ["j", "ar"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "march"
+phase = 3
+order = 42
+graphemes = ["m", "ar", "ch"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "market"
+phase = 3
+order = 42
+graphemes = ["m", "ar", "k", "e", "t"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "park"
+phase = 3
+order = 42
+graphemes = ["p", "ar", "k"]
+groups = ["ar"]
+source = "ls2007:p.102"
+target_gpc = "ar"
+
+[[word]]
+text = "shark"
+phase = 3
+order = 42
+graphemes = ["sh", "ar", "k"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "sharp"
+phase = 3
+order = 42
+graphemes = ["sh", "ar", "p"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "smart"
+phase = 4
+order = 42
+graphemes = ["s", "m", "ar", "t"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "spark"
+phase = 4
+order = 42
+graphemes = ["s", "p", "ar", "k"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "star"
+phase = 4
+order = 42
+graphemes = ["s", "t", "ar"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "starlight"
+phase = 4
+order = 42
+graphemes = ["s", "t", "ar", "l", "igh", "t"]
+groups = ["CCVC, polysyllabic"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "start"
+phase = 4
+order = 42
+graphemes = ["s", "t", "ar", "t"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "born"
+phase = 3
+order = 43
+graphemes = ["b", "or", "n"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "cord"
+phase = 3
+order = 43
+graphemes = ["c", "or", "d"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "cork"
+phase = 3
+order = 43
+graphemes = ["c", "or", "k"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "cornet"
+phase = 3
+order = 43
+graphemes = ["c", "or", "n", "e", "t"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "for"
+phase = 3
+order = 43
+graphemes = ["f", "or"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+high_frequency = true
+
+[[word]]
+text = "fork"
+phase = 3
+order = 43
+graphemes = ["f", "or", "k"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "fort"
+phase = 3
+order = 43
+graphemes = ["f", "or", "t"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "north"
+phase = 3
+order = 43
+graphemes = ["n", "or", "th"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "orchard"
+phase = 3
+order = 43
+graphemes = ["or", "ch", "ar", "d"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "porch"
+phase = 3
+order = 43
+graphemes = ["p", "or", "ch"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "short"
+phase = 3
+order = 43
+graphemes = ["sh", "or", "t"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "sort"
+phase = 3
+order = 43
+graphemes = ["s", "or", "t"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "sport"
+phase = 4
+order = 43
+graphemes = ["s", "p", "or", "t"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "thorn"
+phase = 3
+order = 43
+graphemes = ["th", "or", "n"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "torch"
+phase = 3
+order = 43
+graphemes = ["t", "or", "ch"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "torn"
+phase = 3
+order = 43
+graphemes = ["t", "or", "n"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "worn"
+phase = 3
+order = 43
+graphemes = ["w", "or", "n"]
+groups = ["or"]
+source = "ls2007:p.102"
+target_gpc = "or"
+
+[[word]]
+text = "burn"
+phase = 3
+order = 44
+graphemes = ["b", "ur", "n"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "burnt"
+phase = 4
+order = 44
+graphemes = ["b", "ur", "n", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "burp"
+phase = 3
+order = 44
+graphemes = ["b", "ur", "p"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "church"
+phase = 3
+order = 44
+graphemes = ["ch", "ur", "ch"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "curds"
+phase = 3
+order = 44
+graphemes = ["c", "ur", "d", "s_z"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "curl"
+phase = 3
+order = 44
+graphemes = ["c", "ur", "l"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "fur"
+phase = 3
+order = 44
+graphemes = ["f", "ur"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "hurt"
+phase = 3
+order = 44
+graphemes = ["h", "ur", "t"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "surf"
+phase = 3
+order = 44
+graphemes = ["s", "ur", "f"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "turn"
+phase = 3
+order = 44
+graphemes = ["t", "ur", "n"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "turnip"
+phase = 3
+order = 44
+graphemes = ["t", "ur", "n", "i", "p"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "urn"
+phase = 3
+order = 44
+graphemes = ["ur", "n"]
+groups = ["ur"]
+source = "ls2007:p.102"
+target_gpc = "ur"
+
+[[word]]
+text = "bow"
+phase = 3
+order = 45
+graphemes = ["b", "ow"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "brown"
+phase = 4
+order = 45
+graphemes = ["b", "r", "ow", "n"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "clown"
+phase = 4
+order = 45
+graphemes = ["c", "l", "ow", "n"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "cow"
+phase = 3
+order = 45
+graphemes = ["c", "ow"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "down"
+phase = 3
+order = 45
+graphemes = ["d", "ow", "n"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+high_frequency = true
+
+[[word]]
+text = "frown"
+phase = 4
+order = 45
+graphemes = ["f", "r", "ow", "n"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "growl"
+phase = 4
+order = 45
+graphemes = ["g", "r", "ow", "l"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "how"
+phase = 3
+order = 45
+graphemes = ["h", "ow"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "now"
+phase = 3
+order = 45
+graphemes = ["n", "ow"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+high_frequency = true
+
+[[word]]
+text = "owl"
+phase = 3
+order = 45
+graphemes = ["ow", "l"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "pow"
+phase = 3
+order = 45
+graphemes = ["p", "ow"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "row"
+phase = 3
+order = 45
+graphemes = ["r", "ow"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "towel"
+phase = 3
+order = 45
+graphemes = ["t", "ow", "e", "l"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "town"
+phase = 3
+order = 45
+graphemes = ["t", "ow", "n"]
+groups = ["ow"]
+source = "ls2007:p.102"
+target_gpc = "ow"
+
+[[word]]
+text = "boil"
+phase = 3
+order = 46
+graphemes = ["b", "oi", "l"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "coil"
+phase = 3
+order = 46
+graphemes = ["c", "oi", "l"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "coin"
+phase = 3
+order = 46
+graphemes = ["c", "oi", "n"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "join"
+phase = 3
+order = 46
+graphemes = ["j", "oi", "n"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "joint"
+phase = 4
+order = 46
+graphemes = ["j", "oi", "n", "t"]
+groups = ["CVCC, Phase Three graphemes"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "oil"
+phase = 3
+order = 46
+graphemes = ["oi", "l"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "poison"
+phase = 3
+order = 46
+graphemes = ["p", "oi", "s", "o", "n"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "quoit"
+phase = 3
+order = 46
+graphemes = ["qu", "oi", "t"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "soil"
+phase = 3
+order = 46
+graphemes = ["s", "oi", "l"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "spoil"
+phase = 4
+order = 46
+graphemes = ["s", "p", "oi", "l"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "tinfoil"
+phase = 3
+order = 46
+graphemes = ["t", "i", "n", "f", "oi", "l"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "toil"
+phase = 3
+order = 46
+graphemes = ["t", "oi", "l"]
+groups = ["oi"]
+source = "ls2007:p.102"
+target_gpc = "oi"
+
+[[word]]
+text = "beard"
+phase = 3
+order = 47
+graphemes = ["b", "ear", "d"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "clear"
+phase = 4
+order = 47
+graphemes = ["c", "l", "ear"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "dear"
+phase = 3
+order = 47
+graphemes = ["d", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "ear"
+phase = 3
+order = 47
+graphemes = ["ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "fear"
+phase = 3
+order = 47
+graphemes = ["f", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "gear"
+phase = 3
+order = 47
+graphemes = ["g", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "hear"
+phase = 3
+order = 47
+graphemes = ["h", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "near"
+phase = 3
+order = 47
+graphemes = ["n", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "rear"
+phase = 3
+order = 47
+graphemes = ["r", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "shear"
+phase = 3
+order = 47
+graphemes = ["sh", "ear"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "smear"
+phase = 4
+order = 47
+graphemes = ["s", "m", "ear"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "spear"
+phase = 4
+order = 47
+graphemes = ["s", "p", "ear"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "tear"
+phase = 3
+order = 47
+graphemes = ["t", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "year"
+phase = 3
+order = 47
+graphemes = ["y", "ear"]
+groups = ["ear"]
+source = "ls2007:p.102"
+target_gpc = "ear"
+
+[[word]]
+text = "air"
+phase = 3
+order = 48
+graphemes = ["air"]
+groups = ["air"]
+source = "ls2007:p.102"
+target_gpc = "air"
+
+[[word]]
+text = "cairn"
+phase = 3
+order = 48
+graphemes = ["c", "air", "n"]
+groups = ["air"]
+source = "ls2007:p.102"
+target_gpc = "air"
+
+[[word]]
+text = "chair"
+phase = 3
+order = 48
+graphemes = ["ch", "air"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "fair"
+phase = 3
+order = 48
+graphemes = ["f", "air"]
+groups = ["air"]
+source = "ls2007:p.102"
+target_gpc = "air"
+
+[[word]]
+text = "flair"
+phase = 4
+order = 48
+graphemes = ["f", "l", "air"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "hair"
+phase = 3
+order = 48
+graphemes = ["h", "air"]
+groups = ["air"]
+source = "ls2007:p.102"
+target_gpc = "air"
+
+[[word]]
+text = "lair"
+phase = 3
+order = 48
+graphemes = ["l", "air"]
+groups = ["air"]
+source = "ls2007:p.102"
+target_gpc = "air"
+
+[[word]]
+text = "pair"
+phase = 3
+order = 48
+graphemes = ["p", "air"]
+groups = ["air"]
+source = "ls2007:p.102"
+target_gpc = "air"
+
+[[word]]
+text = "stair"
+phase = 4
+order = 48
+graphemes = ["s", "t", "air"]
+groups = ["CCV/CCVC, Phase Three graphemes"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "assure"
+phase = 3
+order = 49
+graphemes = ["a", "ss", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "cure"
+phase = 3
+order = 49
+graphemes = ["c", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "insure"
+phase = 3
+order = 49
+graphemes = ["i", "n", "s", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "lure"
+phase = 3
+order = 49
+graphemes = ["l", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "manure"
+phase = 3
+order = 49
+graphemes = ["m", "a", "n", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "mature"
+phase = 3
+order = 49
+graphemes = ["m", "a", "t", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "pure"
+phase = 3
+order = 49
+graphemes = ["p", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "secure"
+phase = 3
+order = 49
+graphemes = ["s", "e", "c", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "sure"
+phase = 3
+order = 49
+graphemes = ["s", "ure"]
+groups = ["ure"]
+source = "ls2007:p.102"
+target_gpc = "ure"
+
+[[word]]
+text = "banner"
+phase = 3
+order = 50
+graphemes = ["b", "a", "nn", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "better"
+phase = 3
+order = 50
+graphemes = ["b", "e", "tt", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "boxer"
+phase = 3
+order = 50
+graphemes = ["b", "o", "x", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "chester"
+phase = 4
+order = 50
+graphemes = ["ch", "e", "s", "t", "er"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+proper_noun = true
+
+[[word]]
+text = "dinner"
+phase = 3
+order = 50
+graphemes = ["d", "i", "nn", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "farmer"
+phase = 3
+order = 50
+graphemes = ["f", "ar", "m", "er"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "hammer"
+phase = 3
+order = 50
+graphemes = ["h", "a", "mm", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "helper"
+phase = 4
+order = 50
+graphemes = ["h", "e", "l", "p", "er"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "ladder"
+phase = 3
+order = 50
+graphemes = ["l", "a", "dd", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "letter"
+phase = 3
+order = 50
+graphemes = ["l", "e", "tt", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "longer"
+phase = 3
+order = 50
+graphemes = ["l", "o", "ng", "er"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "manchester"
+phase = 4
+order = 50
+graphemes = ["m", "a", "n", "ch", "e", "s", "t", "er"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+proper_noun = true
+
+[[word]]
+text = "powder"
+phase = 3
+order = 50
+graphemes = ["p", "ow", "d", "er"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "printer"
+phase = 4
+order = 50
+graphemes = ["p", "r", "i", "n", "t", "er"]
+groups = ["CCVCC, polysyllabic"]
+source = "ls2007:p.127"
+
+[[word]]
+text = "rocker"
+phase = 3
+order = 50
+graphemes = ["r", "o", "ck", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "shelter"
+phase = 4
+order = 50
+graphemes = ["sh", "e", "l", "t", "er"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "shorter"
+phase = 3
+order = 50
+graphemes = ["sh", "or", "t", "er"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "singer"
+phase = 3
+order = 50
+graphemes = ["s", "i", "ng", "er"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "summer"
+phase = 3
+order = 50
+graphemes = ["s", "u", "mm", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "supper"
+phase = 3
+order = 50
+graphemes = ["s", "u", "pp", "er"]
+groups = ["er"]
+source = "ls2007:p.102"
+target_gpc = "er"
+
+[[word]]
+text = "thicker"
+phase = 3
+order = 50
+graphemes = ["th", "i", "ck", "er"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "thundering"
+phase = 4
+order = 50
+graphemes = ["th", "u", "n", "d", "er", "i", "ng"]
+groups = ["CVCC, polysyllabic"]
+source = "ls2007:p.126"
+
+[[word]]
+text = "waiter"
+phase = 3
+order = 50
+graphemes = ["w", "ai", "t", "er"]
+groups = ["two Phase Three graphemes"]
+source = "ls2007:p.103"
+
+[[word]]
+text = "clay"
+phase = 5
+order = 51
+graphemes = ["c", "l", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "crayon"
+phase = 5
+order = 51
+graphemes = ["c", "r", "ay", "o", "n"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "day"
+phase = 5
+order = 51
+graphemes = ["d", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "delay"
+phase = 5
+order = 51
+graphemes = ["d", "e", "l", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "may"
+phase = 5
+order = 51
+graphemes = ["m", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "play"
+phase = 5
+order = 51
+graphemes = ["p", "l", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "say"
+phase = 5
+order = 51
+graphemes = ["s", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "spray"
+phase = 5
+order = 51
+graphemes = ["s", "p", "r", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "stray"
+phase = 5
+order = 51
+graphemes = ["s", "t", "r", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "tray"
+phase = 5
+order = 51
+graphemes = ["t", "r", "ay"]
+groups = ["ay"]
+source = "ls2007:p.151"
+target_gpc = "ay"
+
+[[word]]
+text = "about"
+phase = 5
+order = 52
+graphemes = ["a", "b", "ou", "t"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "cloud"
+phase = 5
+order = 52
+graphemes = ["c", "l", "ou", "d"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "found"
+phase = 5
+order = 52
+graphemes = ["f", "ou", "n", "d"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "loudest"
+phase = 5
+order = 52
+graphemes = ["l", "ou", "d", "e", "s", "t"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "mountain"
+phase = 5
+order = 52
+graphemes = ["m", "ou", "n", "t", "ai", "n"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "out"
+phase = 5
+order = 52
+graphemes = ["ou", "t"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "proud"
+phase = 5
+order = 52
+graphemes = ["p", "r", "ou", "d"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "scout"
+phase = 5
+order = 52
+graphemes = ["s", "c", "ou", "t"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "sound"
+phase = 5
+order = 52
+graphemes = ["s", "ou", "n", "d"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "sprout"
+phase = 5
+order = 52
+graphemes = ["s", "p", "r", "ou", "t"]
+groups = ["ou"]
+source = "ls2007:p.151"
+target_gpc = "ou"
+
+[[word]]
+text = "cried"
+phase = 5
+order = 53
+graphemes = ["c", "r", "ie", "d"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "denied"
+phase = 5
+order = 53
+graphemes = ["d", "e", "n", "ie", "d"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "die"
+phase = 5
+order = 53
+graphemes = ["d", "ie"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "fried"
+phase = 5
+order = 53
+graphemes = ["f", "r", "ie", "d"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "lie"
+phase = 5
+order = 53
+graphemes = ["l", "ie"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "pie"
+phase = 5
+order = 53
+graphemes = ["p", "ie"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "replied"
+phase = 5
+order = 53
+graphemes = ["r", "e", "p", "l", "ie", "d"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "spied"
+phase = 5
+order = 53
+graphemes = ["s", "p", "ie", "d"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "tie"
+phase = 5
+order = 53
+graphemes = ["t", "ie"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "tried"
+phase = 5
+order = 53
+graphemes = ["t", "r", "ie", "d"]
+groups = ["ie"]
+source = "ls2007:p.151"
+target_gpc = "ie"
+
+[[word]]
+text = "bead"
+phase = 5
+order = 54
+graphemes = ["b", "ea", "d"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "heap"
+phase = 5
+order = 54
+graphemes = ["h", "ea", "p"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "least"
+phase = 5
+order = 54
+graphemes = ["l", "ea", "s", "t"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "meat"
+phase = 5
+order = 54
+graphemes = ["m", "ea", "t"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "read"
+phase = 5
+order = 54
+graphemes = ["r", "ea", "d"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "repeat"
+phase = 5
+order = 54
+graphemes = ["r", "e", "p", "ea", "t"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "sea"
+phase = 5
+order = 54
+graphemes = ["s", "ea"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "seat"
+phase = 5
+order = 54
+graphemes = ["s", "ea", "t"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "steamy"
+phase = 5
+order = 54
+graphemes = ["s", "t", "ea", "m", "y"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "treat"
+phase = 5
+order = 54
+graphemes = ["t", "r", "ea", "t"]
+groups = ["ea"]
+source = "ls2007:p.151"
+target_gpc = "ea"
+
+[[word]]
+text = "annoying"
+phase = 5
+order = 55
+graphemes = ["a", "nn", "oy", "i", "ng"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "boy"
+phase = 5
+order = 55
+graphemes = ["b", "oy"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "destroy"
+phase = 5
+order = 55
+graphemes = ["d", "e", "s", "t", "r", "oy"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "enjoy"
+phase = 5
+order = 55
+graphemes = ["e", "n", "j", "oy"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "floyd"
+phase = 5
+order = 55
+graphemes = ["f", "l", "oy", "d"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+proper_noun = true
+
+[[word]]
+text = "joy"
+phase = 5
+order = 55
+graphemes = ["j", "oy"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "oyster"
+phase = 5
+order = 55
+graphemes = ["oy", "s", "t", "er"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "roy"
+phase = 5
+order = 55
+graphemes = ["r", "oy"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+proper_noun = true
+
+[[word]]
+text = "royal"
+phase = 5
+order = 55
+graphemes = ["r", "oy", "a", "l"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "toy"
+phase = 5
+order = 55
+graphemes = ["t", "oy"]
+groups = ["oy"]
+source = "ls2007:p.151"
+target_gpc = "oy"
+
+[[word]]
+text = "bird"
+phase = 5
+order = 56
+graphemes = ["b", "ir", "d"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "birth"
+phase = 5
+order = 56
+graphemes = ["b", "ir", "th"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "first"
+phase = 5
+order = 56
+graphemes = ["f", "ir", "s", "t"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "girl"
+phase = 5
+order = 56
+graphemes = ["g", "ir", "l"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "shirt"
+phase = 5
+order = 56
+graphemes = ["sh", "ir", "t"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "sir"
+phase = 5
+order = 56
+graphemes = ["s", "ir"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "skirt"
+phase = 5
+order = 56
+graphemes = ["s", "k", "ir", "t"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "third"
+phase = 5
+order = 56
+graphemes = ["th", "ir", "d"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "thirsty"
+phase = 5
+order = 56
+graphemes = ["th", "ir", "s", "t", "y"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "thirteen"
+phase = 5
+order = 56
+graphemes = ["th", "ir", "t", "ee", "n"]
+groups = ["ir"]
+source = "ls2007:p.151"
+target_gpc = "ir"
+
+[[word]]
+text = "blue"
+phase = 5
+order = 57
+graphemes = ["b", "l", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+
+[[word]]
+text = "clue"
+phase = 5
+order = 57
+graphemes = ["c", "l", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+
+[[word]]
+text = "flue"
+phase = 5
+order = 57
+graphemes = ["f", "l", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+
+[[word]]
+text = "glue"
+phase = 5
+order = 57
+graphemes = ["g", "l", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+
+[[word]]
+text = "prue"
+phase = 5
+order = 57
+graphemes = ["p", "r", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+proper_noun = true
+
+[[word]]
+text = "rue"
+phase = 5
+order = 57
+graphemes = ["r", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+
+[[word]]
+text = "sue"
+phase = 5
+order = 57
+graphemes = ["s", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+proper_noun = true
+
+[[word]]
+text = "true"
+phase = 5
+order = 57
+graphemes = ["t", "r", "ue_oo"]
+groups = ["ue (as in clue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_oo"
+
+[[word]]
+text = "argue"
+phase = 5
+order = 58
+graphemes = ["ar", "g", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "cue"
+phase = 5
+order = 58
+graphemes = ["c", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "due"
+phase = 5
+order = 58
+graphemes = ["d", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "hue"
+phase = 5
+order = 58
+graphemes = ["h", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "issue"
+phase = 5
+order = 58
+graphemes = ["i", "ss", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "pursue"
+phase = 5
+order = 58
+graphemes = ["p", "ur", "s", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "rescue"
+phase = 5
+order = 58
+graphemes = ["r", "e", "s", "c", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "statue"
+phase = 5
+order = 58
+graphemes = ["s", "t", "a", "t", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "tissue"
+phase = 5
+order = 58
+graphemes = ["t", "i", "ss", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "value"
+phase = 5
+order = 58
+graphemes = ["v", "a", "l", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "venue"
+phase = 5
+order = 58
+graphemes = ["v", "e", "n", "ue_yoo"]
+groups = ["ue (as in cue)"]
+source = "ls2007:p.151"
+target_gpc = "ue_yoo"
+
+[[word]]
+text = "claw"
+phase = 5
+order = 59
+graphemes = ["c", "l", "aw"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "drawer"
+phase = 5
+order = 59
+graphemes = ["d", "r", "aw", "er"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "jaw"
+phase = 5
+order = 59
+graphemes = ["j", "aw"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "law"
+phase = 5
+order = 59
+graphemes = ["l", "aw"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "lawn"
+phase = 5
+order = 59
+graphemes = ["l", "aw", "n"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "paw"
+phase = 5
+order = 59
+graphemes = ["p", "aw"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "raw"
+phase = 5
+order = 59
+graphemes = ["r", "aw"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "saw"
+phase = 5
+order = 59
+graphemes = ["s", "aw"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "shawl"
+phase = 5
+order = 59
+graphemes = ["sh", "aw", "l"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "yawn"
+phase = 5
+order = 59
+graphemes = ["y", "aw", "n"]
+groups = ["aw"]
+source = "ls2007:p.151"
+target_gpc = "aw"
+
+[[word]]
+text = "wheel"
+phase = 5
+order = 60
+graphemes = ["wh", "ee", "l"]
+groups = ["wh"]
+source = "ls2007:p.151"
+target_gpc = "wh"
+
+[[word]]
+text = "when"
+phase = 5
+order = 60
+graphemes = ["wh", "e", "n"]
+groups = ["wh"]
+source = "ls2007:p.151"
+target_gpc = "wh"
+
+[[word]]
+text = "whenever"
+phase = 5
+order = 60
+graphemes = ["wh", "e", "n", "e", "v", "er"]
+groups = ["wh"]
+source = "ls2007:p.151"
+target_gpc = "wh"
+
+[[word]]
+text = "where"
+phase = 5
+order = 60
+graphemes = ["wh", "er", "e"]
+groups = ["wh"]
+source = "ls2007:p.151"
+target_gpc = "wh"
+
+[[word]]
+text = "which"
+phase = 5
+order = 60
+graphemes = ["wh", "i", "ch"]
+groups = ["wh"]
+source = "ls2007:p.151"
+target_gpc = "wh"
+
+[[word]]
+text = "whisper"
+phase = 5
+order = 60
+graphemes = ["wh", "i", "s", "p", "er"]
+groups = ["wh"]
+source = "ls2007:p.151"
+target_gpc = "wh"
+
+[[word]]
+text = "why"
+phase = 5
+order = 60
+graphemes = ["wh", "y"]
+groups = ["wh"]
+source = "ls2007:p.151"
+target_gpc = "wh"
+
+[[word]]
+text = "alphabet"
+phase = 5
+order = 61
+graphemes = ["a", "l", "ph", "a", "b", "e", "t"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+
+[[word]]
+text = "christopher"
+phase = 5
+order = 61
+graphemes = ["ch", "r", "i", "s", "t", "o", "ph", "er"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+proper_noun = true
+
+[[word]]
+text = "dolphin"
+phase = 5
+order = 61
+graphemes = ["d", "o", "l", "ph", "i", "n"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+
+[[word]]
+text = "elephant"
+phase = 5
+order = 61
+graphemes = ["e", "l", "e", "ph", "a", "n", "t"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+
+[[word]]
+text = "phantom"
+phase = 5
+order = 61
+graphemes = ["ph", "a", "n", "t", "o", "m"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+
+[[word]]
+text = "philip"
+phase = 5
+order = 61
+graphemes = ["ph", "i", "l", "i", "p"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+proper_noun = true
+
+[[word]]
+text = "philippa"
+phase = 5
+order = 61
+graphemes = ["ph", "i", "l", "i", "pp", "a"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+proper_noun = true
+
+[[word]]
+text = "phonics"
+phase = 5
+order = 61
+graphemes = ["ph", "o", "n", "i", "c", "s"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+
+[[word]]
+text = "prophet"
+phase = 5
+order = 61
+graphemes = ["p", "r", "o", "ph", "e", "t"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+
+[[word]]
+text = "sphinx"
+phase = 5
+order = 61
+graphemes = ["s", "ph", "i", "n", "x"]
+groups = ["ph"]
+source = "ls2007:p.151"
+target_gpc = "ph"
+
+[[word]]
+text = "andrew"
+phase = 5
+order = 62
+graphemes = ["a", "n", "d", "r", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+proper_noun = true
+
+[[word]]
+text = "blew"
+phase = 5
+order = 62
+graphemes = ["b", "l", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "brew"
+phase = 5
+order = 62
+graphemes = ["b", "r", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "chew"
+phase = 5
+order = 62
+graphemes = ["ch", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "crew"
+phase = 5
+order = 62
+graphemes = ["c", "r", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "drew"
+phase = 5
+order = 62
+graphemes = ["d", "r", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "flew"
+phase = 5
+order = 62
+graphemes = ["f", "l", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "grew"
+phase = 5
+order = 62
+graphemes = ["g", "r", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "screw"
+phase = 5
+order = 62
+graphemes = ["s", "c", "r", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "threw"
+phase = 5
+order = 62
+graphemes = ["th", "r", "ew_oo"]
+groups = ["ew (as in blew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_oo"
+
+[[word]]
+text = "dew"
+phase = 5
+order = 63
+graphemes = ["d", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "few"
+phase = 5
+order = 63
+graphemes = ["f", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "knew"
+phase = 5
+order = 63
+graphemes = ["k", "n", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "matthew"
+phase = 5
+order = 63
+graphemes = ["m", "a", "tt", "h", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+proper_noun = true
+
+[[word]]
+text = "mildew"
+phase = 5
+order = 63
+graphemes = ["m", "i", "l", "d", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "nephew"
+phase = 5
+order = 63
+graphemes = ["n", "e", "ph", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "new"
+phase = 5
+order = 63
+graphemes = ["n", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "pew"
+phase = 5
+order = 63
+graphemes = ["p", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "renew"
+phase = 5
+order = 63
+graphemes = ["r", "e", "n", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "stew"
+phase = 5
+order = 63
+graphemes = ["s", "t", "ew_yoo"]
+groups = ["ew (as in stew)"]
+source = "ls2007:p.151"
+target_gpc = "ew_yoo"
+
+[[word]]
+text = "doe"
+phase = 5
+order = 64
+graphemes = ["d", "oe"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "foe"
+phase = 5
+order = 64
+graphemes = ["f", "oe"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "goes"
+phase = 5
+order = 64
+graphemes = ["g", "oe", "s"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "heroes"
+phase = 5
+order = 64
+graphemes = ["h", "er", "oe", "s"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "hoe"
+phase = 5
+order = 64
+graphemes = ["h", "oe"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "joe"
+phase = 5
+order = 64
+graphemes = ["j", "oe"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+proper_noun = true
+
+[[word]]
+text = "potatoes"
+phase = 5
+order = 64
+graphemes = ["p", "o", "t", "a", "t", "oe", "s"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "toe"
+phase = 5
+order = 64
+graphemes = ["t", "oe"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "tomatoes"
+phase = 5
+order = 64
+graphemes = ["t", "o", "m", "a", "t", "oe", "s"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "woe"
+phase = 5
+order = 64
+graphemes = ["w", "oe"]
+groups = ["oe"]
+source = "ls2007:p.151"
+target_gpc = "oe"
+
+[[word]]
+text = "august"
+phase = 5
+order = 65
+graphemes = ["au", "g", "u", "s", "t"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+proper_noun = true
+
+[[word]]
+text = "author"
+phase = 5
+order = 65
+graphemes = ["au", "th", "or"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+
+[[word]]
+text = "automatic"
+phase = 5
+order = 65
+graphemes = ["au", "t", "o", "m", "a", "t", "i", "c"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+
+[[word]]
+text = "daub"
+phase = 5
+order = 65
+graphemes = ["d", "au", "b"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+
+[[word]]
+text = "haul"
+phase = 5
+order = 65
+graphemes = ["h", "au", "l"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+
+[[word]]
+text = "haunted"
+phase = 5
+order = 65
+graphemes = ["h", "au", "n", "t", "e", "d"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+
+[[word]]
+text = "jaunty"
+phase = 5
+order = 65
+graphemes = ["j", "au", "n", "t", "y"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+
+[[word]]
+text = "launch"
+phase = 5
+order = 65
+graphemes = ["l", "au", "n", "ch"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+
+[[word]]
+text = "paul"
+phase = 5
+order = 65
+graphemes = ["p", "au", "l"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+proper_noun = true
+
+[[word]]
+text = "saul"
+phase = 5
+order = 65
+graphemes = ["s", "au", "l"]
+groups = ["au"]
+source = "ls2007:p.151"
+target_gpc = "au"
+proper_noun = true
+
+[[word]]
+text = "chimney"
+phase = 5
+order = 66
+graphemes = ["ch", "i", "m", "n", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "cockney"
+phase = 5
+order = 66
+graphemes = ["c", "o", "ck", "n", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "donkey"
+phase = 5
+order = 66
+graphemes = ["d", "o", "n", "k", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "honey"
+phase = 5
+order = 66
+graphemes = ["h", "o", "n", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "jockey"
+phase = 5
+order = 66
+graphemes = ["j", "o", "ck", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "money"
+phase = 5
+order = 66
+graphemes = ["m", "o", "n", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "monkey"
+phase = 5
+order = 66
+graphemes = ["m", "o", "n", "k", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "trolley"
+phase = 5
+order = 66
+graphemes = ["t", "r", "o", "ll", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "turkey"
+phase = 5
+order = 66
+graphemes = ["t", "ur", "k", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "valley"
+phase = 5
+order = 66
+graphemes = ["v", "a", "ll", "ey_ee"]
+groups = ["ey (as in money)"]
+source = "ls2007:p.151"
+target_gpc = "ey_ee"
+
+[[word]]
+text = "amaze"
+phase = 5
+order = 67
+graphemes = ["a", "m", "a-e", "z"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "came"
+phase = 5
+order = 67
+graphemes = ["c", "a-e", "m"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "escape"
+phase = 5
+order = 67
+graphemes = ["e", "s", "c", "a-e", "p"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "game"
+phase = 5
+order = 67
+graphemes = ["g", "a-e", "m"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "made"
+phase = 5
+order = 67
+graphemes = ["m", "a-e", "d"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "make"
+phase = 5
+order = 67
+graphemes = ["m", "a-e", "k"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "same"
+phase = 5
+order = 67
+graphemes = ["s", "a-e", "m"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "snake"
+phase = 5
+order = 67
+graphemes = ["s", "n", "a-e", "k"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "take"
+phase = 5
+order = 67
+graphemes = ["t", "a-e", "k"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+target_gpc = "a-e"
+
+[[word]]
+text = "complete"
+phase = 5
+order = 68
+graphemes = ["c", "o", "m", "p", "l", "e-e", "t"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+target_gpc = "e-e"
+
+[[word]]
+text = "eve"
+phase = 5
+order = 68
+graphemes = ["e-e", "v"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+target_gpc = "e-e"
+proper_noun = true
+
+[[word]]
+text = "extreme"
+phase = 5
+order = 68
+graphemes = ["e", "x", "t", "r", "e-e", "m"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+target_gpc = "e-e"
+
+[[word]]
+text = "pete"
+phase = 5
+order = 68
+graphemes = ["p", "e-e", "t"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+target_gpc = "e-e"
+proper_noun = true
+
+[[word]]
+text = "steve"
+phase = 5
+order = 68
+graphemes = ["s", "t", "e-e", "v"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+target_gpc = "e-e"
+proper_noun = true
+
+[[word]]
+text = "theme"
+phase = 5
+order = 68
+graphemes = ["th", "e-e", "m"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+target_gpc = "e-e"
+
+[[word]]
+text = "these"
+phase = 5
+order = 68
+graphemes = ["th_voiced", "e-e", "s_z"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+target_gpc = "e-e"
+
+[[word]]
+text = "inside"
+phase = 5
+order = 69
+graphemes = ["i", "n", "s", "i-e", "d"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "invite"
+phase = 5
+order = 69
+graphemes = ["i", "n", "v", "i-e", "t"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "like"
+phase = 5
+order = 69
+graphemes = ["l", "i-e", "k"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "pine"
+phase = 5
+order = 69
+graphemes = ["p", "i-e", "n"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "prize"
+phase = 5
+order = 69
+graphemes = ["p", "r", "i-e", "z"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "ripe"
+phase = 5
+order = 69
+graphemes = ["r", "i-e", "p"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "shine"
+phase = 5
+order = 69
+graphemes = ["sh", "i-e", "n"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "slide"
+phase = 5
+order = 69
+graphemes = ["s", "l", "i-e", "d"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "time"
+phase = 5
+order = 69
+graphemes = ["t", "i-e", "m"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+target_gpc = "i-e"
+
+[[word]]
+text = "white"
+phase = 5
+order = 69
+graphemes = ["wh", "i-e", "t"]
+groups = ["wh"]
+source = "ls2007:p.151"
+order_exceeds_group = true
+note = "L&S prints this word in the 'wh' column, but decoding it needs a GPC not taught until order 69. The order field, not the column, is what the ceiling gates on."
+target_gpc = "wh"
+
+[[word]]
+text = "alone"
+phase = 5
+order = 70
+graphemes = ["a", "l", "o-e", "n"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "bone"
+phase = 5
+order = 70
+graphemes = ["b", "o-e", "n"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "envelope"
+phase = 5
+order = 70
+graphemes = ["e", "n", "v", "e", "l", "o-e", "p"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "explode"
+phase = 5
+order = 70
+graphemes = ["e", "x", "p", "l", "o-e", "d"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "home"
+phase = 5
+order = 70
+graphemes = ["h", "o-e", "m"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "note"
+phase = 5
+order = 70
+graphemes = ["n", "o-e", "t"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "pole"
+phase = 5
+order = 70
+graphemes = ["p", "o-e", "l"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "stone"
+phase = 5
+order = 70
+graphemes = ["s", "t", "o-e", "n"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "those"
+phase = 5
+order = 70
+graphemes = ["th_voiced", "o-e", "s_z"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "woke"
+phase = 5
+order = 70
+graphemes = ["w", "o-e", "k"]
+groups = ["o-e"]
+source = "ls2007:p.152"
+target_gpc = "o-e"
+
+[[word]]
+text = "flute"
+phase = 5
+order = 71
+graphemes = ["f", "l", "u-e_oo", "t"]
+groups = ["u-e (as in rule)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_oo"
+
+[[word]]
+text = "june"
+phase = 5
+order = 71
+graphemes = ["j", "u-e_oo", "n"]
+groups = ["u-e (as in rule)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_oo"
+proper_noun = true
+
+[[word]]
+text = "prune"
+phase = 5
+order = 71
+graphemes = ["p", "r", "u-e_oo", "n"]
+groups = ["u-e (as in rule)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_oo"
+
+[[word]]
+text = "rude"
+phase = 5
+order = 71
+graphemes = ["r", "u-e_oo", "d"]
+groups = ["u-e (as in rule)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_oo"
+
+[[word]]
+text = "rule"
+phase = 5
+order = 71
+graphemes = ["r", "u-e_oo", "l"]
+groups = ["u-e (as in rule)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_oo"
+
+[[word]]
+text = "cube"
+phase = 5
+order = 72
+graphemes = ["c", "u-e_yoo", "b"]
+groups = ["u-e (as in cube)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_yoo"
+
+[[word]]
+text = "tube"
+phase = 5
+order = 72
+graphemes = ["t", "u-e_yoo", "b"]
+groups = ["u-e (as in cube)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_yoo"
+
+[[word]]
+text = "use"
+phase = 5
+order = 72
+graphemes = ["u-e_yoo", "s_z"]
+groups = ["u-e (as in cube)"]
+source = "ls2007:p.152"
+target_gpc = "u-e_yoo"
+
+[[word]]
+text = "even"
+phase = 5
+order = 76
+graphemes = ["e_ee", "v", "e", "n"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+order_exceeds_group = true
+note = "L&S prints this word in the 'e-e' column, but decoding it needs a GPC not taught until order 76. The order field, not the column, is what the ceiling gates on."
+target_gpc = "e-e"
+
+[[word]]
+text = "computer"
+phase = 5
+order = 79
+graphemes = ["c", "o", "m", "p", "u_yoo", "t", "er"]
+groups = ["u-e (as in cube)"]
+source = "ls2007:p.152"
+order_exceeds_group = true
+note = "L&S prints this word in the 'u-e (as in cube)' column, but decoding it needs a GPC not taught until order 79. The order field, not the column, is what the ceiling gates on."
+target_gpc = "u-e_yoo"
+
+[[word]]
+text = "nice"
+phase = 5
+order = 93
+graphemes = ["n", "i-e", "c_s"]
+groups = ["i-e"]
+source = "ls2007:p.152"
+order_exceeds_group = true
+note = "L&S prints this word in the 'i-e' column, but decoding it needs a GPC not taught until order 93. The order field, not the column, is what the ceiling gates on."
+target_gpc = "i-e"
+
+[[word]]
+text = "race"
+phase = 5
+order = 93
+graphemes = ["r", "a-e", "c_s"]
+groups = ["a-e"]
+source = "ls2007:p.152"
+order_exceeds_group = true
+note = "L&S prints this word in the 'a-e' column, but decoding it needs a GPC not taught until order 93. The order field, not the column, is what the ceiling gates on."
+target_gpc = "a-e"
+
+[[word]]
+text = "gene"
+phase = 5
+order = 94
+graphemes = ["g_j", "e-e", "n"]
+groups = ["e-e"]
+source = "ls2007:p.152"
+order_exceeds_group = true
+note = "L&S prints this word in the 'e-e' column, but decoding it needs a GPC not taught until order 94. The order field, not the column, is what the ceiling gates on."
+target_gpc = "e-e"
+
+[[word]]
+text = "huge"
+phase = 5
+order = 94
+graphemes = ["h", "u-e_yoo", "g_j"]
+groups = ["u-e (as in cube)"]
+source = "ls2007:p.152"
+order_exceeds_group = true
+note = "L&S prints this word in the 'u-e (as in cube)' column, but decoding it needs a GPC not taught until order 94. The order field, not the column, is what the ceiling gates on."
+target_gpc = "u-e_yoo"
