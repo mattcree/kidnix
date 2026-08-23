@@ -1,0 +1,50 @@
+# What a grown-up decided about numbers.
+#
+# This is the file the image ships as /usr/share/kidnix/numbers.toml. A
+# parent's own copy goes at /etc/kidnix/numbers.toml and wins: bootc's
+# three-way merge makes /etc theirs and /usr/share ours.
+#
+# Root-owned, both of them. The child owns $XDG_CONFIG_HOME, and a range a
+# child can edit is not a statement about what their school has taught.
+#
+# Nothing here ever stops the activity from opening. A typo drops the line it
+# is on, says so in the journal, and the rest still works.
+
+[numbers]
+# How far it counts.
+#
+#   "five"  -- how many, one to five; and the number bonds to five. The
+#              default, and exactly the EYFS Number ELG's floor: "subitise up
+#              to 5" and "number bonds up to 5".
+#   "ten"   -- adds six to ten, always shown as five-and-some-more on a
+#              ten-frame, and adds some bonds to ten including the double
+#              five and five. The ELG's ceiling: "some number bonds to 10,
+#              including double facts".
+#
+# Nothing in the activity moves this on its own. There is no adaptive
+# difficulty here and there is not going to be: the one clean test of adaptive
+# tutoring in primary maths found g = 0.01-0.09, smaller for the children it
+# was sold to help (05 section 2c). The school decides what a child has been
+# taught; this line is where a grown-up writes that down.
+range = "five"
+
+# Show the numeral on the answer tiles.
+#
+# true  -- a big 4, with four dots underneath it. The default. The ELG is
+#          about the *symbol* meeting the quantity, and symbolic comparison is
+#          the half that correlates with later maths (r = .30 against .24 for
+#          non-symbolic; Schneider et al.).
+# false -- the dots only, for a child who does not know the numerals yet. The
+#          spoken words are unchanged either way: the voice always says "four".
+numerals = true
+
+# Which frame the bonds are drawn in.
+#
+#   "auto"  -- a five-frame for the bonds to five, a ten-frame for the bonds
+#              to ten. The default.
+#   "five"  -- prefer the five-frame. A bond to ten still gets a ten-frame,
+#              because ten counters do not fit in five boxes.
+#   "ten"   -- always the ten-frame, with the boxes past the number greyed and
+#              not pressable. Many UK schools use the ten-frame from the start
+#              precisely so that five reads as half of ten.
+frames = "auto"

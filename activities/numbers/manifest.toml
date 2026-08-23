@@ -1,0 +1,60 @@
+# Numbers -- the kidnix subitising and number-bonds activity.
+#
+# The shell reads this at start-up (spec section 4) and
+# `kidnix-activity validate manifest.toml` checks it; `tests/test_manifest.py`
+# runs the same validator, so a manifest that would be rejected on the machine
+# is rejected in CI first.
+#
+# NOT yet installed on the image. A later image wave copies the package beside
+# the shell and this file into /usr/share/kidnix/activities/ -- see
+# docs/design/numbers.md section 9. Until then the tile does not exist, which
+# is correct: a tile that opens a half-built activity is worse than no tile.
+schema = 1
+
+id = "numbers"
+name = "Numbers"
+
+# What the shell says when a child hovers or focuses the tile. Written for the
+# ear and for a pre-reader: it says what *happens*, not what it is for.
+audio_label = "Numbers"
+
+# One honest line for a parent, and the sentence the whole activity is held to.
+# It names the two things the EYFS Number ELG actually asks for -- subitising
+# to five, and the composition of five and ten -- and it says what this is not.
+# kidnix does not teach number; a school does. This is practice.
+goal = "Seeing how many without counting (up to 5), and which two numbers make 5 and 10. Practice, not a test."
+
+# A drawing, not a glyph: five dots in the canonical dice pattern, sitting in a
+# five-frame. It is a picture of the thing the activity is about, which for a
+# child with no English, low vision or CVD is the only persistent channel there
+# is (ADR-0011). The path is where the package lands on the image; in a
+# checkout the same file is activities/numbers/numbers_activity/icon.svg.
+icon = "/usr/lib/kidnix/numbers_activity/icon.svg"
+icon_kind = "path"
+
+category = "learn"
+# The Number ELG is Reception; bonds to ten and automatic recall run through
+# Year 1 and Year 2 (KS1 Number). Overlap, not containment: a 4-5 profile and a
+# 6-8 profile both see this, and the range a child gets is a grown-up's setting
+# in /etc/kidnix/numbers.toml, never something the activity infers.
+age_band = "4-7"
+
+exec = ["/usr/bin/kidnix-numbers"]
+
+# The SDK saves on SIGTERM and never shows a quit dialogue
+# (kidnix_activity.lifecycle; docs/design/activity-sdk.md 3.3). Five seconds is
+# spec 7a's autosave grace, and what it covers here is one small PNG.
+quit = "signal"
+quit_grace = 5.0
+
+# The child session has no egress (SYNTHESIS H1) and this activity has no use
+# for it: the arrangements are arithmetic and the settings are a local file.
+network_required = false
+
+# No journal_watch and no journal_glob, deliberately. The activity writes its
+# own entry with kidnix_activity.journal.save_entry, so there is nothing for
+# the shell's importer to notice two seconds later -- and an importer watching
+# a scratch directory would keep the same card twice
+# (docs/design/activity-sdk.md 8).
+
+notes = "How far it counts, whether numerals are shown and which frame is drawn are set by a grown-up in /etc/kidnix/numbers.toml. See docs/design/numbers.md."
