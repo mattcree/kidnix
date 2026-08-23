@@ -58,6 +58,11 @@ session for `kid` in ~30 s under KVM; `just test-boot-qcow2` screenshots it.
 - [x] Checkpoint 1: adherence audit + gap sweep; band over activities (two
       toplevels + gnome-kiosk window-config); What's-next-after; sinking sun;
       put-away never destroys work; progressive disclosure; GCompris shelf
+- [x] Expert panel (9 reviewers) + fix waves A–E: session floor/proportional
+      windows, consequential offer, Goodbye led by the destination, day/bedtime
+      vocabularies, All done pinned, depictive icons, en_GB, GCompris shelf,
+      keyboard/captions/calm, voice notes, per-profile data, mandatory PIN,
+      device-verified image signing; e2e 19/19 on the result
 - [ ] First test with a real child; notes in `docs/design/testing-log.md`
 
 ## M3 — Activity breadth (priority order TBD by PRIORITIES.md)
