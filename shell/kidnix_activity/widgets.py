@@ -22,27 +22,32 @@ panel on every monitor kidnix ships for, and a label is never under 18 pt.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import Gtk, Pango  # noqa: E402
 
-from kidnix_shell.labels import LabelFit  # noqa: E402
+from kidnix_shell.labels import LabelFit, keeps_words_whole, line_height_px  # noqa: E402
 from kidnix_shell.widgets import (  # noqa: E402
     ChildButton,
     SpeechUI,
     fit_gtk_label,
     icon_image,
     next_key,
+    pango_wrapper,
 )
 
 from .metrics import BIG_BUTTON_MM, PICTURE_TILE_MM, ContentArea  # noqa: E402
 from .speech import ActivitySpeech  # noqa: E402
 
-__all__ = ["BigButton", "GrownUpTurn", "PictureTile", "Prompt"]
+__all__ = ["BigButton", "GrownUpTurn", "PictureTile", "Prompt", "fit_label"]
+
+log = logging.getLogger(__name__)
 
 #: What the replay control says when it is focused or hovered. The Ear in the
 #: band says the same thing about the shell's own last line; this one is about
@@ -65,6 +70,102 @@ def _ui(speech: ActivitySpeech | None, speech_ui: SpeechUI | None) -> SpeechUI |
     if speech_ui is not None:
         return speech_ui
     return speech.ui if speech is not None else None
+
+
+def fit_label(
+    label: Gtk.Label,
+    text: str,
+    *,
+    width: int,
+    base_pt: float,
+    floor_pt: float,
+    max_lines: int = 2,
+    points: float | None = None,
+) -> LabelFit:
+    """Set ``text`` on ``label`` inside ``width``, **without cutting a word**.
+
+    The shell's :func:`~kidnix_shell.widgets.fit_gtk_label` already knows the
+    rule -- wrap word-then-character, step the point size down to the 18 pt
+    floor, break a word only when even the floor will not fit -- but it has two
+    modes, and only one of them keeps the answer. Called with no ``height`` it
+    hands the label the *unwrapped* string, turns ``wrap`` on and lets Pango
+    decide the breaks again at ``max-width-chars``. Pango's ``WORD_CHAR`` is
+    happy to split a word, and it draws a hyphen where it did, so a routine
+    tile 72 px wide came out saying "Brea-kfast" and "Scho-ol"
+    (``docs/design/screenshots/clock-play.png``, 2026-08-23) even though the
+    fit that produced it had never agreed to that.
+
+    This wrapper takes the other mode, always: it works out the box two lines
+    of this face need at this size, passes it as ``height`` so the label is
+    handed the fitted lines with the breaks already in them and ``wrap`` off,
+    and turns Pango's automatic hyphen off as well. Pango then has nothing left
+    to re-decide, and what a child reads is what was measured.
+
+    It cannot conjure room that is not there. When a single word is wider than
+    ``width`` at ``floor_pt`` the fit still has to break it, and this says so in
+    the log and in the returned :class:`~kidnix_shell.labels.LabelFit` (whose
+    ``lines`` no longer join back to ``text``) -- so the *caller* can widen the
+    control, which is the only honest fix and is what
+    :mod:`clock_time.activity` does with its routine strip.
+
+    ``points`` pins the size instead of fitting one, for a row of labels that
+    have agreed on a size between them; ``max_lines`` is the line budget, two
+    by default, as the tile's reserved label box is.
+    """
+    line_height = _line_height(label, points if points is not None else base_pt)
+    fit = fit_gtk_label(
+        label,
+        text,
+        width=max(1, width),
+        base_pt=base_pt,
+        floor_pt=floor_pt,
+        points=points,
+        max_lines=max_lines,
+        # The box, which is what puts `fit_gtk_label` on its no-re-wrap path.
+        height=line_height * max(1, max_lines),
+    )
+
+    # Pango hands back each line with the space it broke on still on the end,
+    # and `fit_gtk_label` sets those lines verbatim. A trailing space is real
+    # width the line was never measured with -- 6 px on "Wake ", which across a
+    # strip of eight tiles was the difference between the window fitting the
+    # panel and overhanging it by six. The words are the same either way.
+    lines = tuple(line.strip() for line in fit.lines)
+    if lines != fit.lines:
+        label.set_label("\n".join(lines))
+        fit = replace(fit, lines=lines)
+
+    # Belt to that brace. `set_wrap(False)` is what actually stops the split;
+    # this stops the hyphen that would announce one, on any path that still
+    # wraps -- an over-long line under a narrow allocation, say.
+    insert_hyphens = getattr(Pango, "attr_insert_hyphens_new", None)
+    if insert_hyphens is not None:  # pragma: no branch - Pango >= 1.44
+        attributes = label.get_attributes() or Pango.AttrList.new()
+        attributes.insert(insert_hyphens(False))
+        label.set_attributes(attributes)
+
+    if not keeps_words_whole(text, fit.lines):
+        log.warning(
+            "label %r had to be broken between characters at %.0f pt in %d px: %s",
+            text,
+            fit.points,
+            width,
+            " / ".join(fit.lines),
+        )
+    return fit
+
+
+def _line_height(label: Gtk.Label, points: float) -> int:
+    """One line box of the face this label will really be drawn in.
+
+    Pango when there is a display, the pure-Python estimate when there is not
+    -- the same two answers :func:`~kidnix_shell.widgets.fit_gtk_label` picks
+    between, asked the same way, so the box and the fit never disagree.
+    """
+    try:
+        return pango_wrapper(label)[1](points)
+    except Exception:  # pragma: no cover - no display, no Pango context
+        return line_height_px(points)
 
 
 class BigButton(ChildButton):

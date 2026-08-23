@@ -69,6 +69,11 @@ VELOCITY_WINDOW_MS = 150
 #: How long after a hover utterance an activation of the *same* control still
 #: counts as "the speech was wanted" (protocol P5's follow-through proxy).
 HOVER_SELECTION_WINDOW_MS = 3000
+#: A hovered control is not spoken again for this long, however many times the
+#: pointer re-enters it. GTK re-delivers enter/leave when the band re-lays out
+#: (caption strip, highlight ring), which made a pointer parked on the Ear say
+#: 'Say it again' for ever (Matt, 2026-08-23).
+HOVER_REPEAT_COOLDOWN_S = 10.0
 
 #: Every hover utterance emits exactly one line with this prefix, at INFO, in
 #: the systemd journal on the family's own machine and nowhere else. P5's whole
@@ -541,6 +546,7 @@ class SpeechManager:
         self._highlight_handle: int | None = None
         #: hover keys already spoken since the pointer entered them
         self._spoken_since_enter: set[str] = set()
+        self._hover_spoken_at: dict[str, float] = {}
         #: The one hover utterance still waiting to find out whether it was
         #: followed by a selection (protocol P5).
         self._pending_log: _PendingHoverLog | None = None
@@ -669,6 +675,13 @@ class SpeechManager:
         self._track = []
         if key in self._spoken_since_enter:
             return
+        if text in self.never_remember():
+            # The Ear: hovering it must not say "Say it again" -- the label is
+            # an instruction about speech, not speech worth having.
+            return
+        last = self._hover_spoken_at.get(key)
+        if last is not None and self._clock() - last < HOVER_REPEAT_COOLDOWN_S:
+            return
         self._arm_dwell(key, text, log_id or key)
 
     def hover_motion(self, key: str, x: float, y: float) -> None:
@@ -726,6 +739,7 @@ class SpeechManager:
             self._dwell_key = None
             self._armed = None
             self._spoken_since_enter.add(key)
+            self._hover_spoken_at[key] = self._clock()
             self._log_hover(log_id, dwell_ms, key)
             self.speak(text, key)
 
