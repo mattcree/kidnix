@@ -32,8 +32,8 @@ activities (S&W done; Numbers/Clock/Letters to follow the same pattern — open)
 
 Rollback proven in a VM; e2e 30/30; keyboard escape from activities (one
 locked `<Super>Tab`); hover cooldown + silent Ear; `KIDNIX_SPEECH=off` guard
-(the host-speaker incident); alba as default voice; Kokoro evaluated
-(pre-render in progress); i18n foundation (276 msgids, cy/pl samples);
+(the host-speaker incident); alba as default voice; Kokoro evaluated; its bf_emma voice now **pre-rendered at build** for the
+shell's closed vocabulary (351 clips, 4.7 MB; Piper alba for dynamic text); i18n foundation (276 msgids, cy/pl samples);
 reply→Journal import; parent panel v0 with schedule windows, per-child
 allow-lists, speech rate; Numbers, Clock, Letters to family built and
 installed as tiles; Sounds & Words weeks 1–3.
