@@ -209,12 +209,12 @@ which reliably makes things worse.
 ### Could anything be used punitively?
 
 Three levers: "End session now" (above); the daily budget, cut mid-day so the
-child meets a refusal the machine then explains on the parent's behalf; and
+child meets a refusal the machine explains on the parent's behalf; and
 `allowed_activity_ids` / age bands, where a removed tile simply *vanishes*
 (§16.3) — kind when developmental, punitive when a consequence,
 indistinguishable to the child. None needs code; all three need a paragraph
-saying kidnix's limits shape the sandbox, and consequences belong in a
-relationship, said out loud, by a person.
+saying limits shape the sandbox, and consequences belong in a relationship,
+said out loud, by a person.
 
 ### Ethics of testing on one's own child
 
