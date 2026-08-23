@@ -620,3 +620,11 @@ def test_hovering_the_ear_says_nothing() -> None:
     h.enter("band:ear", "Say it again")
     h.advance(2000)
     assert backend.spoken == []
+
+
+def test_kidnix_speech_off_forces_the_null_backend(monkeypatch) -> None:
+    from kidnix_shell.speech import NullBackend, select_backend
+
+    monkeypatch.setenv("KIDNIX_SPEECH", "off")
+    assert isinstance(select_backend(), NullBackend)
+    assert isinstance(select_backend("speechd"), NullBackend)

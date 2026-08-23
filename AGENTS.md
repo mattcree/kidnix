@@ -105,6 +105,10 @@ parent-panel/           (later) parent control panel
   `docs:`, `ci:`, `build:`, `test:`, `research:`).
 - **Tests before trust.** A feature isn't done until a test (image test or
   boot test or shell test) proves it in CI.
+- **Never make a sound on Matt's machine.** Every shell/activity demo and
+  every GTK test sets `KIDNIX_SPEECH=off` (the shell then uses a null voice;
+  `shell/Justfile` exports it by default); VMs use `-audiodev none` unless
+  Matt explicitly asks to hear one. Host speech-dispatcher is not yours.
 - **Never open windows on Matt's desktop.** He is working on this machine.
   GTK demos, screenshot runs and GTK smoke tests run under the Broadway
   backend: `gtk4-broadwayd :7 & GDK_BACKEND=broadway BROADWAY_DISPLAY=:7 …`

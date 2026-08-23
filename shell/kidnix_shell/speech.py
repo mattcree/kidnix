@@ -40,6 +40,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import math
+import os
 import shutil
 import subprocess
 import time
@@ -410,6 +411,14 @@ def select_backend(prefer: str | None = None) -> SpeechBackend:
     first utterance so that nothing here can block the shell's startup on a
     daemon that has not come up yet.
     """
+    # Hard off-switch for developer machines: a demo or a GTK test that runs
+    # on a workstation would otherwise talk through the developer's own
+    # speech-dispatcher and speakers. Every demo/test recipe sets this; only a
+    # real kiosk session leaves it unset. (AGENTS.md §5; the "Say it again"
+    # incident of 2026-08-23.)
+    if os.environ.get("KIDNIX_SPEECH", "").strip().lower() in {"off", "0", "false", "none", "null"}:
+        log.info("speech disabled by KIDNIX_SPEECH=%s", os.environ.get("KIDNIX_SPEECH"))
+        return NullBackend()
     if prefer == "null":
         return NullBackend()
     if prefer in (None, "speechd"):

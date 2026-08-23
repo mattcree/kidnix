@@ -1,4 +1,8 @@
 # kidnix shell -- everything you can do to this directory.
+# Never speak on a developer machine: demos and tests default to silent.
+# A real kiosk session never runs through this Justfile. Override with
+# `KIDNIX_SPEECH=on just run` only if you really want your speakers used.
+export KIDNIX_SPEECH := env_var_or_default("KIDNIX_SPEECH", "off")
 #
 # The venv is created with --system-site-packages on purpose: PyGObject, GTK4,
 # libadwaita, GdkPixbuf and speechd come from the system (they are already in

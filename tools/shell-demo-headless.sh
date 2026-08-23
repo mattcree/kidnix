@@ -15,6 +15,6 @@ trap 'kill "${bd}" 2>/dev/null || true' EXIT
 sleep 0.5
 out_abs="$(realpath -m "${out}")"
 cd "$(dirname "$0")/../shell"
-GDK_BACKEND=broadway BROADWAY_DISPLAY="${disp}" \
+KIDNIX_SPEECH=off GDK_BACKEND=broadway BROADWAY_DISPLAY="${disp}" \
     uv run kidnix-shell --demo --screen "${screen}" --screenshot "${out_abs}" "$@"
 echo "==> ${out_abs}"
