@@ -402,9 +402,20 @@ def test_an_absurd_hover_dwell_is_clamped(tmp_path: Path) -> None:
     assert ParentConfig.load(path).hover_dwell_ms == MAX_HOVER_DWELL_MS
 
 
+def test_progressive_disclosure_is_off_unless_a_parent_asks_for_it() -> None:
+    """Panel ruling, 2026-08-23: the whole grid, from the first run.
+
+    The mechanism is intact and the numbers are unchanged -- it is the
+    *default* that moved. A grid that grows on a schedule the child cannot
+    perceive is an unannounced new button every fortnight (forum #9, #26).
+    """
+    assert HomeConfig().show_everything is True
+    assert HomeConfig().tiles_visible(total=12, sessions_completed=0) == 12
+
+
 def test_home_starts_at_six_tiles_and_grows_every_two_sessions() -> None:
     """SYNTHESIS B2: first-run default 5-6, growing toward the allow-list."""
-    home = HomeConfig()
+    home = HomeConfig(show_everything=False)
     assert home.initial_tiles == 6
     assert home.reveal_every_sessions == 2
     assert home.tiles_visible(total=12, sessions_completed=0) == 6
@@ -416,11 +427,11 @@ def test_home_starts_at_six_tiles_and_grows_every_two_sessions() -> None:
 
 def test_home_never_shows_more_than_there_is() -> None:
     """The ceiling is the allow-list and availability, not the counter."""
-    assert HomeConfig().tiles_visible(total=4, sessions_completed=500) == 4
+    assert HomeConfig(show_everything=False).tiles_visible(total=4, sessions_completed=500) == 4
 
 
 def test_a_tile_once_revealed_never_goes_away() -> None:
-    home = HomeConfig()
+    home = HomeConfig(show_everything=False)
     counts = [home.tiles_visible(12, sessions) for sessions in range(20)]
     assert counts == sorted(counts)
 
@@ -539,3 +550,92 @@ def test_saving_progress_to_an_unwritable_place_is_not_fatal(tmp_path: Path) -> 
     state = KidState.load(blocked / "progress.toml")
     state.complete_session()  # must not raise
     assert state.sessions_completed == 1
+
+
+# --- the starter PIN is recognised as one (panel ruling, 2026-08-23) -----
+#
+# forum #44: ``is_default`` was only true when *no* pin_hash was found, and the
+# shipped file has one -- so on a stock install the "this gate is open" warning
+# never appeared. #56, from the grandmother it was written for: "the only way I
+# would ever learn my lock is not a lock is by reading a file I would never
+# open."
+
+
+def test_the_shipped_hash_really_is_the_documented_pin() -> None:
+    from kidnix_shell.settings import STARTER_PIN_HASH, STARTER_PIN_SALT, hash_pin
+
+    assert hash_pin(DEFAULT_PIN, STARTER_PIN_SALT)[1] == STARTER_PIN_HASH
+
+
+def test_a_machine_on_the_shipped_pin_is_flagged(tmp_path: Path) -> None:
+    from kidnix_shell.settings import STARTER_PIN_HASH, STARTER_PIN_SALT
+
+    path = tmp_path / "parent.toml"
+    path.write_text(
+        f'pin_salt = "{STARTER_PIN_SALT}"\npin_hash = "{STARTER_PIN_HASH}"\n', encoding="utf-8"
+    )
+    config = ParentConfig.load(path)
+    assert config.is_default is False  # it *has* a config...
+    assert config.pin_is_starter is True  # ...and the gate is still 1234
+    assert config.check_pin(DEFAULT_PIN)
+
+
+def test_a_machine_with_no_config_is_flagged_too() -> None:
+    assert ParentConfig(is_default=True).pin_is_starter is True
+
+
+def test_a_parent_who_chose_their_own_pin_is_not_flagged(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    config = ParentConfig(path=path)
+    config.set_pin("8351")
+    assert config.pin_is_starter is False
+
+
+# --- setting a PIN keeps the parent's file -------------------------------
+
+
+def test_rewrite_pin_changes_two_lines_and_nothing_else(tmp_path: Path) -> None:
+    """/etc/kidnix/parent.toml is ninety lines of explanation a parent is meant
+    to read. Changing a PIN must not cost them it."""
+    from kidnix_shell.settings import rewrite_pin
+
+    path = tmp_path / "parent.toml"
+    original = (
+        "# A comment a parent should keep.\n"
+        'pin_salt = "0011"\n'
+        'pin_hash = "dead"\n'
+        "default_session_minutes = 25\n"
+        "\n"
+        "[home]\n"
+        "show_everything = true\n"
+    )
+    path.write_text(original, encoding="utf-8")
+    rewrite_pin(path, "8351")
+    body = path.read_text(encoding="utf-8")
+    assert "# A comment a parent should keep." in body
+    assert "default_session_minutes = 25" in body
+    assert "[home]" in body
+    assert 'pin_hash = "dead"' not in body
+    assert ParentConfig.load(path).check_pin("8351")
+    assert not ParentConfig.load(path).check_pin(DEFAULT_PIN)
+
+
+def test_rewrite_pin_adds_the_keys_when_the_file_has_none(tmp_path: Path) -> None:
+    from kidnix_shell.settings import rewrite_pin
+
+    path = tmp_path / "parent.toml"
+    path.write_text("default_session_minutes = 25\n", encoding="utf-8")
+    rewrite_pin(path, "4242")
+    assert ParentConfig.load(path).check_pin("4242")
+
+
+def test_a_root_owned_config_reports_no_writable_path() -> None:
+    """The shell runs as the child; the sheet must say so rather than pretend."""
+    config = ParentConfig(path=Path("/etc/kidnix/parent.toml"))
+    assert config.writable_path is None
+
+
+def test_a_config_the_shell_can_write_says_so(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text("default_session_minutes = 25\n", encoding="utf-8")
+    assert ParentConfig(path=path).writable_path == path

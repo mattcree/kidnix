@@ -31,8 +31,13 @@ def test_defaults_match_the_synthesis_numbers() -> None:
     policy = SessionPolicy()
     assert policy.length == 25 * 60
     assert policy.daily_budget == 60 * 60
-    assert policy.ending_offer_at == 6 * 60
+    # The windows are proportional now (panel ruling, 2026-08-23); these two
+    # are the ceilings on them, and the 25-minute default reaches both.
+    assert policy.ending_offer_at == 4 * 60
     assert policy.put_away_at == 2 * 60
+    assert policy.min_session == 5 * 60
+    assert policy.offer_seconds(25 * 60) == 4 * 60
+    assert policy.put_away_seconds(25 * 60) == 2 * 60
 
 
 def test_demo_policy_fits_a_three_minute_run() -> None:
@@ -46,9 +51,9 @@ def test_phases_step_through_the_ritual(session: Session) -> None:
     assert session.phase(NOW) is Phase.IDLE
     assert session.start(NOW)
     assert session.phase(NOW) is Phase.RUNNING
-    assert session.phase(NOW + timedelta(minutes=18)) is Phase.RUNNING
-    # T-6 exactly is the offer.
-    assert session.phase(NOW + timedelta(minutes=19)) is Phase.ENDING_OFFER
+    assert session.phase(NOW + timedelta(minutes=20)) is Phase.RUNNING
+    # T-4 exactly is the offer: 20% of a 25-minute sitting, capped at four.
+    assert session.phase(NOW + timedelta(minutes=21)) is Phase.ENDING_OFFER
     assert session.phase(NOW + timedelta(minutes=22)) is Phase.ENDING_OFFER
     assert session.phase(NOW + timedelta(minutes=23)) is Phase.PUT_AWAY
     assert session.phase(NOW + timedelta(minutes=25)) is Phase.ENDED
@@ -62,10 +67,10 @@ def test_the_sun_crosses_the_sky_linearly(session: Session) -> None:
     assert session.fraction_spent(NOW + timedelta(minutes=40)) == 1.0
 
 
-def test_the_sun_warms_in_the_last_six_minutes(session: Session) -> None:
+def test_the_sun_warms_over_the_ending_window(session: Session) -> None:
     session.start(NOW)
-    assert not session.is_warm(NOW + timedelta(minutes=18))
-    assert session.is_warm(NOW + timedelta(minutes=20))
+    assert not session.is_warm(NOW + timedelta(minutes=20))
+    assert session.is_warm(NOW + timedelta(minutes=22))
 
 
 def test_remaining_never_goes_negative(session: Session) -> None:
@@ -333,3 +338,156 @@ def test_fraction_left_is_the_complement_of_fraction_spent(session: Session) -> 
     for minutes in (0, 5, 12, 25, 40):
         when = NOW + timedelta(minutes=minutes)
         assert round(session.fraction_left(when) + session.fraction_spent(when), 6) == 1.0
+
+
+# --- the session floor and the proportional windows (panel ruling, 2026-08-23)
+#
+# Two reviewers found the same defect independently (forum #14, #15) and a
+# parent named the mechanism from the other side (#59): a session could be
+# granted two minutes and therefore *begin inside its own ending*, and the
+# ending windows were absolute, so a fifteen-minute sitting spent 40% of itself
+# being told it was going to stop.
+
+
+def test_a_budget_below_the_floor_refuses_at_the_door(policy: SessionPolicy) -> None:
+    """Four minutes left is not a short session; it is a session that opens
+    into put-away. The answer is a warm no at Who's here."""
+    usage = DailyUsage(day=NOW.date(), seconds=policy.daily_budget - 4 * 60)
+    session = Session(policy=policy, usage=usage)
+    assert session.may_start(NOW) is StartRefusal.BUDGET_SPENT
+    assert session.start(NOW) is False
+    assert not session.running
+
+
+def test_exactly_the_floor_is_allowed(policy: SessionPolicy) -> None:
+    usage = DailyUsage(day=NOW.date(), seconds=policy.daily_budget - policy.min_session)
+    session = Session(policy=policy, usage=usage)
+    assert session.may_start(NOW) is StartRefusal.OK
+    assert session.start(NOW)
+    assert session.granted == policy.min_session
+
+
+def test_a_short_grant_is_raised_to_the_floor_not_honoured(session: Session) -> None:
+    """The sheet refuses a sub-floor length in words; if one reaches here at
+    all, the floor -- not the request -- is what the child gets."""
+    assert session.start(NOW, length=90)
+    assert session.granted == session.policy.min_session
+
+
+def test_no_session_ever_begins_in_its_own_ending(policy: SessionPolicy) -> None:
+    """The invariant, across every grant the shell can reach."""
+    for spent in range(0, policy.daily_budget + 1, 60):
+        usage = DailyUsage(day=NOW.date(), seconds=spent)
+        session = Session(policy=policy, usage=usage)
+        if not session.start(NOW):
+            continue
+        assert session.phase(NOW) is Phase.RUNNING
+        assert session.offer_at < session.granted / 2
+        assert session.put_away_at < session.offer_at
+
+
+def test_the_windows_are_a_proportion_of_what_was_granted() -> None:
+    policy = SessionPolicy()
+    # 20% and 10%, inside the caps.
+    assert policy.offer_seconds(15 * 60) == 3 * 60
+    assert policy.put_away_seconds(15 * 60) == 90
+    # The ceilings bind on a long sitting...
+    assert policy.offer_seconds(45 * 60) == 4 * 60
+    assert policy.put_away_seconds(45 * 60) == 2 * 60
+    # ...and the floors on the shortest one there is.
+    assert policy.offer_seconds(5 * 60) == 2 * 60
+    assert policy.put_away_seconds(5 * 60) == 60
+
+
+def test_the_ending_is_never_a_quarter_of_the_sitting_again() -> None:
+    """forum #15: "the ending is now 24% of the session, and that is not what
+    the evidence supports." At fifteen minutes it was 40%."""
+    policy = SessionPolicy()
+    for minutes in (5, 10, 15, 25, 45):
+        granted = minutes * 60
+        assert policy.offer_seconds(granted) <= 0.4 * granted
+
+
+def test_the_ritual_always_has_two_beats(policy: SessionPolicy) -> None:
+    """forum #43: shrink the offer and the ritual must not collapse to one."""
+    for minutes in (5, 8, 12, 25, 45):
+        granted = minutes * 60
+        assert policy.put_away_seconds(granted) < policy.offer_seconds(granted)
+
+
+def test_finish_this_one_actually_defers_put_away(session: Session) -> None:
+    """The words claim the boundary; now the clock keeps it (forum #20, #29)."""
+    session.start(NOW)
+    ordinary = session.put_away_at
+    session.answer_offer(defer_put_away=True)
+    assert session.put_away_deferred is True
+    assert session.put_away_at < ordinary
+    assert session.put_away_at == 60  # one beat before the hard stop
+
+
+def test_the_two_answers_produce_different_put_away_times(session: Session) -> None:
+    session.start(NOW)
+    one_more = session.put_away_at
+    session.end(NOW + timedelta(minutes=1))
+    session.start(NOW + timedelta(minutes=1))
+    session.answer_offer(defer_put_away=True)
+    assert session.put_away_at != one_more
+
+
+def test_a_deferral_can_never_bring_the_ending_forward() -> None:
+    policy = SessionPolicy()
+    for minutes in (5, 8, 12, 25, 45):
+        granted = minutes * 60
+        deferred = policy.put_away_seconds(granted, deferred=True)
+        assert deferred <= policy.put_away_seconds(granted)
+
+
+def test_answering_ask_for_more_time_defers_nothing(session: Session) -> None:
+    session.start(NOW)
+    ordinary = session.put_away_at
+    session.answer_offer(defer_put_away=False)
+    assert session.put_away_at == ordinary
+
+
+def test_a_new_session_forgets_the_deferral(session: Session) -> None:
+    session.start(NOW)
+    session.answer_offer(defer_put_away=True)
+    session.end(NOW + timedelta(minutes=5))
+    session.start(NOW + timedelta(minutes=6))
+    assert session.put_away_deferred is False
+
+
+def test_a_grant_the_budget_would_truncate_below_the_floor_is_refused() -> None:
+    """forum #59: "do not let me give a grant that is too short to be a
+    session -- refuse it in the gate, in words"."""
+    policy = SessionPolicy()
+    usage = DailyUsage(day=NOW.date(), seconds=policy.daily_budget - 27 * 60)
+    session = Session(policy=policy, usage=usage)
+    assert session.start(NOW)  # 25 minutes granted, 2 left in the budget
+    assert session.may_add(5, NOW) == 0
+    assert session.add_minutes(5, NOW) == 0
+    assert session.granted == 25 * 60
+
+
+def test_a_grant_the_budget_can_afford_is_still_given(session: Session) -> None:
+    session.start(NOW)
+    assert session.may_add(15, NOW) == 15 * 60
+
+
+def test_the_floor_cannot_be_configured_below_three_minutes(tmp_path: Path) -> None:
+    path = tmp_path / "session.toml"
+    path.write_text("min_session_minutes = 1\n", encoding="utf-8")
+    assert load_policy(path).min_session == 3 * 60
+    path.write_text("min_session_minutes = 8\n", encoding="utf-8")
+    assert load_policy(path).min_session == 8 * 60
+
+
+def test_next_allowed_is_the_later_of_bedtime_ending_and_the_budget_rolling() -> None:
+    policy = SessionPolicy()
+    usage = DailyUsage(day=NOW.date(), seconds=policy.daily_budget)
+    session = Session(policy=policy, usage=usage)
+    evening = datetime(2026, 8, 18, 20, 0)
+    # Bedtime ends at 07:00 tomorrow; the budget rolls at 04:00 tomorrow.
+    assert session.next_allowed(evening) == datetime(2026, 8, 19, 7, 0)
+    session.usage.seconds = 0
+    assert session.next_allowed(evening) == datetime(2026, 8, 19, 7, 0)

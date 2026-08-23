@@ -520,3 +520,46 @@ def test_closing_flushes_the_last_hover(caplog: pytest.LogCaptureFixture) -> Non
         pointer.advance(HOVER_DWELL_MS + 10)
         pointer.speech.close()
     assert HOVER_LOG_PREFIX in caplog.text
+
+
+# --- two sentences, in order (panel ruling, 2026-08-23; forum #24) -------
+#
+# The Goodbye screen speaks what was made and *then* the child's own
+# destination, as its own sentence. It used to be one f-string, so the sentence
+# that mattered most arrived as the tail of a sentence about counting.
+
+
+def test_speak_then_says_the_first_sentence_immediately() -> None:
+    manager, backend, _ = make()
+    manager.speak_then("You drew two pictures.", "Ready to go outside?")
+    assert backend.spoken == ["You drew two pictures."]
+
+
+def test_speak_then_says_the_second_one_after_a_beat() -> None:
+    manager, backend, scheduler = make()
+    manager.speak_then("You drew two pictures.", "Ready to go outside?")
+    scheduler.advance(10_000)
+    assert backend.spoken == ["You drew two pictures.", "Ready to go outside?"]
+
+
+def test_the_second_sentence_is_its_own_utterance() -> None:
+    """Not appended to the first: a pre-reader hears two sentences."""
+    manager, backend, scheduler = make()
+    manager.speak_then("You drew two pictures.", "Ready to go outside?")
+    scheduler.advance(10_000)
+    assert all("Ready to" not in text for text in backend.spoken[:1])
+
+
+def test_a_second_call_replaces_the_pending_sentence_rather_than_stacking() -> None:
+    manager, backend, scheduler = make()
+    manager.speak_then("One.", "Two.")
+    manager.speak_then("Three.", "Four.")
+    scheduler.advance(10_000)
+    assert backend.spoken == ["One.", "Three.", "Four."]
+
+
+def test_speak_then_with_nothing_to_follow_is_just_speak() -> None:
+    manager, backend, scheduler = make()
+    manager.speak_then("All done for today.", "")
+    scheduler.advance(10_000)
+    assert backend.spoken == ["All done for today."]

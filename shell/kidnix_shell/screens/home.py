@@ -29,16 +29,19 @@ same treatment:
   a different sentence, because nobody can give a child a library with no
   books in it.
 
-**The last tile is always "All done"** (spec 7a, SYNTHESIS D5): a moon, one
-tap, no confirmation, and the same ending ritual the clock would have run. A
-child who has had enough must be able to say so, and saying so must not need a
-grown-up, a hold, or a sentence they cannot read.
+**"All done" has one cell and never leaves it** (spec 7a, SYNTHESIS D5, and the
+panel ruling of 2026-08-23 -- see :data:`ALL_DONE_INDEX`): a moon, one tap, no
+confirmation, and the same ending ritual the clock would have run. A child who
+has had enough must be able to say so, and saying so must not need a grown-up,
+a hold, a sentence they cannot read, or a second look at where the button went.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import partial
+from typing import TypeVar
 
 import gi
 
@@ -58,6 +61,35 @@ from ..widgets import (  # noqa: E402
 from . import Screen  # noqa: E402
 
 ALL_DONE_ID = "kidnix.all-done"
+
+T = TypeVar("T")
+
+#: **Where "All done" lives, forever** (panel ruling, 2026-08-23). It used to
+#: be *last in the list* -- ``[*revealed, ALL_DONE]`` -- so progressive
+#: disclosure moved it one cell along every fortnight, until the allow-list ran
+#: out. Three reviewers and a parent named the same harm (forum #5, #27, #40,
+#: #41, #57): a child under seven reaches for a *cell*, not a picture, and this
+#: is the control they reach for when they have had enough. "He does not find
+#: that button by looking, he finds it by reaching, and it is the one control
+#: he uses when he has had enough. Redrawing its position on a schedule he
+#: cannot perceive is the worst possible thing to do to the escape hatch."
+#:
+#: So it is the last cell of the second row -- index 7 on the 4x2 grid and on
+#: the 4x3 grid alike -- and the activities grow *around* it.
+ALL_DONE_INDEX = 7
+
+
+def all_done_index(per_page: int) -> int:
+    """Which cell "All done" occupies on the first page.
+
+    :data:`ALL_DONE_INDEX` wherever the page can hold it; the last cell of the
+    page on the small grids that cannot (3x2 = six cells). Never off the page:
+    an escape hatch on page two is not an escape hatch.
+    """
+    if per_page <= 0:
+        return 0
+    return min(ALL_DONE_INDEX, per_page - 1)
+
 
 #: SYNTHESIS G3: never a silent denial. Two different reasons, two different
 #: sentences -- a child told "ask a grown-up" about something that is simply
@@ -80,7 +112,27 @@ class AllDone:
 
 ALL_DONE = AllDone()
 
-Cell = Activity | AllDone
+#: ``None`` is an empty cell: the grid keeps the hole rather than closing it,
+#: because closing it is what moved "All done".
+Cell = Activity | AllDone | None
+
+
+def lay_out(activities: Sequence[T], index: int) -> list[T | AllDone | None]:
+    """Put the activities on the grid **around** "All done", which never moves.
+
+    Pure, so ``tests/test_shell_bits.py`` can hold the invariant that matters:
+    whatever is revealed, ``cells[index] is ALL_DONE``. Cells before it that
+    have nothing to put in them stay empty; an activity that would have gone
+    there goes after it instead. An empty cell costs a child nothing -- a
+    control that moved costs them the one they reach for when they have had
+    enough.
+    """
+    laid: list[T | AllDone | None] = [None] * index
+    for position, activity in enumerate(activities[:index]):
+        laid[position] = activity
+    laid.append(ALL_DONE)
+    laid.extend(activities[index:])
+    return laid
 
 
 class HomeScreen(Screen):
@@ -117,21 +169,21 @@ class HomeScreen(Screen):
           a child who has seen Draw every day and finds it dashed today needs
           to be told why (SYNTHESIS G3: never a silent denial).
 
-        Then **progressive disclosure** (spec 7b, SYNTHESIS B2). A first run
-        shows ``[home] initial_tiles`` of them and one more appears after every
-        ``reveal_every_sessions`` completed sessions. It is not a
-        working-memory limit -- limits bind on *held* option sets, not on a
-        labelled, spatially stable grid -- it is that a child meeting a
-        computer should meet five things and be handed a sixth once those five
-        are theirs. The order is the manifest's, so the tiles that arrive are
-        the ones the parent put first, and a tile once revealed never goes
-        away again.
+        Then **progressive disclosure** (spec 7b, SYNTHESIS B2) -- which is
+        **off unless a parent turns it on** since 2026-08-23. The argument for
+        it ("a child meeting a computer should meet five things and be handed a
+        sixth once those five are theirs") is a good one and it is not worth
+        what it costs: a grid that grows on a schedule the child cannot
+        perceive is an unannounced new button, and for an autistic five-year-old
+        that is a ruined afternoon (forum #9, #26). ``show_everything`` now
+        defaults to true; ``reveal_every_sessions`` applies only when a parent
+        has opted in.
         """
         band = self.ctx.profile.age_range
         shown = [
             a for a in self.ctx.activities if getattr(a, "on_home", True) and in_age_band(a, band)
         ]
-        return [*self._revealed(shown), ALL_DONE]
+        return lay_out(self._revealed(shown), all_done_index(self.ctx.metrics.per_page))
 
     def _revealed(self, activities: list[Activity]) -> list[Activity]:
         """The prefix of ``activities`` this child has met. "All done" is free.
@@ -171,7 +223,7 @@ class HomeScreen(Screen):
         # shrink most: a grid where "Draw" is 24 pt and "Letters & numbers" is
         # 18 pt reads as a mistake, not as a hierarchy.
         points, label_height = page_label_fit(
-            [getattr(cell, "name", "") for cell in cells],
+            [getattr(cell, "name", "") for cell in cells if cell is not None],
             metrics.tile_label_width,
             base_pt=metrics.tile_label_pt,
             floor_pt=metrics.label_floor_pt,
@@ -179,6 +231,9 @@ class HomeScreen(Screen):
             widget=grid,
         )
         for index, cell in enumerate(cells):
+            if cell is None:
+                # A reserved hole, so the cells after it keep their addresses.
+                continue
             grid.attach(
                 self._tile(cell, points, label_height),
                 index % metrics.columns,
@@ -189,7 +244,7 @@ class HomeScreen(Screen):
         return carousel_page(grid)
 
     def _tile(
-        self, cell: Cell, points: float | None = None, label_height: int | None = None
+        self, cell: Activity | AllDone, points: float | None = None, label_height: int | None = None
     ) -> Gtk.Widget:
         metrics = self.ctx.metrics
         if isinstance(cell, AllDone):

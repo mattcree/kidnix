@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .state import State
+
 #: Where the horizon sits in the widget, as a fraction of its height. The sun
 #: needs room to sink *to*, and the line needs room under it to read as ground.
 HORIZON_FRACTION = 0.80
@@ -89,3 +91,38 @@ def sun_geometry(fraction_spent: float, width: float, height: float) -> SunGeome
         start_centre_y=start_centre_y,
         start_radius=max_radius,
     )
+
+
+# --- what the sun says when no session is running (panel ruling, 2026-08-23)
+
+
+#: The states in which the sun is **down**. The session is over on all of them,
+#: and the picture has to agree with the sentence: ``app._tick`` used to set
+#: ``set_progress(0.0)`` whenever the session was not running, and fraction 0
+#: means *start of day*. So Goodbye showed a full, high sun over "the sun has
+#: gone down for today" -- for a pre-reader the picture wins, and the one
+#: ambient state the product has contradicted the ritual at the exact second
+#: the child was checking whether it was really over (forum #7, #49, #51).
+DOWN_STATES = frozenset(
+    {
+        State.ENDING_OFFER,
+        State.PUT_AWAY,
+        State.GOODBYE,
+        State.SHOWING,
+        State.SLEEPING,
+    }
+)
+
+
+def idle_fraction(state: State, previous: float) -> float:
+    """Where the sun sits when the clock is not driving it.
+
+    Down (1.0) through the whole ending, back up to 0.0 **only** on entering
+    "Who's here?" -- which is the one moment a new day of computer time really
+    does begin. Anywhere else it holds what it had, so nothing jumps.
+    """
+    if state is State.CHOOSING:
+        return 0.0
+    if state in DOWN_STATES:
+        return 1.0
+    return max(0.0, min(1.0, previous))

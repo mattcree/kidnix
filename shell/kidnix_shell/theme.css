@@ -94,24 +94,65 @@ button.outline-only {
 }
 
 /* The two ending choices, when the offer is made *in the band* because the
- * child is inside an activity (spec S5, v0.1.5). They take exactly the size
- * and place of the Undo and My Things buttons they replace, so nothing in the
- * band moves at the one moment a child is being asked to stop. The only
- * difference is a heavier edge: @kid-highlight is reserved for "you can touch
- * this right now" and nothing else may borrow it. */
+ * child is inside an activity (spec S5, v0.1.5). Since 2026-08-23 they are
+ * **added** to the band rather than swapped in for Undo and My Things -- the
+ * visual timetable adds the "tidy up" card, it never takes a card away to make
+ * room (forum #61) -- so they need an arrival of their own to be noticed at
+ * all. Two things carry it: a 350 ms scale-in, and three seconds of the
+ * reserved highlight. @kid-highlight is for "the thing you can touch right
+ * now" and nothing else may borrow it; this is the one moment in the product
+ * that is literally that (08 section 3.4, forum #55).
+ *
+ * The scale-in itself is NOT a CSS transition -- see Band._announce_offer_
+ * buttons: a transition that only advances while frames are drawn can park a
+ * widget at "invisible", and this is the one control that may never be. */
 .band button.offer {
   border-color: @kid-edge-strong;
   border-width: 3px;
   border-bottom-width: 6px;
 }
 
-/* The band's own toplevel while the child is on the Sleeping screen. The band
- * itself is hidden there (nothing in it is for a sleeping machine), and this
- * is what stops the strip it leaves behind being a cream bar over a dark
- * screen -- it is the same colour as `.sleeping`, so the two windows read as
- * one surface. */
-window.kidnix.sleeping {
+/* Three seconds of "this one, now". The ring travels with the control's own
+ * border going to full ink, exactly as `.speaking` does, so the yellow is
+ * never the only boundary (it is 2.9:1 on the band on its own). */
+.band button.offer.kid-new {
+  outline: 6px solid @kid-highlight;
+  outline-offset: -3px;
+  border-color: @kid-ink;
+}
+
+/* The two "not now" surfaces, painted on the **windows** and not on the boxes
+ * inside them (panel ruling, 2026-08-23). `sleeping.py` put the class on its
+ * own Screen box, which is halign/valign CENTER, so the one surface designed
+ * to be low-arousal rendered as a small dark rectangle floating on
+ * full-brightness cream -- the brightest thing in the product, at the moment
+ * it is meant to be the quietest, for exactly the light-sensitive children it
+ * exists for (forum #36, #38). Both windows take the class so the band strip
+ * and the content area read as one surface.
+ *
+ * Two colours, because there are two vocabularies (kidnix_shell.resting):
+ * night is dark and has a moon in it; a four-o'clock rest is warm, dim and
+ * has no moon, no yawn and no "goodnight" anywhere near it. */
+window.kidnix.sleeping,
+.sleeping {
   background-color: #171b2c;
+  color: #d8def0;
+}
+
+window.kidnix.resting,
+.resting {
+  background-color: #efe3d2;
+  color: #4a3f33;
+}
+
+.sleeping .big-line,
+.sleeping .screen-title {
+  color: #d8def0;
+}
+
+.resting .big-line,
+.resting .screen-title {
+  color: #4a3f33;
 }
 
 /* The sun is a target, not a picture (08 section 4.6): tapping it says how
@@ -306,15 +347,6 @@ button.ritual.pressed {
 button.ritual.secondary {
   font-size: 22pt;
   border-bottom-width: 5px;
-}
-
-.sleeping {
-  background-color: #171b2c;
-  color: #d8def0;
-}
-
-.sleeping .big-line {
-  color: #d8def0;
 }
 
 /* --- pagination (A4: no free scrolling anywhere) ------------------------ */

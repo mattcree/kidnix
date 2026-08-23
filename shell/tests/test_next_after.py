@@ -39,8 +39,14 @@ def test_the_default_ids_are_unique() -> None:
 
 def test_every_default_reads_as_a_sentence_at_goodbye() -> None:
     """S7 says "Ready to [thing]?", and a tile label is a noun as often as a
-    verb -- "Ready to a book?" is exactly what ``phrase`` exists to prevent."""
+    verb -- "Ready to a book?" is exactly what ``phrase`` exists to prevent.
+
+    The skip option is exempt because it never reaches S7: choosing it clears
+    ``ctx.next_after`` and Goodbye falls back to the generated line.
+    """
     for option in DEFAULT_NEXT_AFTER:
+        if option.skips:
+            continue
         line = option.ready_line
         assert line.startswith("Ready to ")
         assert line.endswith("?")
@@ -154,5 +160,5 @@ def test_no_default_label_is_longer_than_a_tile_can_hold(option: NextAfter) -> N
     labels are short and the *audio* label carries the longer wording.
     """
     assert len(option.label) <= 12
-    assert len(option.label.split()) <= 2
+    assert len(option.label.split()) <= 2, option.id
     assert max(len(word) for word in option.label.split()) <= 8

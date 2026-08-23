@@ -55,7 +55,10 @@ from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
 from .launcher import Launcher, RunningActivity  # noqa: E402
 from .metrics import Metrics, ScreenOverride, detect_metrics  # noqa: E402
 from .next_after import NextAfter  # noqa: E402
+from .resting import refusal_line  # noqa: E402
 from .ritual import (  # noqa: E402
+    OFFER_QUESTION,
+    OfferAnswer,
     RitualAction,
     back_delay_seconds,
     next_action,
@@ -83,6 +86,7 @@ from .settings import KidState, ParentConfig, Paths, Profile  # noqa: E402
 from .sound import BACK, KEEP, PHASE, SLEEP, TAP, Earcons  # noqa: E402
 from .speech import GLibScheduler, SpeechManager, select_backend  # noqa: E402
 from .state import Event, State, StateMachine  # noqa: E402
+from .sun import idle_fraction  # noqa: E402
 from .theme import dynamic_css  # noqa: E402
 from .widgets import SpeechUI  # noqa: E402
 
@@ -90,8 +94,14 @@ log = logging.getLogger(__name__)
 
 APP_ID = "org.kidnix.Shell"
 TICK_MS = 500
-#: S7: "Show a grown-up" borrows My Things for two minutes, then comes back.
-SHOWING_SECONDS = 120
+#: S7: "Show a grown-up" borrows My Things, and now **keeps** it.
+#:
+#: It was two minutes, on a wall clock, and it yanked itself back -- cutting a
+#: parent off mid-sentence at the one moment kidnix builds co-use, which is the
+#: strongest protective moderator in 02 (forum #52). Ten minutes is a backstop
+#: against a machine left on a sofa, not a limit on a conversation: the way out
+#: is Back, and nothing revokes the screen while anyone is still looking at it.
+SHOWING_SECONDS = 600
 #: Spec 7a: Back on Put away is dead for three seconds, so a child cannot
 #: undo the ritual by drumming on the band -- and then it works, so an
 #: accidental "All done" is recoverable. The number lives in
@@ -109,7 +119,12 @@ MONITOR_CHECK_TICKS = 8
 #: spare height) rather than shrinking every target at once, so a step is
 #: smaller and it takes more of them to close a 40 px overshoot. All of them
 #: happen before the window is presented.
-MAX_FIT_ATTEMPTS = 5
+#: Seven since 2026-08-23: S1b gained a ninth option ("Not sure yet"), which is
+#: a third row on a 4x3 panel, and the tree then measures a few pixels over its
+#: budget. Each step spends a little chrome rather than shrinking everything, so
+#: closing a 1% overshoot genuinely takes several of them -- and stopping early
+#: leaves the overshoot on screen, which is the clipping this exists to prevent.
+MAX_FIT_ATTEMPTS = 7
 #: Spec S5 in the band: how long the two ending choices stay in the band when
 #: the child is inside an activity and there is no shell surface to put them
 #: on. Long enough to notice and answer without looking up from a drawing;
@@ -286,6 +301,9 @@ class ShellWindow(Adw.ApplicationWindow):
         self._back_locked_until = 0.0
         self._ticks = 0
         self._last_phase: Phase | None = None
+        #: Where the sun is when the clock is not driving it (:func:`sun.
+        #: idle_fraction`). 0.0 is the start of a day's computer time.
+        self._sun_fraction = 0.0
         #: True while the two ending choices are in the band (v0.1.5). It is
         #: what stops :mod:`kidnix_shell.ritual` re-presenting the offer every
         #: tick, because this route does not change the state.
@@ -433,8 +451,8 @@ class ShellWindow(Adw.ApplicationWindow):
                 on_grownup=self.open_grownup,
                 on_ask=self.on_ask,
                 on_sun=self.on_sun,
-                on_finish_this=lambda: self.dismiss_offer(False),
-                on_one_more=lambda: self.dismiss_offer(True),
+                on_finish_this=lambda: self.dismiss_offer(OfferAnswer.FINISH_THIS),
+                on_one_more=lambda: self.dismiss_offer(OfferAnswer.ONE_MORE),
             ),
         )
         if not self._one_window:
@@ -841,11 +859,21 @@ class ShellWindow(Adw.ApplicationWindow):
         # Sleeping screen's colour instead, so the two windows read as one.
         sleeping = state is State.SLEEPING
         self.band.set_visible(not sleeping)
-        if not self._one_window:
-            if sleeping:
-                self.band_window.add_css_class("sleeping")
-            else:
-                self.band_window.remove_css_class("sleeping")
+        # The dim surface is painted on the **windows**, not on a centred box
+        # inside one: `sleeping.py` added its class to its own Screen, which is
+        # halign/valign CENTER, so the low-arousal screen rendered as a small
+        # dark rectangle on full-brightness cream -- the brightest thing in the
+        # product at the moment it is meant to be the quietest (forum #36,
+        # #38). Two vocabularies, two classes (kidnix_shell.resting).
+        rest_class = ""
+        if sleeping:
+            rest_class = "sleeping" if self.session.policy.is_bedtime(datetime.now()) else "resting"
+        for window in (self, *(() if self._one_window else (self.band_window,))):
+            for css_class in ("sleeping", "resting"):
+                if css_class == rest_class:
+                    window.add_css_class(css_class)
+                else:
+                    window.remove_css_class(css_class)
         self.band.set_journal_sensitive(state in (State.HOME, State.JOURNAL, State.IN_ACTIVITY))
         if state is not State.IN_ACTIVITY:
             self.screens[name].on_enter()
@@ -860,8 +888,9 @@ class ShellWindow(Adw.ApplicationWindow):
             self._check_monitor()
 
         if self.session.running:
+            self._sun_fraction = self.session.fraction_spent(now)
             self.band.set_progress(
-                self.session.fraction_spent(now),
+                self._sun_fraction,
                 self.session.is_warm(now),
                 self.session.time_left_words(now),
             )
@@ -870,7 +899,18 @@ class ShellWindow(Adw.ApplicationWindow):
             self._advance_ritual(phase)
         else:
             self._last_phase = None
-            self.band.set_progress(0.0, False, time_left_words(0.0, running=False))
+            # **The sun stays down.** This used to be ``set_progress(0.0)``,
+            # and fraction 0 means *start of day*: Goodbye showed a full, high
+            # sun over "the sun has gone down for today", which for a
+            # pre-reader is the picture contradicting the ritual at the exact
+            # second they are checking whether it is really over (forum #7).
+            # It comes back up on entering "Who's here?" and nowhere else.
+            self._sun_fraction = idle_fraction(self.machine.state, self._sun_fraction)
+            self.band.set_progress(
+                self._sun_fraction,
+                self._sun_fraction >= 1.0,
+                time_left_words(1.0 - self._sun_fraction, running=False),
+            )
             self._maybe_wake(now)
         return True  # GLib.SOURCE_CONTINUE
 
@@ -958,7 +998,7 @@ class ShellWindow(Adw.ApplicationWindow):
         log.info("ending offer, in the band (the child is in an activity)")
         self._offer_on_band = True
         self.band.set_offer_mode(True)
-        self.speech.speak("The sun is going down. Finish this one, or one last little thing?")
+        self.speech.speak(OFFER_QUESTION)
         if self._band_offer_handle is not None:
             GLib.source_remove(self._band_offer_handle)
         self._band_offer_handle = GLib.timeout_add_seconds(
@@ -1159,21 +1199,42 @@ class ShellWindow(Adw.ApplicationWindow):
         self.machine.try_fire(Event.CHOOSE_PROFILE)
 
     def choose_next_after(self, option: NextAfter) -> None:
-        """S1b: the child said what happens after. Spec 7b / SYNTHESIS D4."""
+        """S1b: the child said what happens after. Spec 7b / SYNTHESIS D4.
+
+        "Not sure yet" is a real answer and it is *not* a plan: it takes the
+        child to Home and leaves Goodbye on its generated fallback. Coco's
+        named failure mode is rigidity -- a child treating the machine's
+        statements as inviolable rules -- and a screen with no way to decline
+        the question is how that starts (forum, child-psychologist MAJOR 5).
+        """
         if not self.machine.can(Event.CHOOSE_NEXT_AFTER):
             return
-        self.ctx.next_after = option
+        self.ctx.next_after = None if option.skips else option
         log.info("next after this session: %s", option.id)
         self.earcons.play(TAP, speaking=True)
         self.machine.try_fire(Event.CHOOSE_NEXT_AFTER)
 
     def _refuse(self, refusal: StartRefusal) -> None:
-        """No silent denials, and no adult error messages (SYNTHESIS C3)."""
-        if refusal is StartRefusal.BEDTIME:
-            self.speech.speak("It's night time. kidnix is going to sleep.")
-        else:
-            self.speech.speak("That's all the time for today. See you tomorrow.")
-        self.machine.try_fire(Event.GOODNIGHT)
+        """No silent denials, and no adult error messages (SYNTHESIS C3).
+
+        Two things about this changed on 2026-08-23. It no longer says "See you
+        tomorrow" -- suggestions.py's own docstring has forbidden that phrasing
+        all along (D6: the system has no interest in whether the child comes
+        back), and it was firing on the child's flattest day (forum #28, #47).
+        And because :meth:`Session.may_start` now refuses everything below the
+        session floor, this lands at **Who's here**, before the child has told
+        the computer what they are doing afterwards: a plan must never be
+        collected for a session that cannot happen (forum #46, #59, #60).
+
+        The sentence is handed to the Resting screen rather than spoken over
+        its arrival, so the child hears one answer to the question they asked.
+        """
+        line = refusal_line(bedtime=refusal is StartRefusal.BEDTIME)
+        self.ctx.rest_reason = line
+        if not self.machine.try_fire(Event.GOODNIGHT):
+            # Nowhere to put the screen (the gate, mid-sheet): say it anyway.
+            self.ctx.rest_reason = ""
+            self.speech.speak(line)
 
     def launch(self, activity: Activity, resume: Path | None = None) -> None:
         # No launching from the ending ritual or from Sleeping: an activity
@@ -1356,28 +1417,39 @@ class ShellWindow(Adw.ApplicationWindow):
         self._sheet = None
         self.machine.try_fire(Event.CLOSE_GROWNUP)
 
-    def dismiss_offer(self, one_last_thing: bool) -> None:
-        """S5: the child answered. The offer does not come back this session.
+    def dismiss_offer(self, answer: OfferAnswer) -> None:
+        """S5: the child answered, and the answers are no longer the same answer.
 
-        Both answers do the same thing to the machine -- return the child to
-        wherever they were and leave them alone until Put away. The difference
-        is in what it means on Home: "one last little thing" is permission to
-        open one more activity, which is simply Home continuing to work.
+        Until 2026-08-23 both buttons did exactly this much: latch the offer,
+        say a sentence, return the child where they were. Put away landed at
+        T-2 either way, so "Finish this one" was a promise the clock did not
+        keep and the choice was theatre (forum #20, #29). Now:
+
+        * **Finish this one** defers put-away to one beat before the hard stop
+          (:meth:`kidnix_shell.session.Session.answer_offer`). The child keeps
+          the activity until T-1 unless they finish sooner, and the sentence
+          says exactly that.
+        * **One last little thing** takes them to **Home**, where opening one
+          more activity is Home continuing to work, and leaves put-away where
+          it was -- which is what makes room for the little thing to fit.
+        * **Ask for more time** dismisses, and says who can add time without
+          sending a five-year-old off to negotiate for it.
 
         Answered *from the band*, during an activity, the transition is a no-op
-        (``DISMISS_OFFER`` is not valid in ``IN_ACTIVITY``) and that is the
-        correct behaviour: the child is already inside the thing they said they
-        would finish, and both answers mean "carry on until the sun does".
-        What the press has to do is latch the answer and give the band its
-        ordinary shape back, which is what happens below.
+        (``DISMISS_OFFER`` is not valid in ``IN_ACTIVITY``) and that is still
+        correct: the child is already inside the thing they said they would
+        finish. The consequence is on the clock, not on the navigation.
         """
         self._clear_band_offer()
         # Latch first: the answer counts even if the transition is a no-op
         # because a later tick already moved the child on.
-        self.session.answer_offer()
-        if one_last_thing:
-            self.speech.speak("One last little thing, then.")
+        self.session.answer_offer(defer_put_away=answer.defers_put_away)
+        self.speech.speak(answer.speech)
         self.machine.try_fire(Event.DISMISS_OFFER)
+        if answer.returns_home and self.machine.state is State.JOURNAL:
+            # "One last little thing" means Home: My Things is a place to look
+            # at what is already made, not a place to make the last thing.
+            self.machine.try_fire(Event.BACK)
 
     def finish_now(self) -> None:
         """Child- or grown-up-initiated ending: the same ritual, never a cut.
@@ -1417,8 +1489,14 @@ class ShellWindow(Adw.ApplicationWindow):
         return False
 
     def goodnight(self) -> None:
-        self.session.end(datetime.now())
-        if self.machine.try_fire(Event.GOODNIGHT):
+        now = datetime.now()
+        bedtime = self.session.policy.is_bedtime(now)
+        self.session.end(now)
+        if self.machine.try_fire(Event.GOODNIGHT) and bedtime:
+            # The sleep motif is a *yawn* -- a sleep-onset cue. It belongs to
+            # the real lockout and nowhere near four in the afternoon, where
+            # pairing it with "the nice thing stopped" is backwards for exactly
+            # the children who find bedtime hardest (forum #17).
             self.earcons.play(SLEEP, speaking=True)
 
     def start_session(self, minutes: int | None = None) -> None:
@@ -1430,7 +1508,7 @@ class ShellWindow(Adw.ApplicationWindow):
             return
         self.machine.try_fire(Event.START_SESSION)
 
-    def add_minutes(self, minutes: int) -> None:
+    def add_minutes(self, minutes: int) -> int:
         now = datetime.now()
         added = self.session.add_minutes(minutes, now)
         if added and self._put_away_pending and self.session.phase(now) is Phase.RUNNING:
@@ -1443,6 +1521,7 @@ class ShellWindow(Adw.ApplicationWindow):
             self._cancel_put_away_wait()
         if added and self.machine.state in (State.GOODBYE, State.PUT_AWAY, State.SLEEPING):
             self.machine.try_fire(Event.START_SESSION)
+        return added
 
     def logout(self) -> None:
         log.info("logging out at the grown-up's request")
@@ -1760,15 +1839,36 @@ class ShellApplication(Adw.Application):
         # surface it was already showing. Zero duration settles the tree
         # in one layout pass.
         window.stack.set_transition_duration(0)
+        if self._start_on == "resting":
+            # Not driven: *earned*. Spending the budget and then pressing the
+            # child's own face is the real path to the refusal, so the
+            # screenshot shows what a child would actually get -- the warm no
+            # at Who's here, before any plan has been collected, and the
+            # daytime vocabulary behind it.
+            window.session.usage.seconds = window.session.policy.daily_budget
+            window.choose_profile(self._config.profiles[0])
+            return False
         window.choose_profile(self._config.profiles[0])
         if self._start_on == "next-after":
             return False
         if self._config.next_after:
             window.choose_next_after(self._config.next_after[0])
         if self._start_on == "goodbye":
+            if self._demo:
+                # A Goodbye with nothing made shows half the screen: the whole
+                # ruling is "the destination, then what was made".
+                from .demo import seed_work
+
+                seed_work(self._activities)
+                window.watcher.sweep_now()
             window.machine.try_fire(Event.IM_FINISHED)
             window.session.end(datetime.now())
             window.machine.try_fire(Event.GOODBYE_DUE)
+        if self._start_on == "offer":
+            # The band offer, added to the band rather than replacing Undo and
+            # My Things. Driven directly: the shape of the band is the point,
+            # not the route to it.
+            window.band.set_offer_mode(True)
         return False
 
     def _capture(self) -> bool:

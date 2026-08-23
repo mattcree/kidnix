@@ -1939,3 +1939,227 @@ happens to exit.
    that two buttons went away. Audit 01 #20's keep animation (§18.9 #7) is the
    place this belongs.
 6. Everything still open in §18.9 and §19.5 that this pass did not touch.
+
+## 21. v0.1.7 — the expert panel's rulings on the session model (2026-08-23)
+
+> Implementer's sixth report. The panel of 2026-08-23
+> (`docs/design/reviews/2026-08-23-forum.jsonl`, 61 posts) filed nine blockers
+> against the shell; the thinker's rulings on the **session model** are what
+> this section implements. Everything in §§1–20 stands except where named.
+>
+> The through-line of every one of them is the same rule this codebase already
+> holds itself to: **the words have to be true**. A promise the clock does not
+> keep, a picture that contradicts its own sentence, a choice with no
+> consequence and a warning about "tomorrow" at four in the afternoon are all
+> the same defect wearing four hats.
+
+### 21.1 The session floor, and windows that are proportional
+
+`session.py`. Two reviewers found this independently (forum #14, #15) and a
+parent named the mechanism from the other side (#59, #60).
+
+The old arithmetic was `granted = min(wanted, budget_remaining)` with
+`may_start` refusing only at zero. So the third sitting of a 60-minute day was
+ten minutes, and a well-meant "+5" on a spent day produced a two-minute sitting
+that **began in `Phase.PUT_AWAY`** — the child tapped her face, answered
+"What's next after?" with a plan she had just committed to out loud, reached
+Home, and was told "Let's keep that" over nothing ninety seconds later.
+
+Now:
+
+| | before | after |
+|---|---|---|
+| shortest session | none | `SessionPolicy.min_session`, 5 min (parent-settable ≥ 3) |
+| refusal | at 0 s remaining | below the floor, **at Who's here**, before a plan is collected |
+| ending offer | fixed 6 min | `clamp(20% of granted, 2 min, 4 min)` |
+| put away | fixed 2 min | `clamp(10% of granted, 1 min, 2 min)` |
+
+`SessionPolicy.ending_offer_minutes` and `put_away_minutes` survive as the
+**ceilings** on the two windows, so a parent who wants a shorter ending still
+gets one. Three invariants are asserted across every reachable grant
+(`tests/test_session.py`): `offer < granted / 2`, `put_away < offer` (the
+ritual keeps Coco's two beats — forum #43), and no session ever begins outside
+`Phase.RUNNING`.
+
+`Session.may_add` is new and pure: it answers what a `+N` grant *would* add so
+the sheet can refuse it **in words with the minimum named** before granting it.
+A grant the daily budget would truncate below the floor is refused whole rather
+than half-given.
+
+### 21.2 The offer is consequential, and its words are true
+
+`ritual.OfferAnswer` replaces the `one_last_thing: bool` that ran through the
+band, the screen and `ShellHost`. Until now both answers did exactly the same
+thing to the machine, which made the choice theatre (forum #20, #29 — "01 #38
+forbids nudges"):
+
+| answer | what it does | what it says |
+|---|---|---|
+| `FINISH_THIS` | defers put-away to **T−1**, one beat before the hard stop | "Finish this one. When the sun is down, we'll keep it." |
+| `ONE_MORE` | returns the child **to Home**; put-away stays where it was | "One last little thing, then we'll keep it." |
+| `ASK` | dismisses; hands nothing to the parent in the child's hearing | "A grown-up can add time." |
+
+`Session.answer_offer(defer_put_away=…)` carries the deferral, and
+`put_away_seconds(..., deferred=True)` is a `min()`, so a deferral can only ever
+move the ending *later*. `ASK` no longer says "Go and ask them": the shell does
+not hand a five-year-old a negotiation at the moment it is ending their session.
+
+### 21.3 The band offer **adds**; it no longer replaces
+
+`band.set_offer_mode`. Undo and My Things keep their positions and the two
+choices arrive in two further slots (forum #55, #57, #61 — "in class the visual
+timetable ADDS the 'tidy up' card to a strip that stays put; you never take a
+card away to make room"). They arrive with a 350 ms scale-in and three seconds
+of the reserved highlight, because a control that simply appears in the corner
+of a band, to a child whose eyes are on their own drawing, has not appeared.
+
+**The scale-in is stepped in Python, not run as a CSS transition**, and that is
+the one implementation decision here worth arguing about. A GTK CSS transition
+only advances while frames are being drawn; a stalled frame clock parks the
+widget at its *starting* value, and a starting value of `opacity: 0` would mean
+the one control a child needs at the one moment they need it is invisible.
+Caught in the screenshot run — see `docs/design/screenshots/demo-band-offer-v2.png`,
+which is the version that works. The button's opacity and the icon's pixel size
+are stepped instead, so the worst case is an arrival nobody saw animate.
+
+### 21.4 The sun stays down
+
+`sun.idle_fraction` (pure, tested) plus `app._tick`. `set_progress(0.0)`
+whenever the session was not running meant fraction 0 — *start of day* — so
+Goodbye showed a full, high sun over "the sun has gone down for today", and for
+a pre-reader the picture wins (forum #7, #49, #51). The sun is now held at 1.0
+through `ENDING_OFFER → PUT_AWAY → GOODBYE → SHOWING → SLEEPING` and reset to 0
+**only** on entering `CHOOSING`.
+
+One sun drawing everywhere (forum #45): S5 draws `band.Sun` at a late fraction
+rather than a rayed midday sun, and `kidnix-finish.svg` is the same geometry —
+ghost outline, disc clipped at the horizon, line on top.
+
+### 21.5 Goodbye, inverted
+
+`screens/goodbye.py`, and this is the largest visual change. 09 §1's own
+sentence is "the Goodbye screen must be the highest-reward moment of the
+session"; what shipped led with a count and put the child's chosen destination
+in a 24 mm icon on the bottom edge, spoken as the tail of a sentence about
+counting (forum #24, #30, #51). Top to bottom now: **the chosen picture at
+40 mm**, "Ready to go outside?" as the headline, then the thumbnails, then one
+line of descriptive feedback, then the two buttons — and it is spoken in that
+order with the destination **last, as its own sentence**
+(`SpeechManager.speak_then`, whose scheduler is injected, so the ordering is
+tested headless).
+
+`feedback.py` is new and is SYNTHESIS **E1**, which was in the research and
+nowhere in the code: one line of *descriptive, non-evaluative* feedback
+computed from this session's Journal entries — "You drew two pictures and used
+five colours." The colours are really counted, cheaply, off the thumbnails the
+Journal already wrote (quantised to 4 bits a channel, sampled, with the
+dominant colour dropped as the paper); above five it says "lots of colours",
+because "eleven colours" is no use to a five-year-old. Nothing is counted that
+is not in the Journal, so §20.3's rule still holds.
+
+Three smaller rulings landed with it: **"Show a grown-up" is never hidden**
+(the same bool used to withdraw the co-use invitation on the child's flattest
+day — forum #28, #52); `SHOWING_SECONDS` is 600 s rather than 120 and nothing
+revokes the screen mid-narration; and every "See you next time" / "See you
+tomorrow" is gone, with a test that walks the package's AST and fails on any
+string literal containing them.
+
+### 21.6 Two vocabularies: Resting and Goodnight
+
+`resting.py` (new, pure). The ordinary four-o'clock session ended in **night**
+vocabulary — a moon, "Goodnight", a yawn — while bedtime is 19:00–07:00. It is
+not true, and sleep-onset cues conditioned to the moment the nice thing stops
+are backwards for exactly the children who find bedtime hardest (forum #17).
+
+Switched on `policy.is_bedtime(now)`: daytime is *Resting*, warm and dim, no
+moon, no yawn, and the line **says when** in child terms — "kidnix is resting.
+Back after tea." / "…Back tomorrow.", computed from `Session.next_allowed`
+(forum #31). Bedtime keeps the moon, "Goodnight" and the sleep motif.
+
+`TapSpeechLimiter` is the answer to forum #23: at most one utterance every 8 s,
+presses inside that window **ignored** rather than cancelling (so nothing is
+ever cut off mid-word), and silence entirely after three presses in 30 s. A
+crying child hammering the screen is the population this state exists for, and
+repeated demands during dysregulation escalate. The line itself no longer
+demands anything: "Ask a grown-up" is gone — finding an adult is not a
+five-year-old's task.
+
+The dim surface is painted on the **windows**, not on a `halign: CENTER` box
+inside one, which is why the low-arousal screen used to render as a small dark
+rectangle on full-brightness cream (forum #36, #38).
+
+### 21.7 "All done" has one cell, and Home stops growing by default
+
+`screens/home.py`. `[*revealed, ALL_DONE]` moved the escape hatch one cell along
+every reveal; four reviewers and a parent named the same harm (forum #5, #27,
+#40, #41, #57 — "he does not find that button by looking, he finds it by
+reaching"). `lay_out()` is pure and pins it to `ALL_DONE_INDEX = 7` — the last
+cell of row 2 at 4×2 and at 4×3 alike, or the last cell of the page on a 3×2
+panel — and the activities grow *around* it, leaving holes rather than closing
+up. And `HomeConfig.show_everything` now defaults to **true**: progressive
+disclosure is a good argument that is not worth an unannounced new button every
+fortnight (forum #9, #26).
+
+S1b gains a ninth option, **"Not sure"** — a way out of the question rather than
+a competing answer to it. Choosing it clears `ctx.next_after`, so Goodbye falls
+back to its generated line. Back from S1b already went to Who's here.
+
+### 21.8 The grown-up sheet
+
+* **'Add time' refuses in words**, with the minimum named (`grant_refusal`,
+  pure and tested), and so does 'Start a session' on a spent day.
+* **The starter-PIN warning fires on the hash**, not on a missing key.
+  `ParentConfig.pin_is_starter` compares against `STARTER_PIN_HASH`, the value
+  the image actually ships. `is_default` was false on a stock install because
+  the shipped file *has* a `pin_hash` — "the one signal that the gate is open
+  was suppressed by the file that opens it" (forum #44), and Mags could only
+  ever have learned it by reading a file she would never open (#56).
+* **A Set PIN flow**: the pad, twice. It writes through `settings.rewrite_pin`,
+  which edits the two lines in place and keeps the ninety lines of explanation
+  around them. If the file is not writable — which on a real machine it never
+  is, because the shell runs as the child — it **says the command to run**
+  (`sudo kidnix-shell --set-pin`, implemented in `cli.set_pin`) and does not
+  pretend to have saved anything.
+
+### 21.9 Config, tests and screenshots
+
+`session.toml` gains `min_session_minutes` and both window keys are documented
+as ceilings; both byte-identical `parent.toml` copies get `show_everything =
+true` and the ninth `[[next_after]]`. `MAX_FIT_ATTEMPTS` is 7 because that
+ninth option is a third row on a 4×3 panel and the layout then measures ~1%
+over its budget.
+
+New headless suites: `tests/test_resting.py`, `tests/test_feedback.py`, plus
+additions to `test_session.py`, `test_ritual.py`, `test_sun.py`,
+`test_speech.py`, `test_settings.py` and `test_shell_bits.py`. `just lint` and
+`just test-headless` are green.
+
+Screenshots at 1280x800@102: `demo-goodbye-v2.png` (the new hierarchy, with
+E1's line under real thumbnails), `demo-resting.png`, `demo-band-offer-v2.png`.
+`--start-on` gained `resting` and `offer`; the resting one is *earned* rather
+than driven — it spends the budget and presses the child's own face, so the
+screenshot is the refusal a child would really get.
+
+### 21.10 Still open after this pass
+
+1. **The elastic tail.** The developmental psychologist asked for ~3 minutes
+   from the same budget and the clinician for ≤90 s, silent, once per session
+   (forum #20). The ruling took the other branch — make "Finish this one"
+   consequential and the words true — so the hard stop is still the hard stop.
+   That deviation still belongs in an ADR.
+2. **"after tea" is a two-valued guess.** `back_when_words` compares calendar
+   days, so a machine resting at one in the morning with a 04:00 reset would
+   say "after tea". Bedtime covers that hour in the shipped policy, so it is
+   unreachable today; a real schedule of windows would make it a real bug.
+3. **The colour count runs on the main loop.** Two thumbnails at 4096 samples
+   is a few milliseconds, but a child with thirty things kept today pays for
+   three of them at the moment Goodbye paints. It wants a cache in the Journal
+   entry.
+4. **`suggestions.py` is still eight consecutive questions.** "To a
+   demand-avoidant child a question is a demand" (child-psychologist); some of
+   them should be declaratives. Not in these rulings.
+5. **The offer's second icon still does not depict anything.**
+   `kidnix-one-more.svg` is a big square and a small square; forum #55 and #61
+   both say it needs to show the *activity continuing*, or a sand timer with a
+   little left. `kidnix-finish.svg` was redrawn in this pass; this one was not.
+6. Everything still open in §§18.9, 19.5 and 20.6 that this pass did not touch.

@@ -104,12 +104,20 @@ skip_next_choice = false
 # sessions is kid-owned state in ~/.local/state/kidnix/progress.toml; it is
 # not a streak, nothing shows it to the child, and nothing resets it.
 #
-# Set show_everything = true for a child who has been using the machine for a
-# year, or for a demo.
+# **show_everything is TRUE by default since 2026-08-23**, which means none of
+# the above is in force unless you turn it off. The expert panel was blunt
+# about the cost: a grid that grows on a schedule the child cannot perceive is
+# an unannounced new button, and for a five-year-old who navigates by position
+# -- particularly an autistic one -- that is a ruined afternoon. "All done" now
+# has a fixed cell of its own (the last one of the second row) and never moves,
+# whatever this setting says.
+#
+# Set show_everything = false to bring the growing grid back for a child
+# meeting a computer for the first time.
 [home]
 initial_tiles = 6
 reveal_every_sessions = 2
-show_everything = false
+show_everything = true
 
 # --- "WHAT'S NEXT AFTER?" (the S1b picture choice) -------------------------
 #
@@ -206,3 +214,16 @@ label = "With someone"
 audio_label = "Playing with someone"
 phrase = "play with someone"
 icon = "kidnix-next-someone"
+
+# The ninth option is a way OUT of the question, not a competing answer to it:
+# a child who picks it goes to Home and the Goodbye screen falls back to its
+# generated line. Coco's named failure mode is rigidity -- a child treating the
+# machine's statements as inviolable rules -- and a question with no "don't
+# know" on it is how a five-year-old gets committed to a plan they did not
+# have. Delete the block if you would rather your child was asked to choose.
+
+[[next_after]]
+id = "unsure"
+label = "Not sure"
+audio_label = "Not sure yet. That's fine."
+icon = "kidnix-ask"

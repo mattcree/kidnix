@@ -103,3 +103,42 @@ def test_a_squashed_band_still_fits_its_sun() -> None:
         geometry = sun_geometry(0.0, WIDTH, height)
         assert geometry.centre_y - geometry.radius >= 0
         assert geometry.horizon_y <= height
+
+
+# --- where the sun sits when the clock is not driving it -----------------
+#
+# forum #7: ``app._tick`` set ``set_progress(0.0)`` whenever the session was
+# not running, and fraction 0 means *start of day* -- so Goodbye showed a full,
+# high sun over "the sun has gone down for today".
+
+
+def test_the_sun_is_down_through_the_whole_ending() -> None:
+    from kidnix_shell.state import State
+    from kidnix_shell.sun import idle_fraction
+
+    for state in (State.ENDING_OFFER, State.PUT_AWAY, State.GOODBYE, State.SHOWING):
+        assert idle_fraction(state, 0.0) == 1.0
+
+
+def test_the_sun_is_still_down_on_the_resting_screen() -> None:
+    from kidnix_shell.state import State
+    from kidnix_shell.sun import idle_fraction
+
+    assert idle_fraction(State.SLEEPING, 0.4) == 1.0
+
+
+def test_the_sun_comes_back_up_only_on_whos_here() -> None:
+    from kidnix_shell.state import State
+    from kidnix_shell.sun import idle_fraction
+
+    assert idle_fraction(State.CHOOSING, 1.0) == 0.0
+
+
+def test_anywhere_else_it_holds_what_it_had() -> None:
+    """Nothing jumps. A sun that moved without the clock moving would be a
+    second timer, saying something the first one did not."""
+    from kidnix_shell.state import State
+    from kidnix_shell.sun import idle_fraction
+
+    for state in (State.HOME, State.IN_ACTIVITY, State.JOURNAL, State.GROWNUP):
+        assert idle_fraction(state, 0.62) == 0.62

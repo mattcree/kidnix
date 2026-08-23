@@ -11,7 +11,7 @@ import logging
 import os
 import re
 from dataclasses import replace
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -225,22 +225,37 @@ def test_showing_mode_does_not_resume(ctx: ShellContext, tmp_path: Path) -> None
     assert ctx.host.calls == []  # type: ignore[attr-defined]
 
 
-def test_goodbye_counts_what_was_made_today(ctx: ShellContext, tmp_path: Path) -> None:
+def test_goodbye_describes_what_was_made_rather_than_counting_it(
+    ctx: ShellContext, tmp_path: Path
+) -> None:
+    """SYNTHESIS E1: descriptive feedback, not a score (forum #30, #52)."""
     for index in range(2):
         source = write_png(tmp_path / "work" / f"p{index}.png", colour=(index * 60, 0, 0))
         ctx.journal.import_file(source, "scribble")
     screen = GoodbyeScreen(ctx)
     screen.on_enter()
-    assert "two things" in screen.headline.get_label()
+    assert screen.made_line.get_label().startswith("You ")
+    assert "two" in screen.made_line.get_label()
 
 
-def test_goodbye_with_nothing_made_does_not_say_you_made_nothing(
-    ctx: ShellContext,
-) -> None:
+def test_goodbye_never_hides_show_a_grown_up(ctx: ShellContext) -> None:
+    """forum #28: the same bool that emptied the headline also withdrew the
+    co-use invitation, on the child's flattest day."""
     screen = GoodbyeScreen(ctx)
     screen.on_enter()
-    assert screen.headline.get_label() == "See you next time"
-    assert not screen.show_button.get_visible()
+    assert screen.show_button.get_visible()
+
+
+def test_goodbye_with_nothing_made_says_something_warm_and_true(
+    ctx: ShellContext,
+) -> None:
+    from kidnix_shell.resting import ALL_DONE_HEADLINE
+
+    ctx.next_after = None
+    screen = GoodbyeScreen(ctx)
+    screen.on_enter()
+    assert screen.headline.get_label() == ALL_DONE_HEADLINE
+    assert "see you" not in screen.headline.get_label().lower()
 
 
 def make_band(metrics, speech_ui):  # type: ignore[no-untyped-def]
@@ -276,16 +291,33 @@ def test_the_band_fits_the_panel_it_was_sized_for(ctx: ShellContext) -> None:
         assert band.measure(Gtk.Orientation.HORIZONTAL, -1)[0] <= width
 
 
-def test_home_ends_with_the_all_done_tile(ctx: ShellContext) -> None:
-    """Spec 7a / SYNTHESIS D5: the child can say they have had enough."""
-    from kidnix_shell.screens.home import ALL_DONE, AllDone
+def test_home_keeps_all_done_in_one_cell_forever(ctx: ShellContext) -> None:
+    """Spec 7a / SYNTHESIS D5, and the panel ruling of 2026-08-23: the child can
+    say they have had enough, and the button is where it was last time.
+
+    It used to be *last in the list*, so it moved one cell along every time
+    progressive disclosure revealed a tile -- redrawing the escape hatch on a
+    schedule the child cannot perceive (forum #5, #41, #57)."""
+    from kidnix_shell.screens.home import ALL_DONE, AllDone, all_done_index
 
     screen = HomeScreen(ctx)
     cells = screen.cells()
-    assert isinstance(cells[-1], AllDone)
-    assert cells[-1].speak_text == "All done for today?"
-    assert len(cells) == len(ctx.activities) + 1
+    index = all_done_index(ctx.metrics.per_page)
+    pinned = cells[index]
+    assert isinstance(pinned, AllDone)
+    assert pinned.speak_text == "All done for today?"
     assert ALL_DONE.icon == "kidnix-moon"
+
+
+def test_the_all_done_cell_does_not_move_as_home_fills_up(ctx: ShellContext) -> None:
+    from kidnix_shell.screens.home import ALL_DONE, all_done_index
+
+    index = all_done_index(ctx.metrics.per_page)
+    everything = list(ctx.activities)
+    for count in range(len(everything) + 1):
+        ctx.activities = everything[:count]
+        assert HomeScreen(ctx).cells()[index] is ALL_DONE, count
+    ctx.activities = everything
 
 
 def test_the_all_done_tile_runs_the_ending_ritual(ctx: ShellContext) -> None:
@@ -462,14 +494,17 @@ def test_home_leaves_out_an_activity_that_is_not_installed(ctx: ShellContext) ->
         make_activity("scribble"),
         make_activity("ghost", available=False),
     ]
-    cells = HomeScreen(ctx).cells()
+    cells = [c for c in HomeScreen(ctx).cells() if c is not None]
     assert [getattr(c, "id", "") for c in cells] == ["scribble", "kidnix.all-done"]
 
 
 def test_a_manifest_can_ask_to_be_shown_anyway(ctx: ShellContext) -> None:
     ctx.activities = [make_activity("ghost", available=False, show_when_unavailable=True)]
     screen = HomeScreen(ctx)
-    assert [getattr(c, "id", "") for c in screen.cells()] == ["ghost", "kidnix.all-done"]
+    assert [getattr(c, "id", "") for c in screen.cells() if c is not None] == [
+        "ghost",
+        "kidnix.all-done",
+    ]
     tile = screen._tile(ctx.activities[0])
     assert tile.has_css_class("not-allowed")  # outline-only, never greyed out
     assert "isn't ready yet" in tile.speak_text
@@ -511,15 +546,21 @@ def test_home_honours_the_manifest_order(ctx: ShellContext) -> None:
         ],
         key=lambda a: a.sort_key,
     )
-    cells = HomeScreen(ctx).cells()
-    assert [getattr(c, "id", "") for c in cells[:-1]] == ["first", "last", "unordered"]
+    cells = [c for c in HomeScreen(ctx).cells() if c is not None]
+    assert [getattr(c, "id", "") for c in cells if c.id != "kidnix.all-done"] == [
+        "first",
+        "last",
+        "unordered",
+    ]
 
 
 def test_ask_for_more_time_dismisses_the_offer(ctx: ShellContext) -> None:
     """S5: asking a grown-up is an answer; the child must not come back to it."""
+    from kidnix_shell.ritual import OfferAnswer
+
     screen = EndingOfferScreen(ctx)
     screen._ask_for_more()
-    assert ("dismiss_offer", (False,)) in ctx.host.calls  # type: ignore[attr-defined]
+    assert ("dismiss_offer", (OfferAnswer.ASK,)) in ctx.host.calls  # type: ignore[attr-defined]
 
 
 # --- no child-facing label is ever cut (SYNTHESIS B4) --------------------
@@ -814,7 +855,13 @@ def test_the_shell_still_fits_with_the_names_the_image_actually_ships(
 
 
 def _home_names(ctx: ShellContext) -> list[str]:
-    return [getattr(cell, "name", "") for cell in HomeScreen(ctx).cells()]
+    """The tiles on Home, in order, skipping the cells "All done" reserves.
+
+    Since 2026-08-23 the grid has holes in it on purpose: "All done" owns one
+    cell forever and the activities grow around it, so the list is no longer
+    "everything, then All done".
+    """
+    return [getattr(cell, "name", "") for cell in HomeScreen(ctx).cells() if cell is not None]
 
 
 def test_an_activity_outside_the_age_band_gets_no_tile_at_all(ctx: ShellContext) -> None:
@@ -824,21 +871,21 @@ def test_an_activity_outside_the_age_band_gets_no_tile_at_all(ctx: ShellContext)
         make_activity("sums", name="Number game", age_min=6, age_max=10),
     ]
     ctx.profile = replace(ctx.profile, age_band="4-5")
-    assert _home_names(ctx) == ["Draw", "All done"]
+    assert sorted(_home_names(ctx)) == ["All done", "Draw"]
     ctx.profile = replace(ctx.profile, age_band="6-8")
-    assert _home_names(ctx) == ["Draw", "Number game", "All done"]
+    assert sorted(_home_names(ctx)) == ["All done", "Draw", "Number game"]
 
 
 def test_a_profile_with_no_band_sees_everything(ctx: ShellContext) -> None:
     ctx.activities = [make_activity("sums", name="Number game", age_min=6, age_max=10)]
     ctx.profile = replace(ctx.profile, age_band="")
-    assert _home_names(ctx) == ["Number game", "All done"]
+    assert sorted(_home_names(ctx)) == ["All done", "Number game"]
 
 
 def test_an_activity_with_no_content_gets_no_tile(ctx: ShellContext) -> None:
     """05 Lib-4: kiwix-serve is installed and there is no ZIM."""
     ctx.activities = [make_activity("library", name="Library", has_content=False)]
-    assert _home_names(ctx) == ["All done"]
+    assert _home_names(ctx) == ["All done"]  # nothing else earned a cell
 
 
 def test_a_contentless_activity_that_asks_to_be_seen_is_outlined_and_says_why(
@@ -850,7 +897,7 @@ def test_a_contentless_activity_that_asks_to_be_seen_is_outlined_and_says_why(
         make_activity("library", name="Library", has_content=False, show_when_unavailable=True)
     ]
     screen = HomeScreen(ctx)
-    assert _home_names(ctx) == ["Library", "All done"]
+    assert sorted(_home_names(ctx)) == ["All done", "Library"]
     assert screen._denial(ctx.activities[0]) == NOT_READY_LINE
 
 
@@ -870,7 +917,8 @@ def test_a_named_allow_list_outlines_the_rest_rather_than_hiding_them(
 
     ctx.config.allowed_activity_ids = ["scribble"]
     screen = HomeScreen(ctx)
-    assert len(screen.cells()) == len(ctx.activities) + 1  # nothing was hidden
+    kept = [c for c in screen.cells() if c is not None]
+    assert len(kept) == len(ctx.activities) + 1  # nothing was hidden
     assert screen._denial(ctx.activities[0]) is None
     assert screen._denial(ctx.activities[1]) == NOT_ALLOWED_LINE
     tile = screen._tile(ctx.activities[1])
@@ -1030,12 +1078,18 @@ def test_a_new_session_forgets_last_time_s_answer(tmp_path: Path) -> None:
 # --- S7 shows the choice back (spec 7b, Coco's Videos) -------------------
 
 
-def test_goodbye_shows_the_childs_own_choice(ctx: ShellContext) -> None:
+def test_goodbye_leads_with_the_childs_own_choice(ctx: ShellContext) -> None:
+    """The ruling: the destination is the headline and the biggest picture on
+    the screen, not a 24 mm icon on the bottom edge (forum #24, #30, #51)."""
+    from kidnix_shell.screens.goodbye import NEXT_AFTER_ICON_MM, THUMBNAIL_MM
+
     ctx.next_after = ctx.config.next_after[0]
     screen = GoodbyeScreen(ctx)
     screen.on_enter()
-    assert screen.suggestion.get_label() == "Ready to go outside?"
-    assert screen.next_after_box.get_visible()
+    assert screen.headline.get_label() == "Ready to go outside?"
+    assert screen.next_after_icon.get_visible()
+    assert NEXT_AFTER_ICON_MM >= 40.0
+    assert NEXT_AFTER_ICON_MM > THUMBNAIL_MM
     assert "Ready to go outside?" in ctx.speech.last_utterance
 
 
@@ -1046,18 +1100,20 @@ def test_goodbye_falls_back_to_the_generated_line_when_nothing_was_chosen(
     ctx.next_after = None
     screen = GoodbyeScreen(ctx)
     screen.on_enter()
-    assert not screen.next_after_box.get_visible()
-    assert screen.suggestion.get_label()
-    assert not screen.suggestion.get_label().startswith("Ready to")
+    assert not screen.next_after_icon.get_visible()
+    assert screen.made_line.get_label()
+    assert not screen.made_line.get_label().startswith("Ready to")
 
 
 def test_goodbye_asks_rather_than_instructs(ctx: ShellContext) -> None:
     """Coco's failure mode: "Coco will make you do it". Nothing here commands."""
     for option in ctx.config.next_after:
+        if option.skips:
+            continue  # it is a way out of the question, not an answer to it
         ctx.next_after = option
         screen = GoodbyeScreen(ctx)
         screen.on_enter()
-        line = screen.suggestion.get_label()
+        line = screen.headline.get_label()
         assert line.endswith("?")
         assert "must" not in line.lower() and "now it's time" not in line.lower()
 
@@ -1066,15 +1122,17 @@ def test_goodbye_asks_rather_than_instructs(ctx: ShellContext) -> None:
 
 
 def test_a_first_run_home_shows_six_tiles_including_all_done(tmp_path: Path) -> None:
-    ctx = _disclosure_ctx(tmp_path, sessions=0, activities=10)
+    """Only when a parent has asked for it: ``show_everything`` defaults to
+    true since 2026-08-23 (forum #9, #26, #40)."""
+    ctx = _disclosure_ctx(tmp_path, sessions=0, activities=10, show_everything=False)
     names = _home_names(ctx)
     assert len(names) == 6
-    assert names[-1] == ALL_DONE_NAME
+    assert ALL_DONE_NAME in names
 
 
 def test_home_grows_by_one_tile_every_two_sessions(tmp_path: Path) -> None:
     for sessions, expected in ((0, 6), (1, 6), (2, 7), (4, 8), (10, 11)):
-        ctx = _disclosure_ctx(tmp_path, sessions=sessions, activities=10)
+        ctx = _disclosure_ctx(tmp_path, sessions=sessions, activities=10, show_everything=False)
         assert len(_home_names(ctx)) == expected, sessions
 
 
@@ -1086,7 +1144,7 @@ def test_all_done_is_on_home_from_the_very_first_run(tmp_path: Path) -> None:
 
 
 def test_home_never_outgrows_the_allow_list(tmp_path: Path) -> None:
-    ctx = _disclosure_ctx(tmp_path, sessions=500, activities=3)
+    ctx = _disclosure_ctx(tmp_path, sessions=500, activities=3, show_everything=False)
     assert len(_home_names(ctx)) == 4  # three activities plus All done
 
 
@@ -1097,8 +1155,10 @@ def test_show_everything_hands_over_the_whole_grid_at_once(tmp_path: Path) -> No
 
 def test_the_revealed_tiles_are_the_first_ones_by_order(tmp_path: Path) -> None:
     """The parent's `order` decides what a child meets first, not chance."""
-    ctx = _disclosure_ctx(tmp_path, sessions=0, activities=10)
-    assert _home_names(ctx)[:-1] == [f"A{index}" for index in range(5)]
+    ctx = _disclosure_ctx(tmp_path, sessions=0, activities=10, show_everything=False)
+    assert [name for name in _home_names(ctx) if name != ALL_DONE_NAME] == [
+        f"A{index}" for index in range(5)
+    ]
 
 
 def _disclosure_ctx(
@@ -1426,6 +1486,8 @@ def test_the_fallback_is_v0_1_4_rather_than_a_screen_with_no_way_out(tmp_path: P
 def test_the_ending_offer_never_covers_a_child_s_drawing(tmp_path: Path) -> None:
     """CCI audit 02 #4. Inside an activity the offer is two buttons in the band
     and the child stays exactly where they were."""
+    from kidnix_shell.ritual import OfferAnswer
+
     window = build_window(tmp_path)
     try:
         _start_an_activity(window)
@@ -1435,18 +1497,24 @@ def test_the_ending_offer_never_covers_a_child_s_drawing(tmp_path: Path) -> None
         assert window.band.offer_mode is True
         assert window.band.finish_this.get_visible() is True
         assert window.band.one_more.get_visible() is True
-        # The two they replace are the two that stood down, and nothing else
-        # in the band moved.
-        assert window.band.undo.get_visible() is False
-        assert window.band.my_things.get_visible() is False
+        # **They are added, not swapped in** (panel ruling, 2026-08-23; forum
+        # #55, #57, #61): the visual timetable adds the "tidy up" card, it
+        # never takes a card away to make room, and the band must not change
+        # furniture at the one moment a child is being asked to stop.
+        assert window.band.undo.get_visible() is True
+        assert window.band.my_things.get_visible() is True
         assert window.band.back.get_visible() is True
         assert window.band.ear.get_visible() is True
+        # And there is an event to notice: the reserved highlight, for 3 s.
+        assert window.band.finish_this.has_css_class("kid-new")
 
-        window.dismiss_offer(False)
+        window.dismiss_offer(OfferAnswer.FINISH_THIS)
         assert window.band.offer_mode is False
         assert window.band.undo.get_visible() is True
         assert window.band.finish_this.get_visible() is False
         assert window.session.offer_answered is True
+        # And the answer was consequential: put-away moved.
+        assert window.session.put_away_deferred is True
     finally:
         window.shutdown()
 
@@ -1513,7 +1581,13 @@ def test_the_band_window_goes_dark_rather_than_away_on_sleeping(tmp_path: Path) 
         window.machine.try_fire(Event.GOODNIGHT)
         assert _state(window) is State.SLEEPING
         assert window.band.get_visible() is False
-        assert window.band_window.has_css_class("sleeping")
+        # Daytime is "resting"; the demo policy's bedtime is 23:59-00:00, so
+        # this is the warm vocabulary rather than the night one (forum #17).
+        dim = "sleeping" if window.session.policy.is_bedtime(datetime.now()) else "resting"
+        assert window.band_window.has_css_class(dim)
+        # And the *content* window takes it too: a class on a centred box paints
+        # a small dark rectangle on full-brightness cream (forum #36, #38).
+        assert window.has_css_class(dim)
         assert window.band_window.get_content() is window.band  # still mapped
     finally:
         window.shutdown()

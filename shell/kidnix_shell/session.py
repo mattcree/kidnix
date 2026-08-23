@@ -43,6 +43,56 @@ class StartRefusal(Enum):
 MIN_SESSION_MINUTES = 10
 MAX_SESSION_MINUTES = 45
 
+# --- the session floor (panel ruling, 2026-08-23) ------------------------
+#
+# ``start()`` used to do ``granted = min(wanted, budget_remaining)`` with no
+# floor, and ``may_start()`` refused only when the budget was *exactly* spent.
+# So the third sitting of a 60-minute day was ten minutes, and a well-meant
+# "+5" on a spent day produced a two-minute sitting that **began in
+# Phase.PUT_AWAY** -- the child answered "What's next after?" with a plan and
+# was told "Let's keep that" over nothing ninety seconds later. Two reviewers
+# found it independently (forum #14, #15) and a parent named the mechanism
+# from the other side (#59: "do not let me give a grant that is too short to
+# be a session").
+#
+# So: below the floor there is no session. The refusal lands at Who's here,
+# **before** the child has invested a plan, and the grown-up sheet refuses a
+# sub-floor grant in words with the minimum named.
+
+#: A sitting shorter than this is not a sitting, it is an ending.
+MIN_SESSION_SECONDS = 5 * 60
+#: The floor on the parent-configurable floor. A parent may go down to three
+#: minutes; below that the ritual itself does not fit inside the session.
+MIN_SESSION_FLOOR_SECONDS = 3 * 60
+
+# --- the ending windows are proportional (panel ruling, 2026-08-23) ------
+#
+# They were absolute: T-6 and T-2 whatever the sitting was. At the fifteen
+# minutes CHILD-TEST-PROTOCOL specifies that is 40% of the sitting spent in
+# "the sun is going down"; at ten minutes it is 60%. Worse, the *rate* of the
+# sun changed silently between sittings, so a child who had spent three weeks
+# learning to read it was misled on exactly the sittings that matter most
+# (forum #33). Both windows are now a fraction of what was actually granted,
+# with a floor and a ceiling, and the ritual keeps its two beats.
+
+#: Fraction of the granted sitting spent in the ending offer window.
+OFFER_FRACTION = 0.20
+OFFER_MIN_SECONDS = 2 * 60
+OFFER_MAX_SECONDS = 4 * 60
+#: Fraction of the granted sitting spent putting things away.
+PUT_AWAY_FRACTION = 0.10
+PUT_AWAY_MIN_SECONDS = 60
+PUT_AWAY_MAX_SECONDS = 2 * 60
+
+#: "Finish this one" holds put-away to one beat before the hard stop -- T-1.
+#: The deferral may never bring the ending *forward*, which is what the
+#: ``min()`` in :meth:`SessionPolicy.put_away_seconds` guarantees.
+DEFERRED_PUT_AWAY_SECONDS = 60
+
+
+def _clamp(value: float, low: int, high: int) -> int:
+    return int(max(low, min(high, value)))
+
 
 @dataclass(frozen=True)
 class SessionPolicy:
@@ -50,20 +100,29 @@ class SessionPolicy:
 
     length: int = 25 * 60
     daily_budget: int = 60 * 60
-    ending_offer_at: int = 6 * 60  # seconds *before* the end
-    put_away_at: int = 2 * 60  # seconds before the end
+    #: **Historical, and only a ceiling now.** The ending offer's window is
+    #: computed from what was actually granted
+    #: (:meth:`offer_seconds`); this is the largest it may ever be, so a parent
+    #: who writes ``ending_offer_minutes = 3`` still gets three.
+    ending_offer_at: int = OFFER_MAX_SECONDS  # seconds *before* the end
+    put_away_at: int = PUT_AWAY_MAX_SECONDS  # seconds before the end
     bedtime_start: time = time(19, 0)
     bedtime_end: time = time(7, 0)
+    #: No session is granted below this (panel ruling, 2026-08-23).
+    min_session: int = MIN_SESSION_SECONDS
+    offer_min: int = OFFER_MIN_SECONDS
+    put_away_min: int = PUT_AWAY_MIN_SECONDS
 
     @classmethod
     def from_minutes(
         cls,
         length: float = 25,
         daily_budget: float = 60,
-        ending_offer_at: float = 6,
-        put_away_at: float = 2,
+        ending_offer_at: float = OFFER_MAX_SECONDS / 60,
+        put_away_at: float = PUT_AWAY_MAX_SECONDS / 60,
         bedtime_start: time = time(19, 0),
         bedtime_end: time = time(7, 0),
+        min_session: float = MIN_SESSION_SECONDS / 60,
     ) -> SessionPolicy:
         return cls(
             length=int(length * 60),
@@ -72,11 +131,17 @@ class SessionPolicy:
             put_away_at=int(put_away_at * 60),
             bedtime_start=bedtime_start,
             bedtime_end=bedtime_end,
+            min_session=int(min_session * 60),
         )
 
     @classmethod
     def demo(cls) -> SessionPolicy:
-        """--demo: a 3-minute session so the whole ritual fits in a CI run."""
+        """--demo: a 3-minute session so the whole ritual fits in a CI run.
+
+        The floor and the window caps scale with it, because the demo is the
+        one place where a three-minute sitting is a legitimate session rather
+        than the stub the floor exists to refuse.
+        """
         return cls(
             length=180,
             daily_budget=60 * 60,
@@ -84,11 +149,46 @@ class SessionPolicy:
             put_away_at=20,
             bedtime_start=time(23, 59),
             bedtime_end=time(0, 0),
+            min_session=60,
+            offer_min=60,
+            put_away_min=15,
         )
 
     def with_length_minutes(self, minutes: float) -> SessionPolicy:
         clamped = max(MIN_SESSION_MINUTES, min(MAX_SESSION_MINUTES, minutes))
         return replace(self, length=int(clamped * 60))
+
+    # -- the two ending windows, as a proportion of what was granted --
+
+    def offer_seconds(self, granted: int) -> int:
+        """How long before the hard stop the ending offer arrives.
+
+        Proportional, clamped both ways, and then held strictly under half the
+        sitting: a session must never open into its own ending, whatever a
+        hand-edited ``session.toml`` says. ``tests/test_session.py`` asserts
+        ``offer < granted / 2`` across every reachable grant.
+        """
+        if granted <= 0:
+            return 0
+        window = _clamp(granted * OFFER_FRACTION, self.offer_min, self.ending_offer_at)
+        return min(window, max(0, (granted - 1) // 2))
+
+    def put_away_seconds(self, granted: int, *, deferred: bool = False) -> int:
+        """How long before the hard stop the shell asks for things to be put away.
+
+        ``deferred`` is "Finish this one" (spec S5, re-ruled 2026-08-23): the
+        child keeps the activity until one beat before the hard stop. The
+        ``min()`` is what makes the promise safe -- a deferral can only ever
+        move put-away *later*, never earlier.
+        """
+        if granted <= 0:
+            return 0
+        window = _clamp(granted * PUT_AWAY_FRACTION, self.put_away_min, self.put_away_at)
+        offer = self.offer_seconds(granted)
+        window = min(window, max(0, offer - 1))  # two beats, never one
+        if deferred:
+            window = min(window, max(1, min(DEFERRED_PUT_AWAY_SECONDS, self.put_away_min)))
+        return window
 
     def is_bedtime(self, when: datetime) -> bool:
         """Bedtime windows wrap midnight (19:00-07:00 is the default)."""
@@ -145,6 +245,17 @@ def load_policy(path: Path | None) -> SessionPolicy:
             log.warning("session config %s: %s=%r is not HH:MM", path, key, value)
             return fallback
 
+    # The floor is parent-configurable *downwards to three minutes only*: below
+    # that the two-beat ritual does not fit inside the session it is ending.
+    floor = max(MIN_SESSION_FLOOR_SECONDS, minutes("min_session_minutes", default.min_session))
+    if floor != minutes("min_session_minutes", default.min_session):
+        log.warning(
+            "session config %s: min_session_minutes is below the %d-minute floor; using %d",
+            path,
+            MIN_SESSION_FLOOR_SECONDS // 60,
+            floor // 60,
+        )
+
     return SessionPolicy(
         length=minutes("length_minutes", default.length),
         daily_budget=minutes("daily_budget_minutes", default.daily_budget),
@@ -152,6 +263,7 @@ def load_policy(path: Path | None) -> SessionPolicy:
         put_away_at=minutes("put_away_minutes", default.put_away_at),
         bedtime_start=clock("bedtime_start", default.bedtime_start),
         bedtime_end=clock("bedtime_end", default.bedtime_end),
+        min_session=floor,
     )
 
 
@@ -249,6 +361,9 @@ class Session:
     granted: int = 0
     _ended: bool = False
     _offer_answered: bool = False
+    #: "Finish this one" was chosen: put-away is held to one beat before the
+    #: hard stop, which is what makes the sentence the shell said true.
+    _put_away_deferred: bool = False
 
     # -- lifecycle --
 
@@ -259,21 +374,45 @@ class Session:
         self.usage.roll(budget_day(now))
         if self.policy.is_bedtime(now):
             return StartRefusal.BEDTIME
-        if self.usage.remaining(self.policy.daily_budget) <= 0:
+        # The floor, not zero (panel ruling, 2026-08-23). Four minutes left of
+        # the day is not a short session, it is a session that opens into its
+        # own ending -- so the answer is a warm no at the door.
+        if self.usage.remaining(self.policy.daily_budget) < self.policy.min_session:
             return StartRefusal.BUDGET_SPENT
         return StartRefusal.OK
 
     def start(self, now: datetime, length: int | None = None) -> bool:
-        """Begin. Returns False if policy refuses (bedtime / budget spent)."""
+        """Begin. Returns False if policy refuses (bedtime / budget spent).
+
+        The grant is never below :attr:`SessionPolicy.min_session`: ``may_start``
+        has already established that the budget can afford the floor, so a
+        ``length`` shorter than it is raised rather than honoured. A grown-up
+        who wants a three-minute sitting is refused in the sheet, in words.
+        """
         self.usage.roll(budget_day(now))
         if self.may_start(now) is not StartRefusal.OK:
             return False
         wanted = self.policy.length if length is None else length
-        self.granted = min(wanted, self.usage.remaining(self.policy.daily_budget))
+        remaining = self.usage.remaining(self.policy.daily_budget)
+        granted = min(wanted, remaining)
+        if granted < self.policy.min_session:
+            granted = min(self.policy.min_session, remaining)
+            log.info(
+                "asked for %d s; the floor is %d s, so that is what was granted",
+                wanted,
+                granted,
+            )
+        self.granted = granted
         self.started_at = now
         self._ended = False
         self._offer_answered = False
-        log.info("session started for %d s (budget leaves %d s)", self.granted, wanted)
+        self._put_away_deferred = False
+        log.info(
+            "session started for %d s (offer at T-%d s, put away at T-%d s)",
+            self.granted,
+            self.offer_at,
+            self.put_away_at,
+        )
         return True
 
     def end(self, now: datetime) -> None:
@@ -285,24 +424,44 @@ class Session:
         self.started_at = None
         self.granted = 0
         self._offer_answered = False
+        self._put_away_deferred = False
+
+    def may_add(self, minutes: int, now: datetime) -> int:
+        """Seconds a ``+N`` grant would actually add, or 0 if it is refused.
+
+        Pure: the sheet asks this *before* granting so it can say no in words
+        with the minimum named (forum #59, #60). A grant the daily budget
+        truncates below the session floor is refused whole rather than
+        half-given -- "+5" that buys two minutes is the arithmetic that broke
+        Priya's Tuesday afternoon.
+        """
+        if self.started_at is None:
+            return 0
+        wanted = max(0, minutes) * 60
+        headroom = self.usage.remaining(self.policy.daily_budget) - self.granted
+        added = max(0, min(wanted, max(0, headroom)))
+        if added < wanted and added < self.policy.min_session:
+            return 0
+        return added
 
     def add_minutes(self, minutes: int, now: datetime) -> int:
         """Grown-up grant (+5/+15/+30). Returns the seconds actually added.
 
         A grant is still bounded by the daily budget -- the parent raises the
-        budget from the sheet if they want more than that.
+        budget from the sheet if they want more than that -- and a grant the
+        budget would cut below the floor is refused rather than truncated
+        (:meth:`may_add`).
         """
         if self.started_at is None:
             return 0
         spent = int((now - self.started_at).total_seconds())
-        headroom = self.usage.remaining(self.policy.daily_budget) - self.granted
-        added = max(0, min(minutes * 60, max(0, headroom)))
+        added = self.may_add(minutes, now)
         self.granted += added
         if added and self.phase(now) is Phase.ENDED:
             # A grant during Goodbye reopens the session rather than stranding
             # the child on the ending screen.
             self._ended = False
-        if added and self.remaining(now) > self.policy.ending_offer_at:
+        if added and self.remaining(now) > self.offer_at:
             # The hard stop moved: there is a *new* T-6 coming, so the offer is
             # armed again. A grant too small to clear the offer window leaves
             # the latch alone -- re-asking inside the same warning would be the
@@ -318,11 +477,40 @@ class Session:
         """Has the child already answered this session's ending offer?"""
         return self._offer_answered
 
-    def answer_offer(self) -> None:
-        """Record that the offer was answered. Idempotent."""
+    def answer_offer(self, *, defer_put_away: bool = False) -> None:
+        """Record that the offer was answered. Idempotent.
+
+        ``defer_put_away`` is "Finish this one" (panel ruling, 2026-08-23).
+        Until it existed both answers did the same thing to the machine, so
+        the choice was theatre and the sentence "finish this one" was a promise
+        the clock did not keep (forum #20, #29). Now the answer moves put-away
+        to one beat before the hard stop, and the words say so.
+        """
         if not self._offer_answered:
             log.info("the ending offer was answered; not asking again this session")
         self._offer_answered = True
+        if defer_put_away and not self._put_away_deferred:
+            self._put_away_deferred = True
+            log.info(
+                "put-away deferred to T-%d s: the child said they would finish this one",
+                self.put_away_at,
+            )
+
+    @property
+    def put_away_deferred(self) -> bool:
+        return self._put_away_deferred
+
+    # -- the two windows, for this sitting --
+
+    @property
+    def offer_at(self) -> int:
+        """Seconds before the hard stop that the ending offer arrives."""
+        return self.policy.offer_seconds(self.granted)
+
+    @property
+    def put_away_at(self) -> int:
+        """Seconds before the hard stop that put-away arrives, this sitting."""
+        return self.policy.put_away_seconds(self.granted, deferred=self._put_away_deferred)
 
     # -- state --
 
@@ -352,15 +540,30 @@ class Session:
         left = self.remaining(now)
         if left <= 0:
             return Phase.ENDED
-        if left <= self.policy.put_away_at:
+        if left <= self.put_away_at:
             return Phase.PUT_AWAY
-        if left <= self.policy.ending_offer_at:
+        if left <= self.offer_at:
             return Phase.ENDING_OFFER
         return Phase.RUNNING
 
     def is_warm(self, now: datetime) -> bool:
-        """Spec section 2: the sun warms in the last six minutes."""
-        return self.running and self.remaining(now) <= self.policy.ending_offer_at
+        """Spec section 2: the sun warms over the ending window."""
+        return self.running and self.remaining(now) <= self.offer_at
+
+    # -- when the machine is next allowed to open (spec 7a) --
+
+    def next_allowed(self, now: datetime) -> datetime:
+        """The next moment a session could start. Drives the Resting line.
+
+        Two gates, and the later of them wins: the bedtime window has to be
+        over *and* there has to be a budget again. A child who is told the
+        computer is asleep and cannot tell whether it comes back after tea,
+        tomorrow or never is the condition D2 exists to stop (forum #31).
+        """
+        when = self.policy.next_wake(now)
+        if self.usage.remaining(self.policy.daily_budget) < self.policy.min_session:
+            when = max(when, next_budget_reset(now))
+        return when
 
     def fraction_left(self, now: datetime) -> float:
         """1.0 at the start, 0.0 at the hard stop. What the sun *says*."""

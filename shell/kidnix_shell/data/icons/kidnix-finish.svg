@@ -1,10 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <title>Finish this one</title>
-  <!-- The sun going down behind the horizon: the same picture the ending
-       offer screen shows, so the band and the screen say one thing. It is a
-       state, not a warning (08 section 4.6) – warm, never red, never a cross. -->
-  <circle cx="32" cy="34" r="16" fill="#f9a825" stroke="#16181d" stroke-width="3.5"/>
-  <path d="M6 42 H58" stroke="#16181d" stroke-width="5" stroke-linecap="round"/>
-  <path d="M32 50 V58 M18 47 L14 54 M46 47 L50 54" stroke="#16181d"
-        stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <!-- **One sun drawing, everywhere** (panel ruling, 2026-08-23). The band
+       draws a disc sinking behind a horizon; S5 used to draw a bright midday
+       sun with rays; this drew a third thing with rays below the line. Three
+       metaphors for one state, on screens a child sees inside four minutes.
+
+       So this is the band's own geometry, at rest near the end of a sitting:
+       the faint outline is where the sun started and how big it was (which is
+       what makes the shrinking legible as a loss of quantity rather than as a
+       picture that happens to be small today), the disc is clipped at the
+       horizon so sinking is sinking, and the line sits on top. Warm, never
+       red, never pulsing, no rays, no cross (08 section 4.6). -->
+  <defs>
+    <clipPath id="above-the-horizon">
+      <rect x="0" y="0" width="64" height="46"/>
+    </clipPath>
+  </defs>
+  <circle cx="32" cy="20" r="15" fill="none" stroke="#16181d" stroke-width="2"
+          stroke-opacity="0.28"/>
+  <g clip-path="url(#above-the-horizon)">
+    <circle cx="32" cy="43" r="10" fill="#f9a825" stroke="#16181d" stroke-width="3.5"/>
+  </g>
+  <path d="M6 46 H58" stroke="#16181d" stroke-width="5" stroke-linecap="round"/>
 </svg>

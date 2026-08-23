@@ -17,9 +17,37 @@ length_minutes = 25
 # Ceiling across the whole day, reset at 04:00 local.
 daily_budget_minutes = 60
 
-# The ending ritual, in minutes *before* the end of the session.
+# THE SHORTEST SITTING THERE IS.
+#
+# Below this the shell does not start a session at all: "Who's here?" answers
+# with a warm no ("That's all the computer time for today. Ready to go and
+# play?") and the grown-up sheet refuses a sub-minimum grant in words, naming
+# this number.
+#
+# It exists because until 2026-08-23 a session was granted whatever was left --
+# so the third sitting of a 60-minute day was ten minutes, and a well-meant
+# "+5" on a spent day produced a two-minute sitting that BEGAN inside its own
+# put-away: the child answered "What's next after?" with a plan and was told
+# "Let's keep that" over nothing ninety seconds later. Better a warm no at the
+# door than a broken promise ninety seconds in.
+#
+# The floor on this floor is 3 minutes; anything lower is raised to it with a
+# warning, because the two-beat ending ritual does not fit inside less.
+min_session_minutes = 5
+
+# THE ENDING RITUAL. Both numbers are CEILINGS, not fixed points.
+#
+# The two windows are a proportion of what was actually granted -- 20% for the
+# ending offer and 10% for put-away -- clamped to 2-4 minutes and 1-2 minutes
+# respectively. Fixed windows meant the ending was a quarter of a 25-minute
+# sitting, 40% of a 15-minute one and 60% of a 10-minute one; worse, the sun
+# changed its rate between sittings, so a child who had spent three weeks
+# learning to read it was misled on exactly the sittings that matter most.
+#
+# Lower these to shorten the ending; the floors (2 min and 1 min) are not
+# configurable, because a ritual with no room in it is not a ritual.
 # S5 "would you like to finish this?" then S6 "put your things away".
-ending_offer_minutes = 6
+ending_offer_minutes = 4
 put_away_minutes = 2
 
 # Outside this window the shell shows the Sleeping screen (S8) instead of

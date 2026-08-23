@@ -242,7 +242,13 @@ def test_the_reserved_highlight_never_travels_without_an_edge() -> None:
 
 
 def test_the_highlight_is_still_the_only_reserved_colour() -> None:
-    """One colour, three uses, all of them "the thing you can touch now"."""
+    """One colour, a handful of uses, all of them "the thing you can touch now".
+
+    ``.band button.offer.kid-new`` is the newest, and it is the most literal:
+    three seconds of ring on the two ending choices as they arrive in the band,
+    which is the one moment in the product that is exactly what the reserved
+    colour is reserved for (08 section 3.4, forum #55).
+    """
     body = css()
     users = re.findall(r"([^{}]*)\{[^{}]*@kid-highlight[^{}]*\}", body)
     names = {name for group in users for name in selectors_of(group)}
@@ -252,6 +258,7 @@ def test_the_highlight_is_still_the_only_reserved_colour() -> None:
         "button:focus-visible",
         ".tile:focus-visible",
         ".hold-progress progress",
+        ".band button.offer.kid-new",
     }
 
 

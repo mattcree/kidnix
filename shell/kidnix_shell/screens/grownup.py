@@ -21,7 +21,8 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from ..context import ShellContext  # noqa: E402
-from ..session import MAX_SESSION_MINUTES, MIN_SESSION_MINUTES  # noqa: E402
+from ..session import MAX_SESSION_MINUTES, MIN_SESSION_MINUTES, StartRefusal  # noqa: E402
+from ..settings import rewrite_pin  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +34,43 @@ READ_ONLY_SUBTITLE = (
     "Kept for this boot only: /etc/kidnix/parent.toml is root-owned, "
     "which is what keeps the PIN out of the child's hands."
 )
+
+#: The row that has to appear on every unconfigured machine, and did not.
+#: ``is_default`` was false on a stock install because the shipped file *has* a
+#: pin_hash -- so the warning was suppressed by the very file that left the
+#: gate open (forum #44, #56). It is keyed off the hash now
+#: (:attr:`ParentConfig.pin_is_starter`).
+STARTER_PIN_TITLE = "This machine still has the starter PIN -- set your own"
+STARTER_PIN_SUBTITLE = (
+    "1234 is written down in the documentation and is the same on every install. "
+    "A six-year-old watching you type four buttons in a row has the gate."
+)
+
+#: What to tell a grown-up when the config is root-owned, which on a real
+#: machine it always is. A real command, runnable as it stands: the shell is
+#: its own root helper (``kidnix-shell --set-pin``). Never a pretend save.
+SET_PIN_COMMAND = "sudo kidnix-shell --set-pin"
+SET_PIN_READ_ONLY = (
+    "This PIN pad cannot write /etc/kidnix/parent.toml -- the shell runs as the "
+    f"child, and that is what keeps the PIN out of their hands. Run:\n\n    {SET_PIN_COMMAND}\n\n"
+    "on this machine (a terminal, or over SSH) and it will ask you for the new PIN."
+)
+
+
+def grant_refusal(minutes: int, floor_minutes: int, left_minutes: int) -> str:
+    """Why a ``+N`` grant was refused, in words, with the minimum named.
+
+    Pure, and tested headless, because the sentence is the fix: a parent who
+    presses "+5" on a spent day and is silently given two minutes has used the
+    one control they were given to break their child's afternoon, and the child
+    will conclude the machine did it (forum #59, #60).
+    """
+    return (
+        f"Not added. Today's budget has {left_minutes} minute"
+        f"{'' if left_minutes == 1 else 's'} left, and the shortest session is "
+        f"{floor_minutes} minutes. Raise the daily budget in session.toml, or "
+        f"let today finish."
+    )
 
 
 def no_cut(row: Adw.PreferencesRow) -> Adw.PreferencesRow:
@@ -75,6 +113,11 @@ class GrownupSheet(Adw.Dialog):
         self.set_content_height(640)
         self.add_css_class("grownup")
 
+        #: Set while the pad is being used to *choose* a PIN rather than to
+        #: check one: the first entry, then the confirmation.
+        self._new_pin: str | None = None
+        self._setting_pin = False
+
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
         self._stack.add_named(self._pin_page(), "pin")
@@ -99,11 +142,11 @@ class GrownupSheet(Adw.Dialog):
         box.set_margin_end(24)
         box.set_valign(Gtk.Align.CENTER)
 
-        title = Gtk.Label(label="Enter the grown-up PIN")
-        title.add_css_class("title")
-        title.set_wrap(True)
-        title.set_justify(Gtk.Justification.CENTER)
-        box.append(title)
+        self._pin_title = Gtk.Label(label="Enter the grown-up PIN")
+        self._pin_title.add_css_class("title")
+        self._pin_title.set_wrap(True)
+        self._pin_title.set_justify(Gtk.Justification.CENTER)
+        box.append(self._pin_title)
 
         self._display = Gtk.Label(label="_ _ _ _")
         self._display.add_css_class("pin-display")
@@ -125,7 +168,7 @@ class GrownupSheet(Adw.Dialog):
         pad.attach(clear, 0, 3, 1, 1)
         pad.attach(self._digit("0"), 1, 3, 1, 1)
         cancel = wrapping_button("Cancel")
-        cancel.connect("clicked", lambda _b: self.close())
+        cancel.connect("clicked", lambda _b: self._cancel_pin())
         pad.attach(cancel, 2, 3, 1, 1)
         box.append(pad)
 
@@ -160,11 +203,96 @@ class GrownupSheet(Adw.Dialog):
             " ".join("*" * len(self._pin) + "_" * (PIN_LENGTH - len(self._pin)))
         )
         if len(self._pin) == PIN_LENGTH:
-            self._check()
+            self._check_setting() if self._setting_pin else self._check()
 
     def _reset_pin(self) -> None:
         self._pin = ""
         self._display.set_label("_ _ _ _")
+
+    def _cancel_pin(self) -> None:
+        """Cancel closes the sheet -- unless a PIN is being chosen."""
+        if self._setting_pin:
+            self._end_setting_pin()
+            self._stack.set_visible_child_name("actions")
+            return
+        self.close()
+
+    # -- choosing a new PIN (panel ruling, 2026-08-23) --
+
+    def _begin_setting_pin(self) -> None:
+        """Use the pad to *choose* a PIN: once, then again to confirm.
+
+        The flow exists because Mags (forum #13, #56) has no way to change hers
+        without someone technical, and because 1234 is "the first four buttons
+        in a row" to a six-year-old who watches her type. Whether it can
+        actually be saved is a separate question, answered honestly in
+        :meth:`_finish_setting_pin`.
+        """
+        self._setting_pin = True
+        self._new_pin = None
+        self._reset_pin()
+        self._error.set_label("")
+        self._pin_title.set_label("Choose a new grown-up PIN")
+        self._stack.set_visible_child_name("pin")
+
+    def _end_setting_pin(self) -> None:
+        self._setting_pin = False
+        self._new_pin = None
+        self._reset_pin()
+        self._pin_title.set_label("Enter the grown-up PIN")
+
+    def _check_setting(self) -> None:
+        entered, self._pin = self._pin, ""
+        self._reset_pin()
+        if self._new_pin is None:
+            self._new_pin = entered
+            self._pin_title.set_label("Type it again")
+            self._error.set_label("")
+            return
+        if entered != self._new_pin:
+            self._new_pin = None
+            self._pin_title.set_label("Choose a new grown-up PIN")
+            self._error.set_label("Those two did not match. Start again.")
+            return
+        self._finish_setting_pin(entered)
+
+    def _finish_setting_pin(self, pin: str) -> None:
+        """Write it if we can, and say the command to run if we cannot.
+
+        **Never pretend.** A sheet that said "saved" while the file stayed
+        root-owned would leave a parent believing they had a lock they do not
+        have, which is the exact failure the starter-PIN row exists to end.
+        """
+        config = self.ctx.config
+        target = config.writable_path
+        if target is None:
+            self._end_setting_pin()
+            self._pin_error_row(SET_PIN_READ_ONLY)
+            self._stack.set_visible_child_name("actions")
+            return
+        try:
+            rewrite_pin(target, pin)
+        except OSError as exc:
+            log.warning("could not write the new PIN to %s: %s", target, exc)
+            self._end_setting_pin()
+            self._pin_error_row(f"Could not write {target}: {exc}\n\nRun {SET_PIN_COMMAND}.")
+            self._stack.set_visible_child_name("actions")
+            return
+        config.set_pin(pin)
+        config.is_default = False
+        log.info("the grown-up PIN was changed from the sheet")
+        self._end_setting_pin()
+        self._pin_error_row(f"New PIN saved to {target}.", warn=False)
+        self._refresh_pin_rows()
+        self._stack.set_visible_child_name("actions")
+
+    def _pin_error_row(self, text: str, *, warn: bool = True) -> None:
+        self._pin_message.set_title(text)
+        self._pin_message.set_visible(True)
+        if warn:
+            self._pin_message.add_css_class("pin-error")
+        else:
+            self._pin_message.remove_css_class("pin-error")
 
     def _check(self) -> None:
         """One attempt. Free, un-penalised, unvoiced, and logged (G2).
@@ -215,7 +343,16 @@ class GrownupSheet(Adw.Dialog):
         start.set_activatable_widget(start_button)
         session_group.add(start)
 
-        grants = no_cut(Adw.ActionRow(title="Add time", subtitle="Bounded by today's budget"))
+        grants = no_cut(
+            Adw.ActionRow(
+                title="Add time",
+                subtitle=(
+                    "Bounded by today's budget. A grant the budget would cut below the "
+                    "minimum session is refused rather than half-given."
+                ),
+            )
+        )
+        self._grants_row = grants
         grant_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         grant_box.set_valign(Gtk.Align.CENTER)
         for minutes in GRANTS:
@@ -249,18 +386,32 @@ class GrownupSheet(Adw.Dialog):
         self._length_row = length
         settings_group.add(length)
 
-        if self.ctx.config.is_default:
-            warning = no_cut(
-                Adw.ActionRow(
-                    title="This machine has no parent config",
-                    subtitle=(
-                        "The gate is on the development PIN 1234 and every activity is "
-                        "allowed. Write /etc/kidnix/parent.toml as root to fix that."
-                    ),
-                )
+        # The gate's own state, told plainly, on every machine that still has
+        # the shipped PIN -- not only on the ones with no config at all.
+        self._starter_row = no_cut(
+            Adw.ActionRow(title=STARTER_PIN_TITLE, subtitle=STARTER_PIN_SUBTITLE)
+        )
+        self._starter_row.add_css_class("pin-error")
+        settings_group.add(self._starter_row)
+
+        set_pin = no_cut(
+            Adw.ActionRow(
+                title="Set the grown-up PIN",
+                subtitle="Type a new four-digit PIN twice. Somewhere they are not looking.",
             )
-            warning.add_css_class("pin-error")
-            settings_group.add(warning)
+        )
+        set_pin_button = wrapping_button("Set PIN")
+        set_pin_button.set_valign(Gtk.Align.CENTER)
+        set_pin_button.connect("clicked", lambda _b: self._begin_setting_pin())
+        set_pin.add_suffix(set_pin_button)
+        set_pin.set_activatable_widget(set_pin_button)
+        settings_group.add(set_pin)
+
+        #: Where a refused grant, or the outcome of a PIN change, is written.
+        #: An adult surface says things in words; that is what it is for.
+        self._pin_message = no_cut(Adw.ActionRow(title=""))
+        self._pin_message.set_visible(False)
+        settings_group.add(self._pin_message)
 
         panel = no_cut(
             Adw.ActionRow(
@@ -297,13 +448,39 @@ class GrownupSheet(Adw.Dialog):
         spent = session.usage.seconds // 60
         budget = session.policy.daily_budget // 60
         self._status.set_title(f"Used {spent} of {budget} minutes today")
+        self._refresh_pin_rows()
+
+    def _refresh_pin_rows(self) -> None:
+        self._starter_row.set_visible(self.ctx.config.pin_is_starter)
 
     def _start(self) -> None:
+        session = self.ctx.session
+        now = datetime.now()
+        if session.may_start(now) is not StartRefusal.OK and not session.running:
+            floor = session.policy.min_session // 60
+            left = session.usage.remaining(session.policy.daily_budget) // 60
+            self._pin_error_row(grant_refusal(0, floor, left))
+            self._refresh_actions()
+            return
         self.ctx.host.start_session(self.ctx.config.default_session_minutes)
         self.close()
 
     def _grant(self, minutes: int) -> None:
-        self.ctx.host.add_minutes(minutes)
+        """+5/+15/+30 -- and a refusal is a sentence, not a silent truncation."""
+        session = self.ctx.session
+        now = datetime.now()
+        if session.running and session.may_add(minutes, now) <= 0:
+            floor = session.policy.min_session // 60
+            left = max(
+                0,
+                (session.usage.remaining(session.policy.daily_budget) - session.granted) // 60,
+            )
+            self._pin_error_row(grant_refusal(minutes, floor, left))
+            self._refresh_actions()
+            return
+        added = self.ctx.host.add_minutes(minutes)
+        if added:
+            self._pin_message.set_visible(False)
         self._refresh_actions()
 
     def _end(self) -> None:

@@ -62,6 +62,23 @@ HOLD_TICK_MS = 50
 #: :class:`BandActions` and the icon are both still here.
 SHOW_ASK = False
 
+#: How long the two offer buttons take to arrive (panel ruling, 2026-08-23).
+#: They used to appear with no motion, no colour change and no highlight, in
+#: the slots Undo and My Things had been in a moment earlier -- "a five-year-old
+#: looking at their drawing has no event to notice" (forum #55).
+OFFER_SCALE_IN_MS = 350
+#: And how long they wear the reserved highlight. 08 section 3.4 keeps
+#: ``@kid-highlight`` for "the thing you can touch right now"; this is the one
+#: moment in the product that is literally that.
+OFFER_HIGHLIGHT_SECONDS = 3
+#: Where the fade starts. Not zero, so that even a shell whose frame clock has
+#: stalled shows *something* where the two choices are.
+OFFER_ARRIVE_FROM_OPACITY = 0.25
+#: And how small the picture starts. A scale-in of the icon, not of the button:
+#: the band must not change width under a child's hand.
+OFFER_ARRIVE_FROM_SCALE = 0.55
+OFFER_FADE_STEPS = 14
+
 
 @dataclass
 class BandActions:
@@ -100,13 +117,18 @@ class Sun(Gtk.DrawingArea):
     than as a picture that happens to be small today.
     """
 
-    def __init__(self, metrics: Metrics) -> None:
+    def __init__(self, metrics: Metrics, height: int | None = None) -> None:
         super().__init__()
         self._metrics = metrics
         self.fraction = 0.0  # 0 = start of session, 1 = the hard stop
         self.warm = False
         self.set_hexpand(True)
-        self.set_content_height(max(24, metrics.band_height - BAND_CHROME_PX))
+        # ``height`` is for the S5 screen, which draws the *same* sun rather
+        # than a second picture of one (panel ruling, 2026-08-23: one sun
+        # drawing everywhere -- the band drew a disc sinking behind a horizon,
+        # S5 drew a bright midday sun with rays, and kidnix-finish.svg drew a
+        # third, on screens the child sees within four minutes; forum #45).
+        self.set_content_height(height or max(24, metrics.band_height - BAND_CHROME_PX))
         self.set_draw_func(self._draw)
         # The drawing itself is decorative; the button around it (Band.sun_button)
         # carries the accessible name and the sentence a tap speaks.
@@ -278,11 +300,10 @@ class Band(Gtk.Box):
             "My Things", "kidnix-my-things", target, icon_px, actions.on_my_things, speech_ui
         )
         # The ending offer, when the child is inside an activity and there is no
-        # shell surface to put it on (v0.1.5). They are built here, at exactly
-        # the size and position Undo and My Things occupy, and swapped in for
-        # those two -- so the band never changes width, the sun never moves and
-        # Back and the Ear stay where the child's hand already knows they are.
-        # See :meth:`set_offer_mode`.
+        # shell surface to put it on (v0.1.5). They are built here, in their own
+        # slots **after** Undo and My Things, and they are shown in addition to
+        # them rather than instead of them (panel ruling, 2026-08-23). See
+        # :meth:`set_offer_mode`.
         self.finish_this = self._button(
             "Finish this one",
             "kidnix-finish",
@@ -291,6 +312,7 @@ class Band(Gtk.Box):
             actions.on_finish_this or (lambda: None),
             speech_ui,
         )
+        self._finish_icon = self.finish_this.get_child()
         self.one_more = self._button(
             "One last little thing",
             "kidnix-one-more",
@@ -299,6 +321,7 @@ class Band(Gtk.Box):
             actions.on_one_more or (lambda: None),
             speech_ui,
         )
+        self._one_more_icon = self.one_more.get_child()
         for widget in (self.finish_this, self.one_more):
             widget.add_css_class("offer")
             widget.set_visible(False)
@@ -307,6 +330,10 @@ class Band(Gtk.Box):
         row.set_start_widget(left)
         self._offer_mode = False
         self._finishing = False
+        self._offer_highlight_handle: int | None = None
+        self._offer_fade_handle: int | None = None
+        self._offer_fade_step = 0
+        self._offer_icon_px = icon_px
 
         # Centre: the sun -- and it is a target, not a picture (08 section 4.6).
         self.sun = Sun(metrics)
@@ -401,16 +428,27 @@ class Band(Gtk.Box):
         return self._offer_mode
 
     def set_offer_mode(self, on: bool) -> None:
-        """Swap Undo and My Things for the two ending choices, or back.
+        """**Add** the two ending choices to the band, or take them away again.
 
         This is what makes the offer *not* a fullscreen modal over a child's
-        drawing (CCI audit 02 #4). Two things about the swap are deliberate:
+        drawing (CCI audit 02 #4). Three things about it are deliberate, and
+        the first one is a correction:
 
-        * **Nothing moves.** The two offer buttons are the same size as the two
-          they replace and sit in the same places, so the band does not change
-          width, the sun does not shift, and Back and the Ear stay put. A band
-          that re-flows under a five-year-old's hand at the one moment they are
-          being asked to stop would be the worst possible time for it.
+        * **It adds; it does not replace.** Until 2026-08-23 the two offer
+          buttons were swapped in *for* Undo and My Things, on the argument
+          that nothing then moved. The panel rejected that from three
+          directions at once. An early-years teacher put it best (forum #61):
+          "in class the visual timetable ADDS the 'tidy up' card to a strip
+          that stays put; you never take a card away to make room." A parent
+          said the same from home (#57): "that is a change of the furniture at
+          the exact moment he is already being asked to stop." So Undo and My
+          Things keep their positions, and the offer arrives in two further
+          slots to the right of them.
+        * **There is an event to notice.** They scale in over
+          :data:`OFFER_SCALE_IN_MS` and wear the reserved highlight for
+          :data:`OFFER_HIGHLIGHT_SECONDS`, because a control that simply
+          appears in the corner of a band, to a child whose eyes are on their
+          own drawing, has not appeared at all (forum #55).
         * **They are pictures, not words.** A band button is one square roughly
           20 mm on a side; "One last little thing" cannot be set inside that at
           the 18 pt floor without either cutting it or making the band taller
@@ -419,13 +457,79 @@ class Band(Gtk.Box):
           when the offer appears. Pre-reader-first cuts this way round: the
           audio is the channel that carries the sentence.
 
-        Undo and My Things come back the moment the offer is answered or times
-        out, so the band is only ever in this shape for a few seconds.
+        They go away the moment the offer is answered or times out, so the band
+        is only ever this wide for a few seconds.
         """
         if on == self._offer_mode:
             return
         self._offer_mode = on
         self._show_left()
+        if on:
+            self._announce_offer_buttons()
+        else:
+            self._cancel_offer_highlight()
+
+    def _announce_offer_buttons(self) -> None:
+        """Scale them in, then wear the reserved highlight for three seconds.
+
+        **Both halves are stepped in Python rather than left to a CSS
+        transition**, and that is not a style preference. A CSS transition only
+        advances while frames are being drawn; a shell whose frame clock has
+        stalled -- an offscreen render, a compositor hiccup -- leaves the
+        widget parked at the transition's *starting* value, and a starting
+        value of "invisible" would mean the one control a child needs at the
+        one moment they need it is not on screen. Stepping the icon's size and
+        the button's opacity always ends at full size and full opacity whether
+        or not anybody drew a frame, so the worst case here is an arrival
+        nobody saw animate -- never an arrival that did not happen.
+        """
+        self._cancel_offer_highlight()
+        for widget in (self.finish_this, self.one_more):
+            widget.add_css_class("kid-new")
+            widget.set_opacity(OFFER_ARRIVE_FROM_OPACITY)
+        self._set_offer_scale(OFFER_ARRIVE_FROM_SCALE)
+        self._offer_fade_step = 0
+        self._offer_fade_handle = GLib.timeout_add(
+            max(1, OFFER_SCALE_IN_MS // OFFER_FADE_STEPS), self._offer_fade
+        )
+        self._offer_highlight_handle = GLib.timeout_add_seconds(
+            OFFER_HIGHLIGHT_SECONDS, self._end_offer_highlight
+        )
+
+    def _set_offer_scale(self, scale: float) -> None:
+        """Grow the *picture* rather than the button: the band must not reflow."""
+        for image in (self._finish_icon, self._one_more_icon):
+            image.set_pixel_size(max(1, int(self._offer_icon_px * scale)))
+
+    def _offer_fade(self) -> bool:
+        self._offer_fade_step += 1
+        share = min(1.0, self._offer_fade_step / OFFER_FADE_STEPS)
+        opacity = OFFER_ARRIVE_FROM_OPACITY + (1.0 - OFFER_ARRIVE_FROM_OPACITY) * share
+        for widget in (self.finish_this, self.one_more):
+            widget.set_opacity(opacity)
+        self._set_offer_scale(OFFER_ARRIVE_FROM_SCALE + (1.0 - OFFER_ARRIVE_FROM_SCALE) * share)
+        if share >= 1.0:
+            self._offer_fade_handle = None
+            return False
+        return True
+
+    def _end_offer_highlight(self) -> bool:
+        self._offer_highlight_handle = None
+        for widget in (self.finish_this, self.one_more):
+            widget.remove_css_class("kid-new")
+        return False
+
+    def _cancel_offer_highlight(self) -> None:
+        for name in ("_offer_highlight_handle", "_offer_fade_handle"):
+            handle = getattr(self, name, None)
+            if handle is not None:
+                GLib.source_remove(handle)
+                setattr(self, name, None)
+        for widget in (self.finish_this, self.one_more):
+            widget.remove_css_class("kid-new")
+            # Whatever the animation was doing, the button ends up whole.
+            widget.set_opacity(1.0)
+        self._set_offer_scale(1.0)
 
     # -- put away, in the band (v0.1.6) --
 
@@ -460,13 +564,21 @@ class Band(Gtk.Box):
         if on == self._finishing:
             return
         self._finishing = on
+        if on:
+            self._cancel_offer_highlight()
         self._show_left()
 
     def _show_left(self) -> None:
-        """Who is on the left of the band right now. One rule, one place."""
+        """Who is on the left of the band right now. One rule, one place.
+
+        Undo and My Things are visible whenever the band is in its ordinary
+        shape, **including while the offer is up**: the offer adds two controls,
+        it does not take two away (panel ruling, 2026-08-23). Put away is the
+        one state that clears them, and it clears the offer buttons too --
+        there, for a few seconds, there is exactly one thing to do.
+        """
         offer = self._offer_mode and not self._finishing
-        ordinary = not offer and not self._finishing
         for widget in (self.undo, self.my_things):
-            widget.set_visible(ordinary)
+            widget.set_visible(not self._finishing)
         for widget in (self.finish_this, self.one_more):
             widget.set_visible(offer)

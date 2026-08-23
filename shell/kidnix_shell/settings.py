@@ -42,6 +42,21 @@ from .next_after import DEFAULT_NEXT_AFTER, NextAfter, parse_next_after
 log = logging.getLogger(__name__)
 
 DEFAULT_PIN = "1234"  # spec S9: dev default, replaced by the parent
+
+#: **The PIN the image actually ships**, hashed with the fixed public salt in
+#: ``/usr/share/kidnix/parent.toml``. It is here so the shell can recognise it.
+#:
+#: ``is_default`` was only ever true when *no* ``pin_hash`` was found -- and the
+#: shipped file has one, so on a stock install the "this machine has no parent
+#: config" warning never appeared. "The one signal that the gate is open was
+#: suppressed by the file that opens it" (forum #44), and the grandmother who
+#: raised it put the consequence plainly: "the only way I would ever learn my
+#: lock is not a lock is by reading a file I would never open" (#56).
+#:
+#: hardening.md section 6 already says the rule -- "still 1234 means
+#: unconfigured, never secured". This is that rule, in code.
+STARTER_PIN_SALT = "9f2c1a6d4b8e0357c9d1e2f3a4b5c6d7"
+STARTER_PIN_HASH = "3d6495d0f726f531cef756cad4ee152a662ac68a68782658c75494d91c267f4d"
 #: Spec 7b / 09 section 2: 450 ms, up from v0.1.3's 300 ms, and gated on the
 #: pointer having settled. See :mod:`kidnix_shell.speech`.
 DEFAULT_HOVER_DWELL_MS = 450
@@ -252,7 +267,12 @@ class HomeConfig:
 
     initial_tiles: int = DEFAULT_INITIAL_TILES
     reveal_every_sessions: int = DEFAULT_REVEAL_EVERY_SESSIONS
-    show_everything: bool = False
+    #: **True by default since 2026-08-23.** The argument for growing Home is a
+    #: good one; it is not worth an unannounced new button every fortnight to a
+    #: child who navigates by position and does not experience the schedule
+    #: (forum #9, #26, #40). ``reveal_every_sessions`` now applies only when a
+    #: parent has deliberately set ``show_everything = false``.
+    show_everything: bool = True
 
     def tiles_visible(self, total: int, sessions_completed: int) -> int:
         """How many of ``total`` Home cells this child has earned.
@@ -362,6 +382,35 @@ class ParentConfig:
 
     def set_pin(self, pin: str) -> None:
         self.pin_salt, self.pin_hash = hash_pin(pin)
+
+    @property
+    def pin_is_starter(self) -> bool:
+        """True while the gate is still the PIN the image shipped with.
+
+        Compared against :data:`STARTER_PIN_HASH` -- a constant -- rather than
+        inferred from a missing key, which is what made the warning invisible
+        on exactly the machines that needed it (forum #44, #56). Also true when
+        there is no parent config at all, because ``__post_init__`` then hashes
+        the same 1234.
+        """
+        return self.is_default or self.pin_hash == STARTER_PIN_HASH
+
+    @property
+    def writable_path(self) -> Path | None:
+        """The config file this process could actually rewrite, or ``None``.
+
+        The shell runs as the child and ``/etc/kidnix/parent.toml`` is
+        root-owned on purpose -- a child-writable PIN is not a PIN -- so on a
+        real machine this is ``None`` and the sheet says which command to run
+        instead of pretending it saved something.
+        """
+        target = self.path
+        if target is None:
+            return None
+        if target.is_file():
+            return target if os.access(target, os.W_OK) else None
+        parent = target.parent
+        return target if parent.is_dir() and os.access(parent, os.W_OK) else None
 
     def is_allowed(self, activity_id: str) -> bool:
         if not self.allowed_activity_ids:
@@ -500,6 +549,45 @@ class ParentConfig:
         return "\n".join(lines) + "\n"
 
 
+# --- setting the PIN in place --------------------------------------------
+#
+# ``ParentConfig.save`` rewrites the whole file from ``to_toml()``, which is
+# right for a file the shell owns and wrong for ``/etc/kidnix/parent.toml``:
+# that one is ninety lines of explanation a parent is meant to read, and a
+# grown-up who changes their PIN should not lose it. So the PIN is edited **in
+# place**, two lines of it, and everything else in the file is left alone.
+
+PIN_KEYS = ("pin_salt", "pin_hash")
+
+
+def rewrite_pin(path: Path, pin: str) -> Path:
+    """Set ``pin`` in the TOML at ``path``, keeping every other line of it.
+
+    Write-then-rename, so a power cut cannot leave a parent with a config that
+    has half a PIN in it and a machine that will not let them in.
+    """
+    salt, digest = hash_pin(pin)
+    values = {"pin_salt": salt, "pin_hash": digest}
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    seen = set()
+    for index, line in enumerate(lines):
+        key = line.split("=", 1)[0].strip()
+        if key in PIN_KEYS and key not in seen:
+            lines[index] = f"{key} = {_toml_str(values[key])}"
+            seen.add(key)
+    missing = [key for key in PIN_KEYS if key not in seen]
+    if missing:
+        header = ["", "# Set by `kidnix-shell --set-pin`."] if lines else []
+        lines = [*header, *(f"{key} = {_toml_str(values[key])}" for key in missing), *lines]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.chmod(temporary, 0o644)
+    temporary.replace(path)
+    log.info("wrote a new grown-up PIN to %s", path)
+    return path
+
+
 def _int_key(value: Any, fallback: int, low: int, high: int, key: str, path: Path) -> int:
     """A whole number out of TOML, clamped, with a log line on nonsense."""
     if isinstance(value, bool) or not isinstance(value, int):
@@ -545,10 +633,10 @@ def _home_config(raw: Any, path: Path) -> HomeConfig:
     if not isinstance(raw, dict):
         log.warning("parent config %s: [home] must be a table; using the defaults", path)
         return HomeConfig()
-    show_everything = raw.get("show_everything", False)
+    show_everything = raw.get("show_everything", HomeConfig.show_everything)
     if not isinstance(show_everything, bool):
         log.warning("parent config %s: home.show_everything must be true or false", path)
-        show_everything = False
+        show_everything = HomeConfig.show_everything
     return HomeConfig(
         initial_tiles=_int_key(
             raw.get("initial_tiles"),

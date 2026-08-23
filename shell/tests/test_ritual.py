@@ -20,7 +20,9 @@ from kidnix_shell.ritual import (
     BACK_DELAY_SECONDS,
     KEEP_LINE,
     LOST_LINE,
+    OFFER_SPEECH,
     PUT_AWAY_BACK_LOCK_SECONDS,
+    OfferAnswer,
     RitualAction,
     all_done_delay_seconds,
     back_delay_seconds,
@@ -32,9 +34,13 @@ from kidnix_shell.state import Event, State, StateMachine
 
 NOW = datetime(2026, 8, 18, 12, 0, 0)
 
-#: A short session with the shipped ratios: 20 minutes, offer at T-6, put away
-#: at T-2. Long enough that the three windows are distinct.
-POLICY = SessionPolicy.from_minutes(length=20, ending_offer_at=6, put_away_at=2)
+#: A short session with the shipped ratios: 20 minutes, so the proportional
+#: windows land at T-4 (20% of 20, capped at four) and T-2 (10% of 20, capped
+#: at two). Long enough that the three windows are distinct.
+POLICY = SessionPolicy.from_minutes(length=20)
+#: Where the two beats fall in that session, in minutes from the start.
+OFFER_MINUTE = 16
+PUT_AWAY_MINUTE = 18
 
 
 @pytest.fixture
@@ -123,24 +129,24 @@ def test_a_new_session_re_arms_the_offer(live: Session) -> None:
 def test_a_grant_that_moves_the_hard_stop_re_arms_the_offer(live: Session) -> None:
     """A grown-up added time: there is a new T-6, so warn about it once more."""
     live.answer_offer()
-    assert live.phase(at(15)) is Phase.ENDING_OFFER
-    assert live.add_minutes(15, at(15)) > 0
-    assert live.phase(at(15)) is Phase.RUNNING
+    assert live.phase(at(17)) is Phase.ENDING_OFFER
+    assert live.add_minutes(15, at(17)) > 0
+    assert live.phase(at(17)) is Phase.RUNNING
     assert live.offer_answered is False
 
 
 def test_a_grant_too_small_to_clear_the_window_does_not_re_ask(live: Session) -> None:
     """+1 minute inside the offer window is not a new ending to warn about."""
     live.answer_offer()
-    live.add_minutes(1, at(15))
-    assert live.phase(at(15)) is Phase.ENDING_OFFER
+    live.add_minutes(1, at(17))
+    assert live.phase(at(17)) is Phase.ENDING_OFFER
     assert live.offer_answered is True
 
 
 def test_a_refused_grant_changes_nothing(live: Session) -> None:
     live.usage.seconds = live.policy.daily_budget  # no headroom at all
     live.answer_offer()
-    assert live.add_minutes(30, at(15)) == 0
+    assert live.add_minutes(30, at(17)) == 0
     assert live.offer_answered is True
 
 
@@ -176,10 +182,12 @@ class FakeShell:
             self.machine.try_fire(Event.GOODBYE_DUE)
         return action
 
-    def dismiss_offer(self) -> None:
+    def dismiss_offer(self, answer: OfferAnswer = OfferAnswer.ONE_MORE) -> None:
         """What ``ShellWindow.dismiss_offer`` does, minus the window."""
-        self.session.answer_offer()
+        self.session.answer_offer(defer_put_away=answer.defers_put_away)
         self.machine.try_fire(Event.DISMISS_OFFER)
+        if answer.returns_home and self.machine.state is State.JOURNAL:
+            self.machine.try_fire(Event.BACK)
 
     def run(self, start: float, stop: float, step: float = 0.25) -> None:
         minute = start
@@ -191,14 +199,14 @@ class FakeShell:
 def test_the_offer_appears_once_and_the_child_is_left_alone(live: Session) -> None:
     """The e2e repro, at 4 Hz: answer at T-6, and nothing asks again."""
     shell = FakeShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     assert shell.offers_presented == 1
     assert state_of(shell) is State.ENDING_OFFER
 
     shell.dismiss_offer()
     assert state_of(shell) is State.HOME
 
-    shell.run(14.2, 17.9)  # the rest of the offer window
+    shell.run(16.2, 17.9)  # the rest of the offer window
     assert shell.offers_presented == 1
     assert state_of(shell) is State.HOME
 
@@ -206,20 +214,20 @@ def test_the_offer_appears_once_and_the_child_is_left_alone(live: Session) -> No
 def test_one_last_little_thing_leaves_the_child_on_home(live: Session) -> None:
     """S5: they may still open one more activity, so Home has to still work."""
     shell = FakeShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     shell.dismiss_offer()
     assert state_of(shell) is State.HOME
     assert shell.machine.can(Event.LAUNCH_ACTIVITY)
     assert shell.machine.fire(Event.LAUNCH_ACTIVITY) is State.IN_ACTIVITY
 
-    shell.run(14.5, 17.9)
+    shell.run(16.5, 17.9)
     assert shell.offers_presented == 1
     assert state_of(shell) is State.IN_ACTIVITY  # not yanked out of it
 
 
 def test_dismissing_from_an_activity_goes_back_to_the_activity(live: Session) -> None:
     shell = FakeShell(live, State.IN_ACTIVITY)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     assert state_of(shell) is State.ENDING_OFFER
     shell.dismiss_offer()
     assert state_of(shell) is State.IN_ACTIVITY
@@ -227,9 +235,9 @@ def test_dismissing_from_an_activity_goes_back_to_the_activity(live: Session) ->
 
 def test_put_away_arrives_at_t_minus_two_whatever_was_chosen(live: Session) -> None:
     shell = FakeShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     shell.dismiss_offer()
-    shell.run(14.2, 18.3)
+    shell.run(16.2, 18.3)
     assert state_of(shell) is State.PUT_AWAY
     assert shell.offers_presented == 1
 
@@ -243,9 +251,9 @@ def test_ignoring_the_offer_still_puts_away(live: Session) -> None:
 
 def test_the_whole_session_ends_in_goodbye(live: Session) -> None:
     shell = FakeShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     shell.dismiss_offer()
-    shell.run(14.2, 20.5)
+    shell.run(16.2, 20.5)
     assert state_of(shell) is State.GOODBYE
     assert shell.offers_presented == 1
 
@@ -253,17 +261,17 @@ def test_the_whole_session_ends_in_goodbye(live: Session) -> None:
 def test_a_grant_gives_the_child_one_more_warning_and_only_one(live: Session) -> None:
     """Grant re-arms: a second ending deserves a second offer, not a third."""
     shell = FakeShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     shell.dismiss_offer()
     assert shell.offers_presented == 1
 
-    live.add_minutes(15, at(15))  # a grown-up at the gate
-    shell.run(15, 29.1)
+    live.add_minutes(15, at(17))  # a grown-up at the gate
+    shell.run(17, 31.1)
     assert shell.offers_presented == 2
     assert state_of(shell) is State.ENDING_OFFER
 
     shell.dismiss_offer()
-    shell.run(29.2, 32.9)
+    shell.run(31.2, 32.9)
     assert shell.offers_presented == 2
 
 
@@ -319,7 +327,7 @@ class BandShell(FakeShell):
 
 def test_the_band_offer_appears_once_and_never_moves_the_child(live: Session) -> None:
     shell = BandShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     assert shell.offers_presented == 1
     assert shell.offer_on_band is True
     assert state_of(shell) is State.IN_ACTIVITY, "the drawing is never covered"
@@ -329,11 +337,11 @@ def test_answering_in_the_band_leaves_the_child_in_the_activity(live: Session) -
     """Both answers mean "carry on until the sun does" -- there is nowhere to
     navigate to, and the DISMISS_OFFER that a screen would fire is a no-op."""
     shell = BandShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     shell.answer_in_the_band()
     assert state_of(shell) is State.IN_ACTIVITY
 
-    shell.run(14.2, 17.9)
+    shell.run(16.2, 17.9)
     assert shell.offers_presented == 1
 
 
@@ -341,9 +349,9 @@ def test_an_unanswered_band_offer_is_not_asked_again(live: Session) -> None:
     """The timeout latches it. Ignoring a question is a legitimate answer, and
     the alternative is asking it four hundred times over four minutes."""
     shell = BandShell(live)
-    shell.run(0, 14.1)
+    shell.run(0, 16.1)
     shell.band_offer_expired()
-    shell.run(14.2, 17.9)
+    shell.run(16.2, 17.9)
     assert shell.offers_presented == 1
     assert live.offer_answered is True
 
@@ -588,3 +596,81 @@ def test_nothing_claims_to_have_kept_what_the_hard_stop_destroyed() -> None:
         assert line == LOST_LINE
         assert "keep" not in line.lower()
         assert line.endswith(".")
+
+
+# --- the offer is consequential (panel ruling, 2026-08-23) ---------------
+
+
+def test_each_answer_does_something_different_to_the_machine() -> None:
+    assert OfferAnswer.FINISH_THIS.defers_put_away is True
+    assert OfferAnswer.ONE_MORE.defers_put_away is False
+    assert OfferAnswer.ASK.defers_put_away is False
+    assert OfferAnswer.ONE_MORE.returns_home is True
+    assert OfferAnswer.FINISH_THIS.returns_home is False
+
+
+def test_the_two_answers_land_put_away_at_different_times(live: Session) -> None:
+    """forum #29: "a five-year-old who picks 'one last little thing' and is
+    stopped at the same second as if they hadn't is being taught the choice was
+    theatre." They are not stopped at the same second any more."""
+    one_more = FakeShell(live)
+    one_more.run(0, 16.1)
+    one_more.dismiss_offer(OfferAnswer.ONE_MORE)
+    ordinary = live.put_away_at
+
+    live.end(at(17))
+    assert live.start(at(17))
+    finish = FakeShell(live)
+    finish.run(17, 33.1)
+    finish.dismiss_offer(OfferAnswer.FINISH_THIS)
+    assert live.put_away_at < ordinary
+
+
+def test_finish_this_one_keeps_the_activity_until_one_beat_before_the_end(
+    live: Session,
+) -> None:
+    shell = FakeShell(live, State.IN_ACTIVITY)
+    shell.run(0, 16.1)
+    shell.dismiss_offer(OfferAnswer.FINISH_THIS)
+    # T-2 would have been minute 18; it is minute 19 now.
+    assert live.phase(at(18.5)) is Phase.ENDING_OFFER
+    assert live.phase(at(19.5)) is Phase.PUT_AWAY
+
+
+def test_one_last_little_thing_still_puts_away_on_time(live: Session) -> None:
+    shell = FakeShell(live)
+    shell.run(0, 16.1)
+    shell.dismiss_offer(OfferAnswer.ONE_MORE)
+    assert live.phase(at(18.5)) is Phase.PUT_AWAY
+
+
+def test_one_last_little_thing_from_my_things_goes_home(live: Session) -> None:
+    """Home is where the last little thing is opened; My Things is not."""
+    shell = FakeShell(live, State.JOURNAL)
+    shell.run(0, 16.1)
+    assert state_of(shell) is State.ENDING_OFFER
+    shell.dismiss_offer(OfferAnswer.ONE_MORE)
+    assert state_of(shell) is State.HOME
+
+
+def test_every_answer_says_something_that_is_true_of_the_machine() -> None:
+    """The rule the ruling rests on: the words describe what happens."""
+    assert OFFER_SPEECH[OfferAnswer.FINISH_THIS] == (
+        "Finish this one. When the sun is down, we'll keep it."
+    )
+    assert OFFER_SPEECH[OfferAnswer.ONE_MORE] == "One last little thing, then we'll keep it."
+    assert OFFER_SPEECH[OfferAnswer.ASK] == "A grown-up can add time."
+
+
+def test_asking_for_more_time_does_not_send_the_child_anywhere() -> None:
+    """forum: the shell must not hand a five-year-old a negotiation."""
+    line = OFFER_SPEECH[OfferAnswer.ASK].lower()
+    assert "go and ask" not in line
+    assert "find" not in line
+
+
+def test_no_offer_sentence_promises_a_return() -> None:
+    for line in OFFER_SPEECH.values():
+        lowered = line.lower()
+        assert "tomorrow" not in lowered
+        assert "next time" not in lowered

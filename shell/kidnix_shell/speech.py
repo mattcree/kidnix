@@ -87,6 +87,15 @@ SPEECH_LANGUAGE = "en-GB"
 MS_PER_CHARACTER = 70
 MIN_HIGHLIGHT_MS = 500
 MAX_HIGHLIGHT_MS = 6000
+#: The pause between two sentences said in sequence (:meth:`SpeechManager.
+#: speak_then`). A beat, not a gap -- long enough that the second sentence is
+#: heard as a new sentence rather than as the end of the first.
+SENTENCE_GAP_MS = 400
+
+
+def _highlight_ms(text: str) -> int:
+    """Roughly how long ``text`` takes to say. The only estimate we have."""
+    return max(MIN_HIGHLIGHT_MS, min(MAX_HIGHLIGHT_MS, len(text) * MS_PER_CHARACTER))
 
 
 class SpeechBackend(Protocol):
@@ -421,6 +430,8 @@ class SpeechManager:
         #: followed by a selection (protocol P5).
         self._pending_log: _PendingHoverLog | None = None
         self._pending_log_handle: int | None = None
+        #: The one pending second sentence of :meth:`speak_then`.
+        self._sequel_handle: int | None = None
 
     # -- speaking --
 
@@ -440,6 +451,40 @@ class SpeechManager:
         self.backend.speak(text)
         self.last_utterance = text
         self._start_highlight(key, text)
+        return True
+
+    def speak_then(self, first: str, second: str, key: str | None = None) -> bool:
+        """Two sentences, in that order, the second after the first has landed.
+
+        The shell has never needed a queue -- a new utterance cancelling the
+        old one is exactly right for a child sweeping a grid -- but S7 needs
+        two sentences in a fixed order, because the ruling on the Goodbye
+        screen is that the child's own destination is spoken **last, as its own
+        sentence**, rather than as the tail of a sentence about counting
+        (forum #24). This is that, and nothing more: no queue, no backlog, and
+        a second call replaces a pending second sentence rather than stacking
+        one behind it.
+
+        The gap is estimated the same way the highlight is
+        (:data:`MS_PER_CHARACTER`), because no backend tells us reliably when
+        it stopped talking. The scheduler is injected, so the whole thing is
+        testable headless.
+        """
+        second = (second or "").strip()
+        if not second:
+            return self.speak(first, key)
+        if self._sequel_handle is not None:
+            self.scheduler.cancel(self._sequel_handle)
+            self._sequel_handle = None
+        if not self.speak(first, key):
+            return self.speak(second)
+        delay = _highlight_ms(first) + SENTENCE_GAP_MS
+
+        def say_second() -> None:
+            self._sequel_handle = None
+            self.speak(second)
+
+        self._sequel_handle = self.scheduler.schedule(delay, say_second)
         return True
 
     def repeat(self) -> bool:
@@ -592,7 +637,7 @@ class SpeechManager:
         self.speaking_key = key
         if self.on_highlight is not None:
             self.on_highlight(key, True)
-        duration = max(MIN_HIGHLIGHT_MS, min(MAX_HIGHLIGHT_MS, len(text) * MS_PER_CHARACTER))
+        duration = _highlight_ms(text)
 
         def done() -> None:
             self._highlight_handle = None

@@ -37,6 +37,12 @@ log = logging.getLogger(__name__)
 MIN_OPTIONS = 6
 MAX_OPTIONS = 9
 
+#: The id of the "I would rather not answer" option. Coco's own set had a
+#: ninth, "something else"; ours is "Not sure yet", which is the same escape
+#: worded for a child who has not thought about it yet rather than for one who
+#: has an answer the list does not contain.
+SKIP_ID = "unsure"
+
 
 @dataclass(frozen=True)
 class NextAfter:
@@ -56,6 +62,18 @@ class NextAfter:
     #: the lower-cased label, which is right for a label that is already a verb
     #: phrase and wrong for a noun -- "Ready to a book?" is why this exists.
     phrase_override: str = ""
+
+    @property
+    def skips(self) -> bool:
+        """ "Not sure yet": an answer that is not a plan (:data:`SKIP_ID`).
+
+        The screen has to have a way *out* that is not Back. Coco's named
+        failure mode is a child treating the machine's statements as inviolable
+        rules, and a question with no "don't know" on it is how a five-year-old
+        gets committed to a plan they did not have. Choosing it goes to Home
+        and leaves Goodbye on its generated fallback line.
+        """
+        return self.id == SKIP_ID
 
     # -- what the widgets ask for (the same shape as an Activity) --
 
@@ -90,9 +108,10 @@ class NextAfter:
         return f"Ready to {self.phrase}?"
 
 
-#: The shipped set. Eight, inside 09's 6-9. Every one of them is a thing a
-#: five-year-old can start on their own, in a normal house, in the next five
-#: minutes -- which is the only test that matters here.
+#: The shipped set. Nine, at the top of 09's 6-9: eight things a five-year-old
+#: can start on their own, in a normal house, in the next five minutes -- which
+#: is the only test that matters for those -- and a ninth that is a way out of
+#: the question (:data:`SKIP_ID`).
 DEFAULT_NEXT_AFTER: tuple[NextAfter, ...] = (
     NextAfter("outside", "Outside", "Going outside", "kidnix-next-outside", "go outside"),
     NextAfter("book", "A book", "Reading a book", "kidnix-next-book", "read a book"),
@@ -108,6 +127,9 @@ DEFAULT_NEXT_AFTER: tuple[NextAfter, ...] = (
         "kidnix-next-someone",
         "play with someone",
     ),
+    # The ninth. It is deliberately last and deliberately plain: it is a way
+    # out of the question, not a competing answer to it.
+    NextAfter(SKIP_ID, "Not sure", "Not sure yet. That's fine.", "kidnix-ask", ""),
 )
 
 

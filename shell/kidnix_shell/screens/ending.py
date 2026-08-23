@@ -29,13 +29,21 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk  # noqa: E402
 
-from ..ritual import KEEP_LINE, put_away_line  # noqa: E402
+from ..band import Sun  # noqa: E402
+from ..ritual import KEEP_LINE, OFFER_QUESTION, OfferAnswer, put_away_line  # noqa: E402
 from ..sound import KEEP  # noqa: E402
 from ..theme import points_for  # noqa: E402
-from ..widgets import ChildButton, big_label, icon_image, page_label_fit  # noqa: E402
+from ..widgets import ChildButton, big_label, page_label_fit  # noqa: E402
 from . import Screen  # noqa: E402
 
 PUT_AWAY_ANIMATION_MS = 1100
+
+#: How tall the S5 sun is drawn. The same drawing as the band's, larger.
+SUN_MM = 26.0
+#: Where it sits when this screen is up. The offer is the last fifth of the
+#: sitting, so the sun is low and warm -- and the screen is only ever shown
+#: inside that window, which is what makes a fixed fraction honest here.
+OFFER_SUN_FRACTION = 0.85
 
 #: theme.css ``button.ritual``: 28 px of padding and a 3 px border either side.
 RITUAL_CHROME_X_PX = 62
@@ -52,8 +60,17 @@ class EndingOfferScreen(Screen):
         self.set_halign(Gtk.Align.CENTER)
         self.set_spacing(metrics.gap * 2)
 
-        sun = icon_image("kidnix-sun", "icon-name", metrics.mm(30))
+        # **The same sun the band draws**, not a second picture of one (panel
+        # ruling, 2026-08-23). This screen used to show a bright rayed midday
+        # sun above the sentence "The sun is going down" -- a picture
+        # contradicting its own sentence, and the third of three different suns
+        # a child meets inside four minutes (forum #45, #49). It is the band's
+        # drawing at the fraction the session has actually reached.
+        sun = Sun(metrics, height=metrics.mm(SUN_MM))
+        sun.set_size_request(metrics.mm(SUN_MM * 2), metrics.mm(SUN_MM))
         sun.set_halign(Gtk.Align.CENTER)
+        sun.set_progress(OFFER_SUN_FRACTION, True)
+        self.sun = sun
         self.append(sun)
         self.append(big_label("The sun is going down."))
 
@@ -71,13 +88,13 @@ class EndingOfferScreen(Screen):
             floor_pt=metrics.label_floor_pt,
             widget=choices,
         )
-        for label, speak, one_last in (
-            (choices_text[0], "Finish this one", False),
-            (choices_text[1], "One last little thing", True),
+        for label, speak, answer in (
+            (choices_text[0], "Finish this one", OfferAnswer.FINISH_THIS),
+            (choices_text[1], "One last little thing", OfferAnswer.ONE_MORE),
         ):
             button = ChildButton(
                 speak_text=speak,
-                on_activate=partial(self.ctx.host.dismiss_offer, one_last),
+                on_activate=partial(self.ctx.host.dismiss_offer, answer),
                 speech_ui=self.ctx.speech_ui,
                 css_classes=("ritual",),
                 width=metrics.target_mm(60),
@@ -122,11 +139,15 @@ class EndingOfferScreen(Screen):
         # still an *answer*, so it dismisses the offer like the other two: a
         # child who has gone to find a grown-up should not come back to the
         # same question.
-        self.ctx.speech.speak("A grown-up can add more time. Go and ask them.")
-        self.ctx.host.dismiss_offer(False)
+        #
+        # It no longer *sends* the child anywhere. "Go and ask them" hands a
+        # task -- and a negotiation -- to a five-year-old at the moment the
+        # machine is ending their session; the shell says who can add time and
+        # stops there (panel ruling, 2026-08-23).
+        self.ctx.host.dismiss_offer(OfferAnswer.ASK)
 
     def on_enter(self) -> None:
-        self.ctx.speech.speak("The sun is going down. Finish this one, or one last little thing?")
+        self.ctx.speech.speak(OFFER_QUESTION)
 
 
 class PutAwayScreen(Screen):

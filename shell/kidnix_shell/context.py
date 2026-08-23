@@ -16,6 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from .journal import Entry, Journal
     from .metrics import Metrics
     from .next_after import NextAfter
+    from .ritual import OfferAnswer
     from .session import Session
     from .settings import KidState, ParentConfig, Paths, Profile
     from .sound import Earcons
@@ -42,7 +43,7 @@ class ShellHost(Protocol):
 
     def close_grownup(self) -> None: ...
 
-    def dismiss_offer(self, one_last_thing: bool) -> None: ...
+    def dismiss_offer(self, answer: OfferAnswer) -> None: ...
 
     def finish_now(self) -> None: ...
 
@@ -52,7 +53,7 @@ class ShellHost(Protocol):
 
     def start_session(self, minutes: int | None = None) -> None: ...
 
-    def add_minutes(self, minutes: int) -> None: ...
+    def add_minutes(self, minutes: int) -> int: ...
 
     def logout(self) -> None: ...
 
@@ -89,3 +90,9 @@ class ShellContext:
     #: earcon or the fly-into-My-Things animation on either S6 or S7, because
     #: nothing flew anywhere. Cleared when a new session starts.
     work_lost: bool = False
+    #: One sentence for the Resting screen to say *instead of* its own line,
+    #: consumed on arrival. Set when the shell has just refused a session at
+    #: "Who's here?" -- the child asked for a turn and is owed an answer to
+    #: that, not a description of the machine's state (panel ruling,
+    #: 2026-08-23; forum #46, #59).
+    rest_reason: str = ""

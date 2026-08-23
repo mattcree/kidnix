@@ -323,3 +323,53 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# --- a session that already made something (development) -----------------
+
+
+#: The palette a seeded drawing uses. Five, because SYNTHESIS E1's own example
+#: sentence is "you used five colours" and the Goodbye screen now computes that
+#: number from the pictures themselves (:mod:`kidnix_shell.feedback`).
+SEED_COLOURS = ("#d64545", "#2e7d32", "#1e5aa8", "#f2a53a", "#7b3fa0")
+
+
+def seed_work(activities: list[Any], drawings: int = 2) -> list[Path]:
+    """Write a couple of finished drawings where the Journal will find them.
+
+    Development only, and only for ``--start-on goodbye``: the ending screen's
+    whole hierarchy is "the destination, then what was made", and a screenshot
+    of it with nothing made shows half the screen. The shapes are deliberately
+    a handful of flat colours so the colour count in E1's line is a real
+    measurement of a real file rather than a number typed into a demo.
+    """
+    import cairo
+
+    written: list[Path] = []
+    makers = [a for a in activities if a.journal_watch and a.category == "make"]
+    for index in range(drawings):
+        if not makers:
+            break
+        activity = makers[index % len(makers)]
+        out = Path(activity.journal_watch[0])
+        out.mkdir(parents=True, exist_ok=True)
+        surface = cairo.ImageSurface(cairo.FORMAT_RGB24, CANVAS_W, CANVAS_H)
+        ctx = cairo.Context(surface)
+        ctx.set_source_rgb(0.99, 0.98, 0.96)
+        ctx.paint()
+        for step, colour in enumerate(SEED_COLOURS):
+            red, green, blue = _hex_to_rgb(colour)
+            ctx.set_source_rgb(red, green, blue)
+            ctx.arc(
+                CANVAS_W * (0.2 + 0.15 * step),
+                CANVAS_H * (0.35 + 0.18 * ((step + index) % 3)),
+                CANVAS_H * 0.12,
+                0,
+                2 * math.pi,
+            )
+            ctx.fill()
+        target = out / f"seeded-{index}.png"
+        surface.write_to_png(str(target))
+        written.append(target)
+        log.info("demo: seeded %s", target)
+    return written

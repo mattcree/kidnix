@@ -55,6 +55,60 @@ from .session import Phase
 from .state import State
 
 
+class OfferAnswer(Enum):
+    """The three answers to S5, and they are no longer the same answer.
+
+    Until 2026-08-23 "Finish this one" and "One last little thing" did exactly
+    the same thing to the machine -- both latched the offer and neither moved
+    the clock -- so a child who chose "finish this one" at T-4 and was still
+    drawing at put-away had her program asked to quit anyway. Two reviewers
+    called that a fake choice (forum #20, #29): "01 #38 forbids nudges" and
+    "a five-year-old who picks one and is stopped at the same second as if they
+    hadn't is being taught the choice was theatre."
+
+    So each answer now does something different, and each sentence describes
+    what it does:
+
+    * :attr:`FINISH_THIS` **defers put-away to one beat before the hard stop**
+      (:meth:`kidnix_shell.session.Session.answer_offer`). The child keeps the
+      activity until T-1 unless they finish sooner.
+    * :attr:`ONE_MORE` returns the child **to Home**, where opening one more
+      activity is simply Home continuing to work, and put-away stays where it
+      was -- which is what makes room for the "one last little thing" to fit.
+    * :attr:`ASK` dismisses, and hands nothing to the parent in the child's
+      hearing: the shell does not tell a five-year-old to go and fetch an
+      adult, it says what is true about who can add time.
+    """
+
+    FINISH_THIS = "finish_this"
+    ONE_MORE = "one_more"
+    ASK = "ask"
+
+    @property
+    def defers_put_away(self) -> bool:
+        return self is OfferAnswer.FINISH_THIS
+
+    @property
+    def returns_home(self) -> bool:
+        return self is OfferAnswer.ONE_MORE
+
+    @property
+    def speech(self) -> str:
+        return OFFER_SPEECH[self]
+
+
+#: What each answer says out loud. Every one of them is *true of the machine*
+#: after the answer, which is the whole point of the ruling.
+OFFER_SPEECH: dict[OfferAnswer, str] = {
+    OfferAnswer.FINISH_THIS: "Finish this one. When the sun is down, we'll keep it.",
+    OfferAnswer.ONE_MORE: "One last little thing, then we'll keep it.",
+    OfferAnswer.ASK: "A grown-up can add time.",
+}
+
+#: The question itself, asked once, on the screen and in the band.
+OFFER_QUESTION = "The sun is going down. Finish this one, or one last little thing?"
+
+
 class RitualAction(Enum):
     """What the shell should do on this tick."""
 

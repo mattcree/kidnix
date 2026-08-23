@@ -310,7 +310,7 @@ SHIPPED_LABELS = {
     "ktuberling": ("Potato faces", "Make a potato face"),
     "turbowarp": ("Make a game", "Make a game"),
     "gcompris": ("Letters & numbers", "Letters and numbers"),
-    "klettres": ("Letter sounds", "Letter sounds"),
+    "klettres": ("Letter names", "Letter names"),
     "tuxmath": ("Number game", "Number game"),
     "blinken": ("Copy the lights", "Copy the lights"),
     "kolf": ("Mini golf", "Mini golf"),

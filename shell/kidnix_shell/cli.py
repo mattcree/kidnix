@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -22,7 +23,7 @@ from .activities import (
 )
 from .metrics import ScreenOverride, parse_screen
 from .session import SessionPolicy, load_policy
-from .settings import ParentConfig, Paths
+from .settings import DEFAULT_PIN, ParentConfig, Paths
 
 log = logging.getLogger("kidnix_shell")
 
@@ -55,6 +56,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--session-config", type=Path, help="session policy TOML")
     parser.add_argument(
+        "--set-pin",
+        nargs="?",
+        const="",
+        metavar="PATH",
+        help=(
+            "set the grown-up PIN and exit. Run as root (sudo kidnix-shell --set-pin): "
+            "the shell running as the child cannot write /etc/kidnix/parent.toml, and "
+            "that is what keeps the PIN out of the child's hands"
+        ),
+    )
+    parser.add_argument(
         "--activities", type=Path, action="append", default=[], help="extra activity directory"
     )
     parser.add_argument(
@@ -85,7 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--start-on",
-        choices=("choosing", "next-after", "home", "goodbye"),
+        choices=("choosing", "next-after", "home", "goodbye", "resting", "offer"),
         default="choosing",
         help=(
             "which surface to open on (development). The child always starts on "
@@ -155,6 +167,48 @@ def validate_manifests(directory: str, paths: Paths) -> int:
     return 1 if total.errors else 0
 
 
+def set_pin(target: str) -> int:
+    """``kidnix-shell --set-pin``: the small root helper the sheet points at.
+
+    The grown-up sheet has a PIN pad that can *choose* a PIN, and on a real
+    machine it cannot save one -- ``/etc/kidnix/parent.toml`` is root-owned,
+    which is the whole reason the gate means anything. Rather than pretend to
+    save, the sheet prints the command to run, and this is that command.
+
+    Mags (forum #13, #56) is the reader: "make it ask me to choose my own four
+    numbers, and let me pick them somewhere he is not looking." One prompt, no
+    echo, typed twice, and it says which file it wrote.
+    """
+    import getpass
+
+    from .settings import SYSTEM_CONFIG_DIR, rewrite_pin
+
+    path = Path(target) if target else SYSTEM_CONFIG_DIR / "parent.toml"
+    directory = path.parent
+    if not (directory.is_dir() and os.access(directory, os.W_OK)):
+        print(f"Cannot write {path}. Run this as root:\n\n    sudo kidnix-shell --set-pin\n")
+        return 1
+    if path.is_file() and not os.access(path, os.W_OK):
+        print(f"Cannot write {path} (it is root-owned). Run:\n\n    sudo kidnix-shell --set-pin\n")
+        return 1
+
+    print(f"Setting the grown-up PIN in {path}.")
+    print("Four digits. It is not echoed, and it is stored only as a hash.")
+    first = getpass.getpass("New PIN: ").strip()
+    if len(first) != 4 or not first.isdigit():
+        print("A PIN is four digits. Nothing was changed.")
+        return 1
+    if first == DEFAULT_PIN:
+        print(f"{DEFAULT_PIN} is the PIN every kidnix ships with. Pick another.")
+        return 1
+    if getpass.getpass("Type it again: ").strip() != first:
+        print("Those two did not match. Nothing was changed.")
+        return 1
+    rewrite_pin(path, first)
+    print(f"Done. {path} now has your PIN in it; the old one no longer works.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     configure_logging(args.verbose)
@@ -163,6 +217,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.validate_manifests is not None:
         return validate_manifests(args.validate_manifests, paths)
+
+    if args.set_pin is not None:
+        return set_pin(args.set_pin)
 
     if args.generate_earcons is not None:
         from .sound import generate, package_sounds_dir
