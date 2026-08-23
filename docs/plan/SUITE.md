@@ -21,11 +21,11 @@ honest and stable rather than many half-built toys.
 | Tile (child sees) | What it is | Build or curate | Depth | Status |
 |---|---|---|---|---|
 | **Draw** | Tux Paint, tuned (fewer tools, bigger buttons, en_GB) | curate | thin | shipped |
-| **Sounds & Words** | the literacy suite (research 10): Hear it → Find it → Blend it → Read it (v1); Spell it, Write it, My name (v2) — one predictable 8–12 min loop, parent sets the school's scheme + last grapheme as a hard ceiling | **build** | **deep** | P0 next |
+| **Sounds & Words** | the literacy suite (research 10): Hear it → Find it → Blend it → Read it (v1); Spell it, Write it, My name (v2) — one predictable 8–12 min loop, parent sets the school's scheme + last grapheme as a hard ceiling | **build** | **deep** | weeks 1–3 built (corpus, ceiling, Find it, Blend it); image install + phoneme clips in progress; Read it next |
 | **Letters & numbers** | GCompris, as a one-level shelf of 18 curated activities | curate | thin | wired (wave C) |
 | **Potato faces** | KTuberling | curate | thin | shipped |
 | **Copy the lights** | Blinken | curate | thin | shipped |
-| **Clock & time** | play-with-the-clock toy + routine strip + "how long is a minute" (Matt's idea; Y1/Y2 time) | build | medium | P1 |
+| **Clock & time** | play-with-the-clock toy + routine strip + "how long is a minute" (Matt's idea; Y1/Y2 time) | build | medium | in progress (SDK) |
 | **Numbers** | subitising & bonds to 5/10 built to the ELG (05 §3) | build | medium | P1 |
 | **Photos** | webcam → Journal, caption/voice | build | thin | P1 |
 | **Letters to family** | picture + caption + voice to a parent-approved recipient; the reply comes back into the Journal | build | medium | P1 (the strongest activity in 05) |
@@ -82,7 +82,7 @@ sets; falsifiers stated in advance (research 10 §7.2).
 ## 4. Order of work (after the panel's fix waves land)
 
 1. Panel fix waves A–E + rebuild + e2e (this week).
-2. Activity SDK skeleton extracted from the shell's widgets/metrics/speech.
+2. Activity SDK skeleton extracted from the shell's widgets/metrics/speech. **(done: kidnix_activity v0 + caption listener)**
 3. **Sounds & Words v1** (weeks 1–6), with the voice note and captions
    landing in the shell in parallel.
 4. Clock & time; Numbers; Letters to family; Listen (P1, in that order —
