@@ -69,6 +69,10 @@ CAPTION_LINES = 1
 #: a voice slow enough to sound wrong is a voice a child stops listening to.
 SPEECH_RATE = -20
 CALM_SPEECH_RATE = -35
+#: What speech-dispatcher's ``rate`` accepts, and what ``[access] speech_rate``
+#: is clamped to (parent-panel section 7.3). Negative is slower.
+MIN_SPEECH_RATE = -100
+MAX_SPEECH_RATE = 100
 
 #: The one earcon calm mode keeps. "Something was kept" is the only sound in
 #: the shell that reports an *outcome* rather than punctuating an action, and
@@ -104,6 +108,19 @@ class AccessConfig:
     #: household where the *children* differ (docs/research/06 §4.7).
     #: Anything gettext understands: ``"cy"``, ``"pl"``, ``"en_GB"``.
     language: str = ""
+    #: **How fast read-aloud goes**, as a speech-dispatcher rate,
+    #: :data:`MIN_SPEECH_RATE`..:data:`MAX_SPEECH_RATE`, negative being slower
+    #: (parent-panel section 7.3). ``tts.env`` deliberately refuses to carry
+    #: piper's ``length_scale``, because the shell overrides the rate **per
+    #: utterance** through speech-dispatcher and a value set in that file
+    #: would be silently ignored -- so this is the one place the pace is set,
+    #: and ``kidnix-piperd`` derives ``length_scale = 1.0 - rate / 200`` from
+    #: what it is sent.
+    #:
+    #: This is the parent's number. What the shell actually asks for is
+    #: :attr:`effective_speech_rate`, which is where calm mode is applied --
+    #: the same shape as :attr:`sound_volume` and :attr:`effective_volume`.
+    speech_rate: int = SPEECH_RATE
 
     def with_overrides(self, **changes: Any) -> AccessConfig:
         return replace(self, **changes)
@@ -114,8 +131,17 @@ class AccessConfig:
         return 0.0 if self.mute else max(0.0, min(1.0, self.sound_volume))
 
     @property
-    def speech_rate(self) -> int:
-        return CALM_SPEECH_RATE if self.calm else SPEECH_RATE
+    def effective_speech_rate(self) -> int:
+        """The rate the shell actually asks speech-dispatcher for.
+
+        **Calm takes the slower of the two**, not its own fixed number. A
+        parent who has already asked for -50 because their child needs it has
+        made a statement about that child, and a calm switch that *sped the
+        voice up* to -35 would be the switch undoing the setting it exists to
+        serve. Calm is a floor on slowness, so it can only ever slow it
+        further (parent-panel section 7.3).
+        """
+        return min(self.speech_rate, CALM_SPEECH_RATE) if self.calm else self.speech_rate
 
     def earcon_allowed(self, name: str) -> bool:
         """May this earcon play at all? Calm keeps ``keep`` and drops the rest."""
@@ -171,12 +197,33 @@ def parse_access(raw: Any, source: str = "parent.toml") -> AccessConfig:
         log.warning('%s: access.language must be a string like "cy"; ignoring', source)
         language = ""
 
+    rate = raw.get("speech_rate", SPEECH_RATE)
+    if isinstance(rate, bool) or not isinstance(rate, int | float):
+        if rate is not None:
+            log.warning(
+                "%s: access.speech_rate must be a whole number %d..%d; using %d",
+                source,
+                MIN_SPEECH_RATE,
+                MAX_SPEECH_RATE,
+                SPEECH_RATE,
+            )
+        rate = SPEECH_RATE
+    elif not MIN_SPEECH_RATE <= rate <= MAX_SPEECH_RATE:
+        log.warning(
+            "%s: access.speech_rate %r is outside %d..%d; clamping",
+            source,
+            rate,
+            MIN_SPEECH_RATE,
+            MAX_SPEECH_RATE,
+        )
+
     return AccessConfig(
         captions=flag("captions", True),
         calm=flag("calm", False),
         sound_volume=max(0.0, min(1.0, float(volume))),
         mute=flag("mute", False),
         language=language.strip(),
+        speech_rate=int(max(MIN_SPEECH_RATE, min(MAX_SPEECH_RATE, rate))),
     )
 
 

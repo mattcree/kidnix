@@ -94,6 +94,13 @@ hover_dwell_ms = 450
 # Note this is *not* the age filter. An activity outside the child's age_band
 # (below) gets no tile at all rather than an outlined one: there is nothing to
 # ask a grown-up for.
+#
+# **This is the machine's list, and it is the fallback.** Each child may have
+# their own `allowed_activity_ids` inside their [[profiles]] block, and when
+# they do, theirs is the one that decides -- see below. The parent panel writes
+# this one as the *union* of the active children's, so a machine whose two
+# children have different lists still behaves for a shell that only reads this
+# key: nobody is denied something a sibling was ticked for.
 allowed_activity_ids = []
 
 # One child, called "Me", in kidnix's first identity colour pair. The data
@@ -121,6 +128,19 @@ age_band = "4-5"
 # Whether this child is asked "What's next after?" before Home. False (the
 # default) means they are.
 skip_next_choice = false
+# **This child's own allow-list**, and it wins over the machine-wide
+# `allowed_activity_ids` at the top of this file whenever it has anything in
+# it. Empty -- the shipped state -- means "the parent has not narrowed it for
+# this child", and the machine's list is used instead. Empty never means
+# "nothing": that is the same reading as the machine's key, one level down.
+#
+# It is a *replacement* and not a narrowing, because the panel writes the
+# machine list as the union of every child's. Two children on one machine can
+# therefore see the same tile with two different answers, which is the point.
+# The age band above still filters on top of this, per child, as it always has.
+#
+#   allowed_activity_ids = ["tuxpaint", "gcompris"]
+allowed_activity_ids = []
 
 # --- ACCESS -----------------------------------------------------------------
 #
@@ -162,6 +182,24 @@ sound_volume = 1.0
 # Silence. Safe *because* captions are on: a muted shell still shows every
 # line it would have said, so it is quiet rather than broken.
 mute = false
+
+# **How fast read-aloud goes**, as a speech-dispatcher rate: -100 to 100, and
+# negative is slower. 0 is the voice's ordinary pace; the shell asks for -20 by
+# default, because "slightly slower than an adult would choose" is the whole of
+# what a five-year-old needs and a voice slow enough to sound wrong is a voice
+# a child stops listening to.
+#
+# This is the *only* place the pace is set. /etc/kidnix/tts.env deliberately
+# refuses to carry piper's `length_scale`, because the shell overrides the rate
+# per utterance through speech-dispatcher and a number in that file would be
+# silently ignored; kidnix-piperd derives length_scale = 1.0 - rate / 200 from
+# what it is sent, so -20 is 1.10 and -50 is 1.25.
+#
+# **Calm mode takes the slower of this and -35, never the faster.** A parent
+# who has already asked for -50 has made a statement about their child, and a
+# calm switch that sped the voice back up to -35 would be the switch undoing
+# the setting it exists to serve. Out of range is clamped, with a warning.
+speech_rate = -20
 
 # --- HOW FAST HOME GROWS (progressive disclosure) --------------------------
 #

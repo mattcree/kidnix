@@ -21,6 +21,8 @@ from kidnix_shell.access import (
     CAPTION_LINES,
     CAPTION_MIN_PT,
     CAPTION_SECONDS,
+    MAX_SPEECH_RATE,
+    MIN_SPEECH_RATE,
     SPEECH_RATE,
     SWITCH_PRESSES,
     SWITCH_WINDOW_SECONDS,
@@ -109,11 +111,74 @@ def test_mute_silences_every_earcon_including_the_one_calm_keeps() -> None:
 
 
 def test_calm_slows_the_voice_a_step_and_not_a_stride() -> None:
-    assert AccessConfig().speech_rate == SPEECH_RATE
-    assert AccessConfig(calm=True).speech_rate == CALM_SPEECH_RATE
+    assert AccessConfig().effective_speech_rate == SPEECH_RATE
+    assert AccessConfig(calm=True).effective_speech_rate == CALM_SPEECH_RATE
     assert CALM_SPEECH_RATE < SPEECH_RATE
     # A voice slow enough to sound wrong is a voice a child stops listening to.
     assert CALM_SPEECH_RATE > -60
+
+
+# --- read-aloud pace (parent-panel section 7.3) ---------------------------
+#
+# ``tts.env`` deliberately refuses to carry piper's ``length_scale``: the shell
+# overrides the rate per utterance through speech-dispatcher, so a value in
+# that file would be silently ignored. ``[access] speech_rate`` is therefore
+# the only place the pace is set, and ``kidnix-piperd`` derives length_scale
+# from what it is sent.
+
+
+def test_the_default_pace_is_the_one_the_shell_has_always_asked_for() -> None:
+    assert AccessConfig().speech_rate == SPEECH_RATE
+    assert parse_access(None).speech_rate == SPEECH_RATE
+    assert parse_access({}).speech_rate == SPEECH_RATE
+
+
+def test_a_parent_can_set_the_pace() -> None:
+    assert parse_access({"speech_rate": -50}).speech_rate == -50
+    assert parse_access({"speech_rate": 0}).speech_rate == 0
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [(-500, MIN_SPEECH_RATE), (500, MAX_SPEECH_RATE), (-100, -100), (100, 100)],
+)
+def test_the_pace_is_clamped_to_what_speech_dispatcher_accepts(raw: int, expected: int) -> None:
+    assert parse_access({"speech_rate": raw}).speech_rate == expected
+
+
+@pytest.mark.parametrize("raw", ["slow", True, None, [], {"rate": -20}])
+def test_a_pace_that_is_not_a_number_falls_back_rather_than_breaking_the_voice(
+    raw: object,
+) -> None:
+    assert parse_access({"speech_rate": raw}).speech_rate == SPEECH_RATE
+
+
+def test_calm_takes_the_slower_of_the_two_and_never_the_faster() -> None:
+    """**The 7.3 ruling.** A parent who has already asked for -50 has made a
+    statement about their child; a calm switch that sped the voice back up to
+    -35 would be the switch undoing the setting it exists to serve."""
+    assert AccessConfig(speech_rate=-50, calm=True).effective_speech_rate == -50
+    assert AccessConfig(speech_rate=0, calm=True).effective_speech_rate == CALM_SPEECH_RATE
+    assert AccessConfig(speech_rate=-35, calm=True).effective_speech_rate == CALM_SPEECH_RATE
+
+
+def test_without_calm_the_parent_s_number_is_the_one_used() -> None:
+    for rate in (MIN_SPEECH_RATE, -50, SPEECH_RATE, 0, MAX_SPEECH_RATE):
+        assert AccessConfig(speech_rate=rate).effective_speech_rate == rate
+
+
+def test_calm_never_speeds_the_voice_up_at_any_setting() -> None:
+    """Swept, because the invariant is what matters and not the three points."""
+    for rate in range(MIN_SPEECH_RATE, MAX_SPEECH_RATE + 1, 5):
+        config = AccessConfig(speech_rate=rate)
+        assert config.with_overrides(calm=True).effective_speech_rate <= config.speech_rate
+
+
+def test_the_pace_survives_the_length_scale_arithmetic_the_panel_shows() -> None:
+    """The panel shows ``1.0 - rate/200`` beside the control so a parent can
+    see it is a real quantity. This is that arithmetic, from this side."""
+    for rate, expected in ((0, 1.0), (-20, 1.10), (-35, 1.175), (-50, 1.25)):
+        assert 1.0 - AccessConfig(speech_rate=rate).speech_rate / 200.0 == pytest.approx(expected)
 
 
 def test_reduced_motion_is_calm_or_the_desktop_already_saying_so() -> None:

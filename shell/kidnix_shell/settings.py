@@ -371,6 +371,15 @@ class Profile:
     #: screens** (:meth:`kidnix_shell.app.ShellWindow._use_profile`); a
     #: same-language switch does nothing at all.
     language: str = ""
+    #: **This child's own allow-list** (parent-panel section 7.2). ``()`` means
+    #: "the parent has not narrowed it for this child", and the machine-wide
+    #: :attr:`ParentConfig.allowed_activity_ids` is used instead -- the same
+    #: empty-means-all reading as that list, one level down. Never a
+    #: *narrowing* of the machine list: a per-child list that is set replaces
+    #: it outright, because the panel writes the machine list as the **union**
+    #: of the active children's and intersecting the two would hand a child
+    #: less than the parent ticked for them.
+    allowed_activity_ids: tuple[str, ...] = ()
 
     @property
     def speak_text(self) -> str:
@@ -385,6 +394,20 @@ class Profile:
 
 
 DEFAULT_PROFILE = Profile(id="child", name="Me")
+
+
+def _allow_list(raw: Any) -> tuple[str, ...]:
+    """A profile's ``allowed_activity_ids``. Anything odd becomes ``()``.
+
+    ``()`` is "the parent has not narrowed it for this child", which falls
+    back to the machine-wide list -- so a hand-edited profile with a string
+    where a list should be widens rather than locks a child out.
+    """
+    if not isinstance(raw, (list, tuple)):
+        if raw is not None:
+            log.warning("parent config: a profile's allowed_activity_ids is not a list; ignoring")
+        return ()
+    return tuple(str(item) for item in raw)
 
 
 # --- progressive disclosure (spec 7b, SYNTHESIS B2) ----------------------
@@ -598,7 +621,27 @@ class ParentConfig:
         parent = target.parent
         return target if parent.is_dir() and os.access(parent, os.W_OK) else None
 
-    def is_allowed(self, activity_id: str) -> bool:
+    def is_allowed(self, activity_id: str, profile_id: str = "") -> bool:
+        """May this child open this activity? (parent-panel section 7.2)
+
+        The child's own ``allowed_activity_ids`` when they have one, and the
+        machine-wide list otherwise. Empty means all at **both** levels, so
+        the three states are: this child's list, the machine's list, or
+        everything -- and none of them is "nothing".
+
+        The panel writes the machine list as the union of the active
+        children's, so falling back to it is a widening and never a
+        narrowing: an older sibling's extra activity was already reachable
+        from this file before the shell learned to read the per-child key.
+        The age band filters per child on top of this, and always has.
+
+        ``profile_id`` defaults to ``""`` -- no profile -- which is what a
+        caller with no child in hand (the validators, the manifest checker)
+        gets, and it reads the machine list.
+        """
+        profile = self.profile(profile_id) if profile_id else None
+        if profile is not None and profile.allowed_activity_ids:
+            return activity_id in profile.allowed_activity_ids
         if not self.allowed_activity_ids:
             return True
         return activity_id in self.allowed_activity_ids
@@ -650,6 +693,7 @@ class ParentConfig:
                     age_band=str(raw.get("age_band", base.age_band)),
                     skip_next_choice=bool(raw.get("skip_next_choice", base.skip_next_choice)),
                     language=str(raw.get("language", base.language) or "").strip(),
+                    allowed_activity_ids=_allow_list(raw.get("allowed_activity_ids")),
                 )
             )
 
@@ -730,6 +774,7 @@ class ParentConfig:
             f"calm = {str(self.access.calm).lower()}",
             f"sound_volume = {self.access.sound_volume}",
             f"mute = {str(self.access.mute).lower()}",
+            f"speech_rate = {self.access.speech_rate}",
             f"language = {_toml_str(self.access.language)}",
             "",
             "[home]",
@@ -750,6 +795,10 @@ class ParentConfig:
                 f"age_band = {_toml_str(profile.age_band)}",
                 f"skip_next_choice = {str(profile.skip_next_choice).lower()}",
                 f"language = {_toml_str(profile.language)}",
+                "# This child's own allow-list. Empty falls back to the machine's above.",
+                "allowed_activity_ids = ["
+                + ", ".join(_toml_str(a) for a in profile.allowed_activity_ids)
+                + "]",
             ]
         for option in self.next_after:
             lines += [

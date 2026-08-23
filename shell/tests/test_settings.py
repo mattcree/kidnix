@@ -344,6 +344,129 @@ def test_the_two_shipped_parent_configs_are_byte_identical() -> None:
     assert usr.read_bytes() == etc.read_bytes()
 
 
+# --- the per-child allow-list (parent-panel section 7.2) ------------------
+#
+# The panel writes `allowed_activity_ids` inside each [[profiles]] table AND
+# the machine-wide key at the top as the *union* of the active children's. So
+# the per-child list is a replacement and never a narrowing: falling back to
+# the machine's list can only ever widen, and every id in a child's own list
+# was already in the union above it.
+
+SAM = Profile(id="sam", name="Sam", allowed_activity_ids=("tuxpaint", "gcompris"))
+ROSE = Profile(id="rose", name="Rose", allowed_activity_ids=("blinken",))
+#: A child the parent has not narrowed anything for.
+ANYONE = Profile(id="anyone", name="Anyone")
+
+
+def two_children(machine: list[str] | None) -> ParentConfig:
+    return ParentConfig(allowed_activity_ids=machine, profiles=[SAM, ROSE, ANYONE])
+
+
+def test_a_child_with_their_own_list_is_judged_by_it() -> None:
+    config = two_children(["tuxpaint", "gcompris", "blinken"])
+    assert config.is_allowed("tuxpaint", "sam")
+    assert not config.is_allowed("blinken", "sam")
+    assert config.is_allowed("blinken", "rose")
+    assert not config.is_allowed("tuxpaint", "rose")
+
+
+def test_two_children_get_two_answers_about_the_same_tile() -> None:
+    """Which is the point of 7.2, and why the tile is outlined rather than gone:
+    it is something a grown-up genuinely can give -- to one of them."""
+    config = two_children(["tuxpaint", "blinken"])
+    assert config.is_allowed("tuxpaint", "sam") != config.is_allowed("tuxpaint", "rose")
+
+
+def test_a_child_with_no_list_of_their_own_falls_back_to_the_machine_s() -> None:
+    config = two_children(["tuxpaint", "blinken"])
+    assert config.is_allowed("tuxpaint", "anyone")
+    assert not config.is_allowed("supertux", "anyone")
+
+
+def test_an_empty_per_child_list_is_never_an_empty_home() -> None:
+    """Empty means all at *both* levels. The three states are this child's
+    list, the machine's list, or everything -- and none of them is nothing."""
+    config = ParentConfig(allowed_activity_ids=[], profiles=[ANYONE])
+    assert config.is_allowed("anything-at-all", "anyone")
+    assert ParentConfig(profiles=[ANYONE]).is_allowed("anything-at-all", "anyone")
+
+
+def test_a_profile_id_nobody_has_reads_the_machine_list() -> None:
+    """A caller with a stale or invented id must not be handed *more* than the
+    machine allows, and must not be locked out either."""
+    config = two_children(["tuxpaint"])
+    assert config.is_allowed("tuxpaint", "nobody")
+    assert not config.is_allowed("blinken", "nobody")
+
+
+def test_no_profile_at_all_is_the_old_call_and_the_old_answer() -> None:
+    """``is_allowed(id)`` is still every pre-7.2 caller's call, unchanged."""
+    config = two_children(["tuxpaint"])
+    assert config.is_allowed("tuxpaint")
+    assert not config.is_allowed("gcompris")
+
+
+def test_a_per_child_list_survives_a_toml_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "parent.toml"
+    two_children(["tuxpaint", "gcompris", "blinken"]).save(path)
+    reloaded = ParentConfig.load(path)
+    assert reloaded.profile("sam") is not None
+    assert reloaded.profile("sam").allowed_activity_ids == ("tuxpaint", "gcompris")  # type: ignore[union-attr]
+    assert reloaded.profile("anyone").allowed_activity_ids == ()  # type: ignore[union-attr]
+    assert reloaded.is_allowed("blinken", "rose")
+    assert not reloaded.is_allowed("blinken", "sam")
+
+
+def test_the_shape_the_panel_writes_parses(tmp_path: Path) -> None:
+    """Field for field, as ``kidnix_parent_panel.config_io._profile_lines``
+    renders it -- including the comment lines above the key."""
+    path = tmp_path / "parent.toml"
+    path.write_text(
+        "allowed_activity_ids = []\n"
+        "\n"
+        "[[profiles]]\n"
+        'id = "sam"\n'
+        'name = "Sam"\n'
+        'age_band = "6-8"\n'
+        "skip_next_choice = false\n"
+        "# This child's own allow-list. Empty means everything their age band leaves.\n"
+        'allowed_activity_ids = ["tuxpaint", "gcompris", "blinken", "kolf"]\n',
+        encoding="utf-8",
+    )
+    config = ParentConfig.load(path)
+    assert config.profile("sam").allowed_activity_ids == (  # type: ignore[union-attr]
+        "tuxpaint",
+        "gcompris",
+        "blinken",
+        "kolf",
+    )
+    assert config.is_allowed("kolf", "sam")
+    assert not config.is_allowed("supertux", "sam")
+
+
+def test_a_hand_edited_per_child_list_that_is_junk_widens_rather_than_locks(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "parent.toml"
+    path.write_text(
+        '[[profiles]]\nid = "sam"\nname = "Sam"\nallowed_activity_ids = "tuxpaint"\n',
+        encoding="utf-8",
+    )
+    config = ParentConfig.load(path)
+    assert config.profile("sam").allowed_activity_ids == ()  # type: ignore[union-attr]
+    assert config.is_allowed("anything-at-all", "sam")
+
+
+def test_the_shipped_profile_has_no_list_of_its_own() -> None:
+    """The shipped machine is "everything", at both levels."""
+    shipped = Path(__file__).resolve().parents[2] / "system_files/etc/kidnix/parent.toml"
+    if not shipped.is_file():  # pragma: no cover - outside the checkout
+        pytest.skip("running outside the kidnix checkout")
+    config = ParentConfig.load(shipped)
+    assert config.profiles[0].allowed_activity_ids == ()
+    assert config.is_allowed("tuxpaint", config.profiles[0].id)
+
+
 # --- the profile's age band (01 #35, SYNTHESIS B8) -------------------------
 
 

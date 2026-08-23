@@ -16,10 +16,13 @@ same treatment:
   profile's ``age_band``) -- **no tile at all**. There is nothing to ask a
   grown-up for; the activity simply is not part of this child's computer
   (01 #35, SYNTHESIS B8).
-* **Not on the parent's allow-list** (``allowed_activity_ids``) --
-  outline-only, never greyed out, and it says "Ask a grown-up for this one".
-  This is SYNTHESIS G3's affordance and the reason the dashed border has to
-  clear 3:1 contrast.
+* **Not on the parent's allow-list** (``allowed_activity_ids`` -- **this
+  child's own**, and the machine's only when this child has none;
+  parent-panel section 7.2) -- outline-only, never greyed out, and it says
+  "Ask a grown-up for this one". This is SYNTHESIS G3's affordance and the
+  reason the dashed border has to clear 3:1 contrast. Two siblings on one
+  machine can therefore see the same tile with two different answers, which
+  is the point: it is a tile the grown-up *can* give, to one of them.
 * **Not installed, or installed with nothing to open** (``content_required``
   matched nothing) -- hidden by default, because a button that flickers and
   returns you to Home is worse than an absent one
@@ -312,7 +315,7 @@ class HomeScreen(Screen):
         is not installed, or a Library with no books in it yet, is not that --
         so it gets the other line.
         """
-        if not self.ctx.config.is_allowed(activity.id):
+        if not self.ctx.config.is_allowed(activity.id, self.ctx.profile.id):
             return _(NOT_ALLOWED_LINE)
         if not getattr(activity, "usable", True):
             return _(NOT_READY_LINE)

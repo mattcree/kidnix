@@ -347,7 +347,7 @@ class ShellWindow(Adw.ApplicationWindow):
             self.speech.backend.name,
             self.speech.dwell_ms,
         )
-        self.speech.set_rate(self.access.speech_rate)
+        self.speech.set_rate(self.access.effective_speech_rate)
         self.speech.set_volume(self.access.effective_volume)
         self.speech_ui = SpeechUI(self.speech)
         # **The captioned hook.** Nothing can be spoken without being shown:
@@ -722,7 +722,7 @@ class ShellWindow(Adw.ApplicationWindow):
         was_captions = self.access.captions
         self.access = access
         self.ctx.config.access = access
-        self.speech.set_rate(access.speech_rate)
+        self.speech.set_rate(access.effective_speech_rate)
         self.speech.set_volume(access.effective_volume)
         self.earcons.set_access(access)
         self.stack.set_transition_duration(access.transition_ms(self.animations_enabled()))
@@ -1371,7 +1371,12 @@ class ShellWindow(Adw.ApplicationWindow):
             return
         new_day = budget_day(now) != budget_day(self._slept_at)
         window_over = self.session.policy.is_bedtime(self._slept_at)
-        if new_day or window_over:
+        # The schedule window's counterpart to ``window_over`` (parent-panel
+        # section 7.1): the shell said "back after tea", tea has happened, and
+        # a screen that stays dark through the window it named is a screen
+        # that lied. ``may_start`` above has already agreed that it is open.
+        window_open = not self.session.policy.in_window(self._slept_at)
+        if new_day or window_over or window_open:
             log.info("waking: the session is allowed again")
             self.machine.try_fire(Event.WAKE)
 
@@ -1610,7 +1615,7 @@ class ShellWindow(Adw.ApplicationWindow):
         now = datetime.now()
         refusal = self.session.may_start(now)
         if refusal is not StartRefusal.OK:
-            self._refuse(refusal)
+            self._refuse(refusal, now)
             return
         self.session.start(now)
         # A new sitting: last time's answer to "what's next after?" is not this
@@ -1640,7 +1645,7 @@ class ShellWindow(Adw.ApplicationWindow):
         self.earcons.play(TAP, speaking=True)
         self.machine.try_fire(Event.CHOOSE_NEXT_AFTER)
 
-    def _refuse(self, refusal: StartRefusal) -> None:
+    def _refuse(self, refusal: StartRefusal, now: datetime | None = None) -> None:
         """No silent denials, and no adult error messages (SYNTHESIS C3).
 
         Two things about this changed on 2026-08-23. It no longer says "See you
@@ -1654,8 +1659,19 @@ class ShellWindow(Adw.ApplicationWindow):
 
         The sentence is handed to the Resting screen rather than spoken over
         its arrival, so the child hears one answer to the question they asked.
+
+        Out of hours (parent-panel section 7.1) the sentence **says when**, in
+        the same words the Resting screen behind it is about to use -- the
+        child is told the same thing twice rather than two different things
+        once. ``next_allowed`` is what computes it, so the two cannot drift.
         """
-        line = refusal_line(bedtime=refusal is StartRefusal.BEDTIME)
+        when = now or datetime.now()
+        line = refusal_line(
+            bedtime=refusal is StartRefusal.BEDTIME,
+            out_of_hours=refusal is StartRefusal.OUT_OF_HOURS,
+            now=when,
+            next_open=self.session.next_allowed(when),
+        )
         self.ctx.rest_reason = line
         if not self.machine.try_fire(Event.GOODNIGHT):
             # Nowhere to put the screen (the gate, mid-sheet): say it anyway.
@@ -2002,7 +2018,7 @@ class ShellWindow(Adw.ApplicationWindow):
         self.ctx.work_lost = False
         length = None if minutes is None else minutes * 60
         if not self.session.start(now, length):
-            self._refuse(self.session.may_start(now))
+            self._refuse(self.session.may_start(now), now)
             return
         self.machine.try_fire(Event.START_SESSION)
 

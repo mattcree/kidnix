@@ -29,6 +29,14 @@ cannot tell whether the computer comes back after tea, tomorrow or never is a
 child who asks an adult repeatedly, which is precisely what the ending ritual
 exists to stop.
 
+Since ``[[windows]]`` landed (parent-panel section 7.1) the daytime vocabulary
+has a **third** "when" -- *on Saturday* -- and a refusal of its own. Neither is
+reachable on a machine with no schedule windows: the budget rolls at 04:00 and
+bedtime ends in the morning, so before windows existed nothing was ever
+further off than tomorrow. A weekends-only machine is five days off on a
+Monday, and telling that child "tomorrow" is a promise the machine breaks
+every Tuesday.
+
 Nothing here demands anything of the child. The old line was "kidnix is
 sleeping. **Ask a grown-up.**" -- a demand issued to a child whose executive
 function has gone offline, and finding an adult is not a five-year-old's task
@@ -56,6 +64,15 @@ SLEEPING_TITLE = N_("Goodnight")
 RESTING_LATER_TODAY = N_("kidnix is resting. Back after tea.")
 #: Daytime, when there is not.
 RESTING_TOMORROW = N_("kidnix is resting. Back tomorrow.")
+#: Daytime, when the next window is further off than tomorrow -- which only
+#: happens once a parent has set ``[[windows]]`` (parent-panel section 7.1):
+#: "weekends only" on a Monday afternoon is five days away, and "tomorrow"
+#: would be a lie the child finds out about tomorrow.
+#:
+#: ``{day}`` is one of :data:`WEEKDAY_WORDS`, already translated. It is a whole
+#: phrase and not a bare name so that a translator can put the preposition,
+#: the case and the word order where their language wants them.
+RESTING_ON_DAY = N_("kidnix is resting. Back {day}.")
 #: Bedtime. No demand in it: the child is not being sent to find anybody.
 SLEEPING_LINE = N_("kidnix is sleeping.")
 
@@ -87,35 +104,83 @@ BUDGET_SPENT_REFUSAL = N_("That's all the computer time for today. Ready to go a
 #: The same shape at bedtime, where night words are true.
 BEDTIME_REFUSAL = N_("It's night time. kidnix is going to sleep.")
 
+#: Who's here, outside every ``[[windows]]`` a parent set (parent-panel
+#: section 7.1). **Daytime words**: this fires at half past three on a
+#: Wednesday as readily as at half past eight, and a moon or a "goodnight"
+#: here would be the sleep-onset cue forum #17 took out of the picture.
+#:
+#: Unlike the budget refusal it **says when**, because it can: a window has an
+#: opening time, and a child who cannot tell whether the computer comes back
+#: after tea, tomorrow or on Saturday asks an adult repeatedly (forum #31).
+#: Three phrasings rather than one interpolation for the two common answers,
+#: so a translator can shape the whole sentence around the unit.
+OUT_OF_HOURS_LATER_TODAY = N_("Not computer time just now. Back after tea.")
+OUT_OF_HOURS_TOMORROW = N_("Not computer time just now. Back tomorrow.")
+#: ``{day}`` is one of :data:`WEEKDAY_WORDS`, already translated.
+OUT_OF_HOURS_ON_DAY = N_("Not computer time just now. Back {day}.")
+#: The fallback when nothing can say *when* -- a window list that parsed but
+#: whose days never come round again. Still no demand in it, and still true.
+OUT_OF_HOURS_REFUSAL = N_("Not computer time just now.")
+
 #: Goodbye's headline when the child chose no destination. Warm, about the
 #: turn being over rather than about producing anything, and it never promises
 #: a return (forum #28: "See you next time" was firing on the flattest day).
 ALL_DONE_HEADLINE = N_("All done for today.")
 
 
-#: The two answers :func:`back_when_words` gives, as msgids. "After tea" is a
+#: The answers :func:`back_when_words` gives, as msgids. "After tea" is a
 #: unit a five-year-old owns and a clock is not; a translator gets to pick the
 #: meal their households actually name.
 LATER_TODAY_WORDS = N_("after tea")
 TOMORROW_WORDS = N_("tomorrow")
 
+#: The third answer, and it exists because ``[[windows]]`` made it reachable
+#: (parent-panel section 7.1). Monday first, so the index is
+#: :meth:`datetime.date.weekday`'s own -- the same order as
+#: :data:`kidnix_shell.session.DAYS`, which is what stops the two drifting.
+#:
+#: Named days are the one place the daytime vocabulary reaches past tomorrow.
+#: They are still not a clock and still not a digit: "on Saturday" is a word a
+#: five-year-old hears every week, and a child on a weekends-only machine who
+#: is told "tomorrow" every Monday learns that the machine does not mean it.
+WEEKDAY_WORDS: tuple[str, ...] = (
+    N_("on Monday"),
+    N_("on Tuesday"),
+    N_("on Wednesday"),
+    N_("on Thursday"),
+    N_("on Friday"),
+    N_("on Saturday"),
+    N_("on Sunday"),
+)
+
 
 def back_when_words(now: datetime, next_open: datetime) -> str:
-    """ "after tea" if the machine opens again later today, else "tomorrow".
+    """When the machine comes back, in words a five-year-old owns.
 
-    Child terms, not a clock: "after tea" is the unit a five-year-old owns,
-    and there are no digits anywhere in the child-facing shell.
+    Three answers, in order of how far off it is: *after tea* later the same
+    day, *tomorrow* the next, and *on Saturday* for anything further -- which
+    is only reachable on a machine with schedule windows on it, because the
+    budget and the bedtime gate never look past tomorrow morning.
+
+    Child terms, not a clock, and no digits anywhere. A ``next_open`` in the
+    past is treated as tomorrow: it is the answer that promises least.
     """
-    if next_open > now and next_open.date() == now.date():
-        return _(LATER_TODAY_WORDS)
-    return _(TOMORROW_WORDS)
+    days = (next_open.date() - now.date()).days
+    if days <= 0:
+        return _(LATER_TODAY_WORDS) if next_open > now else _(TOMORROW_WORDS)
+    if days == 1:
+        return _(TOMORROW_WORDS)
+    return _(WEEKDAY_WORDS[next_open.weekday()])
 
 
 def resting_line(now: datetime, next_open: datetime) -> str:
     """The daytime line, with when in it."""
-    if back_when_words(now, next_open) == _(LATER_TODAY_WORDS):
+    when = back_when_words(now, next_open)
+    if when == _(LATER_TODAY_WORDS):
         return _(RESTING_LATER_TODAY)
-    return _(RESTING_TOMORROW)
+    if when == _(TOMORROW_WORDS):
+        return _(RESTING_TOMORROW)
+    return _(RESTING_ON_DAY).format(day=when)
 
 
 def rest_title(*, bedtime: bool) -> str:
@@ -140,8 +205,38 @@ def goodnight_speech(*, bedtime: bool) -> str:
     return _(BEDTIME_GOODNIGHT_SPEECH) if bedtime else _(DAYTIME_GOODNIGHT_SPEECH)
 
 
-def refusal_line(*, bedtime: bool) -> str:
-    return _(BEDTIME_REFUSAL) if bedtime else _(BUDGET_SPENT_REFUSAL)
+def out_of_hours_line(now: datetime, next_open: datetime | None) -> str:
+    """Who's here's answer outside every schedule window, with when in it."""
+    if next_open is None:
+        return _(OUT_OF_HOURS_REFUSAL)
+    when = back_when_words(now, next_open)
+    if when == _(LATER_TODAY_WORDS):
+        return _(OUT_OF_HOURS_LATER_TODAY)
+    if when == _(TOMORROW_WORDS):
+        return _(OUT_OF_HOURS_TOMORROW)
+    return _(OUT_OF_HOURS_ON_DAY).format(day=when)
+
+
+def refusal_line(
+    *,
+    bedtime: bool,
+    out_of_hours: bool = False,
+    now: datetime | None = None,
+    next_open: datetime | None = None,
+) -> str:
+    """What Who's here says when there is no turn to be had.
+
+    Three refusals, in the order :class:`kidnix_shell.session.StartRefusal`
+    ranks them: bedtime first because night words are true then and nothing
+    else needs saying, out-of-hours next because it can say *when*, and the
+    spent budget last because it is the one that points at something to do
+    instead of at the machine's own return (D6).
+    """
+    if bedtime:
+        return _(BEDTIME_REFUSAL)
+    if out_of_hours:
+        return out_of_hours_line(now, next_open) if now is not None else _(OUT_OF_HOURS_REFUSAL)
+    return _(BUDGET_SPENT_REFUSAL)
 
 
 # --- what the screen does when a child hits it ---------------------------

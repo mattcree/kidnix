@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from .i18n import N_, _
 
@@ -38,6 +39,11 @@ class StartRefusal(Enum):
 
     OK = "ok"
     BEDTIME = "bedtime"
+    #: Outside every ``[[windows]]`` the parent set (parent-panel §7.1). It sits
+    #: **between** bedtime and the budget because the stricter and more
+    #: comprehensible refusal has to win: a child outside their window at 8 pm
+    #: is told it is night time, not that it is Tuesday.
+    OUT_OF_HOURS = "out_of_hours"
     BUDGET_SPENT = "budget_spent"
 
 
@@ -96,6 +102,153 @@ def _clamp(value: float, low: int, high: int) -> int:
     return int(max(low, min(high, value)))
 
 
+# --- schedule windows (parent-panel section 7.1) -------------------------
+#
+# ``[[windows]]`` in ``session.toml``, written by the parent panel:
+#
+#     [[windows]]
+#     label = "After school"
+#     days  = ["mon", "tue", "wed", "thu", "fri"]
+#     start = "15:30"
+#     end   = "18:00"
+#
+# Days are the first three letters, lower case; times are 24-hour. **No
+# windows at all means no restriction**, which is the same empty-means-all
+# reasoning as ``allowed_activity_ids``: a parent who deleted their last
+# window, or a file that failed to parse, must never lock a child out of a
+# machine that was open to them yesterday.
+
+#: Monday first, so the index is :meth:`datetime.date.weekday`'s own.
+DAYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+#: How far ahead :meth:`Window.next_start` is willing to look. Windows repeat
+#: weekly, so eight days is a full cycle plus the day we started in.
+WINDOW_SEARCH_DAYS = 8
+
+
+def _minutes(when: time) -> int:
+    return when.hour * 60 + when.minute
+
+
+@dataclass(frozen=True)
+class Window:
+    """One ``[[windows]]`` table: when the computer may be used at all.
+
+    A window whose ``end`` is at or before its ``start`` runs past midnight
+    into the next morning and **belongs to the day it starts on** -- which is
+    what a parent means by "Friday evening until nine". So Friday 21:00-01:00
+    covers Saturday 00:30 without ``sat`` being in ``days``, and does *not*
+    cover Friday 00:30.
+    """
+
+    days: frozenset[str]
+    start: time
+    end: time
+    #: The parent's own name for it ("After school"). Carried so a config
+    #: round-trip does not eat it; nothing child-facing ever shows it, because
+    #: it is the grown-up's words and not the child's.
+    label: str = ""
+
+    @property
+    def wraps_midnight(self) -> bool:
+        """True when the window runs into the next morning.
+
+        Equal start and end is a *whole day* starting at that time, not an
+        empty window: the panel refuses to write one, and the reading that
+        keeps a child on the machine is the safer of the two.
+        """
+        return _minutes(self.end) <= _minutes(self.start)
+
+    def covers(self, when: datetime) -> bool:
+        """Is ``when`` inside this window?"""
+        if not self.days:
+            return False
+        minute = _minutes(when.time())
+        start, end = _minutes(self.start), _minutes(self.end)
+        today = DAYS[when.weekday()]
+        if not self.wraps_midnight:
+            return today in self.days and start <= minute < end
+        if today in self.days and minute >= start:
+            return True
+        yesterday = DAYS[(when.weekday() - 1) % 7]
+        return yesterday in self.days and minute < end
+
+    def next_start(self, when: datetime) -> datetime | None:
+        """The first moment strictly after ``when`` that this window opens."""
+        if not self.days:
+            return None
+        for offset in range(WINDOW_SEARCH_DAYS):
+            day = when.date() + timedelta(days=offset)
+            if DAYS[day.weekday()] not in self.days:
+                continue
+            candidate = datetime.combine(day, self.start, tzinfo=when.tzinfo)
+            if candidate > when:
+                return candidate
+        return None
+
+
+def parse_days(raw: Any, source: str = "session.toml") -> frozenset[str]:
+    """``["Mon", "tue"]`` -> ``frozenset({"mon", "tue"})``. Junk is dropped.
+
+    Defensive in the same way every other key in that file is: a day nobody
+    recognises is skipped with a warning rather than taking the whole window
+    with it, because a typo in one of seven strings should not be the
+    difference between a schedule and no schedule.
+    """
+    if not isinstance(raw, (list, tuple)):
+        log.warning('%s: [[windows]] days must be a list like ["mon"]; skipping', source)
+        return frozenset()
+    days: set[str] = set()
+    for item in raw:
+        name = str(item).strip().lower()[:3]
+        if name in DAYS:
+            days.add(name)
+        else:
+            log.warning("%s: [[windows]] has no day called %r; ignoring it", source, item)
+    return frozenset(days)
+
+
+def parse_clock(raw: Any, source: str = "session.toml", key: str = "start") -> time | None:
+    """``"15:30"`` -> ``time(15, 30)``, or ``None`` with a warning."""
+    if not isinstance(raw, str):
+        log.warning('%s: [[windows]] %s must be a string like "15:30"', source, key)
+        return None
+    hour, _sep, minute = raw.strip().partition(":")
+    try:
+        return time(int(hour), int(minute or 0))
+    except ValueError:
+        log.warning("%s: [[windows]] %s=%r is not HH:MM", source, key, raw)
+        return None
+
+
+def parse_windows(raw: Any, source: str = "session.toml") -> tuple[Window, ...]:
+    """``[[windows]]`` out of TOML. A malformed window is skipped, loudly.
+
+    Returning ``()`` -- which is what a missing key, a wrong type and a file
+    full of unparseable windows all produce -- means *no restriction*. That is
+    deliberate and it is the only safe direction to fail in.
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, (list, tuple)):
+        log.warning("%s: [[windows]] must be a list of tables; ignoring it", source)
+        return ()
+    windows: list[Window] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            log.warning("%s: skipping malformed window %r", source, entry)
+            continue
+        days = parse_days(entry.get("days"), source)
+        start = parse_clock(entry.get("start"), source, "start")
+        end = parse_clock(entry.get("end"), source, "end")
+        if not days or start is None or end is None:
+            log.warning("%s: skipping window %r; it has no days or no times", source, entry)
+            continue
+        label = entry.get("label", "")
+        windows.append(Window(days=days, start=start, end=end, label=str(label) if label else ""))
+    return tuple(windows)
+
+
 @dataclass(frozen=True)
 class SessionPolicy:
     """Parent-set shape of the sandbox. Seconds throughout."""
@@ -114,6 +267,9 @@ class SessionPolicy:
     min_session: int = MIN_SESSION_SECONDS
     offer_min: int = OFFER_MIN_SECONDS
     put_away_min: int = PUT_AWAY_MIN_SECONDS
+    #: ``[[windows]]`` (parent-panel section 7.1). **Empty means no
+    #: restriction**, never "no time at all".
+    windows: tuple[Window, ...] = ()
 
     @classmethod
     def from_minutes(
@@ -201,13 +357,63 @@ class SessionPolicy:
             return self.bedtime_start <= now < self.bedtime_end
         return now >= self.bedtime_start or now < self.bedtime_end
 
-    def next_wake(self, when: datetime) -> datetime:
-        """When the Sleeping screen may next let a session start."""
-        if not self.is_bedtime(when):
-            return when
+    def in_window(self, when: datetime) -> bool:
+        """Is ``when`` inside one of the parent's schedule windows?
+
+        **True when there are none.** An empty list is "no restriction" and
+        never "nothing is allowed" -- see :func:`parse_windows`.
+        """
+        if not self.windows:
+            return True
+        return any(window.covers(when) for window in self.windows)
+
+    def next_window_start(self, when: datetime) -> datetime | None:
+        """The earliest window opening strictly after ``when``, or ``None``.
+
+        ``None`` when no windows are configured -- there is nothing to wait
+        for, so the Resting screen's "when" falls back to the two gates it
+        already had.
+        """
+        if not self.windows:
+            return None
+        starts = [start for start in (window.next_start(when) for window in self.windows) if start]
+        return min(starts) if starts else None
+
+    def _after_bedtime(self, when: datetime) -> datetime:
+        """The end of the bedtime window ``when`` is inside."""
         candidate = datetime.combine(when.date(), self.bedtime_end, tzinfo=when.tzinfo)
         if candidate <= when:
             candidate += timedelta(days=1)
+        return candidate
+
+    def next_wake(self, when: datetime) -> datetime:
+        """When the Sleeping screen may next let a session start.
+
+        Two gates now, and both have to be open: bedtime has to be over
+        **and** ``when`` has to be inside a schedule window. They interact --
+        the next window may open inside bedtime, and the end of bedtime may
+        land outside every window -- so this walks the pair until they agree
+        rather than taking a single ``max()`` of two independent answers.
+
+        The walk is bounded. A household whose windows lie entirely inside
+        bedtime has asked for two contradictory things, and the honest answer
+        to a contradiction is the best moment found, not a hang.
+        """
+        candidate = when
+        for _round in range(WINDOW_SEARCH_DAYS):
+            moved = False
+            if self.is_bedtime(candidate):
+                candidate = self._after_bedtime(candidate)
+                moved = True
+            if not self.in_window(candidate):
+                opens = self.next_window_start(candidate)
+                if opens is None:  # unreachable: no windows means in_window()
+                    return candidate
+                candidate = max(candidate, opens)
+                moved = True
+            if not moved:
+                return candidate
+        log.warning("the bedtime window and the schedule windows never agree; using %s", candidate)
         return candidate
 
 
@@ -266,6 +472,7 @@ def load_policy(path: Path | None) -> SessionPolicy:
         bedtime_start=clock("bedtime_start", default.bedtime_start),
         bedtime_end=clock("bedtime_end", default.bedtime_end),
         min_session=floor,
+        windows=parse_windows(data.get("windows"), str(path)),
     )
 
 
@@ -376,6 +583,11 @@ class Session:
         self.usage.roll(budget_day(now))
         if self.policy.is_bedtime(now):
             return StartRefusal.BEDTIME
+        # After bedtime and before the budget (parent-panel section 7.1). At 8 pm
+        # on a Tuesday both are true, and "it's night time" is the sentence a
+        # five-year-old can act on; "it isn't your window" is not.
+        if not self.policy.in_window(now):
+            return StartRefusal.OUT_OF_HOURS
         # The floor, not zero (panel ruling, 2026-08-23). Four minutes left of
         # the day is not a short session, it is a session that opens into its
         # own ending -- so the answer is a warm no at the door.
@@ -557,14 +769,29 @@ class Session:
     def next_allowed(self, now: datetime) -> datetime:
         """The next moment a session could start. Drives the Resting line.
 
-        Two gates, and the later of them wins: the bedtime window has to be
-        over *and* there has to be a budget again. A child who is told the
-        computer is asleep and cannot tell whether it comes back after tea,
-        tomorrow or never is the condition D2 exists to stop (forum #31).
+        Three gates now, and the latest of them wins: the bedtime window has
+        to be over, ``now`` has to be inside one of the parent's schedule
+        windows (:meth:`SessionPolicy.next_wake` settles those two between
+        themselves) *and* there has to be a budget again. A child who is told
+        the computer is resting and cannot tell whether it comes back after
+        tea, tomorrow or on Saturday is the condition D2 exists to stop
+        (forum #31).
+
+        The budget gate stays here rather than in ``next_wake`` because it is
+        the one gate that is about *this child* -- ``policy`` is the machine's
+        and ``usage`` is theirs.
         """
         when = self.policy.next_wake(now)
         if self.usage.remaining(self.policy.daily_budget) < self.policy.min_session:
             when = max(when, next_budget_reset(now))
+            if self.policy.windows:
+                # 04:00 is outside every schedule a household actually sets, so
+                # on a machine that has one the gates are asked again about the
+                # moment the budget returns. Guarded on ``windows`` so a
+                # machine without a schedule keeps exactly the answer it gave
+                # before this key existed -- "tomorrow, when the budget rolls"
+                # -- rather than quietly gaining the bedtime gate on top.
+                when = self.policy.next_wake(when)
         return when
 
     def fraction_left(self, now: datetime) -> float:

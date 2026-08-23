@@ -161,7 +161,7 @@ class ShelfScreen(Screen):
                     self.ctx.speech_ui,
                     on_activate=partial(self._activate, cell),
                     allowed=denial is None,
-                    denial=denial or NOT_ALLOWED_LINE,
+                    denial=denial or _(NOT_ALLOWED_LINE),
                     label_points=points,
                     label_height=label_height,
                 ),
@@ -174,10 +174,10 @@ class ShelfScreen(Screen):
 
     def _denial(self, activity: Activity) -> str | None:
         """Why this game cannot be opened, in the child's words -- or None."""
-        if not self.ctx.config.is_allowed(activity.id):
-            return NOT_ALLOWED_LINE
+        if not self.ctx.config.is_allowed(activity.id, self.ctx.profile.id):
+            return _(NOT_ALLOWED_LINE)
         if not activity.usable:
-            return NOT_READY_LINE
+            return _(NOT_READY_LINE)
         return None
 
     def _activate(self, activity: Activity) -> None:

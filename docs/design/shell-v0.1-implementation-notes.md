@@ -2992,3 +2992,198 @@ at start-up and leaves the directory empty on the way out.
    but the SDK sends the datagram either way and cannot know. Harmless, and
    worth a sentence if the wire ever grows a reply.
 4. Everything still open in §§18.9, 19.5, 20.6, 21.10, 22.7, 23.9 and 24.5.
+
+---
+
+## 26. v0.1.12 — the shell reads what the parent panel writes (2026-08-23)
+
+`kidnix_shell/session.py`, `kidnix_shell/resting.py`, `kidnix_shell/access.py`,
+`kidnix_shell/settings.py`, `kidnix_shell/app.py`,
+`kidnix_shell/screens/{home,shelf}.py`, `tests/test_windows.py` (new),
+`tests/test_settings.py`, `tests/test_access.py`,
+`system_files/etc/kidnix/session.toml`, both copies of `parent.toml`.
+
+The parent panel shipped writing three keys the shell did not read, and said so
+in its own tabs: *"setting one changes nothing today"*. That is an honest thing
+to print and a bad thing to leave printed. `docs/design/parent-panel.md` §7.1,
+§7.2 and §7.3 are the three follow-ups, and this is all three of them. Nothing
+about the panel's file format changed — the shapes below are the ones
+`kidnix_parent_panel.config_io` already renders, field for field.
+
+### 26.1 §7.1 — `[[windows]]`, and the direction failure has to go in
+
+```toml
+[[windows]]
+label = "After school"
+days  = ["mon", "tue", "wed", "thu", "fri"]
+start = "15:30"
+end   = "18:00"
+```
+
+`Window` is a frozen dataclass of `(days: frozenset[str], start, end, label)`;
+`parse_windows` is defensive in the way every other key in that file is.
+
+**The load-bearing property is which way it fails.** No windows, a `windows`
+key that is not a list, a window with no days, an unparseable clock, a table
+that is not a table — every one of them produces `()`, and `()` means **no
+restriction**. It is the same empty-means-all reading as `allowed_activity_ids`
+and it is chosen for the same reason: the failure on the other side is a
+five-year-old locked out of a machine that worked yesterday, with no UI
+anywhere that could tell them why. One malformed window is skipped with a
+WARNING and the good ones around it survive, because a typo in one of seven
+day strings should not be the difference between a schedule and no schedule.
+
+**A window that wraps midnight belongs to the day it starts on.** `fri`
+20:00–00:30 covers Saturday 00:15 without `sat` being listed, and does not
+cover Friday 00:15. That is what a parent means by "Friday evening until half
+past midnight", and it is the same arithmetic `is_bedtime` has always done,
+with the extra step that the *previous* day is the one that has to be in
+`days`. Equal start and end is read as a whole day rather than an empty one —
+the panel refuses to write it, and of the two readings only one keeps a child
+on the machine.
+
+**`StartRefusal.OUT_OF_HOURS` sits between `BEDTIME` and `BUDGET_SPENT`.** At
+8 pm on a Tuesday both bedtime and the schedule are shut, and *"it's night
+time"* is a sentence a five-year-old can act on where *"it isn't your window"*
+is not. Out-of-hours in turn beats the spent budget, because it is the refusal
+that can say **when**.
+
+`SessionPolicy.next_wake` now has two gates instead of one and they interact:
+the next window may open inside bedtime, and the end of bedtime may land
+outside every window. So it walks the pair until they agree rather than taking
+one `max()` of two independent answers, bounded at eight rounds — a household
+whose windows lie entirely inside bedtime has asked for two contradictory
+things, and the answer to a contradiction is the best moment found, not a hang.
+`Session.next_allowed` keeps the budget gate (it is the one gate that is about
+*this child* rather than the machine) and re-asks `next_wake` about the moment
+the budget returns, because 04:00 is outside every schedule anyone actually
+sets. That re-ask is guarded on `policy.windows` being non-empty, so a machine
+with no schedule gives byte-for-byte the answer it gave before this key
+existed.
+
+### 26.2 The daytime vocabulary gained a third "when"
+
+Before windows, nothing was ever further off than tomorrow morning: the budget
+rolls at 04:00 and bedtime ends at 07:00. A weekends-only machine on a Monday
+is five days off, and telling that child "tomorrow" is a promise the machine
+breaks every Tuesday. So `back_when_words` has three answers now — *after tea*,
+*tomorrow*, and a named day — and `WEEKDAY_WORDS` is indexed by
+`date.weekday()`, the same order as `session.DAYS`, which is the only thing
+joining the two tuples and is asserted.
+
+A named day is still not a clock and still not a digit. "On Saturday" is a
+phrase a five-year-old hears every week. The whole phrase is the msgid, not the
+bare name, so a translator can put their language's preposition, case and word
+order where they belong.
+
+Who's here's refusal is new (`OUT_OF_HOURS_*`) and it is **daytime words**:
+this fires at half past three as readily as at half past eight, and a moon, a
+yawn or a "goodnight" here would be exactly the sleep-onset cue forum #17 took
+out of the picture, arriving through the one channel a pre-reader actually gets
+it from. It says when — *"Not computer time just now. Back after tea."* — and
+the Resting screen behind it says the same thing, computed from the same
+`next_allowed`, so the child is told one thing twice rather than two things
+once. `_maybe_wake` gained the schedule's counterpart to `window_over`: a
+screen that stays dark through the window it just named is a screen that lied.
+
+### 26.3 §7.2 — a per-child allow-list
+
+`Profile.allowed_activity_ids: tuple[str, ...] = ()`, and
+`ParentConfig.is_allowed(activity_id, profile_id="")` reads the child's own
+list when it is non-empty and the machine-wide list otherwise. Three states —
+this child's list, the machine's list, everything — and none of them is
+*nothing*. `home.py` and `shelf.py` pass `ctx.profile.id`; the default argument
+keeps every other caller's call unchanged.
+
+It is a **replacement and not a narrowing**, which is only safe because of what
+the panel writes: the machine-wide list is the *union* of the active children's,
+so every id in a child's own list was already in the list above it and falling
+back can only ever widen. Intersecting the two would hand a child less than the
+parent ticked for them. Two siblings on one machine can now see the same tile
+with two different answers — outline-only and "Ask a grown-up for this one" for
+one of them — which is the point: it is a tile a grown-up genuinely can give,
+to one of them. The age band still filters per child on top of it, as it always
+has. A hand-edited list that is not a list is dropped to `()`, i.e. it widens.
+
+While in `shelf.py`: its `_denial` was handing back two raw msgids rather than
+`_()` of them, so those two lines were untranslated on a `cy` or `pl` machine.
+Fixed in passing; every string added in this pass goes through `_()`/`N_()`.
+
+### 26.4 §7.3 — read-aloud pace
+
+`AccessConfig.speech_rate` is a field now (default `SPEECH_RATE`, clamped to
+−100…100 on the way in) and the calm interaction moved to
+`effective_speech_rate`, which is the shape `sound_volume`/`effective_volume`
+already had. `app.py`'s two `set_rate` calls read the effective one.
+
+**Calm takes `min(configured, CALM_SPEECH_RATE)` — the slower, never the
+faster.** A parent who has already asked for −50 has made a statement about
+their child, and a calm switch that sped the voice back *up* to −35 would be
+the switch undoing the setting it exists to serve. Calm is a floor on slowness.
+
+`tts.env` still refuses to carry `length_scale` and that is still right: the
+shell overrides the rate per utterance through speech-dispatcher, so a number
+in that file would be silently ignored. `kidnix-piperd` derives
+`length_scale = 1.0 - rate/200` from what it is sent, which is the arithmetic
+the panel shows beside its slider, and `tests/test_access.py` checks it from
+this side.
+
+### 26.5 The shipped files
+
+`session.toml` gains the `[[windows]]` documentation and three worked examples
+— after school, weekend mornings, and one that runs past midnight — **all
+commented out**, because no active window is the shipped promise: a machine
+nobody has scheduled is open whenever bedtime and the budget allow. Both copies
+of `parent.toml` gain `speech_rate = -20` under `[access]`, the per-child
+`allowed_activity_ids = []` inside `[[profiles]]`, and a note on the
+machine-wide key saying it is now the fallback. The two copies are still
+byte-identical, which `tests/test_settings.py` asserts.
+
+### 26.6 Tests
+
+`tests/test_windows.py`, 63 of them, all headless: the day table and its
+alignment with `WEEKDAY_WORDS`, half-open ends, midnight wrap in both
+directions, equal start and end, weekday sets and the days a window does not
+have, `next_start` being strictly future and never looking past a week, seven
+parse-failure shapes, one bad window not taking the good ones with it, a real
+`session.toml` round trip, the shipped file having no active windows, the
+refusal ranking against bedtime and the budget, `next_wake` with the two gates
+in both orders and the contradictory schedule that must still answer, all three
+"when" words including a next-open in the past, and the refusal sentences
+against the four rules the daytime vocabulary is held to (no night words, no
+demands, no digits, one caption line). Plus ten in `tests/test_settings.py` for
+the allow-list precedence and the panel's exact profile shape, and eight in
+`tests/test_access.py` for the rate's bounds, its junk handling and the calm
+interaction swept across the whole range.
+
+`just lint` is green and the suite is 1263 passed, 2 skipped — up from 1144.
+A `--demo --windowed --run-seconds 8` run under Broadway starts, lays out and
+quits cleanly.
+
+**Two failures in the tree at the time of writing are not from this pass.**
+`tests/test_activities.py::test_the_shipped_tiles_are_named_for_what_the_child_does`
+and `tests/test_labels.py::test_the_image_still_ships_the_measured_set` are the
+two shipped-manifest tables not yet knowing about `numbers.toml` and
+`clock-time.toml`, which landed in `system_files/usr/share/kidnix/activities/`
+while this was being written. Both read the manifest directory and neither
+touches session policy, the allow-list or `[access]`.
+
+### 26.7 Still open after this pass
+
+1. **`po/kidnix.pot` has not been re-extracted.** Every string added here is
+   marked with `_()`/`N_()` and `xgettext` will find them, but the catalogue
+   was deliberately not regenerated in a tree several people were editing —
+   `just po-update` before the next release, and the `cy` and `pl` catalogues
+   then have ~12 new msgids each, including the seven weekday phrases.
+2. **Nothing in the child's session shows the schedule.** A child inside a
+   window has no way to see how much of it is left; the sun is the *session's*
+   depletion and not the window's. That is probably right — two depleting
+   things is two anxieties — but it is a decision nobody has taken on purpose.
+3. **A window closing under a running session does nothing.** `may_start` is a
+   door check; the sitting it granted runs to its own end. That is deliberate
+   (the ending ritual is the only ending) and it means a 17:50 start on a
+   window that shuts at 18:00 gets a full 25 minutes. The panel's Time tab does
+   not say so.
+4. **`retired_profiles` is still not read, and must stay that way** (§7.4).
+5. Everything still open in §§18.9, 19.5, 20.6, 21.10, 22.7, 23.9, 24.5 and
+   25.4.

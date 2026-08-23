@@ -56,6 +56,59 @@ put_away_minutes = 2
 bedtime_start = "19:00"
 bedtime_end = "07:00"
 
+# --- WHEN THE COMPUTER MAY BE USED AT ALL -----------------------------------
+#
+# Schedule windows, one [[windows]] block each. Written by the parent panel's
+# Time tab, and read by the shell since v0.1.12.
+#
+# **NO WINDOWS AT ALL MEANS NO RESTRICTION**, which is why there are none
+# below: a machine nobody has scheduled is open whenever bedtime and the daily
+# budget allow, exactly as it was before this key existed. An empty schedule
+# must never be the thing that locks a child out, so a file with no [[windows]]
+# in it -- and a file whose windows all failed to parse -- allows everything.
+#
+#   days   the first three letters, lower case: mon tue wed thu fri sat sun
+#   start  24-hour "HH:MM"
+#   end    24-hour "HH:MM". At or before `start` the window runs past midnight
+#          into the next morning, and belongs to the day it STARTS on: a
+#          fri 21:00-01:00 window covers Saturday half past midnight without
+#          `sat` being listed, and does not cover Friday half past midnight
+#   label  the grown-up's own name for it. Never shown to the child
+#
+# A malformed window is skipped with a warning in the journal and the rest of
+# the file still applies. Bedtime applies on top of these and the stricter of
+# the two wins, so a child outside their window at 8 pm is told it is night
+# time rather than that it is Tuesday.
+#
+# Outside every window the shell answers at "Who's here?" -- before the child
+# has invested a plan -- with daytime words that say WHEN it comes back, in
+# child terms and with no digits in them: "Not computer time just now. Back
+# after tea." / "... Back tomorrow." / "... Back on Saturday." The Resting
+# screen behind it says the same thing, computed from the same next window.
+#
+# The household in the example: an hour and a half after school on weekdays,
+# and a longer window on Saturday and Sunday mornings.
+#
+#   [[windows]]
+#   label = "After school"
+#   days  = ["mon", "tue", "wed", "thu", "fri"]
+#   start = "15:30"
+#   end   = "18:00"
+#
+#   [[windows]]
+#   label = "Weekend mornings"
+#   days  = ["sat", "sun"]
+#   start = "09:30"
+#   end   = "12:00"
+#
+# And one that runs past midnight, for a household that means it:
+#
+#   [[windows]]
+#   label = "Friday film night"
+#   days  = ["fri"]
+#   start = "20:00"
+#   end   = "00:30"
+
 # NOT HERE: the read-aloud hover dwell (`hover_dwell_ms`), how fast Home grows
 # (`[home]`) and the "What's next after?" options (`[[next_after]]`) live in
 # parent.toml, next to the allow-list and the profiles. This file is the
