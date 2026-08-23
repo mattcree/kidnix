@@ -1,12 +1,11 @@
 # Sounds & Words
 
-The kidnix literacy activity. This directory is **weeks 1–3** of the six-week
+The kidnix literacy activity. This directory is **weeks 1–4** of the six-week
 v1 plan in `docs/plan/SUITE.md` §3 and
 `docs/research/10-early-reading-writing-sota.md` §7.1: the corpus, the ceiling,
-the acceptance test, the schedule, and the first two modules of the loop —
-**Find it** (B) and **Blend it** (C), on the `kidnix_activity` SDK
-(`shell/kidnix_activity`). Read it (E) is week 4; Hear it (A) is week 6 if there
-is time.
+the acceptance test, the schedule, and three modules of the loop —
+**Find it** (B), **Blend it** (C) and **Read it** (E), on the `kidnix_activity`
+SDK (`shell/kidnix_activity`). Hear it (A) is week 6 if there is time.
 
 **Importing this package imports no GTK.** The half that carries the guarantee
 — which grapheme comes next, what the ceiling is, whether a word is decodable —
@@ -14,7 +13,7 @@ is provable headless; the window is in `sounds_and_words/activity.py` and is
 imported only by the entry point.
 
 The design lives in `docs/design/sounds-and-words.md`. Read that first — §12 is
-what the two screens do and why.
+what Find it and Blend it do and why, and §16 is Read it.
 
 ## What is here
 
@@ -25,6 +24,7 @@ data/
   tricky_words.toml  56 tricky words, gated by GPC order or by phase
   sentences.toml     119 captions/questions/sentences + 5 short texts
   lexicon.toml       200 segmentations for words outside the banks
+  read_texts.toml    the 12 authored decodable texts (ours, not L&S)
   parent_text.toml   every word a parent reads
   sources.toml       provenance, page numbers, licence, and what we changed
   schemes/           the L&S ordering, plus stubs for the schemes we don't ship
@@ -40,17 +40,21 @@ sounds_and_words/
   blend.py           dots, bars, and the three stages of a word
   phonemes.py        what to *say* for a sound, and where it comes from
   pictures.py        fifteen concrete nouns, drawn here
-  summary.py         the card the child takes away
+  reading.py         the 12 books: the shelf, pagination, highlight timing
+  summary.py         the two cards the child takes away
   activity.py        the window. Wiring only.
+  reader.py          the Read it screens: the shelf and the book
   screenshots.py     --screenshot, under Broadway, never on a desktop
   pictures/*.svg     bag bed bus cat cup dog fox hat jam map net pin pot sun tap
-  icons/*.svg        push, say, next
+  scenes/*.svg       sandpit truck hill pond farmyard shed box shop fish rain train
+  icons/*.svg        push, say, next, back, listen
 manifest.toml        the shell's input contract (not installed yet -- see below)
 tests/               the Appendix 7 acceptance test and everything else
 tools/               the transcription and the generator that writes data/
 ```
 
-`data/*.toml` is generated: `tools/lsdata.py` is the page-by-page
+`read_texts.toml`, `parent_text.toml`, `sources.toml` and `schemes/` are
+hand-written; everything else in `data/` is generated: `tools/lsdata.py` is the page-by-page
 transcription of the L&S tables, `tools/lexicon_data.py` the hand-written
 grapheme splits, and `uv run python tools/gen.py` writes the TOML. A test
 re-runs the generator and insists the checked-in files match byte for byte.
@@ -68,7 +72,7 @@ downstream of it.
 
 ```sh
 just setup             # a venv with --system-site-packages, for gi
-just test              # 554 tests, including the Appendix 7 acceptance test
+just test              # 849 tests, including the Appendix 7 acceptance test
 just lint
 just validate          # the manifest, through the shell's own parser
 ```
@@ -77,7 +81,7 @@ Never on your own desktop. The window only ever opens on a Broadway display:
 
 ```sh
 just run               # the activity, on gtk4-broadwayd :108
-just test-gtk          # the 31 GTK tests, likewise
+just test-gtk          # the 79 GTK tests, likewise
 just screenshots       # regenerates docs/design/screenshots/saw-*.png
 ```
 
@@ -118,6 +122,9 @@ where a test can enforce them:
 - No handwriting, letter formation or lead-in strokes — and say so to parents.
 - No speech recognition judging a child's reading, ever.
 - No adaptivity beyond a Leitner box and a `WHERE` clause.
+- **No hotspots, tap-to-animate, mini-games or tap-a-word dictionary in Read
+  it.** The clearest negative finding in the literature, and the way it is kept
+  is that the sentence is one label with no per-word control under it.
 
 ## Licence
 

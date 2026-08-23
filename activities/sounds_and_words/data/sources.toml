@@ -160,6 +160,40 @@ the two books apart, and neither could the filter.
 """
 
 [[addition]]
+kind = "decodable_texts"
+count = 12
+added_by = "kidnix"
+licence = "Apache-2.0"
+file = "data/read_texts.toml"
+reason = """
+Twelve authored decodable texts for Read it (module E), 4-8 sentences each,
+spanning Phase 2 sets 2-5 and five points of Phase 3. They are **ours**, not
+Letters and Sounds material: what came from L&S is the word bank they are
+composed of, and a sentence built out of licensed words is no more a derivative
+of that licence than a sentence built out of a dictionary is a derivative of
+the dictionary. They exist because no openly-licensed decodable set follows a
+UK phonics progression -- research 10 section 5 records that search as an
+absence -- and because the alternative, US decodables, break a UK progression
+at the vowels. Every word of every one of them, titles included, is checked
+against the ceiling in strict mode by tests/test_reading.py.
+"""
+
+[[addition]]
+kind = "drawings"
+count = 13
+added_by = "kidnix"
+licence = "Apache-2.0"
+file = "sounds_and_words/scenes/, sounds_and_words/icons/"
+reason = """
+Eleven scenes for Read it (sandpit, truck, hill, pond, farmyard, shed, box,
+shop, fish, rain, train) and two more interface icons (back, listen). The
+fifteen concrete nouns drawn for Blend it are reused wherever a sentence is
+about one of them rather than redrawn. Hand-written SVG paths, no traced or
+third-party artwork, no embedded fonts and no text elements; flat and
+high-contrast so that every one reads in greyscale (SYNTHESIS B6).
+"""
+
+[[addition]]
 kind = "untaught_pseudo_gpcs"
 count = 15
 added_by = "kidnix"

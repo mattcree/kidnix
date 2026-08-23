@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a track going up a hill">
+<title>a track going up a hill</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M6 96c18-40 34-56 54-56s36 16 54 56Z" fill="#8fc08f"/>
+<path d="M6 96h108" />
+<path d="M40 96c6-18 14-30 20-40" stroke-dasharray="10 9" />
+<circle cx="92" cy="30" r="12" fill="#ffd23f"/>
+</g>
+</svg>

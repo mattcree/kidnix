@@ -1033,3 +1033,234 @@ Blend it is the other direction and unchanged: its buttons are one per *sound
 in the word*, which is the word itself and not a set of alternatives — ADR-0013's
 labelled-grid side — and it is bounded by the corpus's taste for short words,
 not by our taste. Nothing in the v1 ceiling reaches five sounds.
+
+## 16. Week 4: Read it (2026-08-23)
+
+> Module E, from research 10 §4.1 and §4.6 #2. **This section is additive**:
+> where it disagrees with §9's table (which has week 4 as "to do") or §12.1's
+> "Read it: week 4", this section is what the code does. Everything in §8 still
+> holds — nothing below relaxes any of it. Code:
+> `activities/sounds_and_words/sounds_and_words/reading.py` (pure) and
+> `reader.py` (the screens); the texts are `data/read_texts.toml`.
+
+### 16.1 The one finding this module is shaped by
+
+Takacs, Swart & Bus (2015) `[META, 43 studies, 2,147 children]`: a narrated
+text with **congruent illustration** beats a plain adult reading (g+ = 0.17
+comprehension, 0.20 expressive vocabulary), and **hotspots, tap-to-animate,
+embedded mini-games and tap-a-word dictionaries make it worse**. That is the
+clearest negative finding in this whole literature, and it is why Read it is
+the *least* interactive thing in the activity rather than the most.
+
+So, on the page:
+
+- **the sentence is one `Gtk.Label`.** Not one button per word, not a flow box
+  of selectable children. A child can tap a word as hard as they like and
+  nothing happens, because there is no widget there for anything to happen to.
+  That is not a rule somebody has to remember; it is the absence of a control.
+- **the picture is a `Gtk.Picture`**, which is not a control either. It fades
+  in over 320 ms and does nothing else. Calm mode takes even the fade.
+- no dictionary, no game, no star, **no page number** (01 #19: a page count is
+  a progress bar with a serif on it), and nothing that scores anything.
+
+### 16.2 Twelve texts, and the gate they went through
+
+`data/read_texts.toml` — **hand-written**, unlike the generated corpus beside
+it, and `tests/test_generator.py` now asserts the generator neither writes nor
+claims it. They are ours, Apache-2.0; what came from Letters and Sounds is the
+word bank they are composed of, and a sentence built out of licensed words is
+no more a derivative of that licence than a sentence built out of a dictionary
+is a derivative of the dictionary. `LICENSES.md` §4 carries the row, and
+research 10 §5's absence — no openly-licensed decodable set follows a UK
+progression — is why they had to be written at all.
+
+| # | Title | Phase | Set | Readable from |
+|---|---|---|---|---|
+| 1 | *sam and sid* | 2 | 2 | order 8 (`d`) |
+| 2 | *a cat and a dog* | 2 | 3 | order 11 (`c`) |
+| 3 | *tap a tin pot* | 2 | 3 | order 11 (`c`) |
+| 4 | *ducks at the pond* | 2 | 4 | order 16 (`r`) |
+| 5 | *the red truck* | 2 | 4 | order 16 (`r`) |
+| 6 | *on the big bus* | 2 | 5 | order 23 (`ss`) |
+| 7 | *ten hens* | 2 | 5 | order 23 (`ss`) |
+| 8 | *jam on the hat* | 3 | — | order 24 (`j`) |
+| 9 | *a big box* | 3 | — | order 29 (`z`) |
+| 10 | *the fish shop* | 3 | — | order 34 (`th`) |
+| 11 | *a trip to nan* | 3 | — | order 39 (`oa`) |
+| 12 | *in the farmyard* | 3 | — | order 50 (`er`) |
+
+Five of the twelve are Phase 3 and they are spread across it, because Phase 3
+is twenty-seven GPCs against Phase 2's twenty-three and one book for the whole
+of it is one book for a term.
+
+**Every word of every one of them, titles included, goes through
+`check_lines(..., strict=True)`** in `tests/test_reading.py`. Strict mode
+refuses a word it has no segmentation on record for rather than guessing at
+one, which is what stops an author reaching for a word that merely *looks*
+decodable. Two tests per text, not one: it must pass at the order it declares
+**and fail at the order below**. The second half is what catches a number set
+too high — a book that quietly moved up a set would otherwise never be noticed,
+because it would still be safe, just absent from a shelf it belonged on.
+
+Everything is lowercase, names included (§2.2). Every line ends in a full stop,
+a question mark or an exclamation mark, and no line contains a digit.
+
+### 16.3 The illustrations
+
+One drawing per line, named in the TOML, and **congruent** — the drawing shows
+what the sentence says. Eleven new scenes (`sounds_and_words/scenes/`:
+sandpit, truck, hill, pond, farmyard, shed, box, shop, fish, rain, train) plus
+two more interface icons (`back`, `listen`), and the fifteen concrete nouns
+from Blend it are **reused** wherever a line is about one of them: a picture of
+a cat is already the best picture a line about a cat can have. Same rules as
+§12.4's fifteen — flat, high-contrast, legible in greyscale, no text elements,
+ours under Apache-2.0. Repetition down a book is deliberate; a fresh picture
+per line that had nothing to do with the line would be worse than the same pond
+twice, and "worse" here is the meta-analysis's word, not ours.
+
+`reading.missing_illustrations()` is the list a test asserts is empty. A name
+with no file behind it draws no frame at all rather than a broken one.
+
+### 16.4 The screen
+
+![Read it](screenshots/saw-read-it.png)
+
+One sentence to a page, set in Andika at **34 pt preferred with a 28 pt
+floor** — half again the SDK's 18 pt floor for child-facing text, because this
+is text a child is decoding letter by letter rather than glancing at. The point
+size is computed from millimetres of real panel and applied as Pango markup;
+the family stays in CSS, where a missing Andika can fall back through a stack.
+
+Three controls, all `BigButton` at 40 mm: **back**, **read it to me**, **next**.
+Back is insensitive on the first page; next on the last page ends the book.
+There is no gate anywhere in it — the narration button can be pressed on every
+page or never.
+
+**Word-by-word highlighting** (`reading.word_spans`) is arithmetic, not a
+callback: the SDK's voice reports that a line was handed to speech-dispatcher,
+not how long it will spend on it, and there is no callback in the stack that
+would say. So a duration is estimated at 120 words a minute, scaled by the
+child's own `[access] speech_rate` (calm arrives through the same number), and
+divided between the words in proportion to their length plus one — equal shares
+would give `a` the same beat as `farmyard`, which is visibly wrong on any line
+with a one-letter word in it. The spans are contiguous and gapless and the last
+one ends exactly on the total; a gap would read as a stutter rather than a
+pause. It is approximate and the module says so. The alternative to
+approximating is not highlighting at all, and highlighting is part of what
+Takacs et al. measured.
+
+### 16.5 The shelf
+
+![The shelf](screenshots/saw-read-shelf.png)
+
+**ADR-0013: a shelf is a choice**, not a labelled grid whose items are the
+task, so five is the bound and a longer shelf pages rather than growing. Each
+book is a `PictureTile` — cover, title, and its own name spoken on hover and on
+focus, which is `ChildButton`'s behaviour rather than something this screen
+arranges. The arrows do not wrap: a shelf a child could walk round for ever is
+a shelf they can never finish looking at.
+
+The schedule picks one book a session and the child picks which one they
+actually read. Those two facts are reconciled by putting the scheduled one
+**first**: a child who takes the first thing offered gets a different book from
+yesterday, and a child who wants the one about the ducks again can have it.
+
+### 16.6 Narration is the parent's answer
+
+`[read] narration` in `/etc/kidnix/sounds_and_words.toml` — the same root-owned
+file as the ceiling, because a parent who has edited one should not have to
+find a second place for the other. Three values, and `optional` is the default:
+
+| | |
+|---|---|
+| `optional` | the button is there; nothing is said until it is pressed |
+| `always` | each page reads itself as it arrives; the button stays |
+| `never` | no button, no voice, no highlight |
+
+The default is not `always` on purpose. Takacs et al. is about a story being
+read *to* a child; the point of this module is a child reading it themselves,
+out loud, to somebody. A voice that starts on its own every page is a voice
+that reads the book for them. An unknown value falls back to `optional` and
+says so in the log, exactly as a broken ceiling does.
+
+**The caption strip shows the same words that are already on the screen**, and
+here that is right rather than redundant: the child is *reading* this sentence,
+so writing it down is the content and not a spoiler. That is the one place in
+this activity where the §15.1 rule about captions does not bite.
+
+### 16.7 What the child takes away
+
+At the end of a book: the line *"Read it to someone!"*, a `GrownUpTurn` card
+carrying *"Ask him to read it to you — the words are all sounds he has been
+taught"* — the second half is what makes that a reasonable thing to ask of an
+adult who does not know what the school has taught — and one Journal entry:
+
+```
+save_entry(kind="read", files=[a card with the title on it],
+           caption="I read: a trip to nan",
+           meta={title, slug, phase, words, date, ceiling})
+```
+
+`words` is every distinct word in the book, which is a thing a grown-up can
+read off the card and recognise. There is no count, no time, no "well done" and
+no digit anywhere on it. The card is drawn by the same `summary._draw_card` as
+the words card, so the two look like each other in My Things.
+
+**It is kept at the end of the book, not at the end of the session.** A child
+who stopped halfway has not read it, and a Journal card saying they did would
+be a lie about a person. That is also why SIGTERM does not write one.
+
+### 16.8 The loop, and the twelve-item bound
+
+`compose_session` now plans one `READ_TEXT` item — the slug, not the title,
+because a title is copy and may be edited — chosen from the books the ceiling
+admits. The old `READ_IT` item (one caption from the L&S bank) is unchanged and
+still deferred; Read it is what keeps the promise it stood for.
+
+Four Find it items, eight Blend it words and a book is **thirteen**, and §12.1's
+bound is twelve. Rather than let the trim eat the text — the module with the
+meta-analysis behind it, and the only connected language in the session — the
+book's slot and its two minutes come off the budget **first**, the practice tail
+is trimmed into what is left, and the book goes back on the end:
+
+```
+4 find_it + 7 blend_it + 1 read_text = 12 items, ~8.9 minutes
+```
+
+which is inside research 10 §4.1's 8–12 band with the whole loop counted. A
+ceiling that admits no book gets the old shape back, twelve practice items and
+no text, because reserving a slot for something that does not exist would be
+manufacturing work.
+
+### 16.9 What the tests cover
+
+**+166 headless** (770 in the package now) and **+31 GTK** (79). The headless
+ones: the twelve texts at their own ceiling and at the one below it, titles
+included, in strict mode; the 4–8 sentence bound; lowercase, punctuation, no
+digits; every named drawing present on disk; pagination and page identity;
+the highlight arithmetic — gapless spans, the exact total, longer words lit
+longer, the rate scaling; shelf filtering at every order the corpus can express
+(the one that matters: **no book above the ceiling ever reaches a shelf, at any
+of the fifty-one**); the ≤ 5 page and its cap; the Journal caption and meta;
+and the three narration values with their fallbacks.
+
+The GTK ones build both new screens for real under Broadway: the shelf's five,
+its paging and its dead ends, the tiles' spoken titles; the book's first page,
+its arrows at 20 mm, its 28 pt floor, the turn and the turn back; **that the
+sentence is one label and that there is no `ChildButton` anywhere in the body**;
+the three narration modes; the highlight marking exactly one word; that turning
+the page puts it out; the end card, the grown-up card, and that a book nobody
+finished keeps nothing.
+
+`docs/design/screenshots/saw-read-it.png` and `saw-read-shelf.png` are
+regenerated by `just screenshots`, under Broadway, like the others — and the
+same run has cleared §15.1's *"stale artefact"* note: `saw-find-it.png` no
+longer shows the old prompt.
+
+### 16.10 Still not built, and still on purpose
+
+Everything in §8 stands. Specifically for this module: no comprehension
+questions (they would be a test), no recording of the child reading (§8 #6),
+no "books read" count anywhere, and no second scheme's texts — a Welsh or
+Polish reading activity is a different corpus and a different design note, not
+a translation of these twelve.

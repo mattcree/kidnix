@@ -69,10 +69,50 @@ def test_nothing_taught_is_an_empty_session_not_an_invented_one(corpus):
     assert len(plan_session(corpus, nothing, History(), 0)) == 0
 
 
+def practice(plan):
+    """The plan without its book. What the trim is allowed to cut."""
+    return tuple(item for item in plan.items if item.kind is not ItemKind.READ_TEXT)
+
+
 def test_a_tighter_budget_cuts_from_the_end(corpus, set3):
     short = plan_session(corpus, set3, History(), 0, max_minutes=3.0, rng=random.Random(3))
     long = plan_session(corpus, set3, History(), 0, rng=random.Random(3))
-    assert short.items == long.items[: len(short.items)]
+    assert practice(short) == practice(long)[: len(practice(short))]
+
+
+def test_the_book_is_reserved_rather_than_trimmed(corpus, set3):
+    """Four Find it, eight Blend it and a book is thirteen items. The bound is
+    twelve, and the thing that must survive it is the book: it is the module
+    with the meta-analysis behind it and the only connected language in the
+    session. So the trim comes out of the practice tail, not out of Read it."""
+    plan = plan_session(corpus, set3, History(), 0, rng=random.Random(3))
+    assert plan.items[-1].kind is ItemKind.READ_TEXT
+    assert len(plan.of_kind(ItemKind.READ_TEXT)) == 1
+    assert len(plan) <= MAX_ITEMS
+
+    squeezed = plan_session(corpus, set3, History(), 0, max_minutes=3.0, rng=random.Random(3))
+    assert squeezed.items[-1].kind is ItemKind.READ_TEXT
+
+
+def test_a_ceiling_with_no_book_in_it_gets_no_reserved_slot(corpus):
+    """Reserving room for something that does not exist would be manufacturing
+    work. Below the first text's order there is no book, and the session is
+    twelve practice items and nothing else."""
+    tiny = plan_session(corpus, ceiling_for_grapheme(corpus, "t"), History(), 0)
+    assert not tiny.of_kind(ItemKind.READ_TEXT)
+
+
+def test_the_book_the_schedule_picked_is_inside_the_ceiling(corpus):
+    from sounds_and_words.ceiling import check_lines
+    from sounds_and_words.reading import text_by_slug
+
+    for grapheme in ("d", "k", "ss", "er"):
+        ceiling = ceiling_for_grapheme(corpus, grapheme)
+        for day in range(6):
+            for item in plan_session(corpus, ceiling, History(), day).of_kind(ItemKind.READ_TEXT):
+                book = text_by_slug(item.payload)
+                assert book is not None, item.payload
+                assert check_lines(corpus, book.all_lines, ceiling).allowed, (grapheme, book.slug)
 
 
 def test_a_tighter_item_cap_cuts_from_the_end_too(corpus, set3):
@@ -93,7 +133,11 @@ def test_find_it_comes_before_blend_it(plan):
 
 
 def test_the_plan_only_contains_modules_that_exist(plan):
-    assert {item.kind for item in plan.items} <= {ItemKind.FIND_IT, ItemKind.BLEND_IT}
+    assert {item.kind for item in plan.items} <= {
+        ItemKind.FIND_IT,
+        ItemKind.BLEND_IT,
+        ItemKind.READ_TEXT,
+    }
 
 
 def test_read_it_is_planned_and_deferred_rather_than_silently_dropped(plan):

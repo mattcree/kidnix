@@ -68,17 +68,21 @@ from .i18n import HAVE_CATALOGUE, _, install  # noqa: E402
 from .keys import BoardKeys, Press  # noqa: E402
 from .loop import Outcome, Plan, SessionRunner, plan_session  # noqa: E402
 from .phonemes import phoneme_for, say_label, yes_line  # noqa: E402
+from .reader import build_read_it, build_shelf  # noqa: E402
+from .reading import ReadingText, text_by_slug, texts_for  # noqa: E402
 from .schedule import Item, ItemKind  # noqa: E402
 from .settings import (  # noqa: E402
     PROGRESS_NAME,
+    Narration,
     Progress,
+    load_narration,
     load_parent_ceiling,
     load_progress,
     progress_dir,
     resolve,
     save_progress,
 )
-from .summary import Summary  # noqa: E402
+from .summary import ReadingSummary, Summary  # noqa: E402
 from .text import (  # noqa: E402
     BLEND_IT,
     CHILD_LINES,
@@ -86,6 +90,7 @@ from .text import (  # noqa: E402
     FIND_IT,
     GROWN_UP_INVITE,
     GROWN_UP_PROMPT,
+    GROWN_UP_READ,
     GROWN_UP_TITLE,
     NEXT_LABEL,
     NEXT_SPEAK,
@@ -548,6 +553,7 @@ class SoundsAndWords:
         today: date | None = None,
         clip_dir: Path | None = None,
         player: ClipPlayer | None = None,
+        narration: Narration | None = None,
     ) -> None:
         self.app = app
         #: Where the phoneme recordings are, or ``None`` for
@@ -559,6 +565,10 @@ class SoundsAndWords:
         self.parent = load_parent_ceiling()
         self.ceiling = ceiling if ceiling is not None else resolve(self.corpus, self.parent)
         log.info("ceiling: %s (%s)", self.ceiling.label, self.parent.describe())
+        #: Whether Read it reads a page out loud, and whether it offers to.
+        #: The parent's answer, from the same root-owned file as the ceiling.
+        self.narration = narration if narration is not None else load_narration()
+        log.info("narration: %s", self.narration.value)
 
         self.progress_path = progress_dir() / PROGRESS_NAME
         self.progress: Progress = load_progress(self.progress_path)
@@ -580,6 +590,11 @@ class SoundsAndWords:
         #: screen and SIGTERM cannot each keep one.
         self._kept_words: tuple[str, ...] = ()
         self._kept_path: Path | None = None
+        #: The books the Journal already holds a card for. A child who reads
+        #: one twice in a session has read it once, as far as My Things is
+        #: concerned -- a second identical card is a bug they would have to
+        #: live with.
+        self._kept_books: dict[str, Path | None] = {}
 
     # -- copy, from the corpus rather than from here ----------------------
 
@@ -627,6 +642,22 @@ class SoundsAndWords:
     def grown_up_title(self) -> str:
         section = self.corpus.parent_text.get("grown_up_turn", {})
         return _(str(section.get("title") or GROWN_UP_TITLE))
+
+    def grown_up_read_body(self) -> str:
+        """The card at the end of a book.
+
+        A different ask from Blend it's: not *"talk about this word"* but
+        *"let him read the whole thing to you"*, plus the sentence that makes
+        that a reasonable thing to ask of an adult who does not know what the
+        school has taught -- every word in the book is inside the ceiling they
+        themselves gave us, so there is nothing in it to rescue him from.
+        """
+        section = self.corpus.parent_text.get("grown_up_turn", {})
+        invite = _(str(section.get("invite") or GROWN_UP_INVITE))
+        ask = _(str(section.get("read") or GROWN_UP_READ))
+        # TRANSLATORS: two sentences to the grown-up, joined. `{invite}` asks
+        # them to sit down; `{prompt}` is the thing to ask the child.
+        return _("{invite} {prompt}").format(invite=invite, prompt=ask)
 
     def grown_up_body(self) -> str:
         section = self.corpus.parent_text.get("grown_up_turn", {})
@@ -721,6 +752,8 @@ class SoundsAndWords:
             self.show_find_it(item)
         elif item.kind is ItemKind.BLEND_IT:
             self.show_blend_it(item)
+        elif item.kind is ItemKind.READ_TEXT:
+            self.show_read_text(item)
         else:  # pragma: no cover - loop.BUILT filters everything else out
             self.next_item()
 
@@ -743,6 +776,40 @@ class SoundsAndWords:
             return
         self.screen = screen
         self.window.speak(screen.prompt.text)
+
+    def shelf_for(self, suggested: str = "") -> list[ReadingText]:
+        """The books this ceiling admits, with the scheduled one at the front.
+
+        The schedule picks one book a session (``schedule.compose_session``);
+        the child picks which one they actually read. Putting the scheduled one
+        first is the whole of how those two facts are reconciled: a child who
+        takes the first thing offered gets a different book from yesterday, and
+        a child who wants the one about the ducks again can have it.
+        """
+        books = texts_for(self.corpus, self.ceiling)
+        first = text_by_slug(suggested) if suggested else None
+        if first is not None and first in books:
+            books = [first, *(book for book in books if book is not first)]
+        return books
+
+    def show_read_text(self, item: Item) -> None:
+        """The shelf. The child picks, and then reads."""
+        books = self.shelf_for(item.payload)
+        if not books:  # pragma: no cover - the schedule only plans one if there is one
+            log.info("no book is inside this ceiling; skipping Read it")
+            self.next_item()
+            return
+        screen = build_shelf(self.window, self, books, self.open_book)
+        self.screen = screen
+        screen.announce()
+
+    def open_book(self, text: ReadingText) -> None:
+        """One book, from its first page. The tile has already said its name."""
+        screen = build_read_it(
+            self.window, self, text, narration=self.narration, on_done=self.next_item
+        )
+        self.screen = screen
+        log.info("reading %r (%d pages, phase %d)", text.slug, len(text), text.phase)
 
     def next_item(self) -> None:
         self.runner.advance()
@@ -834,6 +901,45 @@ class SoundsAndWords:
         log.info("kept %s (%s)", entry.id, summary.caption)
         self._kept_words = summary.words
         self._kept_path = path
+        return path
+
+    def keep_reading(self, text: ReadingText) -> Path | None:
+        """Write the "I read this" card into the Journal. Returns the PNG.
+
+        Kept at the **end of the book**, not at the end of the session: a child
+        who stopped halfway has not read it, and a card in My Things saying
+        they did would be a lie about a person. The same reasoning is why
+        :meth:`finish` does not write one on SIGTERM.
+        """
+        if text.slug in self._kept_books:
+            log.info("%r is already in the Journal today; not keeping it twice", text.slug)
+            return self._kept_books[text.slug]
+        summary = ReadingSummary(
+            title=text.title,
+            slug=text.slug,
+            phase=text.phase,
+            words=text.words,
+            day=self.today,
+            ceiling_label=self.ceiling.label,
+        )
+        try:
+            path = summary.write(self.scratch / f"read-{text.slug}.png")
+        except RuntimeError as exc:
+            log.error("could not draw the reading card: %s", exc)
+            self._kept_books[text.slug] = None
+            return None
+        try:
+            entry = self.app.save_entry(
+                "read",
+                [path],
+                caption=summary.caption,
+                meta=summary.meta,
+            )
+        except JournalError as exc:
+            log.error("could not keep the reading card: %s", exc)
+            return path
+        log.info("kept %s (%s)", entry.id, summary.caption)
+        self._kept_books[text.slug] = path
         return path
 
     def finish(self) -> None:

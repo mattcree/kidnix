@@ -20,7 +20,15 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 GENERATED = ["graphemes.toml", "words.toml", "tricky_words.toml", "sentences.toml", "lexicon.toml"]
-HAND_WRITTEN = ["sources.toml", "parent_text.toml", "schemes/other_schemes.toml"]
+#: The files a human maintains. `read_texts.toml` is the twelve authored
+#: decodable texts: ours, Apache-2.0, and written rather than transcribed, so
+#: the generator neither writes it nor claims it.
+HAND_WRITTEN = [
+    "sources.toml",
+    "parent_text.toml",
+    "read_texts.toml",
+    "schemes/other_schemes.toml",
+]
 
 
 @pytest.fixture(scope="module")
@@ -53,6 +61,12 @@ def test_every_generated_file_says_not_to_edit_it(name):
 def test_hand_written_files_are_not_claimed_by_the_generator(name):
     """The three files a human maintains must not pretend to be generated."""
     assert "Do not edit by hand" not in (ROOT / "data" / name).read_text()[:400]
+
+
+def test_the_generator_does_not_write_the_authored_texts(regenerated):
+    """`read_texts.toml` is ours, not a transcription, and a generator that
+    produced it would be a generator that could silently rewrite a book."""
+    assert not (regenerated / "read_texts.toml").exists()
 
 
 def test_the_generator_reports_no_unsegmentable_words(regenerated):

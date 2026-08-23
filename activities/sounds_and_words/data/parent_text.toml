@@ -90,6 +90,13 @@ prompts = [
   "Read the sentence to him first, then let him read it back.",
   "Ask him which sound he found hardest today.",
 ]
+# The card at the end of a book, and it is a different ask from the four above:
+# not "talk about the word" but "let him read the whole thing to you". The
+# second half is what makes that a reasonable thing to ask of a grown-up who
+# has no idea what the school has taught -- every word in the book is inside
+# the ceiling they themselves told us about, so there is nothing in it to
+# rescue him from.
+read = "Ask him to read it to you — the words are all sounds he has been taught."
 why = "The single clearest finding about phonics software is that it works when an adult is involved and barely works when they are not. This screen is not decoration."
 
 # --------------------------------------------------------------------------
@@ -111,7 +118,8 @@ why = "The single clearest finding about phonics software is that it works when 
 [child]
 find_it = "Find the one that says…"
 blend_it = "Say the sounds, then push them together."
-read_it = "Read it to someone."
+read_it = "Read it to someone!"
+pick_a_book = "Pick a book."
 say_it_aloud = "Now say it out loud."
 done = "That's the lot for today."
 nothing_due = "Nothing to practise today. Go and find a book."

@@ -44,12 +44,16 @@ from .i18n import _
 __all__ = [
     "CARD_HEIGHT",
     "CARD_WIDTH",
+    "ReadingSummary",
     "SummaryCard",
     "caption_for",
     "font_is_andika",
     "layout",
     "meta_for",
+    "read_caption_for",
+    "read_meta_for",
     "render_card",
+    "render_read_card",
 ]
 
 log = logging.getLogger(__name__)
@@ -164,11 +168,35 @@ def render_card(
     width: int = CARD_WIDTH,
     height: int = CARD_HEIGHT,
 ) -> Path:
-    """Draw the card to ``path`` as a PNG. Returns the path.
+    """Draw the words card to ``path`` as a PNG. Returns the path.
 
     Raises :class:`RuntimeError` when the drawing stack is missing, and the
     caller's job is then to keep the session's *history* and skip the card --
     losing the picture is bad, refusing to end the session is worse.
+    """
+    lines = layout(card.words)
+    # TRANSLATORS: the small heading on the card the child keeps, set in
+    # lowercase because every child-facing letterform in this activity is.
+    # The words under it are the child's own and are never translated.
+    heading = _("read today")
+    empty = _("some sounds today")
+    body = [heading, *(" ".join(line) for line in lines)] if lines else [empty]
+    return _draw_card(path, body, width=width, height=height)
+
+
+def _draw_card(
+    path: Path,
+    body: list[str],
+    *,
+    width: int = CARD_WIDTH,
+    height: int = CARD_HEIGHT,
+) -> Path:
+    """Cream, a teal rule down the leading edge, and these lines on it.
+
+    Both cards this activity keeps go through here, which is why they look like
+    each other in My Things: one heading set small so an adult can tell what
+    they are looking at from across the room, and the child's own words set
+    large underneath, because the words are the artefact.
     """
     try:
         import cairo
@@ -192,20 +220,11 @@ def render_card(
     context.rectangle(0, 0, max(6, width // 90), height)
     context.fill()
 
-    lines = layout(card.words)
-    # TRANSLATORS: the small heading on the card the child keeps, set in
-    # lowercase because every child-facing letterform in this activity is.
-    # The words under it are the child's own and are never translated.
-    heading = _("read today")
-    empty = _("some sounds today")
-    body = [heading, *(" ".join(line) for line in lines)] if lines else [empty]
-
     margin = width // 12
     usable = width - margin * 2
-    # The heading is set small and the words large: the words are the artefact
-    # and the heading is only there so an adult can tell what they are looking
-    # at from across the room.
-    sizes = [width // 34, *(width // 12 for _ in lines)] if lines else [width // 20]
+    sizes = (
+        [width // 34, *(width // 12 for _ in body[1:])] if len(body) > 1 else [width // 20]
+    )
 
     total = 0.0
     layouts = []
@@ -234,6 +253,100 @@ def render_card(
     surface.write_to_png(str(path))
     log.info("summary card: %s (%s)", path, "Andika" if font_is_andika() else "fallback font")
     return path
+
+
+# -- the other card: the book that was read ---------------------------------
+
+
+def read_caption_for(title: str) -> str:
+    """``"I read: a trip to nan"``.
+
+    First person, because the child is the one who did it and the card is
+    theirs; the title in their own lowercase letterforms, because that is what
+    was on the screen. No date and no count -- the shell draws the day heading
+    itself, for the adult (01 #19: no digits where a child can see them).
+    """
+    # TRANSLATORS: the Journal caption for a book the child read. `{title}` is
+    # the book's own name and is never translated -- these are en-GB phonics
+    # texts, and a French kidnix would need its own, not these ones rendered.
+    return _("I read: {title}").format(title=(title or "").strip())
+
+
+def read_meta_for(
+    title: str,
+    *,
+    slug: str = "",
+    phase: int = 0,
+    words: Sequence[str] = (),
+    day: date | None = None,
+    ceiling_label: str = "",
+) -> dict:
+    """``meta.json`` for a book. For the parent pane, and for whoever debugs this.
+
+    ``words`` is every distinct word in the book. It is the thing a grown-up
+    can actually read off the card and recognise -- "he read *farmyard*" is
+    information; "82% fluency" would be a claim nobody here is entitled to
+    make.
+    """
+    return {
+        "title": (title or "").strip(),
+        "slug": slug,
+        "phase": phase,
+        "words": [word for word in words],
+        "date": (day or date.today()).isoformat(),
+        "ceiling": ceiling_label,
+    }
+
+
+def render_read_card(
+    title: str,
+    path: Path,
+    *,
+    width: int = CARD_WIDTH,
+    height: int = CARD_HEIGHT,
+) -> Path:
+    """Draw the "I read this" card: a small heading and the book's title.
+
+    Same cream, same rule, same letterforms as the words card, because the two
+    sit next to each other in My Things and a child should be able to see at a
+    glance that they came from the same place.
+    """
+    # TRANSLATORS: the small heading on the card a child keeps after reading a
+    # book, set in lowercase like every child-facing letterform here. The title
+    # under it is the book's own name and is not translated.
+    return _draw_card(path, [_("i read"), (title or "").strip()], width=width, height=height)
+
+
+@dataclass
+class ReadingSummary:
+    """Convenience: the caption, the meta and the card for one book."""
+
+    title: str
+    slug: str = ""
+    phase: int = 0
+    words: tuple[str, ...] = ()
+    day: date | None = None
+    ceiling_label: str = ""
+    path: Path | None = field(default=None)
+
+    @property
+    def caption(self) -> str:
+        return read_caption_for(self.title)
+
+    @property
+    def meta(self) -> dict:
+        return read_meta_for(
+            self.title,
+            slug=self.slug,
+            phase=self.phase,
+            words=self.words,
+            day=self.day,
+            ceiling_label=self.ceiling_label,
+        )
+
+    def write(self, path: Path) -> Path:
+        self.path = render_read_card(self.title, path)
+        return self.path
 
 
 @dataclass

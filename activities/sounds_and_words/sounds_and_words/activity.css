@@ -123,6 +123,51 @@ button.sound-button .grapheme-letter {
   font-weight: 400;
 }
 
+/* --- Read it ----------------------------------------------------------
+ *
+ * The sentence a child is decoding, set in the same letterforms they were
+ * taught in. The *size* is not here: it is computed from millimetres of real
+ * panel in `reader.py` and applied as Pango markup, because a CSS pixel is not
+ * a physical fact. What is here is the family and the fallback stack, so a
+ * machine with no Andika still gets a legible line instead of a black box. */
+
+.reading-line {
+  font-family: "Andika", "Andika New Basic", "Atkinson Hyperlegible Next", sans-serif;
+  font-weight: 400;
+  color: @kid-ink;
+}
+
+/* The drawing above the sentence. Research 10 section 4.1 E: congruent, gentle
+ * illustration motion **only** -- so it fades in, once, over a third of a
+ * second, and there is nothing else it can be made to do. No hotspot, no
+ * tap-to-animate, no wobble: those are the things Takacs, Swart & Bus found
+ * made comprehension worse, and the way they are refused here is that the
+ * picture is a GtkPicture and not a control at all. */
+.reading-picture {
+  animation: saw-fade 320ms ease-out 1;
+}
+
+@keyframes saw-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Calm mode keeps the picture and drops the fade (SYNTHESIS H6). */
+window.calm .reading-picture {
+  animation: none;
+}
+
+/* A book on the shelf. A picture tile with a title under it, which is what the
+ * SDK's PictureTile already is; this only warms the ground so a shelf of five
+ * reads as a shelf rather than as five buttons. */
+button.book {
+  background-color: @kid-paper;
+}
+
+button.book:hover {
+  background-color: #ffffff;
+}
+
 /* --- the picture beside a word ----------------------------------------
  *
  * Not a control: it is not pressable, it does not speak, and it is there

@@ -1,0 +1,262 @@
+# Twelve decodable texts, written for kidnix. Hand-written; not generated.
+#
+# Provenance: **ours**, Apache-2.0, like the rest of kidnix. They are not
+# Letters and Sounds material and carry no OGL notice -- what came from L&S is
+# the *word bank* they are composed of (`data/words.toml`, `data/lexicon.toml`,
+# `data/tricky_words.toml`), and a sentence built out of licensed words is no
+# more a derivative of that licence than a sentence built out of a dictionary
+# is a derivative of the dictionary. `LICENSES.md` section 4 is the ledger row.
+#
+# The rule every one of them is held to, and the reason this file may be edited
+# by hand while `data/graphemes.toml` beside it may not: **every word is
+# checked against the ceiling in strict mode** (`tests/test_reading.py`).
+# Strict means a word with no segmentation on record is refused rather than
+# guessed at, so nothing can be written here that the corpus cannot prove
+# decodable. If a word you want is missing, it is missing from the L&S banks,
+# and the answer is a different word -- never a looser check.
+#
+# `after_order` is the *lowest* teaching order at which the whole text, title
+# included, becomes readable. It is declared rather than computed so that a
+# careless edit shows up as a failing test instead of as a text that quietly
+# moved up a set: `test_reading.py` asserts each text passes at exactly that
+# order and fails at the one below it.
+#
+# The spread is one text per Phase 2 set at sets 2 and 3, two at set 4, two at
+# set 5, and five across Phase 3 at orders 24, 29, 34, 39 and 50 -- Phase 3 is
+# by far the longest stretch of the progression (twenty-seven GPCs against
+# Phase 2's twenty-three) and a single text for the whole of it would leave a
+# child re-reading the same book for a term.
+#
+# `pictures` is one drawing per line and `cover` is the one on the shelf. They
+# name files in `sounds_and_words/scenes/` or `sounds_and_words/pictures/`, and
+# they are **congruent**: the drawing shows what the sentence says (Takacs,
+# Swart & Bus 2015 -- congruent multimedia helps, and the incongruent kind is
+# where the harm in that meta-analysis lives). Repetition across lines is
+# deliberate; a fresh picture per line that had nothing to do with the line
+# would be worse than the same pond twice.
+#
+# Everything is lowercase, including the names, because everything child-facing
+# in this activity is lowercase (design note section 2.2) and because the L&S
+# caption bank these words come from is set that way too.
+
+schema = 1
+
+# --- Phase 2, set 2 --------------------------------------------------------
+
+[[text]]
+slug = "sam-and-sid"
+title = "sam and sid"
+phase = 2
+set = 2
+after_order = 8
+cover = "sandpit"
+lines = [
+  "sam sat in a sandpit.",
+  "sid sat in it.",
+  "pam sat in it.",
+  "dad sat in it.",
+  "it is a damp sandpit!",
+  "sam sits and sits.",
+]
+pictures = ["sandpit", "sandpit", "sandpit", "sandpit", "sandpit", "sandpit"]
+
+# --- Phase 2, set 3 --------------------------------------------------------
+
+[[text]]
+slug = "tap-a-tin-pot"
+title = "tap a tin pot"
+phase = 2
+set = 3
+after_order = 11
+cover = "pot"
+lines = [
+  "sam got a tin pot.",
+  "sam can tap it.",
+  "tap, tap, tap!",
+  "a cat sits on top.",
+  "a cat can not nap.",
+  "stop it, sam!",
+]
+pictures = ["pot", "pot", "pot", "cat", "cat", "cat"]
+
+[[text]]
+slug = "a-cat-and-a-dog"
+title = "a cat and a dog"
+phase = 2
+set = 3
+after_order = 11
+cover = "cat"
+lines = [
+  "a cat sits on a mat.",
+  "a dog sits on a cot.",
+  "a cat can spot a dog.",
+  "a dog can spot a cat.",
+  "a cat is not a dog!",
+  "a cat and a dog sit and sit.",
+]
+pictures = ["cat", "dog", "cat", "dog", "cat", "dog"]
+
+# --- Phase 2, set 4 --------------------------------------------------------
+
+[[text]]
+slug = "the-red-truck"
+title = "the red truck"
+phase = 2
+set = 4
+after_order = 16
+cover = "truck"
+lines = [
+  "get in the red truck.",
+  "mum and gran get in.",
+  "the truck runs up the track.",
+  "the truck runs and runs.",
+  "stop! the truck is stuck in mud.",
+  "mum gets us to the top.",
+]
+pictures = ["truck", "truck", "hill", "hill", "truck", "hill"]
+
+[[text]]
+slug = "ducks-at-the-pond"
+title = "ducks at the pond"
+phase = 2
+set = 4
+after_order = 16
+cover = "pond"
+lines = [
+  "ten ducks sit on the rocks.",
+  "the ducks get in the pond.",
+  "a duck can dip its neck in.",
+  "a rat runs up to the pond.",
+  "the ducks run!",
+  "the rat gets a crust.",
+]
+pictures = ["pond", "pond", "pond", "pond", "pond", "pond"]
+
+# --- Phase 2, set 5 --------------------------------------------------------
+
+[[text]]
+slug = "on-the-big-bus"
+title = "on the big bus"
+phase = 2
+set = 5
+after_order = 23
+cover = "bus"
+lines = [
+  "i get on the big red bus.",
+  "mum sits at the back.",
+  "the bus runs up the hill.",
+  "a dog gets on the bus.",
+  "the dog sits on mum!",
+  "mum is not glad.",
+  "no dogs on the bus!",
+]
+pictures = ["bus", "bus", "hill", "dog", "dog", "bus", "bus"]
+
+[[text]]
+slug = "ten-hens"
+title = "ten hens"
+phase = 2
+set = 5
+after_order = 23
+cover = "farmyard"
+lines = [
+  "gran has ten hens.",
+  "the hens run in the grass.",
+  "a big rat gets in the pen!",
+  "the hens run to the hut.",
+  "gran runs at the rat.",
+  "the rat runs off.",
+  "gran gets the hens back in the pen.",
+]
+pictures = ["farmyard", "farmyard", "farmyard", "shed", "farmyard", "farmyard", "farmyard"]
+
+# --- Phase 3 ---------------------------------------------------------------
+
+[[text]]
+slug = "jam-on-the-hat"
+title = "jam on the hat"
+phase = 3
+after_order = 24
+cover = "jam"
+lines = [
+  "dad had a red hat.",
+  "mum had a pot of jam.",
+  "dad sat on the pot of jam!",
+  "jam on the hat.",
+  "jam on the bed.",
+  "jam on the rug!",
+  "mum is not glad.",
+  "dad must get the jam off.",
+]
+pictures = ["hat", "jam", "jam", "hat", "bed", "bed", "jam", "jam"]
+
+[[text]]
+slug = "a-big-box"
+title = "a big box"
+phase = 3
+after_order = 29
+cover = "box"
+lines = [
+  "mum gets a big box.",
+  "in the box is a red bag.",
+  "i zip it up.",
+  "it is a big bag.",
+  "mum will fix the zip.",
+  "yes! i can pack it up.",
+  "i jump and yell.",
+]
+pictures = ["box", "box", "bag", "bag", "bag", "bag", "bag"]
+
+[[text]]
+slug = "the-fish-shop"
+title = "the fish shop"
+phase = 3
+after_order = 34
+cover = "fish"
+lines = [
+  "i go with mum to the fish shop.",
+  "the fish shop has fresh fish.",
+  "mum gets a big fish.",
+  "then i get a fresh bun.",
+  "a cat sits at the shop.",
+  "the cat can smell the fish.",
+  "mum gets the cat a bit of fish.",
+  "the cat is glad.",
+]
+pictures = ["shop", "fish", "fish", "shop", "cat", "cat", "cat", "cat"]
+
+[[text]]
+slug = "a-trip-to-nan"
+title = "a trip to nan"
+phase = 3
+after_order = 39
+cover = "train"
+lines = [
+  "we go to see nan.",
+  "rain is on the road.",
+  "we sit in the train.",
+  "a fox runs off in the rain.",
+  "i see sheep and a goat.",
+  "nan will meet us.",
+  "nan has toast and jam.",
+  "it was a long trip.",
+]
+pictures = ["train", "rain", "train", "fox", "farmyard", "train", "jam", "train"]
+
+[[text]]
+slug = "in-the-farmyard"
+title = "in the farmyard"
+phase = 3
+after_order = 50
+cover = "farmyard"
+lines = [
+  "we go to the farmyard.",
+  "the farmer has a cart and a cow.",
+  "the cow is brown and big.",
+  "i can hear her from the car.",
+  "gran gets us a jar of milk.",
+  "it is fresh and cool.",
+  "then we march to the market.",
+  "we get a turnip for supper.",
+]
+pictures = ["farmyard", "farmyard", "farmyard", "farmyard", "cup", "cup", "shop", "shop"]

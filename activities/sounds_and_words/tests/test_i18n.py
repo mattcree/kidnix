@@ -27,7 +27,36 @@ import pytest
 
 from sounds_and_words import TITLE
 from sounds_and_words.i18n import HAVE_CATALOGUE, N_, _
-from sounds_and_words.text import CHILD_LINES, FIND_IT
+from sounds_and_words.text import (
+    CHILD_LINES,
+    FIND_IT,
+    GROWN_UP_READ,
+    LISTEN_LABEL,
+    LISTEN_SPEAK,
+    PAGE_BACK_LABEL,
+    PAGE_BACK_SPEAK,
+    PAGE_NEXT_LABEL,
+    PAGE_NEXT_SPEAK,
+    SHELF_BACK_SPEAK,
+    SHELF_NEXT_SPEAK,
+    SHELF_TILE_SPEAK,
+)
+
+#: Read it's own strings. They are not in `[child]` -- a button label is not a
+#: line of copy a grown-up edits -- so they need naming here or the extraction
+#: test below would pass without ever seeing them.
+READ_MSGIDS = (
+    LISTEN_LABEL,
+    LISTEN_SPEAK,
+    PAGE_BACK_LABEL,
+    PAGE_BACK_SPEAK,
+    PAGE_NEXT_LABEL,
+    PAGE_NEXT_SPEAK,
+    SHELF_BACK_SPEAK,
+    SHELF_NEXT_SPEAK,
+    SHELF_TILE_SPEAK,
+    GROWN_UP_READ,
+)
 
 PACKAGE = Path(__file__).resolve().parents[1] / "sounds_and_words"
 MODULES = sorted(PACKAGE.glob("*.py"))
@@ -55,6 +84,18 @@ def test_the_msgids_are_the_words_the_corpus_actually_ships(corpus):
 def test_the_corpus_line_the_audit_changed_no_longer_ends_in_a_grapheme(corpus):
     assert corpus.parent_text["child"]["find_it"] == FIND_IT
     assert FIND_IT.endswith("…")
+
+
+def test_the_grown_up_read_card_says_the_same_thing_in_both_places(corpus):
+    """`parent_text.toml` is where the no-score blacklist can see the words and
+    `text.py` is where `xgettext` can. Neither is allowed to drift."""
+    assert corpus.parent_text["grown_up_turn"]["read"] == GROWN_UP_READ
+
+
+def test_the_book_tile_speaks_with_a_placeholder_rather_than_a_join():
+    """i18n.md 2.2: word order is a translator's, not ours. A title glued on
+    to the front of a sentence is a sentence a translator cannot reorder."""
+    assert "{title}" in SHELF_TILE_SPEAK
 
 
 def test_the_title_is_marked_for_extraction():
@@ -117,7 +158,7 @@ def test_nothing_translates_at_module_level(path):
 
 #: The widgets that put words in front of a child. Every one of them takes a
 #: label, a spoken string, or both.
-CHILD_WIDGETS = {"Prompt", "BigButton", "GrownUpTurn", "ChildButton"}
+CHILD_WIDGETS = {"Prompt", "BigButton", "GrownUpTurn", "ChildButton", "PictureTile"}
 
 #: Arguments of those widgets that are **not** copy: an icon name, a CSS class,
 #: a focus-ring key. A literal in one of these is fine and always will be.
@@ -163,6 +204,36 @@ def test_the_guard_would_catch_the_line_the_audit_found():
 # --- the extractor can actually see them ------------------------------------
 
 
+def msgids_in(pot: str) -> set[str]:
+    """Every msgid in a .pot, continuation lines joined back together.
+
+    A msgid longer than xgettext's line width comes out as `msgid ""` followed
+    by the string in pieces, so a grep for `msgid "..."` would quietly miss
+    exactly the longest strings -- which are the ones most worth checking.
+    """
+    found: set[str] = set()
+    parts: list[str] = []
+    collecting = False
+    for line in pot.splitlines():
+        if line.startswith("msgid "):
+            if collecting:
+                found.add("".join(parts))
+            collecting, parts = True, [ast.literal_eval(line[len("msgid ") :])]
+        elif collecting and line.startswith('"'):
+            parts.append(ast.literal_eval(line))
+        elif collecting:
+            found.add("".join(parts))
+            collecting, parts = False, []
+    if collecting:
+        found.add("".join(parts))
+    return found
+
+
+def test_the_pot_reader_joins_a_wrapped_msgid():
+    """A test that cannot fail is not a test."""
+    assert msgids_in('msgid ""\n"one "\n"two"\nmsgstr ""\n') == {"one two"}
+
+
 def test_xgettext_finds_every_child_facing_string(tmp_path):
     """The audit's ninth item was not only "wrap the strings" -- it was that
     `shell/Justfile`'s `po-extract` does not scan `activities/` at all, so a
@@ -188,6 +259,6 @@ def test_xgettext_finds_every_child_facing_string(tmp_path):
         check=True,
         capture_output=True,
     )
-    extracted = pot.read_text(encoding="utf-8")
-    for msgid in [*CHILD_LINES.values(), TITLE]:
-        assert f'msgid "{msgid}"' in extracted, msgid
+    extracted = msgids_in(pot.read_text(encoding="utf-8"))
+    for msgid in [*CHILD_LINES.values(), *READ_MSGIDS, TITLE]:
+        assert msgid in extracted, msgid

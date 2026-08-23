@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kidnix 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
-"POT-Creation-Date: 2026-08-23 16:37+0100\n"
+"POT-Creation-Date: 2026-08-23 18:08+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,13 +17,13 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: sounds_and_words/__init__.py:70
+#: sounds_and_words/__init__.py:99
 msgid "Sounds & words"
 msgstr ""
 
 #. TRANSLATORS: two sentences to the grown-up, joined. `{invite}` asks
 #. them to sit down; `{prompt}` is the thing to ask the child.
-#: sounds_and_words/activity.py:638
+#: sounds_and_words/activity.py:660 sounds_and_words/activity.py:669
 #, python-brace-format
 msgid "{invite} {prompt}"
 msgstr ""
@@ -36,14 +36,14 @@ msgstr ""
 #. TRANSLATORS: the caption of a session where nothing was blended. It
 #. must not sound like a failure -- the child did work, it just was not
 #. whole words.
-#: sounds_and_words/summary.py:104
+#: sounds_and_words/summary.py:108
 msgid "Some sounds today"
 msgstr ""
 
 #. TRANSLATORS: the Journal caption. `{words}` is the child's own word list,
 #. comma-separated and never counted. Keep the placeholder last if your
 #. language allows it; the words are the point of the sentence.
-#: sounds_and_words/summary.py:108
+#: sounds_and_words/summary.py:112
 #, python-brace-format
 msgid "Read today: {words}"
 msgstr ""
@@ -51,66 +51,123 @@ msgstr ""
 #. TRANSLATORS: the small heading on the card the child keeps, set in
 #. lowercase because every child-facing letterform in this activity is.
 #. The words under it are the child's own and are never translated.
-#: sounds_and_words/summary.py:199
+#: sounds_and_words/summary.py:181
 msgid "read today"
 msgstr ""
 
-#: sounds_and_words/summary.py:200
+#: sounds_and_words/summary.py:182
 msgid "some sounds today"
 msgstr ""
 
-#: sounds_and_words/text.py:79
+#. TRANSLATORS: the Journal caption for a book the child read. `{title}` is
+#. the book's own name and is never translated -- these are en-GB phonics
+#. texts, and a French kidnix would need its own, not these ones rendered.
+#: sounds_and_words/summary.py:272
+#, python-brace-format
+msgid "I read: {title}"
+msgstr ""
+
+#. TRANSLATORS: the small heading on the card a child keeps after reading a
+#. book, set in lowercase like every child-facing letterform here. The title
+#. under it is the book's own name and is not translated.
+#: sounds_and_words/summary.py:317
+msgid "i read"
+msgstr ""
+
+#: sounds_and_words/text.py:90
 msgid "Find the one that says…"
 msgstr ""
 
-#: sounds_and_words/text.py:81
+#: sounds_and_words/text.py:92
 msgid "Say the sounds, then push them together."
 msgstr ""
 
-#: sounds_and_words/text.py:82
+#: sounds_and_words/text.py:93
 msgid "Now say it out loud."
 msgstr ""
 
-#: sounds_and_words/text.py:83
+#: sounds_and_words/text.py:94
 msgid "That's the lot for today."
 msgstr ""
 
-#: sounds_and_words/text.py:84
+#: sounds_and_words/text.py:95
 msgid "Nothing to practise today. Go and find a book."
 msgstr ""
 
-#: sounds_and_words/text.py:85
+#: sounds_and_words/text.py:96
 msgid "Have another go."
 msgstr ""
 
-#: sounds_and_words/text.py:86
-msgid "Read it to someone."
+#: sounds_and_words/text.py:100
+msgid "Read it to someone!"
 msgstr ""
 
-#: sounds_and_words/text.py:109
+#: sounds_and_words/text.py:104
+msgid "Pick a book."
+msgstr ""
+
+#: sounds_and_words/text.py:128
 msgid "push"
 msgstr ""
 
-#: sounds_and_words/text.py:110
+#: sounds_and_words/text.py:129
 msgid "Push the sounds together."
 msgstr ""
 
-#: sounds_and_words/text.py:111
+#: sounds_and_words/text.py:130 sounds_and_words/text.py:139
 msgid "next"
 msgstr ""
 
-#: sounds_and_words/text.py:112
+#: sounds_and_words/text.py:131
 msgid "Next one."
 msgstr ""
 
-#: sounds_and_words/text.py:115
+#: sounds_and_words/text.py:137
+msgid "back"
+msgstr ""
+
+#: sounds_and_words/text.py:138
+msgid "The page before."
+msgstr ""
+
+#: sounds_and_words/text.py:140
+msgid "The next page."
+msgstr ""
+
+#: sounds_and_words/text.py:143
+msgid "read it"
+msgstr ""
+
+#: sounds_and_words/text.py:144
+msgid "Read it to me."
+msgstr ""
+
+#: sounds_and_words/text.py:149
+#, python-brace-format
+msgid "{title}. A book to read."
+msgstr ""
+
+#: sounds_and_words/text.py:150
+msgid "More books, the other way."
+msgstr ""
+
+#: sounds_and_words/text.py:151
+msgid "More books."
+msgstr ""
+
+#: sounds_and_words/text.py:154
 msgid "Your turn"
 msgstr ""
 
-#: sounds_and_words/text.py:116
+#: sounds_and_words/text.py:155
 msgid "Sit with him for this bit."
 msgstr ""
 
-#: sounds_and_words/text.py:117
+#: sounds_and_words/text.py:156
 msgid "Ask him to say the word out loud to you."
+msgstr ""
+
+#: sounds_and_words/text.py:162
+msgid ""
+"Ask him to read it to you — the words are all sounds he has been taught."
 msgstr ""

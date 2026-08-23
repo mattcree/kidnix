@@ -1,9 +1,10 @@
 """Sounds & Words -- the kidnix literacy activity.
 
-Weeks 1-3 of the v1 plan (docs/plan/SUITE.md section 3, research 10 section
+Weeks 1-4 of the v1 plan (docs/plan/SUITE.md section 3, research 10 section
 7.1): the corpus, the ceiling, the Reading Framework acceptance test, the
-schedule, and the first two modules of the loop -- **Find it** (B) and **Blend
-it** (C). Read it (E) is week 4 and Hear it (A) is week 6 if there is time.
+schedule, and three modules of the loop -- **Find it** (B), **Blend it** (C)
+and **Read it** (E), the last of which brings twelve authored decodable texts
+with it. Hear it (A) is week 6 if there is time.
 
 **Importing this package imports no GTK.** The half that carries the guarantee
 -- which grapheme comes next, what the ceiling is, whether a word is decodable
@@ -46,6 +47,18 @@ from .keys import BoardKeys, Press, PressResult, keys_for
 from .loop import MAX_ITEMS, Outcome, Plan, SessionRunner, plan_session
 from .phonemes import Phoneme, Source, phoneme_for, say_label
 from .pictures import PICTURE_WORDS, picture_for
+from .reading import (
+    SHELF_PER_PAGE,
+    Page,
+    ReadingText,
+    WordSpan,
+    illustration_for,
+    load_texts,
+    shelf_pages,
+    text_by_slug,
+    texts_for,
+    word_spans,
+)
 from .schedule import (
     BOX_INTERVALS,
     GpcState,
@@ -57,8 +70,24 @@ from .schedule import (
     compose_session,
 )
 from .schemes import Scheme, load_schemes, resolve_ceiling
-from .settings import ParentCeiling, Progress, load_parent_ceiling, load_progress, save_progress
-from .summary import Summary, SummaryCard, caption_for, meta_for
+from .settings import (
+    Narration,
+    ParentCeiling,
+    Progress,
+    load_narration,
+    load_parent_ceiling,
+    load_progress,
+    save_progress,
+)
+from .summary import (
+    ReadingSummary,
+    Summary,
+    SummaryCard,
+    caption_for,
+    meta_for,
+    read_caption_for,
+    read_meta_for,
+)
 
 #: The manifest id the shell launches this as, and the id every Journal entry
 #: is filed under. It is a slug, and it is the identity everywhere that matters.
@@ -75,6 +104,7 @@ __all__ = [
     "CHOICE_CEILING",
     "MAX_ITEMS",
     "PICTURE_WORDS",
+    "SHELF_PER_PAGE",
     "TITLE",
     "BlendState",
     "BlendWord",
@@ -88,14 +118,18 @@ __all__ = [
     "Item",
     "ItemKind",
     "Mark",
+    "Narration",
     "NullClipPlayer",
     "Outcome",
+    "Page",
     "ParentCeiling",
     "Phoneme",
     "Plan",
     "Press",
     "PressResult",
     "Progress",
+    "ReadingSummary",
+    "ReadingText",
     "Reason",
     "Role",
     "Scheme",
@@ -109,6 +143,7 @@ __all__ = [
     "TextVerdict",
     "TrickyWord",
     "Word",
+    "WordSpan",
     "WordVerdict",
     "allowed_gpcs",
     "allowed_sentences",
@@ -127,22 +162,31 @@ __all__ = [
     "compose_session",
     "custom_ceiling",
     "find_it_options",
+    "illustration_for",
     "intersect",
     "keys_for",
     "load_corpus",
+    "load_narration",
     "load_parent_ceiling",
     "load_progress",
     "load_schemes",
+    "load_texts",
     "make_player",
     "meta_for",
     "phoneme_for",
     "picture_for",
     "plan_session",
+    "read_caption_for",
+    "read_meta_for",
     "resolve_ceiling",
     "save_progress",
     "say_label",
     "segment",
+    "shelf_pages",
+    "text_by_slug",
+    "texts_for",
     "tokenise",
+    "word_spans",
 ]
 
 __version__ = "0.1.0"

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a duck on a pond">
+<title>a duck on a pond</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<ellipse cx="60" cy="82" rx="52" ry="22" fill="#7fbfd6"/>
+<path d="M34 78c0-11 10-18 22-18s22 7 22 18Z" fill="#fbf7ef"/>
+<path d="M78 78c8 0 14-4 18-10" />
+<circle cx="46" cy="42" r="13" fill="#fbf7ef"/>
+<path d="M46 55v6" />
+<circle cx="42" cy="39" r="3" fill="#16181d"/>
+<path d="M33 44h-12l8 8" fill="#f5b942"/>
+<path d="M16 94c6-4 12-4 18 0M86 96c6-4 12-4 18 0" />
+</g>
+</svg>

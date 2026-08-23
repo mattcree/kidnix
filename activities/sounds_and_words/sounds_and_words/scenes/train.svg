@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a train on a track">
+<title>a train on a track</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 82V38h34v44Z" fill="#0f8a8a"/>
+<path d="M44 82V56h44a10 10 0 0 1 10 10v16Z" fill="#0f8a8a"/>
+<path d="M18 46h18v14H18Z" fill="#fbf7ef"/>
+<path d="M56 64h30v12H56Z" fill="#fbf7ef"/>
+<path d="M52 56V42h10v14" fill="#fbf7ef"/>
+<circle cx="28" cy="90" r="9" fill="#fbf7ef"/>
+<circle cx="62" cy="90" r="9" fill="#fbf7ef"/>
+<circle cx="88" cy="90" r="9" fill="#fbf7ef"/>
+<path d="M6 104h108M18 104v6M46 104v6M74 104v6M102 104v6"/>
+</g>
+</svg>

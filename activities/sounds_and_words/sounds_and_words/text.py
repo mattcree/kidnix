@@ -55,16 +55,27 @@ __all__ = [
     "FIND_IT",
     "GROWN_UP_INVITE",
     "GROWN_UP_PROMPT",
+    "GROWN_UP_READ",
     "GROWN_UP_TITLE",
+    "LISTEN_LABEL",
+    "LISTEN_SPEAK",
     "NEXT_LABEL",
     "NEXT_SPEAK",
     "NOTHING_DUE",
     "NO_CORRECTION",
+    "PAGE_BACK_LABEL",
+    "PAGE_BACK_SPEAK",
+    "PAGE_NEXT_LABEL",
+    "PAGE_NEXT_SPEAK",
+    "PICK_A_BOOK",
     "PUSH_LABEL",
     "PUSH_SPEAK",
     "READ_IT",
     "SAY_IT_ALOUD",
     "SCREEN_PROMPTS",
+    "SHELF_BACK_SPEAK",
+    "SHELF_NEXT_SPEAK",
+    "SHELF_TILE_SPEAK",
     "names_a_grapheme",
     "tokens",
 ]
@@ -83,7 +94,14 @@ SAY_IT_ALOUD = N_("Now say it out loud.")
 DONE = N_("That's the lot for today.")
 NOTHING_DUE = N_("Nothing to practise today. Go and find a book.")
 NO_CORRECTION = N_("Have another go.")
-READ_IT = N_("Read it to someone.")
+#: The end of a book. Not "well done" and not a count of anything: what happens
+#: next is a person, which is the only part of this with an effect size on it
+#: (McTigue: 0.48 with an adult, -0.02 without).
+READ_IT = N_("Read it to someone!")
+#: The shelf. It says what to do and names no book, because the books are on
+#: the screen with their pictures and a prompt that named one would be choosing
+#: for the child.
+PICK_A_BOOK = N_("Pick a book.")
 
 #: The keys of ``[child]`` in ``parent_text.toml``, and the msgid each one is.
 CHILD_LINES: dict[str, str] = {
@@ -94,6 +112,7 @@ CHILD_LINES: dict[str, str] = {
     "nothing_due": NOTHING_DUE,
     "no_correction": NO_CORRECTION,
     "read_it": READ_IT,
+    "pick_a_book": PICK_A_BOOK,
 }
 
 #: The lines that are on screen **while graphemes are**, which is the set the
@@ -111,10 +130,37 @@ PUSH_SPEAK = N_("Push the sounds together.")
 NEXT_LABEL = N_("next")
 NEXT_SPEAK = N_("Next one.")
 
+#: Read it's three controls. The two page arrows are separate msgids from
+#: ``NEXT_*`` on purpose: "next one" is the next *item in the session* and
+#: "the next page" is the next page of this book, and a translator handed one
+#: string for both would have to guess which.
+PAGE_BACK_LABEL = N_("back")
+PAGE_BACK_SPEAK = N_("The page before.")
+PAGE_NEXT_LABEL = N_("next")
+PAGE_NEXT_SPEAK = N_("The next page.")
+#: The narration control. **It is never a gate**: a child can read the whole
+#: book without pressing it, and press it on every page if they want to.
+LISTEN_LABEL = N_("read it")
+LISTEN_SPEAK = N_("Read it to me.")
+
+#: How a book announces itself on the shelf, and how it opens. `{title}` is the
+#: book's own name, which is corpus content and is never translated -- an
+#: en-GB phonics text is not a sentence with a French version.
+SHELF_TILE_SPEAK = N_("{title}. A book to read.")
+SHELF_BACK_SPEAK = N_("More books, the other way.")
+SHELF_NEXT_SPEAK = N_("More books.")
+
 #: The grown-up card, when the corpus has nothing to say.
 GROWN_UP_TITLE = N_("Your turn")
 GROWN_UP_INVITE = N_("Sit with him for this bit.")
 GROWN_UP_PROMPT = N_("Ask him to say the word out loud to you.")
+#: The grown-up card at the end of a book. The second half is the part that
+#: matters: an adult who knows the book is inside the ceiling can let a child
+#: struggle with a word instead of taking it off them, because there is no word
+#: in it their school has not already taught.
+GROWN_UP_READ = N_(
+    "Ask him to read it to you — the words are all sounds he has been taught."
+)
 
 #: What separates one written word from the next. Not ``\W``: an apostrophe is
 #: inside a word ("That's") and a hyphen may be, and neither of them is a

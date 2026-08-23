@@ -11,7 +11,7 @@ What is built, and what the gaps are for::
       -> Hear it    (module A -- week 6 if time; not built)
       -> Find it    (module B -- built)
       -> Blend it   (module C -- built)
-      -> Read it    (module E -- week 4; planned but not shown)
+      -> Read it    (module E -- built: one book, from the shelf)
       -> done
 
 The missing modules are **skipped, not stubbed**. A grey "coming soon" tile is
@@ -82,12 +82,22 @@ SECONDS: dict[ItemKind, float] = {
     ItemKind.FIND_IT: 25.0,
     ItemKind.BLEND_IT: 45.0,
     ItemKind.READ_IT: 120.0,
+    ItemKind.READ_TEXT: 120.0,
 }
 
 #: The modules that exist. Anything else the schedule plans is dropped from the
 #: runnable session and kept in :attr:`Plan.deferred`, so the log can say what
-#: week 4 will add rather than the plan silently shrinking.
-BUILT: frozenset[ItemKind] = frozenset({ItemKind.FIND_IT, ItemKind.BLEND_IT})
+#: is still coming rather than the plan silently shrinking. ``READ_IT`` -- the
+#: single caption out of the L&S bank -- is still in that category: there is no
+#: screen that shows one on its own, and Read it now keeps the promise it stood
+#: for.
+BUILT: frozenset[ItemKind] = frozenset(
+    {ItemKind.FIND_IT, ItemKind.BLEND_IT, ItemKind.READ_TEXT}
+)
+
+#: The one item that is **reserved rather than trimmed**. See
+#: :func:`plan_session`.
+RESERVED: ItemKind = ItemKind.READ_TEXT
 
 
 class Outcome(StrEnum):
@@ -123,7 +133,8 @@ class Plan:
     def describe(self) -> str:
         """One line at start-up: what the child is about to be offered, and why."""
         counts = ", ".join(
-            f"{len(self.of_kind(kind))} {kind.value}" for kind in (ItemKind.FIND_IT, ItemKind.BLEND_IT)
+            f"{len(self.of_kind(kind))} {kind.value}"
+            for kind in (ItemKind.FIND_IT, ItemKind.BLEND_IT, ItemKind.READ_TEXT)
         )
         deferred = f", {len(self.deferred)} deferred" if self.deferred else ""
         return f"{len(self.items)} items ({counts}{deferred}), ~{self.minutes:.0f} min, {self.ceiling_label}"
@@ -155,6 +166,19 @@ def plan_session(
     The trim always cuts from the **end**, so what survives is Find it first and
     then as many words as fit. Cutting from the middle would break the module
     order, and the module order is the design.
+
+    **The book is reserved, not trimmed.** Four Find it items, eight Blend it
+    words and a text is thirteen, and the twelve-item bound would have thrown
+    away the text -- which is the module with the meta-analysis behind it and
+    the only part of the session that is connected language. So its slot and
+    its two minutes come off the budget *first*, the practice tail is trimmed
+    into what is left, and the book goes back on the end. The result is four
+    Find it, seven Blend it and one book: twelve items, ~8.9 minutes, inside
+    research 10 section 4.1's band.
+
+    A ceiling that admits no book gets the old shape back, twelve practice
+    items and no text, because reserving a slot for something that does not
+    exist would be manufacturing work.
     """
     session: Session = compose_session(
         corpus, ceiling, history, day, size=size, words_per_gpc=words_per_gpc, rng=rng
@@ -162,14 +186,19 @@ def plan_session(
     runnable = [item for item in session.items if item.kind in BUILT]
     deferred = tuple(item for item in session.items if item.kind not in BUILT)
 
+    reserved = [item for item in runnable if item.kind is RESERVED][:1]
+    practice = [item for item in runnable if item.kind is not RESERVED]
+    item_budget = max(0, max_items - len(reserved))
+    minute_budget = max_minutes - estimated_minutes(reserved)
+
     kept: list[Item] = []
-    for item in runnable[: max(0, max_items)]:
-        if estimated_minutes([*kept, item]) > max_minutes:
+    for item in practice[:item_budget]:
+        if estimated_minutes([*kept, item]) > minute_budget:
             break
         kept.append(item)
 
     return Plan(
-        items=tuple(kept),
+        items=(*kept, *reserved),
         deferred=deferred,
         ceiling_label=session.ceiling_label,
         day=day,

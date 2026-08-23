@@ -19,8 +19,9 @@ import random
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
-from .ceiling import Ceiling, allowed_sentences, allowed_texts, allowed_words
+from .ceiling import Ceiling, allowed_sentences, allowed_words
 from .corpus import Corpus
+from .reading import texts_for
 
 #: Leitner intervals in days, indexed by box.
 BOX_INTERVALS: tuple[int, ...] = (0, 1, 2, 4, 8, 16)
@@ -49,7 +50,14 @@ class Role(StrEnum):
 class ItemKind(StrEnum):
     FIND_IT = "find_it"
     BLEND_IT = "blend_it"
+    #: One caption or sentence out of the L&S bank. There is no module for it
+    #: on its own -- it is the promise that a session lands in real language,
+    #: and Read it is what keeps that promise now it exists.
     READ_IT = "read_it"
+    #: One of the twelve authored books (:mod:`sounds_and_words.reading`).
+    #: Payload is the slug, not the title: a title is copy and may be edited,
+    #: and a plan that pointed at a title would break when it was.
+    READ_TEXT = "read_text"
 
 
 @dataclass(frozen=True)
@@ -290,10 +298,16 @@ def compose_session(
     if sentences:
         s = rng.choice(sentences)
         items.append(Item(ItemKind.READ_IT, Role.REVIEW, None, s.text, (), s.source))
-    texts = allowed_texts(corpus, ceiling)
-    if texts:
-        t = rng.choice(texts)
-        items.append(Item(ItemKind.READ_IT, Role.REVIEW, None, t.title,
-                          tuple(t.lines), t.source))
+
+    # **One book, and only one.** Not a shelf-full and not a book per GPC: the
+    # session is eight to twelve minutes and a text is two of them. The child
+    # still chooses which book on the shelf (ADR-0013); what the schedule picks
+    # is the one the shelf opens on, so that a child who takes the first thing
+    # offered gets a different one from yesterday.
+    books = texts_for(corpus, ceiling)
+    if books:
+        book = rng.choice(books)
+        items.append(Item(ItemKind.READ_TEXT, Role.REVIEW, None, book.slug,
+                          tuple(book.lines), "kidnix"))
 
     return Session(ceiling.label, day, tuple(items))

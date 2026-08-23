@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a small wooden hut with a door">
+<title>a small wooden hut with a door</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 94V56h72v38Z" fill="#c99a63"/>
+<path d="M18 56 60 30l42 26" fill="#8a6a44"/>
+<path d="M50 94V66h20v28Z" fill="#fbf7ef"/>
+<circle cx="65" cy="80" r="3" fill="#16181d"/>
+<path d="M12 94h96" />
+</g>
+</svg>

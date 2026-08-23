@@ -53,7 +53,16 @@ from sounds_and_words.blend import Stage  # noqa: E402
 from sounds_and_words.ceiling import ceiling_for_grapheme  # noqa: E402
 from sounds_and_words.distractors import board_graphemes  # noqa: E402
 from sounds_and_words.phonemes import say_label  # noqa: E402
+from sounds_and_words.reader import (  # noqa: E402
+    READING_MIN_PT,
+    BookShelf,
+    ReadIt,
+    build_read_it,
+    build_shelf,
+)
+from sounds_and_words.reading import illustration_for, text_by_slug, texts_for  # noqa: E402
 from sounds_and_words.schedule import ItemKind  # noqa: E402
+from sounds_and_words.settings import Narration  # noqa: E402
 from sounds_and_words.text import FIND_IT, names_a_grapheme, tokens  # noqa: E402
 
 WINDOWS: list[ActivityWindow] = []
@@ -642,3 +651,376 @@ def test_the_player_is_let_go_when_the_session_ends(activity, tmp_path):
     player = with_clip(activity, tmp_path)
     activity.finish()
     assert player.closed
+
+
+# --- Read it (module E) ------------------------------------------------------
+#
+# Takacs, Swart & Bus (2015) is the meta-analysis this whole screen is shaped
+# by: narration with congruent illustration helps, and hotspots, tap-to-animate
+# and tap-a-word dictionaries hurt. The tests that matter most here are
+# therefore the ones about what is *absent* -- that the sentence is one label
+# and not one control per word, and that nothing on the page responds to being
+# tapped except the three buttons at the bottom.
+
+
+def a_book(activity, slug="ducks-at-the-pond"):
+    found = text_by_slug(slug)
+    assert found is not None, slug
+    return found
+
+
+def reader(activity, name, slug="ducks-at-the-pond", narration=Narration.OPTIONAL, on_done=None):
+    win = window(name)
+    activity.window = win
+    screen = build_read_it(
+        win, activity, a_book(activity, slug), narration=narration, on_done=on_done
+    )
+    return win, screen
+
+
+# --- the shelf ---------------------------------------------------------------
+
+
+def test_a_shelf_page_never_holds_more_than_five_books(activity):
+    """ADR-0013: five is the bound on a choice the child has to weigh, and
+    picking a book off a shelf is squarely that."""
+    win = window("shelf")
+    activity.window = win
+    books = texts_for(activity.corpus, activity.ceiling)
+    screen = build_shelf(win, activity, books, lambda book: None)
+    assert len(screen.tiles) <= 5
+    assert len(screen.tiles) == len(screen.books)
+
+
+def test_every_book_says_its_own_name(activity):
+    """PictureTile speaks on hover and on focus, so a child sweeping the shelf
+    hears what each book is called without having to open one."""
+    win = window("shelf_speak")
+    activity.window = win
+    screen = build_shelf(win, activity, texts_for(activity.corpus, activity.ceiling), lambda b: None)
+    for tile, book in zip(screen.tiles, screen.books, strict=True):
+        assert book.title in tile.speak_text
+
+
+def test_every_book_shows_its_title_and_its_picture(activity):
+    win = window("shelf_tiles")
+    activity.window = win
+    screen = build_shelf(win, activity, texts_for(activity.corpus, activity.ceiling), lambda b: None)
+    for tile, book in zip(screen.tiles, screen.books, strict=True):
+        assert tile.label is not None
+        assert tile.label.get_text() == book.title
+        assert tile.path.is_file()
+
+
+def test_a_long_shelf_pages_rather_than_growing(activity):
+    win = window("shelf_paging")
+    activity.window = win
+    books = texts_for(activity.corpus, activity.ceiling)
+    assert len(books) > 5, "this ceiling was chosen to need more than one page"
+    screen = build_shelf(win, activity, books, lambda b: None)
+    first = list(screen.books)
+    screen.next_page()
+    assert list(screen.books) != first
+    screen.previous_page()
+    assert list(screen.books) == first
+
+
+def test_the_shelf_does_not_wrap_round(activity):
+    """A shelf that wrapped would be one a child could walk round for ever
+    without noticing they had seen everything."""
+    win = window("shelf_ends")
+    activity.window = win
+    screen = build_shelf(win, activity, texts_for(activity.corpus, activity.ceiling), lambda b: None)
+    assert not screen.back.get_sensitive()
+    while screen.index < len(screen.pages) - 1:
+        screen.next_page()
+    assert not screen.forward.get_sensitive()
+    screen.next_page()
+    assert screen.index == len(screen.pages) - 1
+
+
+def test_a_shelf_of_one_page_has_no_arrows_at_all(activity, corpus):
+    win = window("shelf_one")
+    activity.window = win
+    books = texts_for(corpus, ceiling_for_grapheme(corpus, "d"))
+    screen = build_shelf(win, activity, books, lambda b: None)
+    assert screen.back is None and screen.forward is None
+
+
+def test_the_shelf_prompt_says_what_to_do_and_names_no_book(activity):
+    win = window("shelf_prompt")
+    activity.window = win
+    screen = build_shelf(win, activity, texts_for(activity.corpus, activity.ceiling), lambda b: None)
+    assert screen.prompt.text == "Pick a book."
+    screen.announce()
+    assert win.speech.last_utterance == "Pick a book."
+
+
+def test_the_books_are_in_the_keyboard_ring(activity):
+    win = window("shelf_ring")
+    activity.window = win
+    screen = build_shelf(win, activity, texts_for(activity.corpus, activity.ceiling), lambda b: None)
+    ring = win.keys.refresh()
+    for tile in screen.tiles:
+        assert tile in ring
+
+
+def test_picking_a_book_opens_it(activity):
+    win = window("shelf_pick")
+    activity.window = win
+    chosen = []
+    screen = build_shelf(
+        win, activity, texts_for(activity.corpus, activity.ceiling), chosen.append
+    )
+    screen.choose(screen.books[0])
+    assert chosen == [screen.books[0]]
+
+
+def test_the_shelf_never_offers_a_book_above_the_ceiling(activity, corpus):
+    from sounds_and_words.ceiling import check_lines
+
+    win = window("shelf_gate")
+    activity.window = win
+    screen = build_shelf(win, activity, texts_for(corpus, activity.ceiling), lambda b: None)
+    for page in screen.pages:
+        for book in page:
+            assert check_lines(corpus, book.all_lines, activity.ceiling).allowed, book.slug
+
+
+# --- the book ----------------------------------------------------------------
+
+
+def test_a_book_opens_at_its_first_sentence(activity):
+    _win, screen = reader(activity, "read_first")
+    assert screen.index == 0
+    assert screen.page.sentence == a_book(activity).lines[0]
+    assert screen.line.get_text() == screen.page.sentence
+
+
+def test_the_sentence_is_one_label_and_not_one_control_per_word(activity):
+    """The finding, implemented. A child can tap any word as hard as they like
+    and nothing happens, because there is nothing there to happen."""
+    _win, screen = reader(activity, "read_no_hotspots")
+    controls = [w for w in _walk(screen.body) if isinstance(w, ChildButton)]
+    assert controls == []
+    labels = [w for w in _walk(screen.body) if isinstance(w, Gtk.Label)]
+    assert len(labels) == 1
+
+
+def test_the_sentence_is_set_at_twenty_eight_points_or_more(activity):
+    """Research 10 4.1 E asks for big; this is the text a child is decoding
+    letter by letter, not a label they glance at."""
+    _win, screen = reader(activity, "read_size")
+    assert screen.points >= READING_MIN_PT
+
+
+def test_the_picture_is_congruent_with_the_line_it_sits_over(activity):
+    _win, screen = reader(activity, "read_picture")
+    assert screen.page.picture == a_book(activity).pictures[0]
+    assert illustration_for(screen.page.picture) is not None
+
+
+def test_next_turns_the_page_and_back_comes_back(activity):
+    _win, screen = reader(activity, "read_turn")
+    first = screen.page.sentence
+    screen.next_page()
+    assert screen.index == 1
+    assert screen.line.get_text() != first
+    screen.previous_page()
+    assert screen.index == 0
+    assert screen.line.get_text() == first
+
+
+def test_back_does_nothing_on_the_first_page(activity):
+    _win, screen = reader(activity, "read_first_back")
+    assert not screen.back.get_sensitive()
+    screen.previous_page()
+    assert screen.index == 0
+
+
+def test_next_on_the_last_page_ends_the_book(activity):
+    _win, screen = reader(activity, "read_last")
+    for _ in range(len(a_book(activity)) - 1):
+        screen.next_page()
+    assert screen.page.last
+    screen.next_page()
+    assert screen.finished
+
+
+def test_the_page_arrows_are_at_least_the_target_floor(activity):
+    win, screen = reader(activity, "read_targets")
+    for control in (screen.back, screen.forward, screen.listen):
+        width, height = control.get_size_request()
+        assert win.area.mm_of(width) >= 20.0
+        assert win.area.mm_of(height) >= 20.0
+
+
+def test_no_page_number_appears_anywhere_on_a_book(activity):
+    """01 #19: no digits where a child can see them -- and a page count is a
+    progress bar with a serif on it."""
+    win, screen = reader(activity, "read_digits")
+    for _ in range(len(a_book(activity))):
+        text = " ".join(
+            label.get_text() for label in _walk(win.content) if isinstance(label, Gtk.Label)
+        )
+        assert not any(character.isdigit() for character in text), text
+        if not screen.page.last:
+            screen.next_page()
+
+
+# --- narration ---------------------------------------------------------------
+
+
+def test_optional_narration_offers_a_button_and_stays_quiet(activity):
+    win, screen = reader(activity, "read_optional", narration=Narration.OPTIONAL)
+    assert screen.listen is not None
+    win.speech.captions.lines.clear()
+    screen.show_page(win)
+    assert win.speech.captions.lines == []
+
+
+def test_pressing_read_it_to_me_says_the_sentence(activity):
+    win, screen = reader(activity, "read_button")
+    screen.read_aloud()
+    assert win.speech.last_utterance == screen.page.sentence
+
+
+def test_the_caption_of_a_read_sentence_is_the_sentence(activity):
+    """Everywhere else in kidnix a caption that repeated what is on screen
+    would be redundant. Here the child is *reading* it, so the words being
+    written down is the content."""
+    win, screen = reader(activity, "read_caption")
+    win.speech.captions.lines.clear()
+    screen.read_aloud()
+    assert win.speech.captions.lines == [screen.page.sentence]
+
+
+def test_always_narration_reads_the_page_as_it_arrives(activity):
+    win, screen = reader(activity, "read_always", narration=Narration.ALWAYS)
+    assert win.speech.last_utterance == screen.page.sentence
+    win.speech.captions.lines.clear()
+    screen.next_page()
+    assert win.speech.captions.lines == [screen.page.sentence]
+
+
+def test_never_narration_offers_nothing_and_says_nothing(activity):
+    win, screen = reader(activity, "read_never", narration=Narration.NEVER)
+    assert screen.listen is None
+    win.speech.captions.lines.clear()
+    screen.read_aloud()
+    screen.next_page()
+    assert win.speech.captions.lines == []
+
+
+def test_the_lit_word_is_marked_in_the_line_and_only_that_word(activity):
+    _win, screen = reader(activity, "read_highlight")
+    screen.highlight(1)
+    markup = screen.markup()
+    assert markup.count("<span background=") == 1
+    assert screen.page.words[1] in markup
+    assert screen.line.get_text() == screen.page.sentence
+
+
+def test_the_highlight_has_a_span_for_every_written_word(activity):
+    _win, screen = reader(activity, "read_spans")
+    assert len(screen.spans()) == len(screen.page.words)
+
+
+def test_turning_the_page_puts_the_highlight_out(activity):
+    """A child who has turned the page is not waiting for the last one."""
+    _win, screen = reader(activity, "read_highlight_cancel")
+    screen.highlight(0)
+    assert screen.lit == 0
+    screen.next_page()
+    assert screen.lit is None
+
+
+def test_a_slower_voice_gets_a_slower_highlight_on_the_screen_too(activity):
+    win, screen = reader(activity, "read_rate")
+    normal = screen.spans()[-1].end_ms
+    win.speech.apply_access(win.speech.access.with_overrides(speech_rate=-90))
+    assert screen.spans()[-1].end_ms > normal
+
+
+# --- the end of a book -------------------------------------------------------
+
+
+def finish_book(activity, name, slug="ducks-at-the-pond", on_done=None):
+    win, screen = reader(activity, name, slug=slug, on_done=on_done)
+    for _ in range(len(a_book(activity, slug))):
+        screen.next_page()
+    return win, screen
+
+
+def test_the_end_of_a_book_hands_it_to_a_person(activity):
+    win, _screen = finish_book(activity, "read_end")
+    cards = [w for w in _walk(win.content) if isinstance(w, GrownUpTurn)]
+    assert len(cards) == 1
+    assert "read it to you" in cards[0].body_text
+
+
+def test_the_end_says_read_it_to_someone(activity):
+    win, _screen = finish_book(activity, "read_end_line")
+    assert win.speech.last_utterance == "Read it to someone!"
+
+
+def test_the_end_keeps_a_card_naming_the_book(activity):
+    _win, _screen = finish_book(activity, "read_end_card")
+    kept = activity.app.saved
+    assert len(kept) == 1
+    assert kept[0]["kind"] == "read"
+    assert kept[0]["caption"] == "I read: ducks at the pond"
+    assert kept[0]["files"][0].is_file()
+    assert kept[0]["meta"]["phase"] == 2
+    assert "ducks" in kept[0]["meta"]["words"]
+
+
+def test_a_book_nobody_finished_keeps_nothing(activity):
+    """A card saying "I read: ..." about a book a child stopped halfway
+    through would be a lie about a person."""
+    _win, screen = reader(activity, "read_half")
+    screen.next_page()
+    assert activity.app.saved == []
+
+
+def test_reading_the_same_book_twice_keeps_one_card(activity):
+    _win, _screen = finish_book(activity, "read_twice")
+    activity.keep_reading(a_book(activity))
+    assert len(activity.app.saved) == 1
+
+
+def test_the_next_button_at_the_end_moves_the_session_on(activity):
+    moved = []
+    _win, screen = finish_book(activity, "read_onwards", on_done=lambda: moved.append(True))
+    screen._onwards()
+    assert moved == [True]
+
+
+# --- the loop ----------------------------------------------------------------
+
+
+def test_the_session_ends_with_a_book(activity):
+    win = window("loop_read")
+    activity.build(win)
+    kinds = []
+    while activity.runner.current is not None:
+        kinds.append(activity.runner.current.kind)
+        activity.next_item()
+    assert kinds[-1] is ItemKind.READ_TEXT
+
+
+def test_read_it_opens_on_the_book_the_schedule_picked(activity):
+    win = window("loop_shelf")
+    activity.window = win
+    item = next(i for i in activity.plan.items if i.kind is ItemKind.READ_TEXT)
+    activity.show_read_text(item)
+    assert isinstance(activity.screen, BookShelf)
+    assert activity.screen.books[0].slug == item.payload
+
+
+def test_opening_a_book_from_the_shelf_starts_at_page_one(activity):
+    win = window("loop_open")
+    activity.window = win
+    activity.open_book(a_book(activity))
+    assert isinstance(activity.screen, ReadIt)
+    assert activity.screen.index == 0

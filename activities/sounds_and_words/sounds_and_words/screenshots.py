@@ -29,6 +29,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from kidnix_activity.app import ActivityApplication, ActivityWindow  # noqa: E402
 
 from .pictures import PICTURE_WORDS  # noqa: E402
+from .reading import texts_for  # noqa: E402
 from .schedule import ItemKind  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -88,45 +89,84 @@ def _blend_word(activity) -> str | None:
 
 
 def run_screenshots(app: ActivityApplication, activity, out_dir: Path) -> int:
-    """Build both screens, photograph each, and exit. Returns a process code."""
+    """Build each screen in turn, photograph it, and exit. Returns a process code.
+
+    A chain rather than a loop, because each shot has to wait a frame for the
+    tree it just built to be laid out, and a frame is a timeout rather than a
+    line of code.
+    """
     from .activity import build_blend_it, build_find_it
+    from .reader import build_read_it, build_shelf
 
     state: dict[str, object] = {"ok": True}
 
-    def shoot_blend(window: ActivityWindow) -> bool:
-        # The bars and dots are the point of the picture, so the shot is of the
-        # sounds stage, before the tiles have been pushed together.
-        state["ok"] = capture(window, out_dir / "saw-blend-it.png") and state["ok"]
-        app.quit()
-        return GLib.SOURCE_REMOVE
+    def build_find(window: ActivityWindow) -> None:
+        item = next((i for i in activity.plan.items if i.kind is ItemKind.FIND_IT), None)
+        if item is None:
+            log.warning("no Find it item in today's plan; saw-find-it.png not written")
+            state["ok"] = False
+            return
+        gpc = activity.corpus.gpc_by_id.get(item.gpc_id or "")
+        if gpc is not None:
+            activity.screen = build_find_it(window, activity, gpc)
 
-    def build_blend(window: ActivityWindow) -> bool:
+    def build_blend(window: ActivityWindow) -> None:
         word = _blend_word(activity)
         if word is None:
             log.warning("no blend word in today's plan; saw-blend-it.png not written")
             state["ok"] = False
+            return
+        activity.screen = build_blend_it(window, activity, word)
+
+    def build_shelf_screen(window: ActivityWindow) -> None:
+        books = activity.shelf_for()
+        if not books:
+            log.warning("no book inside this ceiling; saw-read-shelf.png not written")
+            state["ok"] = False
+            return
+        activity.screen = build_shelf(window, activity, books, lambda book: None)
+
+    def build_book(window: ActivityWindow) -> None:
+        books = texts_for(activity.corpus, activity.ceiling)
+        if not books:
+            log.warning("no book inside this ceiling; saw-read-it.png not written")
+            state["ok"] = False
+            return
+        # The last one the ceiling admits: the most interesting sentence, and
+        # the one whose drawing is doing the most work.
+        activity.screen = build_read_it(window, activity, books[-1], narration=activity.narration)
+
+    #: What to build, and what to call the photograph of it. The Blend it shot
+    #: is of the *sounds* stage, before the tiles have been pushed together,
+    #: because the dots and the bars are the point of that picture.
+    STEPS = [
+        (build_find, "saw-find-it.png"),
+        (build_blend, "saw-blend-it.png"),
+        (build_shelf_screen, "saw-read-shelf.png"),
+        (build_book, "saw-read-it.png"),
+    ]
+
+    def step(index: int, window: ActivityWindow) -> bool:
+        if index >= len(STEPS):
             app.quit()
             return GLib.SOURCE_REMOVE
-        activity.screen = build_blend_it(window, activity, word)
+        builder, name = STEPS[index]
+        builder(window)
         # One frame between building the tree and photographing it: a widget
         # that has never been laid out has nothing to paint.
-        GLib.timeout_add(SETTLE_MS, shoot_blend, window)
+        GLib.timeout_add(SETTLE_MS, shoot, index, name, window)
         return GLib.SOURCE_REMOVE
 
-    def shoot_find(window: ActivityWindow) -> bool:
-        state["ok"] = capture(window, out_dir / "saw-find-it.png") and state["ok"]
-        GLib.timeout_add(1, build_blend, window)
+    def shoot(index: int, name: str, window: ActivityWindow) -> bool:
+        state["ok"] = capture(window, out_dir / name) and state["ok"]
+        GLib.timeout_add(1, step, index + 1, window)
         return GLib.SOURCE_REMOVE
 
     def build(window: ActivityWindow) -> None:
         activity.window = window
         activity._load_css()
-        item = next((i for i in activity.plan.items if i.kind is ItemKind.FIND_IT), None)
-        if item is not None:
-            gpc = activity.corpus.gpc_by_id.get(item.gpc_id or "")
-            if gpc is not None:
-                activity.screen = build_find_it(window, activity, gpc)
-        GLib.timeout_add(FIRST_FRAME_MS, shoot_find, window)
+        build_find(window)
+        GLib.timeout_add(FIRST_FRAME_MS, shoot, 0, "saw-find-it.png", window)
 
     app.set_build(build)
     # Nothing is saved on a screenshot run: it is not a session, no child sat

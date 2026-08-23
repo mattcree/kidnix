@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="rain falling from a cloud">
+<title>rain falling from a cloud</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M32 62a16 16 0 0 1 4-31 22 22 0 0 1 42-2 16 16 0 0 1 6 33Z" fill="#dfe6ec"/>
+<path d="M36 76 30 92M58 76 52 92M80 76 74 92" stroke="#7fbfd6"/>
+<path d="M46 96 42 106M70 96 66 106" stroke="#7fbfd6"/>
+</g>
+</svg>

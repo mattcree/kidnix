@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="a shop with a striped awning">
+<title>a shop with a striped awning</title>
+<g fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M20 96V44h80v52Z" fill="#fbf7ef"/>
+<path d="M14 44h92l-8-16H22Z" fill="#e05a4f"/>
+<path d="M38 28v16M62 28v16M86 28v16" />
+<path d="M32 96V64h24v32Z" fill="#7fbfd6"/>
+<path d="M70 96V70h20v26Z" fill="#c99a63"/>
+<path d="M10 96h100" />
+</g>
+</svg>

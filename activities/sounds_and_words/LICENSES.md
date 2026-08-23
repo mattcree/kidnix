@@ -121,7 +121,23 @@ Everything kidnix added to the Crown-copyright material is marked
   Hand-drawn SVG paths, no traced or third-party artwork, no embedded fonts and
   no text elements. They are first-draft quality and deliberately flat and
   high-contrast so that every one of them reads in greyscale (SYNTHESIS B6:
-  colour is never the sole carrier of meaning).
+  colour is never the sole carrier of meaning);
+- **twelve decodable texts**, added 2026-08-23 for Read it (week 4):
+  `data/read_texts.toml`. Four to eight sentences each, spanning Phase 2 sets
+  2–5 and five points of Phase 3. **Written here, not transcribed**: what came
+  from Letters and Sounds is the word bank they are composed of, and a sentence
+  built out of licensed words is no more a derivative of that licence than a
+  sentence built out of a dictionary is a derivative of the dictionary. They
+  exist because no openly-licensed decodable set follows a UK phonics
+  progression — research 10 §5 records that search as an absence — and because
+  the free American decodables that do exist break a UK progression at the
+  vowels (research 10 §4.6 #11);
+- **thirteen more drawings**, added 2026-08-23 for Read it: eleven scenes in
+  `sounds_and_words/scenes/*.svg` (sandpit, truck, hill, pond, farmyard, shed,
+  box, shop, fish, rain, train) and two more interface icons in
+  `sounds_and_words/icons/` (back, listen). Same rules as the eighteen above.
+  The fifteen nouns are **reused** wherever a sentence is about one of them
+  rather than redrawn, which is why eleven scenes cover sixty-odd lines.
 
 These are kidnix's, under Apache-2.0, and are separable from the OGL material.
 
@@ -135,7 +151,6 @@ These are kidnix's, under Apache-2.0, and are separable from the OGL material.
 | ~20 digraph/trigraph recordings | ours, CC-BY-SA-4.0 | **must be recorded**; never synthesise a phoneme — TTS adds a schwa, which is the classic phonics error |
 | narration for sentences and books | Piper `en_GB-cori-high`, public domain | already pinned in `docs/LICENSES.md`; fine for sentences, **not** for isolated phonemes |
 | picture prompts beyond the fifteen | Mulberry Symbols, CC BY-SA 4.0 | UK-made AAC set. Only needed if the fifteen kidnix drawings in §4 turn out not to be enough; each import needs its own row |
-| ~12 authored decodable texts | ours, Apache-2.0 | built from the OGL word banks; no CC-licensed UK-progression decodable set exists |
 | Andika 7.000 | SIL OFL 1.1 | use the SIL release, **not** the Google Fonts subset |
 
 Each of these needs a row here and in `docs/LICENSES.md` **in the same commit as

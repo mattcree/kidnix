@@ -13,11 +13,14 @@ import pytest
 
 from sounds_and_words.schedule import History
 from sounds_and_words.settings import (
+    DEFAULT_NARRATION,
     DEV_DEFAULT_LAST_GRAPHEME,
     DEV_DEFAULT_SCHEME,
+    Narration,
     ParentCeiling,
     Progress,
     config_candidates,
+    load_narration,
     load_parent_ceiling,
     load_progress,
     progress_dir,
@@ -249,3 +252,80 @@ def test_a_clock_that_went_backwards_rebases_rather_than_going_negative():
 def test_day_index_is_never_negative(day):
     progress = Progress(History(), first_day=date(2026, 8, 23))
     assert progress.day_index(day) >= 0
+
+
+# --- narration: the parent's answer, in the same file as the ceiling --------
+#
+# Read it can read a page out loud. Takacs, Swart & Bus (2015) is why it can at
+# all -- narrated text with congruent illustration beats a plain adult reading
+# -- and it is also why the default is not `always`: the point of the module is
+# a child reading it themselves, and a voice that starts on its own every page
+# is a voice that reads the book for them.
+
+
+def test_no_config_anywhere_means_narration_is_optional(tmp_path):
+    assert load_narration(search=[tmp_path]) is Narration.OPTIONAL
+    assert DEFAULT_NARRATION is Narration.OPTIONAL
+
+
+def test_a_parent_can_ask_for_it_always(tmp_path):
+    search = write_config(tmp_path, '[read]\nnarration = "always"\n')
+    assert load_narration(search=search) is Narration.ALWAYS
+
+
+def test_a_parent_can_turn_it_off(tmp_path):
+    search = write_config(tmp_path, '[read]\nnarration = "never"\n')
+    assert load_narration(search=search) is Narration.NEVER
+
+
+def test_the_value_is_folded_and_trimmed(tmp_path):
+    search = write_config(tmp_path, '[read]\nnarration = "  ALWAYS  "\n')
+    assert load_narration(search=search) is Narration.ALWAYS
+
+
+def test_an_unknown_value_falls_back_rather_than_refusing_to_start(tmp_path):
+    """A grown-up's typo must not become "the computer is broken" to a child."""
+    search = write_config(tmp_path, '[read]\nnarration = "sometimes"\n')
+    assert load_narration(search=search) is DEFAULT_NARRATION
+
+
+def test_a_broken_file_falls_back_too(tmp_path):
+    search = write_config(tmp_path, "this is not toml [[[")
+    assert load_narration(search=search) is DEFAULT_NARRATION
+
+
+def test_a_file_with_no_read_table_falls_back(tmp_path):
+    search = write_config(tmp_path, '[ceiling]\nlast_grapheme = "ck"\n')
+    assert load_narration(search=search) is DEFAULT_NARRATION
+
+
+def test_the_ceiling_and_the_narration_come_out_of_one_file(tmp_path):
+    """One root-owned file, one set of answers. A parent who edits the ceiling
+    should not have to find a second place for the voice."""
+    search = write_config(
+        tmp_path, '[ceiling]\nlast_grapheme = "ck"\n\n[read]\nnarration = "never"\n'
+    )
+    assert load_parent_ceiling(search=search).last_grapheme == "ck"
+    assert load_narration(search=search) is Narration.NEVER
+
+
+def test_optional_offers_the_button_and_says_nothing_by_itself():
+    assert Narration.OPTIONAL.offers_button
+    assert not Narration.OPTIONAL.speaks_on_arrival
+
+
+def test_always_offers_the_button_as_well_because_it_is_not_a_gate():
+    """A child who wants to hear the page again presses it again."""
+    assert Narration.ALWAYS.offers_button
+    assert Narration.ALWAYS.speaks_on_arrival
+
+
+def test_never_offers_nothing_at_all():
+    assert not Narration.NEVER.offers_button
+    assert not Narration.NEVER.speaks_on_arrival
+
+
+def test_there_are_exactly_three_answers():
+    """A fourth would be a per-book override, and there is no evidence that a
+    five-year-old should be answering this question at all."""
+    assert [option.value for option in Narration] == ["optional", "always", "never"]

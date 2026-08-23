@@ -108,8 +108,9 @@ run DISPLAY_NUMBER="108" *ARGS:
         KIDNIX_ACTIVITY_ID=sounds-and-words KIDNIX_PROFILE_ID=dev \
         PYTHONPATH="{{ sdk }}" {{ uvrun }} python -m sounds_and_words {{ ARGS }}
 
-# The two screenshots in docs/design/screenshots/, plus the digraph one. The
-# --ceiling flag is a development override and the shell never passes it.
+# The four screenshots in docs/design/screenshots/, plus the digraph one:
+# saw-find-it, saw-blend-it, saw-read-shelf, saw-read-it. The --ceiling flag is
+# a development override and the shell never passes it.
 screenshots DISPLAY_NUMBER="108":
     #!/usr/bin/env bash
     set -euo pipefail

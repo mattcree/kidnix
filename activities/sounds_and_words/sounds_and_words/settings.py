@@ -36,6 +36,7 @@ import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
+from enum import StrEnum
 from pathlib import Path
 
 from .ceiling import Ceiling
@@ -49,9 +50,11 @@ __all__ = [
     "CONFIG_NAME",
     "DEV_DEFAULT_LAST_GRAPHEME",
     "DEV_DEFAULT_SCHEME",
+    "Narration",
     "ParentCeiling",
     "Progress",
     "config_candidates",
+    "load_narration",
     "load_parent_ceiling",
     "load_progress",
     "progress_dir",
@@ -73,6 +76,88 @@ DEV_DEFAULT_SCHEME = DEFAULT_SCHEME
 #: Phase 2 sets, so a machine with no config still has twelve GPCs, seventy-two
 #: words and every one of them provably taught to a child in their first term.
 DEV_DEFAULT_LAST_GRAPHEME = "k"
+
+class Narration(StrEnum):
+    """Whether Read it reads the book out loud. ``[read] narration``, parent's.
+
+    Takacs, Swart & Bus (2015) is the reason there is narration at all --
+    narrated text with congruent illustration beats a plain adult reading. It
+    is the reason the default is not ``always``, too: the same meta-analysis is
+    about a *story being read to a child*, and the point of this module is a
+    child reading it themselves, out loud, to somebody. A voice that starts on
+    its own every page is a voice that reads the book for them.
+
+    ``optional``
+        the default. Nothing is spoken until the child presses *"read it to
+        me"* -- which is a thing a child who is stuck should be able to do
+        without asking, and which is also how a grown-up hears what the words
+        are meant to sound like.
+    ``always``
+        the sentence is read as each page arrives. For a child who cannot yet
+        get through a page alone and for whom being stuck is worse than being
+        read to; also what a parent choosing an audio-first setup would want.
+    ``never``
+        no voice and no button. For a household that wants the reading to be
+        the child's own, and for a machine where the voice is a distraction.
+
+    There is no fourth value and no per-book override. It is one answer for one
+    child, and it lives in the same root-owned file as the ceiling.
+    """
+
+    OPTIONAL = "optional"
+    ALWAYS = "always"
+    NEVER = "never"
+
+    @property
+    def offers_button(self) -> bool:
+        """Is there a *"read it to me"* button on the page?"""
+        return self is not Narration.NEVER
+
+    @property
+    def speaks_on_arrival(self) -> bool:
+        """Does the page read itself as it appears?"""
+        return self is Narration.ALWAYS
+
+
+#: What a machine with no ``[read]`` table uses.
+DEFAULT_NARRATION = Narration.OPTIONAL
+
+
+def load_narration(*, search: list[Path] | None = None, name: str = CONFIG_NAME) -> Narration:
+    """Read ``[read] narration`` from the same root-owned file as the ceiling.
+
+    Never raises, and an unknown value falls back to the default **and says so
+    in the log**, exactly as the ceiling does: a grown-up's typo must not become
+    "the computer is broken" to a child, and a silent fallback nobody can see
+    is how a setting comes to look ignored.
+    """
+    directories = CONFIG_SEARCH_PATH if search is None else search
+    for path in (directory / name for directory in directories):
+        try:
+            if not path.is_file():
+                continue
+            with path.open("rb") as handle:
+                doc = tomllib.load(handle)
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            log.warning("could not read %s: %s; narration stays %s", path, exc, DEFAULT_NARRATION)
+            continue
+        section = doc.get("read")
+        if not isinstance(section, dict) or "narration" not in section:
+            continue
+        raw = str(section.get("narration", "")).strip().lower()
+        try:
+            return Narration(raw)
+        except ValueError:
+            log.warning(
+                "%s: [read] narration=%r is not one of %s; using %s",
+                path,
+                raw,
+                ", ".join(option.value for option in Narration),
+                DEFAULT_NARRATION,
+            )
+            continue
+    return DEFAULT_NARRATION
+
 
 #: Where a child's own copy lives, under the profile the shell exported.
 PROGRESS_SUBDIR = "sounds-and-words"
