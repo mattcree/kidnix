@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Big and small letters
+       (memory-case-association). The OUTPUT: the two shapes of one letter, tied together.
+       This is the keycaps-are-uppercase-but-books-are-lowercase tension in one picture,
+       so both forms have to be on the tile at once. Paths, not <text>. -->
+  <title>Big and small letters</title>
+  <g fill="none" stroke="#f06292" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 50 L17 14 L28 50"/>
+    <path d="M10 38 H24"/>
+  </g>
+  <g fill="none" stroke="#0f8a8a" stroke-width="5" stroke-linecap="round">
+    <circle cx="45" cy="40" r="8"/>
+    <path d="M53 31 V49"/>
+  </g>
+  <path d="M28 24 C36 18 42 20 47 26" fill="none" stroke="#f9a825" stroke-width="3"
+        stroke-linecap="round" stroke-dasharray="4 5"/>
+</svg>

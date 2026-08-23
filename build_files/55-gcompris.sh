@@ -47,6 +47,14 @@ done
 test -f /usr/lib/tmpfiles.d/kidnix-gcompris.conf \
     || { echo "missing the gcompris seeding tmpfiles fragment" >&2; exit 1; }
 
+# The eighteen shelf icons. Overlay content like everything else here: they are
+# reviewed drawings, not generated art, and they are what a pre-reader actually
+# reads off the tile. Before they existed every child manifest inherited the
+# shelf tile's alphabet-blocks picture and the shelf was 18 identical tiles.
+GCOMPRIS_ICONS=/usr/share/kidnix/icons/gcompris
+test -d "${GCOMPRIS_ICONS}" \
+    || { echo "missing ${GCOMPRIS_ICONS} from the overlay" >&2; exit 1; }
+
 # --- 2. one source of truth for the settings file ----------------------------
 #
 # 50-activities.sh parked an earlier draft at
@@ -118,7 +126,8 @@ for a in activities:
     # becomes a tile with its own age band and its own parent-facing goal
     # line, so a row without them cannot be rendered honestly.
     for key in ("id", "group", "title", "audio_label", "difficulty",
-                "curriculum", "exec", "intro_voice_en_GB", "age_band", "goal"):
+                "curriculum", "exec", "intro_voice_en_GB", "age_band", "goal",
+                "icon"):
         if key not in a:
             bad(f"{where}: missing {key!r}")
     band = str(a.get("age_band", ""))
@@ -149,6 +158,40 @@ for a in activities:
     if "--hide-home-button" not in exec_argv:
         bad(f"{where}: exec must pass --hide-home-button")
 
+# ICONS. The tile is the only thing a pre-reader can read, so a missing or
+# shared icon is not a cosmetic defect: it is a tile with no information on it.
+# Checked here rather than only in the image test because a typo'd filename
+# would otherwise reach a child as `image-missing`.
+icons_dir = pathlib.Path("/usr/share/kidnix/icons/gcompris")
+by_group = {}
+for a in activities:
+    where = a.get("id", "<no id>")
+    icon = a.get("icon", "")
+    if not isinstance(icon, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*\.svg", icon):
+        bad(f"{where}: icon {icon!r} must be a plain '<name>.svg' basename")
+        continue
+    if not (icons_dir / icon).is_file():
+        bad(f"{where}: icon {icon} is not in {icons_dir}")
+    by_group.setdefault(a.get("group"), []).append((where, icon))
+
+# Within a group the tiles sit side by side on one page. Two of them sharing a
+# picture is the exact failure this key was added to close, so it is an error
+# rather than a warning.
+for group_id, rows in by_group.items():
+    seen = {}
+    for where, icon in rows:
+        if icon in seen:
+            bad(f"group {group_id!r}: {where} and {seen[icon]} share the icon {icon}")
+        seen[icon] = where
+
+# Nothing on the shelf may reuse one of the shell's own bundled tile icons under
+# a different name either: `kidnix-act-gcompris` is the parent, and the whole
+# point is that no child looks like the parent.
+shipped = {p.name for p in icons_dir.glob("*.svg")}
+unused = shipped - {a.get("icon") for a in activities}
+if unused:
+    bad(f"icons shipped but on no tile: {sorted(unused)}")
+
 empty = [g for g in groups if not any(a.get("group") == g for a in activities)]
 if empty:
     bad(f"groups with no activities: {sorted(empty)}")
@@ -158,7 +201,8 @@ if failed:
         print(f"curated.toml: {message}", file=sys.stderr)
     sys.exit(1)
 
-print(f"validated {len(activities)} curated activities in {len(groups)} groups")
+print(f"validated {len(activities)} curated activities in {len(groups)} groups, "
+      f"{len({a['icon'] for a in activities})} distinct icons")
 PY
 
 # --- 4. the settings file and the shelf must agree ---------------------------
@@ -368,6 +412,15 @@ if parent["exec"][:2] != ["gcompris-qt", "--launch"]:
 
 groups = {g["id"]: g for g in shelf["groups"]}
 
+# Each child gets its OWN picture, by absolute path. Not inherited from the
+# parent (which is how all 18 came to be the same alphabet-blocks tile) and not
+# an `icon-name`: `icon-name` resolves through the icon theme and then through
+# kidnix_shell's bundled set, and these icons are overlay content in
+# /usr/share/kidnix/icons/gcompris/, which no icon theme and no bundle knows
+# about. `path` is what 64-first-party-activities.sh's four tiles use, for the
+# same reason and against the same directory.
+ICONS = pathlib.Path("/usr/share/kidnix/icons/gcompris")
+
 def toml_str(value):
     # TOML basic strings and JSON strings agree on every escape we can produce
     # here (quotes and backslashes); nothing in curated.toml has a control char.
@@ -375,9 +428,13 @@ def toml_str(value):
 
 written = []
 for index, activity in enumerate(shelf["activities"]):
-    for key in ("id", "group", "title", "audio_label", "age_band", "goal", "exec"):
+    for key in ("id", "group", "title", "audio_label", "age_band", "goal",
+                "exec", "icon"):
         if key not in activity:
             sys.exit(f"curated.toml: {activity.get('id', '?')} has no {key!r}")
+    icon_path = ICONS / activity["icon"]
+    if not icon_path.is_file():
+        sys.exit(f"curated.toml: {activity['id']} points at {icon_path}, which is not there")
     group = groups[activity["group"]]
     child_id = f"gcompris.{activity['id']}"
     path = children_dir / f"{child_id}.toml"
@@ -396,8 +453,10 @@ name = {toml_str(activity["title"])}
 audio_label = {toml_str(activity["audio_label"])}
 goal = {toml_str(activity["goal"])}
 order = {(index + 1) * 10}
-icon = {toml_str(activity.get("icon", parent.get("icon", "")))}
-icon_kind = {toml_str(parent.get("icon_kind", "icon-name"))}
+# This activity's own picture, drawn for kidnix. NOT the shelf tile's -- see
+# the ICONS note at the top of curated.toml for why that mattered.
+icon = {toml_str(str(icon_path))}
+icon_kind = "path"
 
 # `--launch <id>` starts this one activity and never shows the menu.
 # `--hide-home-button` is the belt to that brace: a corrupted per-user config
@@ -452,8 +511,18 @@ for path in written:
         sys.exit(f"{path}: category {data['category']!r}")
     if not data["name"].strip() or not data["audio_label"].strip():
         sys.exit(f"{path}: empty name or audio_label")
+    if data.get("icon_kind") != "path":
+        sys.exit(f"{path}: icon_kind is {data.get('icon_kind')!r}, want 'path'")
+    if not data["icon"].startswith("/") or not pathlib.Path(data["icon"]).is_file():
+        sys.exit(f"{path}: icon {data['icon']!r} is not an existing absolute path")
 
-print(f"generated {len(written)} shelf child manifests in {children_dir}")
+# The finding in one assertion: eighteen tiles, eighteen different pictures.
+drawn = [tomllib.loads(p.read_text())["icon"] for p in written]
+if len(set(drawn)) != len(drawn):
+    sys.exit(f"shelf children share icons: {sorted(drawn)}")
+
+print(f"generated {len(written)} shelf child manifests in {children_dir}, "
+      f"{len(set(drawn))} distinct icons")
 PY
 
 # Every child must parse through the shell's OWN loader, not just tomllib --

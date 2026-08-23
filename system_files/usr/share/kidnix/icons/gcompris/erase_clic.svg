@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Click to rub out (erase_clic).
+       The ACTION: squares going one at a time, so the picture appears in patches.
+       A grid, where `erase` is a sweep: that is the whole difference between them. -->
+  <title>Click to rub out</title>
+  <rect x="6" y="10" width="52" height="44" rx="6" fill="#fbf7ef"/>
+  <circle cx="32" cy="32" r="13" fill="#f06292"/>
+  <g fill="#8a93b5" stroke="#16181d" stroke-width="2.5">
+    <rect x="8.5" y="12.5" width="15" height="13"/>
+    <rect x="41.5" y="12.5" width="15" height="13"/>
+    <rect x="8.5" y="26" width="15" height="13"/>
+    <rect x="25" y="26" width="15" height="13"/>
+    <rect x="8.5" y="39.5" width="15" height="13"/>
+    <rect x="41.5" y="39.5" width="15" height="13"/>
+  </g>
+  <rect x="6" y="10" width="52" height="44" rx="6" fill="none" stroke="#16181d" stroke-width="3.5"/>
+</svg>

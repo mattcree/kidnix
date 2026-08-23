@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Dice dots (smallnumbers).
+       The subject: a plain dice face you can see the size of without counting. Plain pips
+       and no cartoon: subitising is the point, and decoration is the thing that breaks it. -->
+  <title>Dice dots</title>
+  <rect x="10" y="10" width="44" height="44" rx="9" fill="#fbf7ef" stroke="#16181d" stroke-width="3.5"/>
+  <g fill="#16181d">
+    <circle cx="23" cy="23" r="4.8"/>
+    <circle cx="41" cy="23" r="4.8"/>
+    <circle cx="23" cy="41" r="4.8"/>
+    <circle cx="41" cy="41" r="4.8"/>
+  </g>
+</svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Digits and how many (learn_digits).
+       The OUTPUT: a numeral standing next to the quantity it means. Both halves have to be on
+       the tile - a numeral alone says 'numbers' and dots alone say 'counting', and this
+       activity is the join between them. The 3 is a path, not <text>. -->
+  <title>Digits and how many</title>
+  <path d="M8 20 C8 12 27 11 27 21 C27 28 19 30 16 30 C22 30 30 33 30 41
+           C30 51 11 51 8 42"
+        fill="none" stroke="#16181d" stroke-width="4.5" stroke-linecap="round"/>
+  <g fill="#f9a825" stroke="#16181d" stroke-width="3">
+    <circle cx="52" cy="17" r="6.5"/>
+    <circle cx="52" cy="31" r="6.5"/>
+    <circle cx="52" cy="45" r="6.5"/>
+  </g>
+</svg>

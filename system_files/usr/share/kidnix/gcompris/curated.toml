@@ -21,10 +21,34 @@
 # every id against `gcompris-qt --list-activities` at build time and
 # tests/image/test_gcompris.sh checks it again in the built image.
 
+# ICONS. Every activity below carries its own `icon`: a filename under
+# /usr/share/kidnix/icons/gcompris/, drawn for kidnix and shipped in the overlay
+# beside this file. It is a REQUIRED key, and 55-gcompris.sh §3 checks that the
+# file exists and that no two activities in the same group point at the same
+# one. Before 2026-08-23 the key did not exist and the generated child manifests
+# inherited the shelf tile's icon, so all eighteen tiles were the same
+# alphabet-blocks picture -- three or four identical tiles per page, which for a
+# pre-reader is three or four tiles with no information on them at all
+# (docs/design/cci-compliance-audit-2026-08-23-checkpoint-2.md §2 row 7).
+#
+# The drawing rule is docs/design/icons-brief.md's: the icon shows the OUTPUT or
+# the ACTION, never the tool. `smallnumbers` is a dice face, not a calculator;
+# `number_sequence` is a half-drawn picture, not a pencil.
+#
+# The icons live in /usr/share/kidnix/icons/ rather than in the shell package
+# because the generated manifests reference them by ABSOLUTE PATH
+# (`icon_kind = "path"`), and site-packages has a Python version in it -- the
+# same reason 64-first-party-activities.sh puts its four icons there.
+
 schema = 1
 
 # Bumped whenever the shelf or gcompris-qt.conf changes in a way that should
 # reach an already-installed machine. See GENERATION beside this file.
+#
+# NOT bumped for the 2026-08-23 icon work: `icon` changes what a tile looks like,
+# and tiles are read out of /usr on every boot. Nothing about it touches the
+# per-child gcompris config this marker exists to re-seed, and bumping it would
+# rewrite a child's settings file for a cosmetic change.
 generation = 2
 
 # Groups, in shelf order. Names are what a grown-up reading over the child's
@@ -73,6 +97,7 @@ audio_label = "Shapes and patterns"
 
 [[activities]]
 id = "erase"
+icon = "erase.svg"
 group = "point-and-click"
 title = "Move the mouse"
 audio_label = "Move the mouse to find the hidden picture"
@@ -85,6 +110,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "erase_clic"
+icon = "erase_clic.svg"
 group = "point-and-click"
 title = "Click to rub out"
 audio_label = "Click to rub out the squares"
@@ -97,6 +123,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "clickgame"
+icon = "clickgame.svg"
 group = "point-and-click"
 title = "Catch the fish"
 audio_label = "Click on the fish before they swim away"
@@ -117,6 +144,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "click_on_letter"
+icon = "click_on_letter.svg"
 group = "letters"
 title = "Find the letter"
 audio_label = "Listen to the letter, then click on it"
@@ -129,6 +157,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "memory-case-association"
+icon = "memory-case-association.svg"
 group = "letters"
 title = "Big and small letters"
 audio_label = "Match the big letter to the small letter"
@@ -141,6 +170,7 @@ intro_voice_en_GB = false
 
 [[activities]]
 id = "gletters"
+icon = "gletters.svg"
 group = "letters"
 title = "Type the letter"
 audio_label = "Type the falling letters before they land"
@@ -158,6 +188,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "learn_digits"
+icon = "learn_digits.svg"
 group = "counting"
 title = "Digits and how many"
 audio_label = "Count the dots, then press the number that matches"
@@ -170,6 +201,7 @@ intro_voice_en_GB = false
 
 [[activities]]
 id = "learn_quantities"
+icon = "learn_quantities.svg"
 group = "counting"
 title = "How many is that"
 audio_label = "Listen for the number, then drag out that many oranges"
@@ -182,6 +214,7 @@ intro_voice_en_GB = false
 
 [[activities]]
 id = "smallnumbers"
+icon = "smallnumbers.svg"
 group = "counting"
 title = "Dice dots"
 audio_label = "Count the dots on the dice, then press that number"
@@ -194,6 +227,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "enumerate"
+icon = "enumerate.svg"
 group = "counting"
 title = "Count them all"
 audio_label = "Tidy the things into groups, count them, then type how many"
@@ -210,6 +244,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "adjacent_numbers"
+icon = "adjacent_numbers.svg"
 group = "numbers"
 title = "What comes next"
 audio_label = "Find the number that comes next and drag it into the gap"
@@ -222,6 +257,7 @@ intro_voice_en_GB = false
 
 [[activities]]
 id = "learn_additions"
+icon = "learn_additions.svg"
 group = "numbers"
 title = "Adding up"
 audio_label = "Count both groups together, then press the total"
@@ -246,6 +282,7 @@ intro_voice_en_GB = false
 # floor, is on the list of activities kidnix will write itself.
 [[activities]]
 id = "number_sequence"
+icon = "number_sequence.svg"
 group = "numbers"
 title = "Join the dots"
 audio_label = "Join the dots in number order to draw the picture"
@@ -262,6 +299,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "colors"
+icon = "colors.svg"
 group = "remember"
 title = "Colours"
 audio_label = "Listen for the colour, then click the duck"
@@ -274,6 +312,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "memory"
+icon = "memory.svg"
 group = "remember"
 title = "Matching pairs"
 audio_label = "Turn the cards over and find the pairs"
@@ -286,6 +325,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "memory-sound"
+icon = "memory-sound.svg"
 group = "remember"
 title = "Sound pairs"
 audio_label = "Turn the cards over and find the sounds that match"
@@ -302,6 +342,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "baby_tangram"
+icon = "baby_tangram.svg"
 group = "shapes-patterns"
 title = "Shape puzzle"
 audio_label = "Drag the shapes into the picture"
@@ -314,6 +355,7 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "frieze"
+icon = "frieze.svg"
 group = "shapes-patterns"
 title = "Finish the pattern"
 audio_label = "Copy the pattern, then finish it"

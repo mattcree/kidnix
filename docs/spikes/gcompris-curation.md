@@ -452,7 +452,7 @@ and below 3 of 4 the icon is redrawn rather than defended.
     `icon_kind = "path"`, an absolute `icon` that exists on disk, and eighteen
     distinct files between them
 
-`tests/image/test_gcompris.sh`, against the built image — **52 assertions**
+`tests/image/test_gcompris.sh`, against the built image — **66 assertions**
 covering all of the above plus: no literal `[General]` group anywhere; the old
 `activities/gcompris-qt.conf.default` resolves to the curated file; nothing on
 the shelf needs a right-click, double-click or scroll wheel; no uppercase-first

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Join the dots (number_sequence).
+       The OUTPUT is a drawing, which is exactly why this activity replaced clockgame at
+       generation 2. The last leg is dashed: the picture is not finished yet, and finishing
+       it is the child's job. -->
+  <title>Join the dots</title>
+  <path d="M9 51 L18 22 L32 9 L46 22" fill="none" stroke="#0f8a8a" stroke-width="3.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 22 L55 51" fill="none" stroke="#0f8a8a" stroke-width="3.4"
+        stroke-linecap="round" stroke-dasharray="4 6"/>
+  <g fill="#f9a825" stroke="#16181d" stroke-width="2.8">
+    <circle cx="9" cy="51" r="4.6"/>
+    <circle cx="18" cy="22" r="4.6"/>
+    <circle cx="32" cy="9" r="4.6"/>
+    <circle cx="46" cy="22" r="4.6"/>
+    <circle cx="55" cy="51" r="4.6"/>
+  </g>
+</svg>

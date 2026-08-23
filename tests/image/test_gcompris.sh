@@ -415,6 +415,90 @@ print(f'{len(top)} Home manifests, none of them shelf children')
 assert_cmd "the shell's manifest loader accepts every child" \
     /usr/bin/kidnix-shell-app --validate-manifests "${CHILDREN}"
 
+section "every shelf tile has its own picture"
+# The 2026-08-23 CCI compliance audit, checkpoint 2, section 2 row 7: "The 18
+# GCompris shelf children carry no `icon` ... every shelf tile is the same
+# alphabet-blocks picture, 3-4 identical tiles per page." For a child who cannot
+# read, the label is noise and the spoken label is transient, so the picture is
+# the only persistent channel -- four identical pictures on a page is four tiles
+# carrying no information. These assertions are that finding, inverted.
+readonly SHELF_ICONS=/usr/share/kidnix/icons/gcompris
+
+assert_cmd "the shelf icon directory is in the image" test -d "${SHELF_ICONS}"
+assert_py "there are 18 shelf icons and every curated activity names one of them" "
+import pathlib, sys, tomllib
+shipped = {p.name for p in pathlib.Path('${SHELF_ICONS}').glob('*.svg')}
+named = {a.get('icon') for a in tomllib.loads(pathlib.Path('${SHELF}').read_text())['activities']}
+if None in named: sys.exit('an activity in curated.toml has no icon key')
+if named - shipped: sys.exit(f'named but not shipped: {sorted(named - shipped)}')
+if shipped - named: sys.exit(f'shipped but on no tile: {sorted(shipped - named)}')
+if len(shipped) != 18: sys.exit(f'{len(shipped)} icons, expected 18')
+print(f'{len(shipped)} icons, all named')
+"
+assert_py "every child manifest points at an existing icon FILE, by absolute path" "
+import pathlib, sys, tomllib
+bad = []
+for p in sorted(pathlib.Path('${CHILDREN}').glob('*.toml')):
+    d = tomllib.loads(p.read_text())
+    icon, kind = d.get('icon', ''), d.get('icon_kind')
+    # 'path' and not 'icon-name': these are overlay content in /usr/share/kidnix,
+    # which no icon theme and no kidnix_shell bundle has ever heard of, so an
+    # 'icon-name' lookup would miss and fall through to the category icon --
+    # which is how five of six Home tiles once collapsed into two pictures.
+    if kind != 'path': bad.append(f'{p.name}: icon_kind={kind!r}')
+    elif not icon.startswith('/'): bad.append(f'{p.name}: icon {icon!r} is not absolute')
+    elif not pathlib.Path(icon).is_file(): bad.append(f'{p.name}: {icon} is missing')
+if bad: sys.exit('; '.join(bad))
+print('18 absolute icon paths, all present')
+"
+# The finding itself: no two tiles a child sees side by side may be the same
+# picture. Checked per group (one page) AND across the whole shelf.
+assert_py "no two shelf tiles share a picture, in a group or anywhere" "
+import pathlib, sys, tomllib
+seen = {}
+by_group = {}
+for p in sorted(pathlib.Path('${CHILDREN}').glob('*.toml')):
+    d = tomllib.loads(p.read_text())
+    icon = d['icon']
+    if icon in seen: sys.exit(f\"{d['id']} and {seen[icon]} share {icon}\")
+    seen[icon] = d['id']
+    by_group.setdefault(d.get('shelf_group'), []).append(icon)
+for g, icons in by_group.items():
+    if len(set(icons)) != len(icons): sys.exit(f'group {g!r} has a repeated icon')
+print(f'{len(seen)} tiles, {len(seen)} distinct pictures, {len(by_group)} groups')
+"
+assert_py "no child inherited the shelf tile's own icon" "
+import pathlib, sys, tomllib
+parent = tomllib.loads(pathlib.Path('${SHELF_TILE}').read_text())
+bad = [p.name for p in pathlib.Path('${CHILDREN}').glob('*.toml')
+       if tomllib.loads(p.read_text())['icon'] == parent.get('icon')]
+if bad: sys.exit(f'these still carry the parent icon {parent.get(\"icon\")!r}: {bad}')
+print(f\"parent keeps {parent.get('icon')!r}; no child does\")
+"
+# librsvg refuses a file that is not well-formed XML, and it refuses it
+# SILENTLY from the tile's point of view: the child just gets a blank. One of
+# the shell's own band icons is broken exactly this way (' -- ' inside an XML
+# comment), which is why this is asserted and not assumed.
+assert_py "every shelf icon is well-formed XML, licenced, and small" "
+import pathlib, sys, xml.dom.minidom
+bad = []
+for p in sorted(pathlib.Path('${SHELF_ICONS}').glob('*.svg')):
+    try:
+        dom = xml.dom.minidom.parse(str(p))
+    except Exception as e:
+        bad.append(f'{p.name}: not well-formed XML ({e})')
+        continue
+    # The DOM and not a grep: several of these icons DISCUSS <text> in their
+    # licence comment, saying why they draw letterforms as paths instead.
+    if dom.getElementsByTagName('text'):
+        bad.append(f'{p.name}: has a <text> element, and no font is guaranteed here')
+    if 'SPDX-License-Identifier' not in p.read_text():
+        bad.append(f'{p.name}: no SPDX header')
+    if p.stat().st_size > 4096: bad.append(f'{p.name}: {p.stat().st_size} bytes, over 4 KB')
+if bad: sys.exit('; '.join(bad))
+print('18 icons parse, are licensed, are font-free and under 4 KB')
+"
+
 section "generation 2: the clock came off the shelf"
 # The early-years teacher: "Time to the hour is Year 1 Measurement, in practice
 # the summer term; most Reception children cannot yet hold 'the long hand means

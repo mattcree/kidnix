@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Catch the fish (clickgame).
+       The ACTION: one fish singled out, ringed, while it is still swimming.
+       The ring is what makes it 'catch this one' rather than 'a fish'. -->
+  <title>Catch the fish</title>
+  <path d="M8 34 C14 21 34 21 42 34 C34 47 14 47 8 34 Z" fill="#0f8a8a"
+        stroke="#16181d" stroke-width="3"/>
+  <path d="M42 34 L57 24 L57 44 Z" fill="#0f8a8a" stroke="#16181d" stroke-width="3"
+        stroke-linejoin="round"/>
+  <circle cx="17" cy="30" r="2.6" fill="#16181d"/>
+  <circle cx="30" cy="34" r="21" fill="none" stroke="#f9a825" stroke-width="3"
+          stroke-dasharray="5 6"/>
+</svg>

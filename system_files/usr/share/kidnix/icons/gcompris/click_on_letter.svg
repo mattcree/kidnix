@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Find the letter (click_on_letter).
+       The ACTION: a letter is SPOKEN (three arcs) and one tile is the one to press (the ring).
+       Letterforms are PATHS, never <text>: no font is guaranteed on this image. The `a` is
+       single-storey with no ascender - a stem above the bowl reads as a `d` at 15 mm. -->
+  <title>Find the letter</title>
+  <g fill="none" stroke="#0f8a8a" stroke-width="3" stroke-linecap="round">
+    <path d="M14 15 A 6 6 0 0 1 14 27"/>
+    <path d="M14 9 A 12 12 0 0 1 14 33"/>
+    <path d="M14 3 A 18 18 0 0 1 14 39"/>
+  </g>
+  <rect x="4" y="41" width="16" height="17" rx="4" fill="#8a93b5" stroke="#16181d" stroke-width="3"/>
+  <rect x="44" y="41" width="16" height="17" rx="4" fill="#8a93b5" stroke="#16181d" stroke-width="3"/>
+  <rect x="24" y="40" width="19" height="19" rx="4" fill="#f9a825" stroke="#16181d" stroke-width="3"/>
+  <g fill="none" stroke="#16181d" stroke-width="2.8" stroke-linecap="round">
+    <circle cx="31.5" cy="51.5" r="4.2"/>
+    <path d="M35.7 47.6 V55.4"/>
+  </g>
+  <rect x="21" y="37" width="25" height="25" rx="6" fill="none" stroke="#f06292"
+        stroke-width="2.6" stroke-dasharray="4 5"/>
+</svg>

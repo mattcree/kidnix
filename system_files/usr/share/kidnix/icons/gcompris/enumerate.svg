@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. GCompris shelf tile: Count them all (enumerate).
+       The ACTION that separates this from the other counting tiles: TIDYING first. Two rings,
+       each holding its own lot, is 'sort them before you count them' - and the two lots are
+       different sizes, so the picture is about organising rather than about a number. -->
+  <title>Count them all</title>
+  <rect x="3" y="15" width="27" height="34" rx="8" fill="none" stroke="#0f8a8a"
+        stroke-width="3" stroke-dasharray="5 5"/>
+  <g fill="#f06292" stroke="#16181d" stroke-width="3">
+    <circle cx="11" cy="26" r="5.5"/>
+    <circle cx="23" cy="26" r="5.5"/>
+    <circle cx="17" cy="38" r="5.5"/>
+  </g>
+  <rect x="34" y="15" width="27" height="34" rx="8" fill="none" stroke="#0f8a8a"
+        stroke-width="3" stroke-dasharray="5 5"/>
+  <g fill="#f9a825" stroke="#16181d" stroke-width="3">
+    <circle cx="47" cy="26" r="5.5"/>
+    <circle cx="47" cy="38" r="5.5"/>
+  </g>
+</svg>
