@@ -25,10 +25,10 @@ honest and stable rather than many half-built toys.
 | **Letters & numbers** | GCompris, as a one-level shelf of 18 curated activities | curate | thin | wired (wave C) |
 | **Potato faces** | KTuberling | curate | thin | shipped |
 | **Copy the lights** | Blinken | curate | thin | shipped |
-| **Clock & time** | play-with-the-clock toy + routine strip + "how long is a minute" (Matt's idea; Y1/Y2 time) | build | medium | in progress (SDK) |
-| **Numbers** | subitising & bonds to 5/10 built to the ELG (05 §3) | build | medium | P1 |
+| **Clock & time** | play-with-the-clock toy + routine strip + "how long is a minute" (Matt's idea; Y1/Y2 time) | build | medium | v1 built (371 tests); tile install in progress |
+| **Numbers** | subitising & bonds to 5/10 built to the ELG (05 §3) | build | medium | v1 built (817 tests); tile install in progress |
 | **Photos** | webcam → Journal, caption/voice | build | thin | P1 |
-| **Letters to family** | picture + caption + voice to a parent-approved recipient; the reply comes back into the Journal | build | medium | P1 (the strongest activity in 05) |
+| **Letters to family** | picture + caption + voice to a parent-approved recipient; the reply comes back into the Journal | build | medium | v1 in progress (outbox/inbox contract) |
 | **Listen** | read-to-me: narrated decodable/picture books (shares Read it's engine), family-recorded stories; screen dim | build | medium | P1 |
 | **Music** | pentatonic xylophone/loops, save to Journal | build | thin | P2 |
 | **Make a game** | TurboWarp (offline Scratch) for 7+ | curate | thin | P2 |
