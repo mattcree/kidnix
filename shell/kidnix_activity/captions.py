@@ -25,15 +25,19 @@ work:
   ``speak`` is the line as it was said; ``source`` is the manifest id, so the
   shell's log can say who is talking. Unknown keys are reserved; a listener
   must ignore them rather than reject the message.
-* **Caption only, never a second voice.** The activity has already said the
-  line through speech-dispatcher (:mod:`kidnix_activity.speech`). The shell
-  must *show* it and must not speak it: 08 section 3.6 is "one voice", and two
-  voices saying the same sentence a beat apart is worse than either alone.
+* **One voice, and it is the listener's.** A delivered datagram *is* the
+  utterance: the shell shows the line in the strip and says it with the shell's
+  own voice, and :mod:`kidnix_activity.speech` does not speak it here as well.
+  08 section 3.6 is "one voice", and two speech-dispatcher connections saying
+  the same sentence a beat apart -- neither able to cancel the other -- is
+  worse than either alone. :meth:`CaptionClient.send` returning ``False`` is
+  therefore the signal that this process must speak the line itself.
 * **The socket is optional.** A missing socket is the normal state on a
   developer's desktop and during every headless test, and it costs the child
-  nothing they can hear -- speech still happens. It costs a deaf child the
-  caption, which is why the shell-side listener is a **required** follow-up
-  (``docs/design/activity-sdk.md`` section 4.2) and not a nice-to-have.
+  nothing they can hear -- the activity speaks the line itself. It costs a deaf
+  child the caption, which is why the shell-side listener
+  (:mod:`kidnix_shell.captions`, ``docs/design/activity-sdk.md`` section 4.2)
+  is part of the shell rather than a nice-to-have.
 
 Nothing in this module needs a display, a GTK main loop or a running shell, so
 all of it is unit-tested.
@@ -114,9 +118,10 @@ def decode(payload: bytes) -> tuple[str, str] | None:
     everything except the one field that matters: a datagram with no ``speak``
     is not a caption, and a caption from an unknown source is still a caption.
 
-    A listener must treat the result as **text to display, never to speak and
-    never to execute**: it arrives from another process and is only as
-    trustworthy as that process.
+    A listener must treat the result as **text, never as an instruction**: it
+    arrives from another process and is only as trustworthy as that process.
+    Display it, say it in the listener's own voice, and never execute it or
+    log it as the child's own words.
     """
     try:
         data = json.loads(payload.decode("utf-8"))

@@ -2870,3 +2870,125 @@ and belongs to the boot harness, not to this wave.
    same ruling as §G2's free gate: the helper is the wall, and a five-year-old
    poking at a keypad is expected behaviour rather than an intrusion.
 4. Everything still open in §§18.9, 19.5, 20.6, 21.10, 22.7 and 23.9.
+
+## 25. v0.1.11 — the shell hears an activity's captions (2026-08-23)
+
+`kidnix_shell/captions.py` (new), `kidnix_shell/speech.py`,
+`kidnix_shell/app.py`, `kidnix_activity/speech.py`, `kidnix_activity/captions.py`
+(docstrings), `tests/test_captions.py` (new), `tests/test_activity_sdk_speech.py`.
+
+The activity SDK shipped with half a wire. `docs/design/activity-sdk.md` §4
+specified a UNIX datagram socket at `$XDG_RUNTIME_DIR/kidnix/captions.sock`,
+built the sender, tested both `encode()` and `decode()` — and left the listener
+as a **required follow-up**. So every line an activity spoke was audio-only:
+the caption strip is in the shell's band window, in another process, and
+nothing was reading the socket. That is the accessibility review's B2 open for
+most of a child's screen time, and a blocker for Sounds & Words, where the
+spoken line *is* the instruction. This closes it.
+
+### 25.1 The listener, and why it also speaks
+
+`CaptionListener` binds the socket at start-up (directory 0700, socket 0600,
+unlinking a **stale** socket first — nothing unlinks it on SIGKILL — and
+refusing to touch anything at that path that is not a socket), reads it with a
+non-blocking `Gio.Socket` source on the main loop, and hands each datagram to
+`CaptionRouter`, which is pure: parse, gate, rate-limit, speak. The split is
+what makes eight of the ten interesting cases provable with no socket at all.
+
+**The one design reversal.** §4.2 originally said *display it, never speak it*:
+the activity has already said the line, and two voices a beat apart is worse
+than either alone. That is the right goal and the wrong mechanism. Two voices
+is exactly what "the activity speaks, the shell shows" produces — two
+speech-dispatcher connections, two sets of `[access]` settings applied at two
+moments, and a new utterance in one that **cannot cancel** the one in flight in
+the other. 08 §3.6's "one voice" is a statement about the queue as much as the
+timbre.
+
+So the datagram carries the whole utterance now. The listener speaks it through
+the shell's own `SpeechManager`, which means it goes up in the strip first
+(`on_caption`, before the "is speech even on?" check) and then through the one
+backend, the one cancel and the one highlight timer that every other line of
+the shell uses. The other end of that is three lines:
+
+* `SpeechManager.on_caption` may now return a value, and **truthy means "I have
+  handed the saying of it over"** — the backend is left alone, `last_utterance`
+  is still set so the Ear repeats it, and the ring still lights. A hook that
+  returns `None`, which is the shell's own, changes nothing;
+* `ActivitySpeech._on_caption` returns `CaptionClient.send()`'s result;
+* therefore **an activity speaks a line if and only if the socket was not
+  there** — no shell, a developer's desktop, a headless test, a full queue.
+  `sendto` to a missing path fails at once with `ENOENT`, so the fallback is
+  immediate and needs no timeout.
+
+`tests/test_activity_sdk_speech.py::voice()` grew a `delivered` flag for that,
+defaulting to False, because a test with no shell running *is* the undelivered
+case.
+
+### 25.2 The gate and the limit
+
+**`IN_ACTIVITY` or nothing.** A caption that arrives while the child is on Home
+is from a process that should not be talking — an activity that outlived its
+window, or something else that found the socket — and is dropped with a debug
+line. The gate is a lambda over `machine.state`, asked per datagram: the state
+machine is the authority and a cached copy of an authority is a second one.
+
+**Four a second, per source, one WARNING.** Faster than anything can be *said*,
+so a sender above it is broken or hostile. The warning is per burst rather than
+per datagram, because a log line per dropped message would be the denial of
+service the limit exists to prevent; a source that slows down is heard again
+and gets a fresh warning if it starts up again. The limiter's own table is
+bounded (`MAX_TRACKED_SOURCES`), since the `source` id comes off the wire and a
+sender could otherwise grow it by inventing a new name every datagram.
+
+**Everything on that socket is untrusted.** `decode()` has already collapsed the
+text to one line and capped it at 500 characters — which is also what stops a
+newline in a datagram forging a line in the journal — and `safe_source()`
+strips the id to slug characters before it reaches a log line. The text is
+displayed and spoken, never executed, never logged as the child's own words.
+
+**No ack.** The SDK sends from an unbound socket, which has no address to reply
+to (measured: `receive_bytes_from` returns `None` for it), so an ack could not
+arrive. The honest cost is stated in §4.2 and in §25.4 below.
+
+### 25.3 Tests
+
+`tests/test_captions.py`, 25 of them, all headless — a datagram socket does not
+care whether anything is on screen. The socket ones need `gi` (for `Gio`) and
+skip without it: an activity's client sending a real datagram to a real
+listener and the fake shell voice receiving the text; the 0700/0600 modes; a
+stale socket from a "crashed" shell replaced and the new one working; `stop()`
+taking the file with it, after which the SDK client goes back to speaking for
+itself; a bind that cannot happen logging and returning False rather than
+raising. The router ones need nothing: eight malformed payloads, an unknown key
+ignored rather than refused, newlines and over-length text collapsed, the
+`IN_ACTIVITY` gate, the flood costing one warning, the limit being per source,
+forgiveness after a second, the bounded table, and the two-process one-voice
+pair (delivered → the activity is silent, no listener → the activity speaks).
+
+`just lint` and `just test-headless` are green: 1144 passed, 2 skipped.
+
+**The GTK smoke tests could not be run for this pass.** Under Broadway on this
+host `tests/test_gtk_smoke.py` segfaults inside plain widget construction
+(`widgets.py:368`, `band.py:468` — `g_object_new`), before any of this code is
+reached; the two lines added to `ShellWindow` construct no widgets. A five-
+second `--demo --windowed` run under Broadway is the check that was possible,
+and it logs `listening for activity captions at /run/user/1000/kidnix/captions.sock`
+at start-up and leaves the directory empty on the way out.
+
+### 25.4 Still open after this pass
+
+1. **A dropped datagram is a lost line.** The sender has already decided not to
+   speak by the time the shell decides not to say it, and a datagram sender has
+   no address to be told on. Both drop paths are for behaviour no first-party
+   activity has (above human speech rate; talking while off screen), but the
+   fix — a bound socket in the SDK and an ack — is real and is not done.
+2. **One shell per session is assumed.** Start-up unlinks a stale socket
+   without asking whether something is still listening on it, so a second shell
+   in the same session would take the wire from the first. `GtkApplication`
+   already makes a second shell impossible; this would need a lock if that ever
+   changed.
+3. **Nothing tells an activity that captions are off.** `[access] captions =
+   false` hides the strip and the shell still speaks the line, which is right;
+   but the SDK sends the datagram either way and cannot know. Harmless, and
+   worth a sentence if the wire ever grows a reply.
+4. Everything still open in §§18.9, 19.5, 20.6, 21.10, 22.7, 23.9 and 24.5.

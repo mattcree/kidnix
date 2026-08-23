@@ -5,7 +5,9 @@
 > it must do for itself, and what it may never do. Everything here is
 > implemented in `shell/kidnix_activity/` and asserted in
 > `shell/tests/test_activity_sdk*.py` unless a sentence says otherwise — and
-> where something is **not** built yet, §4.2 and §11 say so in as many words.
+> where something is **not** built yet, §13 says so in as many words. §4.2's
+> listener, the one thing this note originally shipped without, landed on
+> 2026-08-23 in `shell/kidnix_shell/captions.py` (impl. notes §25).
 
 ## 1. Why an SDK at all
 
@@ -173,7 +175,7 @@ So `ActivityKeyboard` handles Tab, the arrows, Enter and Space, and **returns
 
 ### 4.1 The wire (implemented)
 
-The shell listens — will listen; see §4.2 — on a UNIX **datagram** socket at:
+The shell listens on a UNIX **datagram** socket at:
 
 ```
 $XDG_RUNTIME_DIR/kidnix/captions.sock
@@ -197,31 +199,70 @@ Both are swallowed, the child still hears the line, and the log says once that
 the caption did not land.
 
 `kidnix_activity.captions` holds **both** halves — `encode()` and `decode()` —
-so the listener, when it lands, has a tested parser to call rather than a fresh
-`json.loads`, and the two ends cannot drift.
+so the listener has a tested parser to call rather than a fresh `json.loads`,
+and the two ends cannot drift. `kidnix_shell.captions` imports `decode` from
+it: one wire, one parser, and the shell's own module is only the socket, the
+gate and the limiter around it.
 
-### 4.2 What the shell must do — REQUIRED FOLLOW-UP, NOT YET BUILT
+### 4.2 What the shell does — BUILT (`kidnix_shell/captions.py`)
 
-The SDK side is complete and tested. **The shell has no listener yet**, so
-today an activity's spoken lines are heard and not seen. That is the
-accessibility review's B2 finding — *nothing essential is audio-only* — still
-open for the half of the screen time a child spends inside an activity, and it
-is a blocker for Sounds & Words, where the spoken line *is* the instruction.
+B2 — *nothing essential is audio-only* — was open for the half of the screen
+time a child spends inside an activity, because the strip is in the shell's
+band window and the activity is another process. It is closed:
+`kidnix_shell.captions` is the listener, `ShellWindow` starts it at start-up
+and stops it on the way out, and `shell/tests/test_captions.py` proves it with
+real datagrams on a real socket, headless.
 
-The listener's contract, for whoever builds it:
+What it does, and the one place the original contract was wrong:
 
-1. bind `$XDG_RUNTIME_DIR/kidnix/captions.sock` as `AF_UNIX`/`SOCK_DGRAM`,
-   0600, unlinking a stale path first, at shell start-up;
-2. read with a `Gio` source on the main loop; never block;
-3. `captions.decode()` each datagram; ignore anything that is not one;
-4. **display it in the band's caption strip, and never speak it.** The activity
-   has already said the line through speech-dispatcher. Two voices a beat apart
-   is worse than either alone (08 §3.6: one voice);
-5. treat the text as **data**: it comes from another process and is only as
-   trustworthy as that process. Display it, never execute it, never log it as
-   the child's own words;
-6. rate-limit. A misbehaving activity must cost the band a dropped caption, not
-   a stalled main loop.
+1. binds `$XDG_RUNTIME_DIR/kidnix/captions.sock` as `AF_UNIX`/`SOCK_DGRAM` at
+   start-up — directory 0700, socket 0600, a **stale socket unlinked first**
+   (nothing unlinks it on SIGKILL) and anything at that path that is *not* a
+   socket left alone;
+2. reads it with a non-blocking `Gio.Socket` source on the main loop, one
+   datagram per callback;
+3. `captions.decode()`s each one and drops anything that is not a caption with
+   a debug line — malformed JSON, a list, a missing or empty `speak`, bytes
+   that are not UTF-8;
+4. **speaks it through the shell's own `SpeechManager`, which captions it.**
+   This is the reversal. The first version of this contract said "display it,
+   never speak it", because the activity had already spoken it — but that is
+   what *produces* two voices: two speech-dispatcher connections, two sets of
+   settings, and a new utterance in one that cannot cancel the one in the
+   other. The datagram now carries the whole utterance. The SDK's
+   `ActivitySpeech._on_caption` returns whether the datagram was delivered,
+   `SpeechManager.speak` treats a truthy `on_caption` as "somebody else is
+   saying this", and so **the activity speaks a line if and only if the socket
+   was not there** — no shell, a developer's desktop, a headless test, a full
+   queue. One voice, one queue, one strip (08 §3.6);
+5. **only while `IN_ACTIVITY`.** A datagram that arrives while the child is on
+   Home is from something that should not be talking; it is dropped with a
+   debug line. The gate is the state machine, so there is one authority on it;
+6. rate-limits per `source`: four a second, which is faster than anything can
+   be *said*. Above it the datagram is dropped, and the sender costs the
+   journal **one** WARNING rather than one per message — a log line per dropped
+   datagram would be the denial of service the limit exists to prevent. The
+   limiter's own table of sources is bounded, because the id comes off the
+   wire;
+7. treats the text as **data**: displayed and spoken, never executed, never
+   logged as the child's own words. `decode()` has already collapsed it to one
+   line and capped it at 500 characters, which is also what stops a newline in
+   a datagram forging a line in the journal; the `source` id is sanitised again
+   before it reaches a log line.
+
+**No ack.** The SDK sends from an unbound socket, which has no address to reply
+to (`receive_bytes_from` hands back `None`), so an ack could not arrive. The
+delivery signal that matters is the one the sender already has: `sendto`
+failing when nothing is bound.
+
+**What that costs**, stated plainly: a datagram the shell *accepts* and then
+drops — over the rate limit, or outside `IN_ACTIVITY` — is a line the child
+neither hears nor reads, because the activity has already decided not to say
+it. Both drops are for senders behaving in ways no first-party activity does:
+the limit is above human speech, and an activity that is on screen is by
+definition what `IN_ACTIVITY` means. A shell that has gone away is the safe
+case and the common one — the socket is unlinked, `sendto` fails, and the
+activity speaks.
 
 ## 5. Millimetres, for the area you are actually given
 
@@ -399,6 +440,7 @@ kidnix-activity validate clock-and-time.toml
 | | |
 |---|---|
 | the band | Back, Undo, My Things, the sun, the Ear, the grown-up gate — visible over your window, always |
+| your captions, and your voice | every line you speak reaches the strip under the band, and the shell says it (§4.2) |
 | Back and Escape | ending your activity, with SIGTERM and a grace |
 | the session | the clock, the ending offer, put away, goodbye. **You never end the session and you never ask about time.** |
 | My Things | drawing and resuming the cards you write |
@@ -429,9 +471,12 @@ kidnix-activity validate clock-and-time.toml
 
 ## 13. Still open after this pass
 
-1. **The shell's caption listener** (§4.2). Required, not built. Until it
-   lands, an activity's instructions are audio-only, which is B2 unfixed for
-   the time a child spends inside an activity.
+1. **A dropped datagram is a lost line** (§4.2). The wire has no way to say
+   "I did not take that" to a sender that has already decided not to speak,
+   because a datagram sender has no reply address. Rate-limited and
+   out-of-state drops are therefore silent for the child. Giving the SDK a
+   bound socket to be acked on would fix it and costs a connection's worth of
+   state in every activity; nobody has needed it yet.
 2. **The example is not on Home.** `hello-draw.toml` is deliberately not in
    `system_files/usr/share/kidnix/activities/`; `--demo` listing it is a small
    follow-up in `demo.py`, which this pass did not touch.

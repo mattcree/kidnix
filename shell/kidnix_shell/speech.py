@@ -478,7 +478,15 @@ class SpeechManager:
         #: speech-dispatcher is dead, which is exactly when a caption is worth
         #: most. ``tests/test_access.py`` walks the package's AST and fails on
         #: any ``speak(`` that does not come through here.
-        self.on_caption: Callable[[str], None] | None = None
+        #:
+        #: **A truthy return means "and I have handed the saying of it over"**,
+        #: and the backend here is left alone. That is the one-voice rule
+        #: across a process boundary (:mod:`kidnix_shell.captions`): an
+        #: activity's hook is a datagram to the shell, the shell speaks and
+        #: captions the line itself, and the activity must not say it a second
+        #: time. A hook that returns ``None`` -- the shell's own, which merely
+        #: draws the strip -- changes nothing.
+        self.on_caption: Callable[[str], object] | None = None
         self._dwell_handle: int | None = None
         self._dwell_key: str | None = None
         self._dwell_started: float = 0.0
@@ -508,8 +516,14 @@ class SpeechManager:
         # hear the sentence, or a machine whose voice is broken, gets the same
         # information either way -- that is the whole point of the hook being
         # here rather than at the call sites.
-        if self.on_caption is not None:
-            self.on_caption(text)
+        if self.on_caption is not None and self.on_caption(text):
+            # Somebody else is saying it (an activity handing its line to the
+            # shell's voice). Remember it -- the Ear still repeats it, and a
+            # widget still wears the ring while it is being said -- but do not
+            # open a second mouth on it.
+            self.last_utterance = text
+            self._start_highlight(key, text)
+            return True
         if not self.enabled:
             self.last_utterance = text
             return False

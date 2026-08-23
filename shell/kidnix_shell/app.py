@@ -50,6 +50,7 @@ from gi.repository import Adw, Gdk, GLib, Graphene, Gsk, Gtk  # noqa: E402
 from .access import AccessConfig  # noqa: E402
 from .activities import Activity  # noqa: E402
 from .band import Band, BandActions, CaptionStrip  # noqa: E402
+from .captions import CaptionListener  # noqa: E402
 from .context import ShellContext  # noqa: E402
 from .journal import Entry, Journal, JournalImporter, JournalWatcher  # noqa: E402
 from .keyboard import Keyboard  # noqa: E402
@@ -324,6 +325,19 @@ class ShellWindow(Adw.ApplicationWindow):
         # `SpeechManager.speak` calls this before it even asks whether speech
         # is enabled (accessibility review B2).
         self.speech.on_caption = self._on_caption
+        #: **The other end of that hook, for the other process.** An activity
+        #: covers everything below the band, and its spoken lines would be
+        #: captionless -- B2 unfixed for most of the session -- unless they
+        #: came back here. They arrive as datagrams on
+        #: ``$XDG_RUNTIME_DIR/kidnix/captions.sock`` and go through the same
+        #: `speech.speak` every line of the shell's own does, so there is one
+        #: voice, one queue and one strip (:mod:`kidnix_shell.captions`).
+        #: The gate is the state machine: nothing off that socket is said
+        #: unless a child is actually inside an activity.
+        self.captions_in = CaptionListener(
+            self.speech,
+            is_active=lambda: self.machine.state is State.IN_ACTIVITY,
+        )
         #: One key controller for both toplevels, one focus ring across them
         #: (accessibility review B1). Escape is the shell's own Back, so it can
         #: never mean something the band's Back does not.
@@ -355,6 +369,9 @@ class ShellWindow(Adw.ApplicationWindow):
         self.launcher.on_exit = self._on_activity_exit
 
         self.machine = StateMachine(State.CHOOSING, on_change=self._on_state_change)
+        # After the machine exists, because the gate above reads it. Failure is
+        # a log line: a shell with no caption socket is a shell that works.
+        self.captions_in.start()
         self._sheet: GrownupSheet | None = None
         self._showing_handle: int | None = None
         self._goodbye_handle: int | None = None
@@ -2150,6 +2167,7 @@ class ShellWindow(Adw.ApplicationWindow):
         if not self._one_window:
             self.band_window.destroy()
         self.watcher.stop()
+        self.captions_in.stop()
         self.launcher.stop()
         self.session.end(datetime.now())
         self.speech.close()

@@ -31,14 +31,25 @@ def colours(path: Path) -> dict[str, str]:
 # --- one voice, one caption ------------------------------------------------
 
 
-def voice(**kwargs: object) -> tuple[ActivitySpeech, FakeBackend, list[str]]:
+def voice(
+    delivered: bool = False, **kwargs: object
+) -> tuple[ActivitySpeech, FakeBackend, list[str]]:
+    """An activity's voice with a fake caption sink on the end of it.
+
+    ``delivered`` is **whether the shell's listener took the datagram**, and it
+    is what decides which of the two processes says the line (one voice, 08
+    section 3.6): a delivered caption is the shell's to speak, and an
+    undelivered one -- no shell, a developer's desktop, every headless test --
+    is spoken here. The default is False because that is what a test without a
+    running shell actually is.
+    """
     backend = FakeBackend()
     captioned: list[str] = []
 
     class Sink(CaptionClient):
         def send(self, text: str) -> bool:
             captioned.append(text)
-            return True
+            return delivered
 
     speech = ActivitySpeech(
         "hello-draw",
@@ -54,6 +65,22 @@ def test_every_spoken_line_is_also_captioned() -> None:
     speech.speak("Press the big button.")
     assert backend.spoken == ["Press the big button."]
     assert captioned == ["Press the big button."]
+
+
+def test_a_line_the_shell_took_is_said_by_the_shell_and_not_here() -> None:
+    """One voice across a process boundary (``kidnix_shell.captions``).
+
+    The datagram is the whole utterance, not a shadow of it. Once the shell's
+    listener has it, the shell captions *and* speaks it -- so a second
+    speech-dispatcher connection here, which could not be cancelled by the
+    first, would be the two-voices bug the wire exists to prevent.
+    """
+    speech, backend, captioned = voice(delivered=True)
+    assert speech.speak("Press the big button.") is True
+    assert captioned == ["Press the big button."]
+    assert backend.spoken == []
+    # The Ear still works: the line is remembered, wherever it was said.
+    assert speech.last_utterance == "Press the big button."
 
 
 def test_a_muted_machine_still_shows_the_caption() -> None:

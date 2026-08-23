@@ -20,10 +20,14 @@ process, so the hook is a datagram to it
 (:mod:`kidnix_activity.captions`). If nothing is listening the child still
 hears the sentence and the log says once that the caption did not land.
 
-**The activity speaks; the shell shows.** The datagram is not a request to say
-anything -- a shell that spoke it too would be two voices a beat apart, which
-is worse than either alone. ``docs/design/activity-sdk.md`` section 4.2 states
-that as the listener's contract.
+**Whoever has the caption strip has the voice.** The datagram carries the whole
+utterance, not a shadow of it: when the shell's listener takes it
+(:mod:`kidnix_shell.captions`) the shell both shows the line and says it, and
+this process stays quiet -- two voices a beat apart, on two speech-dispatcher
+connections neither of which can cancel the other, is worse than either alone.
+When there is no listener the datagram fails at once and this process speaks,
+which is what makes an activity run on a developer's desktop and in every
+headless test. ``docs/design/activity-sdk.md`` section 4.2 is the contract.
 """
 
 from __future__ import annotations
@@ -137,5 +141,18 @@ class ActivitySpeech:
 
     # -- the hook --
 
-    def _on_caption(self, text: str) -> None:
-        self.captions.send(text)
+    def _on_caption(self, text: str) -> bool:
+        """Hand the line to the shell, and say whether it got there.
+
+        **True means the shell now owns this utterance** -- it will caption it
+        under the band *and* speak it with its own voice, so
+        :meth:`kidnix_shell.speech.SpeechManager.speak` leaves this process's
+        backend alone. That is the one-voice rule across a process boundary:
+        one speech-dispatcher connection, one queue, one cancel, whether the
+        line came from the shell or from us.
+
+        False -- no socket, no shell, a full queue -- and this process speaks
+        it as it always did. The child hears the sentence either way; what
+        changes is only which of the two voices says it.
+        """
+        return self.captions.send(text)
