@@ -2,33 +2,65 @@
 # Choose the grown-up PIN for this machine.
 #
 #   kidnix-set-pin              -> asks you twice, nothing echoed
-#   kidnix-set-pin --stdin      -> reads one PIN from stdin (the shell uses this)
+#   kidnix-set-pin --stdin      -> reads the PIN(s) from stdin (the shell uses this)
+#   kidnix-set-pin --check      -> a no-op probe: "may I, and is a PIN set?"
+#   sudo kidnix-set-pin --reset -> a parent who forgot the PIN (wheel only)
 #
 # WHY THIS EXISTS. /etc/kidnix/parent.toml is root-owned and the shell runs as
-# the child -- which is the whole reason the grown-up gate means anything. So
-# the PIN pad in the shell cannot save what it collects, and rather than
-# pretend to, it runs this. If it cannot run this either (see the polkit note
-# below) it keeps the PIN for the session and says so in those words.
+# the child -- which is the whole reason the grown-up gate means anything (a
+# child-writable PIN is not a PIN). So the PIN pad in the shell cannot save
+# what it collects, and rather than pretend to, it runs this.
 #
 # The image ships parent.toml with NO pin_hash at all (spec 7d #11), so a fresh
 # machine's gate opens on "choose a PIN" rather than on a pad that would accept
-# the documented 1234. This is the command that makes that choice permanent.
+# the documented 1234. This is the command that makes that choice permanent --
+# including from the child's own session, which is the only session this
+# machine ever shows anyone.
 #
-# POLKIT, AND THE HONEST LIMIT. Like kidnix-export and kidnix-wipe this is a
-# pkexec wrapper around itself, with the action org.kidnix.set-pin. That works
-# from the PARENT's account. It does **not** work from the child's session:
-# /usr/share/polkit-1/rules.d/40-kidnix-kid.rules refuses the `kid` user every
-# "org.kidnix." action, which is deliberately what stops a child authorising
-# kidnix-wipe -- and pkexec asks for the annotated action id, so there is no
-# carve-out that would not also open that door. A five-year-old must not be
-# able to set the PIN that fences them in either. So: run this from a terminal,
-# over SSH, or from the parent account.
+# THE RULE THIS HELPER ENFORCES, and it is the whole of the security argument:
+#
+#   1. FIRST SET IS OPEN. If parent.toml carries no pin_hash, anybody who can
+#      reach the gate may choose the first PIN. That is deliberate: the
+#      alternative is a machine whose gate stays open forever because the only
+#      person who can close it is holding a screen that will not let them.
+#      Four numbers a grown-up chose beat no numbers. docs/PARENTS.md tells the
+#      installing parent to do this before the child touches the laptop, and
+#      docs/spikes/pin-flow.md argues the residual case honestly.
+#
+#   2. A CHANGE COSTS THE CURRENT PIN. Once a hash exists, nothing is written
+#      unless the caller proves the current PIN. So a child can never *change*
+#      the PIN that fences them in, and the polkit YES below grants the right
+#      to ASK, not the right to change.
+#
+#   3. --reset AND A PATH ARGUMENT ARE FOR GROWN-UPS. Both are refused unless
+#      the caller is root or in wheel (`kid` is neither). A path argument
+#      matters more than it looks: this runs as root, and without that check a
+#      child could aim a root-owned write at any file on the machine.
+#
+#   4. WRONG GUESSES COST TIME. Two seconds each and five a minute, counted in
+#      a root-owned state file. A 4-digit PIN is 10 000 guesses; at this rate
+#      that is a day and a half of somebody sitting at the laptop.
+#
+# POLKIT. Like kidnix-export and kidnix-wipe this is a pkexec wrapper around
+# itself, with the action org.kidnix.set-pin. For a grown-up in their own
+# account that is a wheel password (the policy default). For the `kid` account
+# /usr/share/polkit-1/rules.d/40-kidnix-kid.rules grants this ONE action
+# outright -- and denies `kid` every other "org.kidnix." action, kidnix-wipe
+# and kidnix-export above all. The rules file and
+# /usr/share/polkit-1/actions/org.kidnix.set-pin.policy both carry the
+# reasoning; `kidnix-polkit-check kid org.kidnix.set-pin` prints the verdict.
 #
 # The PIN is never written to disk, never passed as an argument (an argument is
-# visible in `ps` to every process on the machine), and never logged. What is
-# stored is PBKDF2-HMAC-SHA256, 200000 rounds, over the PIN with a fresh random
-# salt -- kidnix_shell.settings.rewrite_pin, which edits those two lines and
-# leaves the other ninety alone.
+# visible in `ps` to every process on the machine), never echoed and never
+# logged -- not even a length, not even a failure's digits. What is stored is
+# PBKDF2-HMAC-SHA256, 200000 rounds, over the PIN with a fresh random salt --
+# kidnix_shell.settings.rewrite_pin, which edits those two lines and leaves the
+# other ninety alone.
+#
+# EXIT CODES (the shell's PIN pad reads them):
+#   0  written          3  the current PIN did not match, or too many attempts
+#   1  refused/failed   4  a PIN is already set and none was proved
+#  64  usage
 set -euo pipefail
 
 readonly CONFIG=/etc/kidnix/parent.toml
@@ -39,44 +71,169 @@ readonly PIN_LENGTH=4
 # first four buttons in a row to a six-year-old watching you type.
 readonly REFUSED_PIN=1234
 
-die() { printf 'kidnix-set-pin: %s\n' "$*" >&2; exit 1; }
+# Rate limiting. /var/lib/kidnix is machine-local, root-owned (0755) and
+# created by tmpfiles at boot, so the counter survives a reboot -- which /run
+# would not, and "reboot to clear the lockout" is exactly the trick to close.
+readonly STATE_DIR=/var/lib/kidnix
+readonly STATE_FILE="${STATE_DIR}/set-pin.failures"
+readonly FAIL_WINDOW_SECONDS=60
+readonly FAIL_MAX=5
+readonly FAIL_SLEEP_SECONDS=2
+
+readonly EXIT_REFUSED=1
+readonly EXIT_BAD_PIN=3
+readonly EXIT_ALREADY_SET=4
+
+die() { printf 'kidnix-set-pin: %s\n' "$*" >&2; exit "${EXIT_REFUSED}"; }
+die_with() { local code="$1"; shift; printf 'kidnix-set-pin: %s\n' "$*" >&2; exit "${code}"; }
 
 usage() {
     cat >&2 <<'EOF'
-usage: kidnix-set-pin [--stdin] [PATH]
+usage: kidnix-set-pin [--stdin] [--check] [--reset] [PATH]
 
-  --stdin   read the PIN from standard input instead of prompting
-  PATH      a parent.toml to write (default /etc/kidnix/parent.toml)
+  --stdin   read the PIN from standard input instead of prompting:
+              line 1  the new PIN
+              line 2  the CURRENT PIN -- required once one has been set
+  --check   say nothing and change nothing; exit 0 if this account may set the
+            PIN at all. Prints "ok pin=set" or "ok pin=unset".
+  --reset   choose a new PIN without knowing the old one. Root or wheel only:
+            this is the way back for a parent who has forgotten it.
+  PATH      a parent.toml to write (default /etc/kidnix/parent.toml). Root or
+            wheel only -- this command runs as root.
 
-Run it as yourself; it asks polkit for the root it needs. From the child's
-session polkit will refuse it -- that is the lockdown working. Use a terminal,
-SSH, or the parent account.
+Run it as yourself; it asks polkit for the root it needs. The child's session
+may use it to set the FIRST PIN on a machine that has none, and may not change
+one afterwards without typing the current one.
 EOF
     exit 64
 }
 
 from_stdin=false
-target="${CONFIG}"
+check_only=false
+reset=false
+target=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --stdin) from_stdin=true; shift ;;
+        --check) check_only=true; shift ;;
+        --reset) reset=true; shift ;;
         -h|--help) usage ;;
         -*) die "unknown option $1" ;;
-        *) target="$1"; shift ;;
+        *)  [[ -z "${target}" ]] || die "one path at a time"
+            target="$1"; shift ;;
     esac
 done
 
-# Not root yet: borrow it through polkit, exactly as kidnix-export does.
+# Not root yet: borrow it through polkit, exactly as kidnix-export does. The
+# flags are reconstructed rather than forwarded verbatim so that nothing a
+# caller invented can reach the root half of this script.
 if [[ "${EUID}" -ne 0 ]]; then
     command -v pkexec >/dev/null 2>&1 \
         || die "pkexec is missing; run 'sudo kidnix-set-pin' instead"
     args=()
     "${from_stdin}" && args+=(--stdin)
-    args+=("${target}")
-    exec pkexec /usr/bin/kidnix-set-pin "${args[@]}"
+    "${check_only}" && args+=(--check)
+    "${reset}" && args+=(--reset)
+    [[ -n "${target}" ]] && args+=("${target}")
+    exec pkexec /usr/bin/kidnix-set-pin ${args[@]+"${args[@]}"}
+fi
+
+# --- who actually asked for this --------------------------------------------
+#
+# pkexec sets PKEXEC_UID to the uid that invoked it and scrubs the rest of the
+# environment, so this cannot be forged by the caller; sudo sets SUDO_UID the
+# same way. Neither is present when a root shell runs this directly, and then
+# the real uid (0) is the answer. PKEXEC_UID is consulted FIRST on purpose: it
+# is the one an unprivileged caller comes through.
+if [[ -n "${PKEXEC_UID:-}" ]]; then
+    caller_uid="${PKEXEC_UID}"
+elif [[ -n "${SUDO_UID:-}" ]]; then
+    caller_uid="${SUDO_UID}"
+else
+    caller_uid="$(id -ru)"
+fi
+[[ "${caller_uid}" =~ ^[0-9]+$ ]] || die "cannot work out who asked for this"
+caller_name="$(id -nu "${caller_uid}" 2>/dev/null || true)"
+
+privileged=false
+if [[ "${caller_uid}" -eq 0 ]]; then
+    privileged=true
+elif [[ -n "${caller_name}" ]] \
+    && id -nG "${caller_name}" 2>/dev/null | tr ' ' '\n' | grep -qx wheel; then
+    privileged=true
+fi
+
+if [[ -n "${target}" ]] && ! "${privileged}"; then
+    # This process is root. A path from a caller who is not is a root-owned
+    # write pointed at a file of their choosing.
+    die "only root or a grown-up in the wheel group may name a file to write"
+fi
+target="${target:-${CONFIG}}"
+
+if "${reset}" && ! "${privileged}"; then
+    die "--reset is for root or the wheel group; from the gate, type the current PIN"
 fi
 
 [[ -d "$(dirname "${target}")" ]] || die "no such directory: $(dirname "${target}")"
+
+# --- is there a PIN already? ------------------------------------------------
+# Read the file the way the shell reads it (TOML, not a grep), so "a PIN is
+# set" here and `must_set_pin` there can never disagree.
+pin_state="$(python3 - "${target}" <<'PY' || die "could not read ${target}"
+import sys
+import tomllib
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+print("set" if str(data.get("pin_hash", "")) else "unset")
+PY
+)"
+
+if "${check_only}"; then
+    # A no-op probe. It exists so that "may the child's session reach this at
+    # all?" is answerable without setting a PIN -- the boot test asks exactly
+    # this, and getting here at all means polkit said yes.
+    printf 'ok pin=%s\n' "${pin_state}"
+    exit 0
+fi
+
+# --- rate limiting ----------------------------------------------------------
+now="$(date +%s)"
+
+recent_failures() {
+    # Lines are epoch seconds, one per refused attempt. Anything older than the
+    # window is dropped on the way past, so the file never grows.
+    [[ -r "${STATE_FILE}" ]] || { printf '0\n'; return 0; }
+    awk -v now="${now}" -v window="${FAIL_WINDOW_SECONDS}" \
+        '$1 ~ /^[0-9]+$/ && now - $1 < window { n += 1 } END { print n + 0 }' \
+        "${STATE_FILE}" 2>/dev/null || printf '0\n'
+}
+
+record_failure() {
+    mkdir -p "${STATE_DIR}" 2>/dev/null || return 0
+    local kept=""
+    if [[ -r "${STATE_FILE}" ]]; then
+        kept="$(awk -v now="${now}" -v window="${FAIL_WINDOW_SECONDS}" \
+            '$1 ~ /^[0-9]+$/ && now - $1 < window { print $1 }' "${STATE_FILE}" 2>/dev/null || true)"
+    fi
+    { [[ -n "${kept}" ]] && printf '%s\n' "${kept}"; printf '%s\n' "${now}"; } \
+        > "${STATE_FILE}.tmp" 2>/dev/null || return 0
+    chmod 0600 "${STATE_FILE}.tmp" 2>/dev/null || true
+    mv -f "${STATE_FILE}.tmp" "${STATE_FILE}" 2>/dev/null || true
+}
+
+if [[ "$(recent_failures)" -ge "${FAIL_MAX}" ]]; then
+    # No sleep here: the point is that the wait is already running.
+    die_with "${EXIT_BAD_PIN}" \
+        "too many wrong PINs in the last minute; wait a minute and try again"
+fi
+
+# --- collect the PIN(s) -----------------------------------------------------
+need_current=true
+if [[ "${pin_state}" == "unset" ]] || "${reset}"; then
+    need_current=false
+fi
 
 read_pin() {
     # $1 is the prompt. Never echoed, never in the shell's history, and the
@@ -87,14 +244,25 @@ read_pin() {
     printf '%s' "${value}"
 }
 
+current=""
 if "${from_stdin}"; then
-    # One line, from whatever asked for this (the shell's PIN pad). Reading a
-    # line rather than the whole stream means a caller cannot smuggle a second
-    # command in behind it.
+    # Line 1 is the new PIN, line 2 (when one is needed) the current one.
+    # Reading lines rather than the whole stream means a caller cannot smuggle
+    # a second command in behind them.
     IFS= read -r pin || die "nothing on stdin"
+    if "${need_current}"; then
+        IFS= read -r current || current=""
+        [[ -n "${current}" ]] || die_with "${EXIT_ALREADY_SET}" \
+            "a PIN is already set: send the current PIN on the second line of stdin (or run 'sudo kidnix-set-pin' from the grown-up's account)"
+    fi
 else
     printf 'Setting the grown-up PIN in %s.\n' "${target}" >&2
     printf 'Four digits. It is not echoed, and only a hash of it is stored.\n' >&2
+    if "${need_current}"; then
+        current="$(read_pin 'Current PIN: ')"
+        [[ -n "${current}" ]] || die_with "${EXIT_ALREADY_SET}" \
+            "a PIN is already set; typing the current one is how you change it"
+    fi
     pin="$(read_pin 'New PIN: ')"
     again="$(read_pin 'Type it again: ')"
     [[ "${pin}" == "${again}" ]] || die "those two did not match; nothing was changed"
@@ -105,21 +273,54 @@ fi
 [[ "${pin}" != "${REFUSED_PIN}" ]] \
     || die "${REFUSED_PIN} is the PIN every kidnix used to ship with; pick another"
 
-# The hashing and the in-place edit are the shell's own code, so the file
-# format and the shell's reader can never disagree about what a PIN is.
-KIDNIX_PIN="${pin}" python3 - "${target}" <<'PY' || die "could not write ${target}"
-import os
+# --- verify, then write -----------------------------------------------------
+#
+# The hashing, the check and the in-place edit are the shell's own code, so the
+# file format, the shell's reader and this can never disagree about what a PIN
+# is. Both PINs travel over the python process's STDIN: argv is world-readable
+# in /proc, and an environment variable is one bad `sudo` away from being so.
+mode="write"
+"${need_current}" && mode="verify"
+
+set +e
+written="$(printf '%s\n%s\n' "${pin}" "${current}" | python3 -c '
 import sys
+import tomllib
 from pathlib import Path
 
-from kidnix_shell.settings import rewrite_pin
+from kidnix_shell.settings import rewrite_pin, verify_pin
 
 path = Path(sys.argv[1])
-rewrite_pin(path, os.environ["KIDNIX_PIN"])
-# The caller (the shell's PIN pad) reads this to say where it went.
-print(path)
-PY
-unset pin
+mode = sys.argv[2]
+new_pin = sys.stdin.readline().rstrip("\n")
+current = sys.stdin.readline().rstrip("\n")
 
+if mode == "verify":
+    data = tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    if not verify_pin(current, str(data.get("pin_salt", "")), str(data.get("pin_hash", ""))):
+        # Nothing about the attempt is printed or logged: a log line with a
+        # length or a first digit in it is a log line a child can shoulder-surf.
+        sys.exit(3)
+
+rewrite_pin(path, new_pin)
+# The caller (the shell PIN pad) reads this to say where it went.
+print(path)
+' "${target}" "${mode}")"
+rc=$?
+set -e
+unset pin current
+
+if [[ "${rc}" -eq "${EXIT_BAD_PIN}" ]]; then
+    record_failure
+    sleep "${FAIL_SLEEP_SECONDS}"
+    die_with "${EXIT_BAD_PIN}" "that is not the current PIN; nothing was changed"
+fi
+[[ "${rc}" -eq 0 && -n "${written}" ]] || die "could not write ${target}"
+
+# A PIN was proved (or set for the first time), so the counter has done its
+# job. Leaving it would make the *next* honest mistake land mid-lockout.
+rm -f "${STATE_FILE}" 2>/dev/null || true
+
+printf '%s\n' "${written}"
 printf 'Done. The old PIN, if there was one, no longer works.\n' >&2
 printf 'Action id for reference: %s\n' "${ACTION}" >&2

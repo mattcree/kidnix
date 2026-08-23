@@ -485,6 +485,75 @@ nft list table inet kidnix_egress >/dev/null 2>&1 && egress_restored=loaded
 runuser -u kid -- curl -s -o /dev/null -m 5 http://1.1.1.1/ >/dev/null 2>&1
 egress_kid_reblocked=$?
 
+# --- the grown-up PIN, from the child's session (docs/spikes/pin-flow.md) ----
+#
+# The image ships /etc/kidnix/parent.toml with no pin_hash, so the gate opens
+# on "choose a grown-up PIN" -- in the CHILD'S session, because that is the
+# only session this machine ever shows anybody. Until 2026-08-23 that PIN
+# could not be saved: 40-kidnix-kid.rules denied `kid` every "org.kidnix."
+# action, so the chosen PIN lasted until the next restart. The rules file now
+# grants exactly one id, org.kidnix.set-pin, and /usr/bin/kidnix-set-pin
+# enforces the rule that makes that safe. Both halves are checked here, and
+# only a booted machine can check them: polkitd is the thing answering.
+pin_hash_at_boot=$(sed -n 's/^pin_hash *= *"\(.*\)"/\1/p' /etc/kidnix/parent.toml 2>/dev/null | head -1)
+
+pin_rules_setpin=$(/usr/libexec/kidnix-polkit-check kid org.kidnix.set-pin 2>/dev/null)
+pin_rules_tools=$(/usr/libexec/kidnix-polkit-check kid org.kidnix.parent-tools 2>/dev/null)
+
+# pkcheck asks POLKITD, about a real process in kid's live graphical session --
+# the dry-run evaluator above only asks the file. The pid,start-time,uid triple
+# is the non-racy spelling of --process.
+pin_pkcheck_setpin=""
+pin_pkcheck_tools=""
+if [ -n "$kiosk_pid" ] && [ -r "/proc/${kiosk_pid}/stat" ]; then
+    pk_subject="${kiosk_pid},$(awk '{print $22}' "/proc/${kiosk_pid}/stat"),$(stat -c %u "/proc/${kiosk_pid}")"
+    pkcheck --action-id org.kidnix.set-pin --process "$pk_subject" >/dev/null 2>&1
+    pin_pkcheck_setpin=$?
+    pkcheck --action-id org.kidnix.parent-tools --process "$pk_subject" >/dev/null 2>&1
+    pin_pkcheck_tools=$?
+fi
+
+# And the thing the shell's PIN pad actually runs. </dev/null and a timeout on
+# every one of these: a DENIED pkexec must fail immediately, and a hang here
+# would mean polkit had gone looking for an authentication agent, which is
+# itself the bug.
+timeout 20 runuser -u kid -- pkexec /usr/bin/kidnix-set-pin --check </dev/null >/dev/null 2>&1
+pin_pkexec_check=$?
+# kidnix-wipe carries no exec.path annotation of its own, so pkexec falls back
+# to org.freedesktop.policykit.exec; the helper it wraps DOES carry one
+# (org.kidnix.parent-tools). Both routes must be shut to kid, so both are tried.
+timeout 20 runuser -u kid -- pkexec /usr/bin/kidnix-wipe --check </dev/null >/dev/null 2>&1
+pin_pkexec_wipe=$?
+timeout 20 runuser -u kid -- pkexec /usr/libexec/kidnix-parent-tools wipe --check </dev/null >/dev/null 2>&1
+pin_pkexec_tools=$?
+
+# 1. THE FIRST SET, which is the whole reason the carve-out exists.
+printf '2468\n' | timeout 30 runuser -u kid -- pkexec /usr/bin/kidnix-set-pin --stdin >/dev/null 2>&1
+pin_first_rc=$?
+pin_hash_after_first=$(sed -n 's/^pin_hash *= *"\(.*\)"/\1/p' /etc/kidnix/parent.toml 2>/dev/null | head -1)
+
+# 2. A SECOND ATTEMPT WITH NO CURRENT PIN, which is a child changing the PIN
+#    that fences them in. Expected: refused (exit 4), file untouched.
+printf '1357\n' | timeout 30 runuser -u kid -- pkexec /usr/bin/kidnix-set-pin --stdin >/dev/null 2>&1
+pin_second_rc=$?
+pin_hash_after_second=$(sed -n 's/^pin_hash *= *"\(.*\)"/\1/p' /etc/kidnix/parent.toml 2>/dev/null | head -1)
+
+# 3. A wrong current PIN: refused too, and it costs two seconds.
+pin_wrong_start=$(date +%s)
+printf '1357\n9999\n' | timeout 30 runuser -u kid -- pkexec /usr/bin/kidnix-set-pin --stdin >/dev/null 2>&1
+pin_wrong_rc=$?
+pin_wrong_seconds=$(( $(date +%s) - pin_wrong_start ))
+
+# 4. The current PIN, typed: allowed. (A parent standing at the gate.)
+printf '1357\n2468\n' | timeout 30 runuser -u kid -- pkexec /usr/bin/kidnix-set-pin --stdin >/dev/null 2>&1
+pin_proved_rc=$?
+pin_hash_after_proved=$(sed -n 's/^pin_hash *= *"\(.*\)"/\1/p' /etc/kidnix/parent.toml 2>/dev/null | head -1)
+
+# 5. The way back for a parent who forgot it needs wheel, so kid may not.
+printf '4321\n' | timeout 30 runuser -u kid -- pkexec /usr/bin/kidnix-set-pin --stdin --reset >/dev/null 2>&1
+pin_kid_reset_rc=$?
+pin_hash_after_reset=$(sed -n 's/^pin_hash *= *"\(.*\)"/\1/p' /etc/kidnix/parent.toml 2>/dev/null | head -1)
+
 # --- crash recovery ----------------------------------------------------------
 # kidnix-shell.service is Restart=always/RestartSec=1, which replaced the bash
 # supervisor. Kill the shell and time how long the child would stare at an
@@ -572,6 +641,24 @@ echo "egress_after_root_delete=${egress_after_root_delete}"
 echo "egress_kid_unblocked=${egress_kid_unblocked}"
 echo "egress_restored=${egress_restored}"
 echo "egress_kid_reblocked=${egress_kid_reblocked}"
+echo "pin_hash_at_boot=${pin_hash_at_boot}"
+echo "pin_rules_setpin=${pin_rules_setpin}"
+echo "pin_rules_tools=${pin_rules_tools}"
+echo "pin_pkcheck_setpin=${pin_pkcheck_setpin}"
+echo "pin_pkcheck_tools=${pin_pkcheck_tools}"
+echo "pin_pkexec_check=${pin_pkexec_check}"
+echo "pin_pkexec_wipe=${pin_pkexec_wipe}"
+echo "pin_pkexec_tools=${pin_pkexec_tools}"
+echo "pin_first_rc=${pin_first_rc}"
+echo "pin_hash_after_first=${pin_hash_after_first}"
+echo "pin_second_rc=${pin_second_rc}"
+echo "pin_hash_after_second=${pin_hash_after_second}"
+echo "pin_wrong_rc=${pin_wrong_rc}"
+echo "pin_wrong_seconds=${pin_wrong_seconds}"
+echo "pin_proved_rc=${pin_proved_rc}"
+echo "pin_hash_after_proved=${pin_hash_after_proved}"
+echo "pin_kid_reset_rc=${pin_kid_reset_rc}"
+echo "pin_hash_after_reset=${pin_hash_after_reset}"
 echo "failed_units=$(systemctl list-units --state=failed --no-legend --plain \
     --no-pager 2>/dev/null | awk '{print $1}' | paste -sd, -)"
 echo "os_id=$(. /etc/os-release && echo "$ID")"
@@ -1236,6 +1323,100 @@ def assert_egress_proof(probe: dict[str, str], checks: Checks) -> None:
         )
 
 
+def assert_pin(probe: dict[str, str], checks: Checks) -> None:
+    """The mandatory first PIN, set from the child's session and no further.
+
+    docs/spikes/pin-flow.md is the argument; this is the proof, and it needs a
+    booted machine because polkitd is the thing being asked. Two claims, and
+    they pull in opposite directions on purpose:
+
+      * the child's session CAN write the first PIN -- otherwise the shipped
+        "no PIN at all" state is a gate that never closes, because the only
+        session this machine shows is the child's;
+      * and it can do nothing else with that authorisation -- not change a PIN
+        somebody chose, not reset one, and not reach kidnix-wipe.
+    """
+    checks.check(
+        probe.get("pin_hash_at_boot", "") == "",
+        "the machine boots with NO grown-up PIN (the gate asks for one)",
+        f"parent.toml already carries {probe.get('pin_hash_at_boot', '')[:8]}...",
+    )
+    checks.check(
+        probe.get("pin_rules_setpin") == "YES",
+        f"the rules file grants kid org.kidnix.set-pin (got '{probe.get('pin_rules_setpin') or 'nothing'}')",
+    )
+    checks.check(
+        probe.get("pin_rules_tools") == "NO",
+        f"the rules file still denies kid org.kidnix.parent-tools (got '{probe.get('pin_rules_tools') or 'nothing'}')",
+    )
+
+    # polkitd's own answer about a real process in kid's live session. Only
+    # asserted when the probe could form the subject triple.
+    if probe.get("pin_pkcheck_setpin"):
+        checks.check(
+            probe.get("pin_pkcheck_setpin") == "0",
+            "polkitd authorises org.kidnix.set-pin for kid's session"
+            f" (pkcheck exit {probe.get('pin_pkcheck_setpin')})",
+        )
+    if probe.get("pin_pkcheck_tools"):
+        checks.check(
+            probe.get("pin_pkcheck_tools") != "0",
+            "polkitd refuses org.kidnix.parent-tools for kid's session"
+            f" (pkcheck exit {probe.get('pin_pkcheck_tools')})",
+        )
+
+    checks.check(
+        probe.get("pin_pkexec_check") == "0",
+        f"kid may run `pkexec kidnix-set-pin --check` (exit {probe.get('pin_pkexec_check')})",
+    )
+    checks.check(
+        probe.get("pin_pkexec_wipe") not in ("0", None),
+        f"kid may NOT run `pkexec kidnix-wipe` (exit {probe.get('pin_pkexec_wipe')})",
+    )
+    checks.check(
+        probe.get("pin_pkexec_tools") not in ("0", None),
+        "kid may NOT reach kidnix-parent-tools through pkexec either"
+        f" (exit {probe.get('pin_pkexec_tools')})",
+    )
+
+    first = probe.get("pin_hash_after_first", "")
+    checks.check(
+        probe.get("pin_first_rc") == "0" and len(first) == 64,
+        "kid's session can set the FIRST PIN, and it lands in /etc"
+        f" (exit {probe.get('pin_first_rc')}, hash {len(first)} chars)",
+    )
+    checks.check(
+        probe.get("pin_second_rc") == "4",
+        "a second set with no current PIN is refused"
+        f" (exit {probe.get('pin_second_rc')}, wanted 4)",
+    )
+    checks.check(
+        probe.get("pin_hash_after_second", "") == first,
+        "...and the refused attempt changed nothing on disk",
+    )
+    checks.check(
+        probe.get("pin_wrong_rc") == "3",
+        f"a WRONG current PIN is refused (exit {probe.get('pin_wrong_rc')}, wanted 3)",
+    )
+    checks.check(
+        _as_int(probe.get("pin_wrong_seconds", "")) is not None
+        and _as_int(probe.get("pin_wrong_seconds", "")) >= 2,
+        f"...and costs the guesser 2 s (took {probe.get('pin_wrong_seconds')}s)",
+    )
+    proved = probe.get("pin_hash_after_proved", "")
+    checks.check(
+        probe.get("pin_proved_rc") == "0" and len(proved) == 64 and proved != first,
+        "typing the current PIN buys a change (a parent at the gate)"
+        f" (exit {probe.get('pin_proved_rc')})",
+    )
+    checks.check(
+        probe.get("pin_kid_reset_rc") not in ("0", None)
+        and probe.get("pin_hash_after_reset", "") == proved,
+        "kid may not --reset past the current PIN"
+        f" (exit {probe.get('pin_kid_reset_rc')})",
+    )
+
+
 def assert_probe(probe: dict[str, str], checks: Checks) -> None:
     state = probe.get("system_running", "")
     checks.check(
@@ -1278,6 +1459,7 @@ def assert_probe(probe: dict[str, str], checks: Checks) -> None:
     assert_session(probe, checks)
     assert_shell(probe, checks)
     assert_egress(probe, checks)
+    assert_pin(probe, checks)
 
     failed = [u for u in probe.get("failed_units", "").split(",") if u]
     unexpected = [u for u in failed if u not in EXPECTED_FAILED_UNITS]

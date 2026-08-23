@@ -102,6 +102,33 @@ if sed 's://.*::' "${POLKIT_RULES}" \
     die "${POLKIT_RULES} uses ES6+ syntax; polkitd's duktape engine is ES5.1"
 fi
 
+# The .policy file the child's session depends on has to PARSE, and polkitd is
+# the only thing that would otherwise tell us it does not -- an unregistered
+# action makes pkexec fail with "not authorized" (127), which looks exactly
+# like the lockdown working. XML comments may not contain a double hyphen, and
+# that is a real bug this caught: the comment in the file below explains at
+# length why the child may set a PIN, and one "--" in it silently unregistered
+# the action on the machine.
+python3 - <<'PY' || die "org.kidnix.set-pin.policy does not parse; polkitd would ignore it"
+import sys
+import xml.dom.minidom
+
+path = "/usr/share/polkit-1/actions/org.kidnix.set-pin.policy"
+doc = xml.dom.minidom.parse(path)
+actions = doc.getElementsByTagName("action")
+assert len(actions) == 1, f"{len(actions)} actions in {path}"
+assert actions[0].getAttribute("id") == "org.kidnix.set-pin", actions[0].getAttribute("id")
+annotations = {
+    a.getAttribute("key"): a.firstChild.nodeValue
+    for a in actions[0].getElementsByTagName("annotate")
+}
+# pkexec matches a program to an action by this annotation. A typo here is the
+# difference between "the child may set the first PIN" and "the child gets
+# org.freedesktop.policykit.exec", which is denied.
+assert annotations.get("org.freedesktop.policykit.exec.path") == "/usr/bin/kidnix-set-pin", annotations
+print("  -- org.kidnix.set-pin parses and annotates /usr/bin/kidnix-set-pin")
+PY
+
 # Behavioural check: load the real file and ask it real questions.
 log "evaluating ${POLKIT_RULES}"
 polkit_case() {
@@ -126,6 +153,23 @@ polkit_case kid org.projectatomic.rpmostree1.deploy                     NO
 polkit_case kid org.freedesktop.policykit.exec                          NO
 polkit_case kid com.endlessm.ParentalControls.AppFilter.ChangeOwn       NO
 polkit_case kid org.freedesktop.Malcontent.SessionLimits.Extend         NO
+
+# kidnix's own helpers: the export/wipe action stays shut to the child, and the
+# carve-out below it is EXACTLY one id wide. The near-misses are the assertion
+# that matters -- a stray dot turning the exact match back into a prefix would
+# hand a five-year-old kidnix-wipe.
+polkit_case kid org.kidnix.parent-tools                                 NO
+polkit_case kid org.kidnix.set-pin.evil                                 NO
+polkit_case kid org.kidnix.set-pinned                                   NO
+
+# ...and the ONE thing the child's session may authorise: choosing the grown-up
+# PIN on a machine that has none. YES, not NOT_HANDLED: the policy default is a
+# wheel password and there is no grown-up to type one at the moment the laptop
+# is handed over. /usr/bin/kidnix-set-pin is what decides whether the write
+# actually happens (first set only, or the current PIN proved) -- see
+# docs/spikes/pin-flow.md.
+polkit_case kid org.kidnix.set-pin                                      YES
+polkit_case parent org.kidnix.set-pin                                   NOT_HANDLED
 
 # ...and left alone for the things a session legitimately needs.
 polkit_case kid org.freedesktop.login1.inhibit-block-idle               NOT_HANDLED

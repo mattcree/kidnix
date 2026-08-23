@@ -425,6 +425,84 @@ print(f"  -- parent.toml loads: no PIN yet (the gate will ask for one), "
       f"{config.default_session_minutes} min, {len(config.profiles)} profile(s)")
 PY
 
+# -----------------------------------------------------------------------------
+# 4b. kidnix-set-pin: the rule that makes the polkit carve-out safe
+# -----------------------------------------------------------------------------
+#
+# 40-lockdown.sh asserts that the child's session may ASK for org.kidnix.set-pin
+# (and for nothing else of ours). This asserts the other half: that asking is
+# not the same as getting. The helper writes only on a machine with no PIN, or
+# for a caller who typed the current one -- so the mandatory first-time PIN
+# works from the gate and a child can never change the PIN afterwards.
+#
+# Run against a scratch copy: the shipped /etc/kidnix/parent.toml must still be
+# PIN-less when this is done, and the last line asserts exactly that.
+readonly PIN_PROBE=/tmp/kidnix-set-pin-probe.toml
+readonly SET_PIN=/usr/bin/kidnix-set-pin
+
+test -x "${SET_PIN}" || die "${SET_PIN} is missing or not executable"
+cp "${PARENT_ETC}" "${PIN_PROBE}"
+
+pin_rc() {
+    # $1 the stdin to feed, then the arguments. Never echoes what it feeds.
+    local input="$1"; shift
+    local rc=0
+    printf '%s' "${input}" | "$@" >/dev/null 2>&1 || rc=$?
+    printf '%s' "${rc}"
+}
+
+pin_case() {
+    # $1 what this proves, $2 the expected exit code, $3 stdin, rest: argv.
+    local what="$1" want="$2" input="$3"; shift 3
+    local got
+    got="$(pin_rc "${input}" "$@")"
+    [[ "${got}" == "${want}" ]] \
+        || die "kidnix-set-pin: ${what} -- exit ${got}, expected ${want}"
+}
+
+# A probe that changes nothing, which is what the boot test calls as `kid`.
+pin_case "--check is a no-op probe" 0 "" "${SET_PIN}" --check "${PIN_PROBE}"
+
+# 1. FIRST SET IS OPEN. This is the one the child at the gate needs.
+pin_case "the first PIN may be set with no proof" 0 $'2468\n' \
+    "${SET_PIN}" --stdin "${PIN_PROBE}"
+grep -Eq '^pin_hash = "[0-9a-f]{64}"$' "${PIN_PROBE}" \
+    || die "kidnix-set-pin did not write a pin_hash"
+grep -Eq '^pin_salt = "[0-9a-f]{32}"$' "${PIN_PROBE}" \
+    || die "kidnix-set-pin did not write a pin_salt"
+grep -q 'hover_dwell_ms' "${PIN_PROBE}" \
+    || die "kidnix-set-pin ate the rest of the file; the rewrite is not comment-preserving"
+if grep -q '2468' "${PIN_PROBE}"; then die "kidnix-set-pin stored the PIN itself"; fi
+
+# 2. A CHANGE COSTS THE CURRENT PIN. Exit 4 = "already set, none proved",
+#    exit 3 = "that is not the current PIN". Both cost the caller two seconds.
+pin_case "an existing PIN cannot be changed without proof" 4 $'1357\n' \
+    "${SET_PIN}" --stdin "${PIN_PROBE}"
+pin_case "a wrong current PIN is refused" 3 $'1357\n9999\n' \
+    "${SET_PIN}" --stdin "${PIN_PROBE}"
+grep -q "$(grep -E '^pin_hash' "${PIN_PROBE}" | head -1 | cut -d'"' -f2)" "${PIN_PROBE}" \
+    || die "the refused attempts changed the stored hash"
+pin_case "the current PIN buys a change" 0 $'1357\n2468\n' \
+    "${SET_PIN}" --stdin "${PIN_PROBE}"
+
+# 3. --reset AND A PATH ARGUMENT ARE FOR GROWN-UPS. PKEXEC_UID is what pkexec
+#    sets to the uid that invoked it; 1000 is `kid`. Both must be refused, and
+#    the path one is load-bearing: this helper runs as root.
+pin_case "the child may not aim it at another file" 1 $'4321\n' \
+    env PKEXEC_UID=1000 "${SET_PIN}" --stdin "${PIN_PROBE}"
+pin_case "the child may not --reset past the current PIN" 1 $'4321\n' \
+    env PKEXEC_UID=1000 "${SET_PIN}" --stdin --reset
+# ...while root (and therefore wheel) still has the way back for a parent who
+# has forgotten it.
+pin_case "root may --reset without the old PIN" 0 $'8642\n' \
+    "${SET_PIN}" --stdin --reset "${PIN_PROBE}"
+
+rm -f "${PIN_PROBE}" /var/lib/kidnix/set-pin.failures
+if grep -Eq '^ *pin_(hash|salt) *=' "${PARENT_ETC}"; then
+    die "the shipped parent.toml gained a PIN during the build"
+fi
+log "kidnix-set-pin: first set open, changes cost the current PIN, kid may not reset"
+
 # And report the path the shell will actually take, rather than assuming it.
 # Deliberately NOT fatal: which file wins is settings.py's decision, and it is
 # being changed under us (docs/spikes/session-integration.md open question 2 --

@@ -31,6 +31,46 @@
 
     var KID = "kid";
 
+    // THE ONE ACTION THE CHILD'S SESSION MAY AUTHORISE, and the only YES in
+    // this file. Matched as an EXACT id, never as a prefix -- "org.kidnix."
+    // below denies everything else kidnix has, including the action behind
+    // kidnix-wipe (which deletes every drawing the child ever made) and
+    // kidnix-export (which copies them out of a 0700 home).
+    //
+    // WHY IT HAS TO BE HERE. The image ships /etc/kidnix/parent.toml with no
+    // pin_hash at all, so a fresh machine's grown-up gate opens on "choose a
+    // PIN" -- and the only screen anyone ever sees on this machine is the
+    // child's session. Without this line the mandatory first-time PIN cannot
+    // be written at all: the file is root-owned (as it must be, a
+    // child-writable PIN is not a PIN), the shell runs as `kid`, and pkexec
+    // asks for the ANNOTATED action id, so the "org.kidnix." denial below
+    // covered set-pin too. That is docs/design/shell-v0.1-implementation
+    // -notes.md 23.4's "honest limit", and it left every machine one restart
+    // away from having no PIN.
+    //
+    // WHY IT IS SAFE TO SAY YES HERE, in one sentence: this grants the right
+    // to *ask*, not the right to change a PIN. /usr/bin/kidnix-set-pin will
+    // only write when parent.toml carries NO hash yet (the first set) or when
+    // the caller proved the current PIN on stdin, it refuses --reset and any
+    // path argument to a caller who is not root or wheel, and it rate-limits
+    // wrong-PIN attempts. So a child who reaches a terminal gets exactly what
+    // the child at the gate gets: the first set on an unconfigured machine,
+    // and nothing at all afterwards. docs/spikes/pin-flow.md has the full
+    // threat model, including the one residual case (a child alone with a
+    // brand-new machine) and why first-run instructions are the mitigation.
+    //
+    // YES rather than a fall-through: the policy default for this action is
+    // auth_admin_keep, i.e. a wheel password, and there is no grown-up to type
+    // one at the moment a five-year-old is being handed the laptop. Note also
+    // that this deliberately does NOT test subject.active: sshd's DenyUsers
+    // already keeps `kid` out of every non-seat session (see
+    // /etc/ssh/sshd_config.d/10-kidnix.conf), and making the verdict depend on
+    // session state would make the dry-run checker (kidnix-polkit-check) and
+    // polkitd disagree about the one rule that most needs proving.
+    var GRANTED_IDS = [
+        "org.kidnix.set-pin"
+    ];
+
     // Whole subsystems the child may never authorise anything in.
     var DENIED_PREFIXES = [
         // Networking: no joining Wi-Fi, no editing connections, no disabling
@@ -94,13 +134,14 @@
         // polkit itself, which is what `pkexec` asks for.
         "org.freedesktop.policykit.",
 
-        // kidnix's own privileged helpers. Today that is
-        // org.kidnix.parent-tools, the action behind kidnix-export and
-        // kidnix-wipe -- one of which copies every drawing the child has ever
-        // made out of a 0700 home, and the other of which deletes all of it.
-        // pkexec asks for the ANNOTATED action id, not
-        // org.freedesktop.policykit.exec, so the entry above does not cover
-        // it and this prefix is load-bearing rather than defensive.
+        // kidnix's own privileged helpers. Chiefly org.kidnix.parent-tools,
+        // the action behind kidnix-export and kidnix-wipe -- one of which
+        // copies every drawing the child has ever made out of a 0700 home, and
+        // the other of which deletes all of it. pkexec asks for the ANNOTATED
+        // action id, not org.freedesktop.policykit.exec, so the entry above
+        // does not cover it and this prefix is load-bearing rather than
+        // defensive. GRANTED_IDS above carves out exactly one id from it,
+        // org.kidnix.set-pin, and is checked first.
         "org.kidnix.",
 
         // Parental controls: the child must not be able to edit or extend its
@@ -143,6 +184,16 @@
         return false;
     }
 
+    function anyExact(s, list) {
+        var i;
+        for (i = 0; i < list.length; i += 1) {
+            if (s === list[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function anySuffix(s, list) {
         var i;
         for (i = 0; i < list.length; i += 1) {
@@ -159,6 +210,13 @@
         }
 
         var id = action.id;
+
+        // Checked before the deny list, and an EXACT match, so widening it by
+        // accident takes a deliberate edit rather than a stray dot.
+        if (anyExact(id, GRANTED_IDS)) {
+            polkit.log("kidnix: allowed " + id + " for user " + KID);
+            return polkit.Result.YES;
+        }
 
         if (anyPrefix(id, ALLOWED_PREFIXES) || anySuffix(id, ALLOWED_SUFFIXES)) {
             return polkit.Result.NOT_HANDLED;

@@ -183,6 +183,20 @@ polkit_denies org.freedesktop.NetworkManager.network-control
 # firewalld's action ids live under org.fedoraproject., not org.freedesktop.
 polkit_denies org.fedoraproject.FirewallD1.all
 
+# The child's session was granted exactly one polkit YES on 2026-08-23
+# (org.kidnix.set-pin, so the mandatory first PIN can be written from the only
+# session this machine shows). Assert here, in the file that owns "the child
+# cannot reach the network", that the grant list contains nothing else and in
+# particular nothing under org.freedesktop.: a widened carve-out would be the
+# quietest possible way to hand kid back NetworkManager.
+granted="$(awk '/var GRANTED_IDS = \[/{ g = 1; next } g && /\]/{ exit } g { gsub(/[ "]/, ""); print }' \
+    /usr/share/polkit-1/rules.d/40-kidnix-kid.rules | tr '\n' ' ' | sed 's/ *$//')"
+if [[ "${granted}" == "org.kidnix.set-pin" ]]; then
+    ok "kid's only polkit grant is org.kidnix.set-pin"
+else
+    no "kid's only polkit grant is org.kidnix.set-pin" "grants: ${granted:-<none>}"
+fi
+
 # ...and does not touch the parent, who has to be able to set the Wi-Fi up.
 if /usr/libexec/kidnix-polkit-check parent \
         org.freedesktop.NetworkManager.settings.modify.system NOT_HANDLED >/dev/null 2>&1; then

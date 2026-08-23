@@ -11,21 +11,40 @@
   not a PIN). So the shell's PIN pad cannot save what it collects, and this is
   the action behind the helper that can (/usr/bin/kidnix-set-pin).
 
-  allow_active=auth_admin_keep: a grown-up sitting at the machine, in the wheel
-  group, typing their own password: the same shape as org.kidnix.parent-tools
-  and the stock Fedora admin experience, not a new secret to remember.
+  TWO CALLERS, TWO ROUTES, AND THAT IS THE WHOLE DESIGN.
 
-  READ THIS BEFORE ASSUMING THE KID SESSION CAN USE IT. It cannot, and that is
-  correct. /usr/share/polkit-1/rules.d/40-kidnix-kid.rules denies the `kid`
-  user every action whose id begins "org.kidnix.": the rule that stops a
-  child authorising kidnix-wipe, which deletes everything they have ever made.
-  pkexec asks for the *annotated* action id, so there is no carve-out for this
-  one that would not also open that door, and a five-year-old must not be able
-  to set the PIN that fences them in in any case. The shell therefore tries
-  this, is refused, and falls back to holding the chosen PIN for the session
-  while telling the grown-up which command makes it permanent.
+  * A grown-up in their own account (a terminal, or SSH) meets the defaults
+    below: allow_active=auth_admin_keep, i.e. a wheel password. That is the
+    stock Fedora admin experience, the same shape as org.kidnix.parent-tools,
+    and not a new secret to remember.
 
-  This action is for the parent's own account, a terminal, or SSH.
+  * The CHILD'S SESSION is granted this one action outright (YES, no password)
+    by /usr/share/polkit-1/rules.d/40-kidnix-kid.rules, which denies `kid`
+    every other "org.kidnix." action; kidnix-export and kidnix-wipe above all.
+    It has to be. The image ships parent.toml with no pin_hash, the mandatory
+    "choose a grown-up PIN" screen is in the child's session because that is
+    the only session this machine ever shows, and the file it must write is
+    root-owned. Without the carve-out the chosen PIN lasted until the next
+    restart.
+
+  THE AUTHORISATION IS NOT THE AUTHORITY. Saying YES here grants the right to
+  *ask*; /usr/bin/kidnix-set-pin decides. It writes only when parent.toml
+  carries no hash yet (the first set) or when the caller proved the current
+  PIN on stdin; it refuses the reset flag and any path argument to a caller
+  who is not root or in wheel; and it rate-limits wrong-PIN attempts. So a
+  child can set the first PIN on a machine nobody has set up (which beats no
+  PIN at all) and can never change one afterwards. docs/spikes/pin-flow.md is
+  the threat model, including the residual "child alone with a brand-new
+  laptop" case.
+
+  A parent who forgets the PIN runs `sudo kidnix-set-pin` with the reset flag
+  from their own account, which needs wheel and therefore is not reachable
+  from here.
+
+  NOTE FOR EDITORS: this is an XML comment, so it may not contain a double
+  hyphen anywhere. `kidnix-set-pin` option names are therefore spelled out in
+  words above. tests/image/test_lockdown.sh parses this file to make sure a
+  well-meant edit cannot unregister the action.
 -->
 <policyconfig>
   <vendor>kidnix</vendor>

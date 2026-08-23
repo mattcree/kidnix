@@ -204,6 +204,88 @@ polkit_denies com.endlessm.ParentalControls.AppFilter.ChangeOwn
 polkit_denies org.freedesktop.Malcontent.SessionLimits.Extend
 polkit_denies org.freedesktop.hostname1.set-static-hostname
 
+# kidnix's own actions. The child may not export or erase their own machine's
+# data, and the near-misses are what prove the one carve-out below is an EXACT
+# id and not a prefix: a stray dot in 40-kidnix-kid.rules would hand a
+# five-year-old kidnix-wipe.
+polkit_denies org.kidnix.parent-tools
+polkit_denies org.kidnix.set-pin.evil
+polkit_denies org.kidnix.set-pinned
+
+# THE ONE THING THE CHILD'S SESSION MAY AUTHORISE: choosing the grown-up PIN.
+# YES rather than NOT_HANDLED, because the policy default is a wheel password
+# and there is nobody to type one at the moment the laptop is handed over, and
+# because the image ships with no PIN at all -- so without this the mandatory
+# "choose a grown-up PIN" screen could only ever hold its answer for one boot.
+# What stops it being a hole is /usr/bin/kidnix-set-pin, asserted in
+# test_hardening.sh: it writes only on a machine with no PIN, or for a caller
+# who typed the current one. docs/spikes/pin-flow.md is the threat model.
+polkit_grants() {
+    if /usr/libexec/kidnix-polkit-check kid "$1" YES 2>/dev/null; then
+        _report ok "kid may authorise $1 (and only this one)"
+    else
+        _report no "kid may authorise $1 (and only this one)" \
+            "verdict $(/usr/libexec/kidnix-polkit-check kid "$1" 2>/dev/null || echo '<error>')"
+    fi
+}
+polkit_grants org.kidnix.set-pin
+
+# The rules file constrains `kid` and nobody else: a grown-up meets the policy
+# default (auth_admin_keep) for the same action.
+polkit_allows parent org.kidnix.set-pin
+
+# The carve-out is one line in one file, so assert the file says so too -- a
+# YES from the evaluator with no id next to it in the source would be a rule
+# somebody widened by editing the wrong array.
+if grep -Eq '^ *"org\.kidnix\.set-pin"$' /usr/share/polkit-1/rules.d/40-kidnix-kid.rules \
+    && [[ "$(grep -cE '^ *"org\.kidnix\.[a-z-]+"$' \
+        /usr/share/polkit-1/rules.d/40-kidnix-kid.rules)" == 1 ]]; then
+    _report ok "exactly one org.kidnix.* id is granted in the rules file"
+else
+    _report no "exactly one org.kidnix.* id is granted in the rules file" \
+        "$(grep -E '^ *"org\.kidnix\.[a-z-]+"$' \
+            /usr/share/polkit-1/rules.d/40-kidnix-kid.rules | tr '\n' ' ')"
+fi
+
+section "the PIN helper behind that carve-out"
+assert_exec /usr/bin/kidnix-set-pin
+assert_file /usr/share/polkit-1/actions/org.kidnix.set-pin.policy
+# pkexec matches a program to an action by this annotation, so a typo here is
+# the difference between "the child may set the first PIN" and "the child gets
+# org.freedesktop.policykit.exec, which is denied".
+assert_grep '<annotate key="org.freedesktop.policykit.exec.path">/usr/bin/kidnix-set-pin</annotate>' \
+    /usr/share/polkit-1/actions/org.kidnix.set-pin.policy \
+    "the set-pin action points at /usr/bin/kidnix-set-pin"
+assert_grep '<action id="org.kidnix.set-pin">' \
+    /usr/share/polkit-1/actions/org.kidnix.set-pin.policy \
+    "the action id matches the one the rules file grants"
+
+# ...and it has to PARSE. An unregistered action makes pkexec fail with "not
+# authorized" (127), which is indistinguishable from the lockdown working --
+# a boot test caught exactly that, from a double hyphen inside the XML comment
+# that explains why the child may set a PIN at all. XML comments may not
+# contain one; nothing else in the image would have said so.
+if python3 - <<'PY' >/dev/null 2>&1
+import xml.dom.minidom
+
+path = "/usr/share/polkit-1/actions/org.kidnix.set-pin.policy"
+doc = xml.dom.minidom.parse(path)
+actions = doc.getElementsByTagName("action")
+assert len(actions) == 1
+assert actions[0].getAttribute("id") == "org.kidnix.set-pin"
+annotations = {
+    a.getAttribute("key"): a.firstChild.nodeValue
+    for a in actions[0].getElementsByTagName("annotate")
+}
+assert annotations["org.freedesktop.policykit.exec.path"] == "/usr/bin/kidnix-set-pin"
+PY
+then
+    _report ok "the set-pin action is well-formed XML (polkitd will register it)"
+else
+    _report no "the set-pin action is well-formed XML (polkitd will register it)" \
+        "minidom rejected it, or the id/annotation drifted"
+fi
+
 # Carve-outs the session actually needs.
 polkit_allows kid org.freedesktop.login1.inhibit-block-idle
 polkit_allows kid com.endlessm.ParentalControls.AppFilter.ReadOwn

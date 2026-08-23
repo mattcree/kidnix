@@ -38,18 +38,40 @@ many minutes remain.
 properly. The picture they were working on may be the last thing lost, and
 nothing else is.
 
-## The PIN, and the honest warning about it
+## The PIN: do this first, before they touch it
 
 There is a grown-up gate. Press and hold the plain corner tile for three
 seconds, type four numbers, and you are in the grown-up settings.
 
-**It ships with the PIN 1234, and 1234 means "nobody has set this up yet".**
-Change it on the first day. Do it somewhere your child cannot watch your
-fingers — a six-year-old who has seen you type four buttons has your PIN, and
-that is the actual threat here, not a stranger guessing.
+**The machine ships with no PIN at all, and the first person to reach the gate
+chooses it.** So the first thing to do on a new machine, before you hand it
+over, is:
+
+1. Hold the plain corner tile in the bottom corner for three seconds.
+2. The screen asks you to choose a grown-up PIN. Type four numbers, twice.
+3. That is it — it is saved on the machine and it is the PIN from then on.
+
+**Do it somewhere your child cannot watch your fingers.** A six-year-old who
+has seen you type four buttons has your PIN, and that is the actual threat
+here, not a stranger guessing. Avoid 1234 — the machine refuses it, because it
+is what kidnix used to ship with and it is written down in this file.
+
+Once a PIN is set, **changing it needs the current one**, so a child cannot
+change the numbers that fence them in even if they got to the machine first.
+
+**If you forget it**, or if your child set it before you got there, open a
+terminal on your own account (the `parent` account, not the child's) and run:
+
+```
+sudo kidnix-set-pin --reset
+```
+
+It asks for **your** password and then for the new PIN, twice. Nothing your
+child has made is touched.
 
 The gate is a *usability* boundary: it stops a child wandering into settings.
-It is not a safe. It cannot stop someone determined and older.
+It is not a safe. It cannot stop someone determined and older, and **the disk
+is not encrypted**.
 
 ## Where the drawings are, and how to get one out
 

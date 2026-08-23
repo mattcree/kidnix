@@ -374,11 +374,114 @@ else
         "ParentConfig.load rejected it, must_set_pin was false, or the keys have drifted"
 fi
 
-# The helper the sheet points at when it cannot write /etc itself.
+# The helper the sheet runs to write /etc, from the child's own session.
 assert_file /usr/bin/kidnix-set-pin
 assert_eq "/usr/bin/kidnix-set-pin is executable" "755 root root" \
     "$(stat -c '%a %U %G' /usr/bin/kidnix-set-pin 2>/dev/null || true)"
 assert_file /usr/share/polkit-1/actions/org.kidnix.set-pin.policy
+
+# -----------------------------------------------------------------------------
+# What makes the polkit carve-out safe (docs/spikes/pin-flow.md)
+# -----------------------------------------------------------------------------
+#
+# test_lockdown.sh proves the child's session may ASK for org.kidnix.set-pin
+# and for nothing else of ours. This proves that asking is not getting: the
+# helper writes only on a machine with no PIN (the mandatory first set, which
+# is the whole reason the carve-out exists) or for a caller who typed the
+# current one. Run against a scratch copy; the shipped file is re-checked
+# afterwards.
+PIN_PROBE=/tmp/kidnix-set-pin-probe.toml
+cp /etc/kidnix/parent.toml "${PIN_PROBE}"
+
+# pin_case <description> <expected exit> <stdin> <argv...>. Nothing it is fed
+# is ever echoed, which is the same promise the helper itself makes.
+pin_case() {
+    local name="$1" want="$2" input="$3"; shift 3
+    local got=0
+    printf '%s' "${input}" | "$@" >/dev/null 2>&1 || got=$?
+    if [[ "${got}" == "${want}" ]]; then
+        _report ok "${name}"
+    else
+        _report no "${name}" "exit ${got}, expected ${want}"
+    fi
+}
+
+pin_case "kidnix-set-pin --check changes nothing and exits 0" 0 "" \
+    /usr/bin/kidnix-set-pin --check "${PIN_PROBE}"
+if grep -Eq '^ *pin_(hash|salt) *=' "${PIN_PROBE}"; then
+    _report no "--check really is a no-op" "it wrote a PIN"
+else
+    _report ok "--check really is a no-op"
+fi
+
+pin_case "the FIRST PIN needs no proof (the gate can set it)" 0 $'2468\n' \
+    /usr/bin/kidnix-set-pin --stdin "${PIN_PROBE}"
+if grep -Eq '^pin_hash = "[0-9a-f]{64}"$' "${PIN_PROBE}" \
+    && grep -Eq '^pin_salt = "[0-9a-f]{32}"$' "${PIN_PROBE}"; then
+    _report ok "it writes the same two keys the shell reads"
+else
+    _report no "it writes the same two keys the shell reads" \
+        "$(grep -c '^pin_' "${PIN_PROBE}" 2>/dev/null || echo 0) pin_ lines"
+fi
+if grep -q 'hover_dwell_ms' "${PIN_PROBE}"; then
+    _report ok "the rewrite is comment-preserving (the rest of the file survived)"
+else
+    _report no "the rewrite is comment-preserving (the rest of the file survived)" \
+        "the other keys are gone"
+fi
+if grep -q '2468' "${PIN_PROBE}"; then
+    _report no "the PIN itself is never stored" "found the digits in the file"
+else
+    _report ok "the PIN itself is never stored"
+fi
+
+# The whole point: a child cannot CHANGE a PIN somebody else chose.
+pin_case "changing a set PIN without the current one is refused" 4 $'1357\n' \
+    /usr/bin/kidnix-set-pin --stdin "${PIN_PROBE}"
+pin_case "a wrong current PIN is refused" 3 $'1357\n9999\n' \
+    /usr/bin/kidnix-set-pin --stdin "${PIN_PROBE}"
+pin_case "the current PIN buys a change" 0 $'1357\n2468\n' \
+    /usr/bin/kidnix-set-pin --stdin "${PIN_PROBE}"
+
+# PKEXEC_UID is what pkexec sets to the uid that asked; 1000 is `kid`. A path
+# argument matters more than it looks -- this helper runs as root.
+pin_case "the child may not aim it at another file" 1 $'4321\n' \
+    env PKEXEC_UID=1000 /usr/bin/kidnix-set-pin --stdin "${PIN_PROBE}"
+pin_case "the child may not --reset past the current PIN" 1 $'4321\n' \
+    env PKEXEC_UID=1000 /usr/bin/kidnix-set-pin --stdin --reset
+# ...and the way back for a parent who forgot it, which needs root or wheel.
+pin_case "root may --reset without the old PIN" 0 $'8642\n' \
+    /usr/bin/kidnix-set-pin --stdin --reset "${PIN_PROBE}"
+
+# Wrong guesses cost time: two seconds each, five a minute. A 4-digit PIN is
+# 10 000 guesses, so this is the difference between "somebody sat here for a
+# day and a half" and "somebody ran a loop for ten seconds".
+pin_lockout_start="${SECONDS}"
+for _ in 1 2 3 4 5; do
+    printf '1357\n0000\n' | /usr/bin/kidnix-set-pin --stdin "${PIN_PROBE}" >/dev/null 2>&1 || true
+done
+pin_lockout_spent=$(( SECONDS - pin_lockout_start ))
+if (( pin_lockout_spent >= 8 )); then
+    _report ok "each wrong PIN costs two seconds (${pin_lockout_spent}s for five)"
+else
+    _report no "each wrong PIN costs two seconds" "five took ${pin_lockout_spent}s"
+fi
+pin_sixth_start="${SECONDS}"
+pin_case "the sixth wrong PIN in a minute is locked out" 3 $'1357\n0000\n' \
+    /usr/bin/kidnix-set-pin --stdin "${PIN_PROBE}"
+if (( SECONDS - pin_sixth_start <= 1 )); then
+    _report ok "the lockout refuses immediately (it is a limit, not just a sleep)"
+else
+    _report no "the lockout refuses immediately (it is a limit, not just a sleep)" \
+        "$(( SECONDS - pin_sixth_start ))s"
+fi
+
+rm -f "${PIN_PROBE}" /var/lib/kidnix/set-pin.failures
+if grep -Eq '^ *pin_(hash|salt) *=' /etc/kidnix/parent.toml; then
+    _report no "the shipped parent.toml is untouched by all of that" "it now carries a PIN"
+else
+    _report ok "the shipped parent.toml is untouched by all of that"
+fi
 
 # -----------------------------------------------------------------------------
 section "the image did not lose anything load-bearing"
