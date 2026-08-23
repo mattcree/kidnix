@@ -627,6 +627,18 @@ vm display="gtk": _require-qcow2
         -device virtio-rng-pci \
         -serial mon:stdio
 
+# A boot-time unit (SMBIOS credentials, as the e2e harness does) sets parent's
+# password to "kidnix" and drops a root key in output/vm-dev/; snapshot mode.
+# Boot the qcow2 in a KVM window WITH a way in as the grown-up (password "kidnix").
+vm-dev display="gtk": _require-qcow2
+    tools/vm-dev.sh "{{ qcow2 }}" {{ vm_ssh_port }} {{ display }}
+
+# ssh into a `just vm-dev` as root.
+vm-dev-ssh *ARGS:
+    ssh -i output/vm-dev/id -p {{ vm_ssh_port }} \
+        -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+        root@localhost {{ ARGS }}
+
 # Same, but headless with the serial console on stdout.
 vm-headless: _require-qcow2
     qemu-system-x86_64 \

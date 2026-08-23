@@ -247,7 +247,16 @@ just vm                     # GTK window, KVM accelerated
 just vm display=none        # headless
 just vm-headless            # headless, serial console on your terminal
 just vm-ssh                 # ssh parent@localhost:2222
+just vm-dev                 # same window, but parent's password is "kidnix" (dev only)
+just vm-dev-ssh             # root shell into a `just vm-dev`, via output/vm-dev/id
 ```
+
+The rootless qcow2 has no `parent` password (see §2 above), so a plain
+`just vm` can show you the child's screen but never the grown-up desktop.
+`just vm-dev` injects a one-shot boot unit over SMBIOS credentials — the same
+trick `tests/e2e/vm.py` uses — that sets the password and a root key *in the
+running snapshot only*; the disk image is untouched. From the child's screen:
+hold the plain corner tile → PIN → **Log out**, then log in as `parent`.
 
 The VM always boots with `-snapshot`, so writes go to a temporary overlay and
 `output/qcow2/disk.qcow2` stays pristine. Reboot the VM and you are back to a
