@@ -697,3 +697,10 @@ clean:
 clean-all: clean registry-stop
     -podman rmi -f "{{ image_ref }}" "{{ registry }}/{{ image }}:{{ date_tag }}" \
         "{{ registry }}/{{ image }}:{{ version }}"
+
+# --- headless shell demo ------------------------------------------------------
+
+# Run the shell demo and take a screenshot WITHOUT opening a window on the
+# desktop (GTK Broadway backend). Usage: just shell-demo-headless 1280x800@102 output/x.png [--start-on home]
+shell-demo-headless screen="1280x800@102" out="output/demo-headless.png" *ARGS:
+    tools/shell-demo-headless.sh "{{ screen }}" "{{ out }}" {{ ARGS }}

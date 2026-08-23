@@ -101,6 +101,11 @@ parent-panel/           (later) parent control panel
   `docs:`, `ci:`, `build:`, `test:`, `research:`).
 - **Tests before trust.** A feature isn't done until a test (image test or
   boot test or shell test) proves it in CI.
+- **Never open windows on Matt's desktop.** He is working on this machine.
+  GTK demos, screenshot runs and GTK smoke tests run under the Broadway
+  backend: `gtk4-broadwayd :7 & GDK_BACKEND=broadway BROADWAY_DISPLAY=:7 …`
+  (see `just shell-demo-headless`); QEMU is always `-display none` (the e2e
+  harness does this); a visible VM window is launched only when Matt asks.
 - **Disk hygiene.** The host has ~60 GB free; prune images, don't hoard
   qcow2s, keep `output/` gitignored.
 - **Licensing.** Apache-2.0 for our code unless decided otherwise (ADR).
