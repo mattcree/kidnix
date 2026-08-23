@@ -506,11 +506,17 @@ class SpeechManager:
 
     # -- speaking --
 
+    #: Labels the Ear must never "say again": its own. A child who hovers the
+    #: Ear hears "Say it again", presses it, and -- without this -- hears "Say
+    #: it again" again, for ever (found by Matt on 2026-08-23).
+    NEVER_REMEMBER: frozenset[str] = frozenset({"Say it again"})
+
     def speak(self, text: str, key: str | None = None) -> bool:
         """Say something now, cancelling whatever was being said."""
         text = (text or "").strip()
         if not text:
             return False
+        remember = text not in self.NEVER_REMEMBER
         self._stop_highlight()
         # The caption goes up first and unconditionally. A child who cannot
         # hear the sentence, or a machine whose voice is broken, gets the same
@@ -521,18 +527,21 @@ class SpeechManager:
             # shell's voice). Remember it -- the Ear still repeats it, and a
             # widget still wears the ring while it is being said -- but do not
             # open a second mouth on it.
-            self.last_utterance = text
+            if remember:
+                self.last_utterance = text
             self._start_highlight(key, text)
             return True
         if not self.enabled:
-            self.last_utterance = text
+            if remember:
+                self.last_utterance = text
             return False
         # The one INFO line the read-aloud path emits. It is what makes the
         # voice observable from outside the machine (tests/e2e/), and it is
         # the shell's own UI text -- never anything the child typed or made.
         log.info("speaking: %s", text)
         self.backend.speak(text)
-        self.last_utterance = text
+        if remember:
+            self.last_utterance = text
         self._start_highlight(key, text)
         return True
 
@@ -588,6 +597,9 @@ class SpeechManager:
         """A control fired. Also closes P5's loop if hover just spoke it."""
         if key is not None:
             self._note_selection(key)
+        if text in self.NEVER_REMEMBER:
+            # Pressing the Ear should repeat, not announce itself first.
+            return False
         return self.speak(text, key)
 
     # -- hover dwell + settle gate (spec 7b) --

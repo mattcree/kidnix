@@ -580,3 +580,16 @@ def test_speak_then_with_nothing_to_follow_is_just_speak() -> None:
     manager.speak_then("All done for today.", "")
     scheduler.advance(10_000)
     assert backend.spoken == ["All done for today."]
+
+
+# --- the Ear must never repeat itself (Matt, 2026-08-23) ---------------------
+
+
+def test_the_ear_label_is_never_what_the_ear_repeats() -> None:
+    speech, backend, _ = make()
+    speech.speak("Draw")
+    speech.speak("Say it again")  # hovering the Ear speaks its label...
+    assert speech.last_utterance == "Draw"  # ...but it is not remembered
+    assert speech.speak_activation("Say it again") is False  # pressing it does not announce
+    assert speech.repeat() is True
+    assert backend.spoken[-1] == "Draw"
