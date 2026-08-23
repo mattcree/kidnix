@@ -91,6 +91,23 @@ hover_dwell_ms = 450
 #
 #   allowed_activity_ids = ["tuxpaint", "ktuberling", "gcompris", "blinken"]
 #
+# **A shelf named here brings its games with it.** "Letters & numbers"
+# (`gcompris`) is a shelf: its tile opens a screen of eighteen curated games
+# whose own ids are `gcompris.erase`, `gcompris.gletters` and so on. Listing
+# just `gcompris`, as the line above does, allows all eighteen -- naming the
+# shelf means the shelf, and a tile that opens onto eighteen refusals is not
+# what anybody was asking for.
+#
+# Name any one of the games, though, and you are choosing game by game: the
+# shelf's own entry stops standing in for its children, and a game you did not
+# name is outlined and says "Ask a grown-up for this one". So this allows
+# exactly two of the eighteen, and the shelf tile still opens:
+#
+#   allowed_activity_ids = ["gcompris", "gcompris.erase", "gcompris.gletters"]
+#
+# (The parent panel writes both levels for you -- the shelf's switch and the
+# rows inside it -- so this only matters to a hand edit.)
+#
 # Note this is *not* the age filter. An activity outside the child's age_band
 # (below) gets no tile at all rather than an outlined one: there is nothing to
 # ask a grown-up for.
@@ -138,6 +155,10 @@ skip_next_choice = false
 # machine list as the union of every child's. Two children on one machine can
 # therefore see the same tile with two different answers, which is the point.
 # The age band above still filters on top of this, per child, as it always has.
+#
+# Shelves read the same way here as they do up there: `gcompris` on its own is
+# all eighteen of its games, and adding one of them narrows it to the ones you
+# name.
 #
 #   allowed_activity_ids = ["tuxpaint", "gcompris"]
 allowed_activity_ids = []

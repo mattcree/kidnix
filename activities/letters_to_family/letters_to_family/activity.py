@@ -18,10 +18,18 @@ leave the activity through the shell's Back and come in again.
 along with the half-made letter -- see its own docstring for why that line is
 the load-bearing one.
 
+Since 2026-08-24 that shelf reads the **Journal**, not the inbox: the shell
+imports each reply into My Things once and remembers it, so a letter the child
+has already been handed stops sitting on the shelf forever
+(``docs/design/letters-to-family.md`` section 7 step 5). The inbox is a
+grown-up's drop point and is now read only as a fallback for a reply that
+arrived since the last sweep.
+
 Everything this module does that is worth proving is proved somewhere else:
 :mod:`letters_to_family.recipients` knows who may be written to,
 :mod:`letters_to_family.letter` knows what a letter is,
 :mod:`letters_to_family.mailbox` knows where it goes,
+:mod:`letters_to_family.journal_read` knows what came back,
 :mod:`letters_to_family.keys` knows what a key means, and
 :mod:`letters_to_family.draw` draws every picture without a display. What is
 here is the wiring, and ``tests/test_gtk_smoke.py`` walks it under Broadway.
@@ -70,7 +78,7 @@ from . import ACTIVITY_ID, TITLE, draw, words  # noqa: E402
 from .assemble import post_letter  # noqa: E402
 from .env import quiet  # noqa: E402
 from .i18n import HAVE_CATALOGUE, _, install  # noqa: E402
-from .journal_read import recent_pictures  # noqa: E402
+from .journal_read import recent_pictures, shelf_replies  # noqa: E402
 from .keys import guard_ring  # noqa: E402
 from .letter import (  # noqa: E402
     STATUS_UNPOSTED,
@@ -79,7 +87,7 @@ from .letter import (  # noqa: E402
     PictureSource,
     Step,
 )
-from .mailbox import Reply, inbox_replies  # noqa: E402
+from .mailbox import Reply  # noqa: E402
 from .recipients import Recipient, load_recipients  # noqa: E402
 from .scribble import COLOURS, Colour, Scribble  # noqa: E402
 
@@ -353,7 +361,7 @@ class LettersActivity:
         self.window = window
         _load_css()
         self._restore_ring = guard_ring(window.keys, self._typing)
-        self.replies = inbox_replies(self.profile_id, self.inbox_root)
+        self.replies = shelf_replies(self.journal_root, self.profile_id, self.inbox_root)
         if not self.people:
             self.build_nobody(window)
             return
@@ -856,14 +864,23 @@ class LettersActivity:
         return button
 
     def build_shelf(self, *_args) -> None:
-        """"Letters for you" -- read-only, and the reply path made visible.
+        """"Letters for you" -- read-only, newest first, out of the Journal.
 
-        v1 shows what a grown-up dropped in the inbox and plays it. It does not
-        import it into the Journal, delete it, or mark it read: those are the
-        follow-up in ``docs/design/letters-to-family.md`` section 7, and the
-        shelf is here now so that the reply half of 05 section 3 -- "a one-way
-        outbox is not an audience" -- is real from the first release rather than
-        a promise on a roadmap.
+        **The Journal is what this reads** (section 7 step 5, landed
+        2026-08-24). The shell sweeps the inbox once a sitting, writes one card
+        per reply into this child's My Things and remembers it; reading those
+        cards is what makes a letter the child has already been given stop
+        coming back forever, which is what reading the inbox directly did.
+
+        The inbox is still read underneath, and only as the fallback for a
+        reply that arrived since the last sweep -- see
+        :func:`letters_to_family.journal_read.shelf_replies`, which dedupes the
+        two by ``meta.json``'s ``source`` -- so a letter dropped in while the
+        child is sitting here is not invisible until the next login.
+
+        Still read-only in both directions: this activity does not import,
+        delete, move or mark anything. "Read" is a fact the shell owns, and it
+        owns it by having imported the letter.
         """
         assert self.window is not None
         self.step = Step.SHELF
@@ -875,7 +892,7 @@ class LettersActivity:
         row.set_valign(Gtk.Align.CENTER)
         for reply in self.replies:
             tile = PictureTile(
-                reply.picture if reply.has_picture else self.placeholder(),
+                reply.tile_image or self.placeholder(),
                 reply.speak_text,
                 label=reply.from_name,
                 on_activate=lambda r=reply: self.open_reply(r),

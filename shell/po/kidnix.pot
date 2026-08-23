@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kidnix 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
-"POT-Creation-Date: 2026-08-23 21:02+0100\n"
+"POT-Creation-Date: 2026-08-24 00:46+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -59,7 +59,7 @@ msgid "Minute"
 msgstr ""
 
 #: ../activities/clock_time/clock_time/activity.py:152
-#: kidnix_shell/screens/grownup.py:654
+#: kidnix_shell/screens/grownup.py:710
 msgid "Start"
 msgstr ""
 
@@ -377,7 +377,7 @@ msgstr ""
 msgid "for {name}"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/journal_read.py:66
+#: ../activities/letters_to_family/letters_to_family/journal_read.py:102
 #: kidnix_shell/journal.py:246
 msgid "A thing I made"
 msgstr ""
@@ -406,22 +406,22 @@ msgstr ""
 msgid "Black"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:77
+#: ../activities/letters_to_family/letters_to_family/words.py:79
 msgid "Who is your letter for?"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:82
+#: ../activities/letters_to_family/letters_to_family/words.py:84
 msgid "There is nobody to write to yet. Ask a grown-up."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:84
-#: ../activities/letters_to_family/letters_to_family/words.py:122
+#: ../activities/letters_to_family/letters_to_family/words.py:86
+#: ../activities/letters_to_family/letters_to_family/words.py:124
 #: ../activities/numbers/numbers_activity/words.py:142
 #: kidnix_activity/widgets.py:72
 msgid "Your turn, grown-up"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:86
+#: ../activities/letters_to_family/letters_to_family/words.py:88
 msgid ""
 "Ask a grown-up to add someone in the parent panel. Parent Panel on the grown-"
 "up's account, then the Family tab: a name, a photo if you have one, and how "
@@ -429,98 +429,106 @@ msgid ""
 "letter out of the outbox yourself."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:94
+#: ../activities/letters_to_family/letters_to_family/words.py:96
 msgid "Choose a picture to send, or draw a new one."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:95
+#: ../activities/letters_to_family/letters_to_family/words.py:97
 msgid "Draw one"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:96
+#: ../activities/letters_to_family/letters_to_family/words.py:98
 msgid "Pick a colour, then draw."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:101
+#: ../activities/letters_to_family/letters_to_family/words.py:103
 #: kidnix_shell/band.py:495
 msgid "Undo"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:102
+#: ../activities/letters_to_family/letters_to_family/words.py:104
 msgid "Take the last line off."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:103
+#: ../activities/letters_to_family/letters_to_family/words.py:105
 msgid "That's it"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:104
+#: ../activities/letters_to_family/letters_to_family/words.py:106
 msgid "That's my picture."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:113
+#: ../activities/letters_to_family/letters_to_family/words.py:115
 msgid "Tell them one thing that happened today."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:115
+#: ../activities/letters_to_family/letters_to_family/words.py:117
 msgid "Write it"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:116
+#: ../activities/letters_to_family/letters_to_family/words.py:118
 msgid "Say it"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:117
+#: ../activities/letters_to_family/letters_to_family/words.py:119
 msgid "Ask a grown-up to write it"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:120
-#: kidnix_shell/screens/grownup.py:277 kidnix_shell/screens/whos_here.py:45
+#: ../activities/letters_to_family/letters_to_family/words.py:122
+#: kidnix_shell/screens/grownup.py:333 kidnix_shell/screens/whos_here.py:45
 msgid "Grown-up"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:124
+#: ../activities/letters_to_family/letters_to_family/words.py:126
 msgid ""
 "Write down what they tell you, in their words. Do not tidy the spelling of "
 "anything they wrote themselves -- invented spelling is the Year One "
 "curriculum, and the person receiving this would rather have their words."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:129
+#: ../activities/letters_to_family/letters_to_family/words.py:131
 msgid "Post it"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:133
+#: ../activities/letters_to_family/letters_to_family/words.py:135
 msgid "Letters for you"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:134
+#: ../activities/letters_to_family/letters_to_family/words.py:136
 msgid "No letters yet. There will be one day."
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:136
+#: ../activities/letters_to_family/letters_to_family/words.py:147
+msgid "Write a letter"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:148
+msgid "Write a letter to somebody."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:150
 msgid "Listen"
 msgstr ""
 
-#: ../activities/letters_to_family/letters_to_family/words.py:137
+#: ../activities/letters_to_family/letters_to_family/words.py:151
 msgid "Hear it."
 msgstr ""
 
 #. TRANSLATORS: {name} is a person -- "Grandad", "Auntie Jo".
-#: ../activities/letters_to_family/letters_to_family/words.py:140
+#: ../activities/letters_to_family/letters_to_family/words.py:154
 #, python-brace-format
 msgid "Your letter for {name}."
 msgstr ""
 
 #. TRANSLATORS: what is said when the letter is posted. {name} is a person. It
 #. says who does the next thing and deliberately not when.
-#: ../activities/letters_to_family/letters_to_family/words.py:143
+#: ../activities/letters_to_family/letters_to_family/words.py:157
 #, python-brace-format
 msgid "Posted! A grown-up will send it to {name}."
 msgstr ""
 
 #. TRANSLATORS: a reply on the shelf. {name} is the person who sent it.
-#: ../activities/letters_to_family/letters_to_family/words.py:145
+#: ../activities/letters_to_family/letters_to_family/words.py:159
 #, python-brace-format
 msgid "A letter from {name}."
 msgstr ""
@@ -1265,27 +1273,51 @@ msgstr ""
 msgid "Goodbye"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:37
+#: kidnix_shell/screens/grownup.py:45
 msgid "Minutes. No number here is evidence-based; 25 is the precaution."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:39
+#: kidnix_shell/screens/grownup.py:47
 msgid ""
 "Kept for this boot only: /etc/kidnix/parent.toml is root-owned, which is "
 "what keeps the PIN out of the child's hands."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:48
+#: kidnix_shell/screens/grownup.py:63
+msgid "Until the machine is switched off; the Parent Panel keeps it for good."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:72
+msgid "Children, time, activities, their things -- on the grown-up's own login"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:73
+msgid "Parent panel"
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:79
+msgid ""
+"The parent panel is not part of the child's session, and it is not missing: "
+"it is on your own login, where the child cannot reach it.\n"
+"\n"
+"Use Log out at the bottom of this sheet, sign in as parent at the login "
+"screen, and open Parent Panel from Applications.\n"
+"\n"
+"It holds children, time limits, activities, requests, their things, family "
+"and sound -- and unlike this sheet, what you change there is kept."
+msgstr ""
+
+#: kidnix_shell/screens/grownup.py:92
 msgid "This machine still has the starter PIN -- set your own"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:50
+#: kidnix_shell/screens/grownup.py:94
 msgid ""
 "1234 is written down in the documentation and is the same on every install. "
 "A six-year-old watching you type four buttons in a row has the gate."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:63
+#: kidnix_shell/screens/grownup.py:107
 msgid ""
 "Kept for this session. /etc/kidnix/parent.toml is root-owned -- that is what "
 "keeps the PIN out of the child's hands -- and kidnix-set-pin could not be "
@@ -1298,35 +1330,35 @@ msgid ""
 "you for the PIN again."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:109
+#: kidnix_shell/screens/grownup.py:153
 msgid ""
 "The PIN you chose is in force until the machine restarts. To keep it, run "
 "sudo kidnix-set-pin from a terminal or from the grown-up's own account."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:115
+#: kidnix_shell/screens/grownup.py:159
 msgid "That wasn't the current PIN"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:116
+#: kidnix_shell/screens/grownup.py:160
 msgid "Too many tries -- wait a minute"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:119
+#: kidnix_shell/screens/grownup.py:163
 msgid ""
 "That wasn't the current PIN, so nothing was written. The PIN you chose is in "
 "force until the machine restarts. To keep it, run sudo kidnix-set-pin from a "
 "terminal or from the grown-up's own account."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:124
+#: kidnix_shell/screens/grownup.py:168
 msgid ""
 "Too many tries -- wait a minute, then try again. Nothing was written. The "
 "PIN you chose is in force until the machine restarts. To keep it, run sudo "
 "kidnix-set-pin from a terminal or from the grown-up's own account."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:129
+#: kidnix_shell/screens/grownup.py:173
 msgid ""
 "This machine already has a PIN, and the current one was not sent with the "
 "new one. Nothing was written. The PIN you chose is in force until the "
@@ -1334,12 +1366,12 @@ msgid ""
 "from the grown-up's own account."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:138
+#: kidnix_shell/screens/grownup.py:182
 #, python-brace-format
 msgid "New PIN saved to {path}."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:140
+#: kidnix_shell/screens/grownup.py:184
 #, python-brace-format
 msgid ""
 "Could not write {path}: {error}\n"
@@ -1347,7 +1379,7 @@ msgid ""
 "Run sudo kidnix-set-pin."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:146
+#: kidnix_shell/screens/grownup.py:190
 #, python-brace-format
 msgid ""
 "Not added. Today's budget has {left} minute left, and the shortest session "
@@ -1360,214 +1392,194 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: kidnix_shell/screens/grownup.py:232
+#: kidnix_shell/screens/grownup.py:276
 msgid "This machine has no grown-up PIN yet"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:234
+#: kidnix_shell/screens/grownup.py:278
 msgid ""
 "Nothing else in here opens until you have chosen four numbers. Pick them "
 "somewhere they are not looking."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:243
+#: kidnix_shell/screens/grownup.py:287
 msgid ""
 "The current one first -- that is what lets the new one be saved for good, "
 "rather than only until the machine restarts."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:278
+#: kidnix_shell/screens/grownup.py:334
 msgid "Enter the grown-up PIN"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:279
+#: kidnix_shell/screens/grownup.py:335
 msgid "Type the current grown-up PIN"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:280
+#: kidnix_shell/screens/grownup.py:336
 msgid "Choose a new grown-up PIN"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:281
+#: kidnix_shell/screens/grownup.py:337
 msgid "Type it again"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:282
+#: kidnix_shell/screens/grownup.py:338
 msgid "Those two did not match. Start again."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:283
+#: kidnix_shell/screens/grownup.py:339
 msgid "That PIN is not right."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:284
+#: kidnix_shell/screens/grownup.py:340
 msgid "That wasn't the current PIN. Try again."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:285
+#: kidnix_shell/screens/grownup.py:341
 msgid "Clear"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:286
+#: kidnix_shell/screens/grownup.py:342
 msgid "Cancel"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:290
+#: kidnix_shell/screens/grownup.py:346
 #, python-brace-format
 msgid "Running, about {left} minute left"
 msgid_plural "Running, about {left} minutes left"
 msgstr[0] ""
 msgstr[1] ""
 
-#: kidnix_shell/screens/grownup.py:291
+#: kidnix_shell/screens/grownup.py:347
 msgid "Not running"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:292
+#: kidnix_shell/screens/grownup.py:348
 #, python-brace-format
 msgid "Used {spent} of {budget} minutes today"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:647
+#: kidnix_shell/screens/grownup.py:703
 msgid "This session"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:648
+#: kidnix_shell/screens/grownup.py:704
 msgid "Session"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:652
+#: kidnix_shell/screens/grownup.py:708
 msgid "Start a session"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:652
+#: kidnix_shell/screens/grownup.py:708
 msgid "Uses the default length"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:664
+#: kidnix_shell/screens/grownup.py:720
 msgid "Add time"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:666
+#: kidnix_shell/screens/grownup.py:722
 msgid ""
 "Bounded by today's budget. A grant the budget would cut below the minimum "
 "session is refused rather than half-given."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:683
+#: kidnix_shell/screens/grownup.py:739
 msgid "End the session now"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:684
+#: kidnix_shell/screens/grownup.py:740
 msgid "Runs the same put-away and goodbye the child knows"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:687
+#: kidnix_shell/screens/grownup.py:743
 msgid "End now"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:704
+#: kidnix_shell/screens/grownup.py:760
 msgid "Sound and calm"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:706
+#: kidnix_shell/screens/grownup.py:762
 msgid ""
 "The 70% hardware volume ceiling is underneath all of this and cannot be "
 "raised from here."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:712
+#: kidnix_shell/screens/grownup.py:768
 msgid "Volume"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:713
+#: kidnix_shell/screens/grownup.py:769
 msgid "Earcons and read-aloud. Captions keep working at zero."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:721
+#: kidnix_shell/screens/grownup.py:777
 msgid "Mute"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:722
+#: kidnix_shell/screens/grownup.py:779
 msgid "Silence, not a broken machine: every line is still captioned."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:732
+#: kidnix_shell/screens/grownup.py:790
 msgid "Calm mode"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:734
+#: kidnix_shell/screens/grownup.py:793
 msgid ""
 "Reduced motion, a slower voice, and only the 'kept it' sound. One switch for "
 "a sensory-sensitive, anxious or overloaded day."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:746
+#: kidnix_shell/screens/grownup.py:806
 msgid "Captions"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:748
+#: kidnix_shell/screens/grownup.py:809
 msgid ""
 "Every spoken line, written under the band for four seconds. On by default. "
 "Turning it off takes effect at the next start."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:759
+#: kidnix_shell/screens/grownup.py:821
 msgid "Settings"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:761
+#: kidnix_shell/screens/grownup.py:823
 msgid "Default session length"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:778
+#: kidnix_shell/screens/grownup.py:840
 msgid "Set the grown-up PIN"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:780
+#: kidnix_shell/screens/grownup.py:842
 msgid ""
 "The current PIN, then a new four-digit one twice. Somewhere they are not "
 "looking."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:785
+#: kidnix_shell/screens/grownup.py:847
 msgid "Set PIN"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:800
-msgid "Parent panel"
+#: kidnix_shell/screens/grownup.py:866
+msgid "How to open it"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:801
-msgid "Allow-lists, budgets, their things -- not in v0.1"
-msgstr ""
-
-#: kidnix_shell/screens/grownup.py:804
-msgid "Open"
-msgstr ""
-
-#: kidnix_shell/screens/grownup.py:813
+#: kidnix_shell/screens/grownup.py:875
 msgid "Back to the login screen"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:813 kidnix_shell/screens/grownup.py:814
+#: kidnix_shell/screens/grownup.py:875 kidnix_shell/screens/grownup.py:876
 msgid "Log out"
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:932
-msgid "kidnix parent panel"
-msgstr ""
-
-#: kidnix_shell/screens/grownup.py:934
-msgid "not yet built"
-msgstr ""
-
-#: kidnix_shell/screens/grownup.py:936
-msgid ""
-"The parent panel is not in shell v0.1. It will hold children, time, "
-"activities, requests, their things, family and calm mode. Until then, the "
-"Journal is a plain directory tree under ~/.local/share/kidnix/journal that "
-"you can open in Files."
+#: kidnix_shell/screens/grownup.py:1005
+msgid "Close"
 msgstr ""
 
 #: kidnix_shell/screens/home.py:118 kidnix_shell/widgets.py:621
@@ -1634,20 +1646,20 @@ msgstr ""
 msgid "What's next, after the computer? Pick one."
 msgstr ""
 
-#: kidnix_shell/screens/shelf.py:55
+#: kidnix_shell/screens/shelf.py:56
 msgid "Choose a game"
 msgstr ""
 
-#: kidnix_shell/screens/shelf.py:57
+#: kidnix_shell/screens/shelf.py:58
 msgid "There's nothing here. Press Back to go home."
 msgstr ""
 
-#: kidnix_shell/screens/shelf.py:60
+#: kidnix_shell/screens/shelf.py:61
 #, python-brace-format
 msgid "{shelf}. {group}."
 msgstr ""
 
-#: kidnix_shell/screens/shelf.py:89
+#: kidnix_shell/screens/shelf.py:90
 msgid "games"
 msgstr ""
 

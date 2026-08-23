@@ -265,49 +265,88 @@ outbox folder, moves one, or marks one sent. Those are a grown-up's.
 * **Read-only.** Nothing in the activity writes into the inbox, marks a reply
   read, or moves one. A test lists an inbox and asserts nothing in it changed.
 
-## 6. "Letters for you" — the reply, in v1
+## 6. "Letters for you" — the reply
 
 A shelf button appears on the first screen (and on the posted screen) whenever
-the inbox has anything in it. Pressing it shows a tile per reply — the picture,
-or the placeholder, with the sender's name; pressing a tile shows it big, prints
-the words, and offers **Listen** for a voice reply.
+there is a letter to show. Pressing it shows a tile per reply — the card, the
+picture, or the placeholder, with the sender's name; pressing a tile shows it
+big, prints the words, and offers **Listen** for a voice reply. It is a way in
+and not a dead end: **Write a letter** under the tiles goes back to "Who is
+your letter for?" with a clean sheet.
+
+**What it reads is the Journal** (§7 step 5, 2026-08-24): the shell's imported
+`letter-reply` cards for this child, newest first, capped at eight — with the
+inbox read underneath only for a reply that arrived since the last sweep, and
+the two deduped by the inbox path `meta.json` recorded. v1 read the inbox
+directly, which meant a letter the child had already been given never left the
+shelf.
 
 The button never says how many. A count is a digit on a pre-reader's screen and
 it is also the shape of a notification badge, which D6 says this product does not
 have. One letter and nine letters get the same three words, and the child finds
 out how many by looking.
 
-**This is deliberately less than `05` §3 asks for**, and §7 is how the rest lands.
+`05` §3 — *"the reply must come back into the child's journal and be
+announced"* — is §7, and it is shipped.
 
-## 7. Follow-up: importing a reply into the Journal (not built)
+## 7. Importing a reply into the Journal — shipped
 
 `05` §3 says the reply must come back *into the child's journal* and **be
-announced**. v1 shows it; it does not import it, and it does not announce it on
-Home. That belongs to the shell, not to an activity, because the announcement is
-Home's and because a reply must be there whether or not the child opens Letters.
+announced**. v1 showed the reply and did neither. Both belong to the shell, not
+to an activity, because the announcement is Home's and because a reply must be
+there whether or not the child opens Letters.
 
-The precise contract for whoever builds it:
+The contract, and where each point landed:
 
-1. **Where.** `/var/lib/kidnix/inbox/<profile>/`, as §5 above. The shell watches
-   it (or sweeps it at session start — a reply is not urgent and inotify on
-   `/var/lib` from the child's session is a permissions question of its own).
-2. **What to write.** One Journal entry per reply directory (or loose file),
+1. **Where — shipped** (`kidnix_shell/inbox.py`).
+   `/var/lib/kidnix/inbox/<profile>/`, as §5 above. The shell **sweeps** it at
+   "Who's here?", so the card exists before Home is built; not inotify — a
+   reply is not urgent, and watching `/var/lib` from the child's session is a
+   permissions question nobody needs to answer for something that can wait
+   until the next sitting.
+2. **What to write — shipped.** One Journal entry per reply directory (or loose file),
    `kind = "letter-reply"`, using `kidnix_activity.journal.save_entry`'s layout:
    the image as `v001.*`, `note.ogg` for the audio, the words as `caption.txt`,
    and `meta.json` carrying `{"from": "<name>", "source": "<inbox path>"}`.
-3. **Idempotence.** Import once and only once. The inbox is *not* emptied by the
-   import — it is a grown-up's folder and the child's session has no business
-   deleting from it. So the shell keeps a small state file of already-imported
+3. **Idempotence — shipped**, twice over: the state file below is the fast
+   answer, and the Journal's own `source_path` index is the backstop, so
+   deleting the state file still imports nothing twice. Import once and only
+   once. The inbox is *not* emptied by the import — it is a grown-up's folder
+   and the child's session has no business deleting from it. So the shell keeps a small state file of already-imported
    paths (path + mtime + size, the same triple `JournalImporter._stat` already
    uses) under the profile's state directory.
-4. **Announcing.** The shell's own business: a spoken line on Home, once per
+4. **Announcing — shipped** (`inbox.Announcement`, taken once at the first
+   Home of the sitting). The shell's own business: a spoken line on Home, once per
    session, naming the sender. It must not be a badge, a count, or a
    notification (D6), and it must not be a reason to come back to the machine —
    the system has no interest in whether the child returns.
-5. **Then this activity's shelf reads the Journal instead of the inbox**, and
-   the inbox becomes purely a grown-up's drop point. That is the end state; the
-   shelf reading the inbox directly is v1's way of making the path visible end to
-   end from the first release rather than a promise on a roadmap.
+5. **This activity's shelf reads the Journal instead of the inbox — landed
+   2026-08-24.** `letters_to_family.journal_read.letter_replies` lists this
+   child's `kind = "letter-reply"` entries, newest first, and
+   `shelf_replies` is what "Letters for you" is built from. The inbox is now
+   purely a grown-up's drop point.
+
+   Reading the folder was the wrong end of it: nothing in the inbox is ever
+   marked read — the child's session cannot write there and must not — so a
+   reply the shell had already put in My Things sat on the shelf as well, and
+   for good. "The child has already been given this one" is a fact only the
+   shell has, and it has it by having imported the letter.
+
+   Two details the implementation pins:
+
+   * **The inbox is still read, as a fallback only.** A reply that arrived
+     since the last sweep (a grown-up dropping a folder in while the child is
+     at the machine) would otherwise be invisible until the next login. The two
+     lists are deduped by `meta.json`'s `source`, which is the inbox path the
+     shell imported, and the Journal's copy wins because it carries the card
+     and the sender's name.
+   * **The card is the tile.** `thumb.png` beside the entry is the picture
+     scaled to 256 px, or the envelope the shell drew for a letter that is only
+     words or only a voice — so a shelf of voice notes is six letters and not
+     six placeholders.
+
+   Still read-only in both directions: this activity does not import, delete,
+   move, or mark anything.
 
 ## 8. What the image wave has to do
 

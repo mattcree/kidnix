@@ -33,6 +33,7 @@ import os
 import secrets
 import sys
 import tomllib
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -410,6 +411,65 @@ def _allow_list(raw: Any) -> tuple[str, ...]:
     return tuple(str(item) for item in raw)
 
 
+def shelf_child_allowed(
+    allowed: Sequence[str],
+    child_id: str,
+    shelf_id: str,
+    children: Iterable[str],
+) -> bool:
+    """May this child open one game *inside* a shelf? (spec 7d #12)
+
+    An allow-list has two levels for a shelf -- the shelf's own id and its
+    children's -- and the parent panel writes both
+    (``kidnix_parent_panel.ui.activities``: the expander's switch is the shelf,
+    the rows inside it are the children). A parent who hand-edits
+    ``parent.toml`` writes only the first, because the shelf's id is the one
+    written in the file's own example and the one they saw on Home. Reading
+    such a list per child gave eighteen tiles that all said "Ask a grown-up for
+    this one" behind a tile that opened, which is the opposite of what the
+    parent asked for.
+
+    So the rule, and it is exactly two sentences:
+
+    * a child is allowed when **its own id** is in the list, and
+    * when **the shelf's id** is in the list and *no* child of that shelf is
+      listed at all -- naming the shelf and nothing under it means the shelf.
+
+    A parent who expressed per-child choices is honoured to the letter: as soon
+    as one child of the shelf appears, the shelf's own entry stops standing in
+    for the others, and an unlisted sibling is refused. Empty is "everything",
+    the same reading as everywhere else in this file.
+
+    Pure, and it takes the *effective* list
+    (:meth:`ParentConfig.effective_allow_list`) rather than a config, because
+    which of the two lists decides is not this rule's business.
+    """
+    if not allowed:
+        return True
+    if child_id in allowed:
+        return True
+    if shelf_id not in allowed:
+        return False
+    return not any(child in allowed for child in children)
+
+
+def shelf_tile_allowed(allowed: Sequence[str], shelf_id: str, children: Iterable[str]) -> bool:
+    """May the shelf's own tile on Home be pressed? The mirror of the above.
+
+    A parent who hand-lists one game (``gcompris.erase``) and not the shelf
+    has still asked for that game -- and the only door to it is the shelf's
+    tile. Denying the tile because the shelf's id is missing strands the very
+    thing the list names behind "Ask a grown-up", asked about a thing the
+    grown-up already gave. So the shelf tile is allowed when the list is
+    empty, when the shelf's own id is in it, **or when any of its children
+    is** -- the shelf is a door, and a door is allowed when anything behind
+    it is.
+    """
+    if not allowed or shelf_id in allowed:
+        return True
+    return any(child in allowed for child in children)
+
+
 # --- progressive disclosure (spec 7b, SYNTHESIS B2) ----------------------
 
 #: How many tiles a brand-new machine shows, **including "All done"**. 09
@@ -639,12 +699,25 @@ class ParentConfig:
         caller with no child in hand (the validators, the manifest checker)
         gets, and it reads the machine list.
         """
+        allowed = self.effective_allow_list(profile_id)
+        if not allowed:
+            return True
+        return activity_id in allowed
+
+    def effective_allow_list(self, profile_id: str = "") -> tuple[str, ...]:
+        """The list that actually decides for this child. ``()`` means "all".
+
+        The three states :meth:`is_allowed` documents, as data rather than as a
+        verdict: this child's list if they have one, the machine's list
+        otherwise, and ``()`` when neither is set. Split out because a *shelf*
+        needs to ask more of the same list than "is this id in it" -- see
+        :func:`shelf_child_allowed` -- and asking twice with two readings of
+        empty is how the two disagree.
+        """
         profile = self.profile(profile_id) if profile_id else None
         if profile is not None and profile.allowed_activity_ids:
-            return activity_id in profile.allowed_activity_ids
-        if not self.allowed_activity_ids:
-            return True
-        return activity_id in self.allowed_activity_ids
+            return tuple(profile.allowed_activity_ids)
+        return tuple(self.allowed_activity_ids or ())
 
     def profile(self, profile_id: str) -> Profile | None:
         return next((p for p in self.profiles if p.id == profile_id), None)

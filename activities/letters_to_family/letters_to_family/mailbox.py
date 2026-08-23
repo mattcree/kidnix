@@ -31,6 +31,15 @@ program would not know.
         <anything>/     one reply: a picture, a sound, some words, a from.txt
         <anything.png>  or a single loose file, which is also one reply
 
+**The inbox is a grown-up's drop point, and since 2026-08-24 it is no longer
+what the shelf reads.** The shell sweeps it once a sitting and imports each
+reply into the child's Journal (``kidnix_shell.inbox``), and
+:func:`letters_to_family.journal_read.shelf_replies` reads *those* -- calling
+:func:`inbox_replies` underneath only to catch a reply that arrived since the
+last sweep. That is section 7 step 5 of the design note, and the reason is that
+"the child has already been given this one" is a fact only the shell has:
+reading the folder meant every letter stayed on the shelf forever.
+
 **The outbox is write-only from here and the inbox is read-only from here.**
 This module cannot delete anything in either, and there is no code path that
 marks a letter sent, moves it, or empties the inbox: those are a grown-up's,
@@ -194,13 +203,25 @@ def post(
 
 @dataclass(frozen=True)
 class Reply:
-    """One thing a grown-up put in the inbox. Read-only, always.
+    """One reply the child can be shown. Read-only, always.
 
-    v1 shows it and plays it and does nothing else: the *import* of a reply into
-    the Journal, so that it appears in My Things as a card like anything else,
-    is the shell's job and is documented in ``docs/design/letters-to-family.md``
-    section 7 as the follow-up. Showing it here means the reply path is visible
-    end to end from the first release rather than being a promise.
+    **Two things build one of these now** (2026-08-24), and the shelf cannot
+    tell them apart on purpose:
+
+    * :func:`inbox_replies`, from a folder a grown-up dropped in -- and
+    * :func:`letters_to_family.journal_read.letter_replies`, from the card the
+      shell already made of that folder in the child's own Journal, which is
+      the end state ``docs/design/letters-to-family.md`` section 7 step 5 asks
+      for.
+
+    The Journal is the real source now; the inbox is a grown-up's drop point
+    and is read only as the fallback for a reply that arrived since the shell
+    last swept (:func:`letters_to_family.journal_read.shelf_replies`), so that
+    nothing a grown-up put in ever simply fails to appear.
+
+    Nothing here writes. There is no code path in this activity that deletes a
+    reply, empties the inbox or marks one read -- the inbox is somebody else's
+    folder, and "read" is the shell's business, recorded in its own state file.
     """
 
     path: Path
@@ -209,6 +230,16 @@ class Reply:
     voice: Path | None = None
     words: str = ""
     modified: float = 0.0
+    #: The inbox path this reply *came from*, as ``meta.json`` recorded it, on
+    #: a reply read back out of the Journal. ``""`` on one read straight from
+    #: the inbox, where :attr:`path` is that same thing. It is the dedupe key:
+    #: an imported reply and its still-present inbox folder are one letter and
+    #: must not be two tiles.
+    source: str = ""
+    #: The 256 px card beside a Journal entry -- the picture scaled down, or
+    #: the envelope the shell drew for a letter that is words or a voice.
+    #: ``None`` on an inbox reply, which has no card of its own.
+    thumb: Path | None = None
 
     @property
     def has_picture(self) -> bool:
@@ -217,6 +248,17 @@ class Reply:
     @property
     def has_voice(self) -> bool:
         return self.voice is not None
+
+    @property
+    def tile_image(self) -> Path | None:
+        """What the shelf's tile shows, or ``None`` for the placeholder.
+
+        The card first when there is one: it is 256 px where the picture may be
+        a whole camera frame, and for a letter that is only words or only a
+        voice it is the envelope the shell drew, which is the difference
+        between six identical placeholders and six letters.
+        """
+        return self.thumb or self.picture
 
     @property
     def speak_text(self) -> str:
@@ -320,6 +362,12 @@ def inbox_replies(
     profile_id: str, root: Path | None = None, *, limit: int = 8
 ) -> list[Reply]:
     """Everything a grown-up has dropped in, newest first. Never writes.
+
+    **Not what the shelf shows any more**: it is the fallback half of
+    :func:`letters_to_family.journal_read.shelf_replies`, for the reply that
+    has not been swept into the Journal yet. Read on its own it has no idea
+    which letters the child has already been given, which is exactly why the
+    shelf stopped reading it (2026-08-24).
 
     A missing inbox is the normal case on a machine where nobody has written
     back yet, and it comes back as an empty list with no log line and no error:

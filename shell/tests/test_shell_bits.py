@@ -194,6 +194,65 @@ def test_the_sheet_points_at_a_command_that_exists() -> None:
     assert build_parser().parse_args(["--set-pin"]).set_pin == ""
 
 
+# --- and says how long its own settings last -----------------------------
+
+
+def test_a_memory_only_control_keeps_its_own_sentence_and_gains_one() -> None:
+    """Volume, mute, calm mode and captions apply now and are gone at reboot.
+
+    They go through ``host.set_access`` and touch no file -- the config is
+    root-owned on purpose -- so the row has to say so. Its own first sentence
+    is untouched; the shared one is appended.
+    """
+    from kidnix_shell.screens.grownup import UNTIL_SWITCHED_OFF, until_off
+
+    line = until_off("Silence, not a broken machine.")
+    assert line.startswith("Silence, not a broken machine.")
+    assert line.endswith(UNTIL_SWITCHED_OFF)
+    assert "Parent Panel" in line
+
+
+def test_the_sheet_tells_the_truth_about_the_panel_and_the_way_to_it() -> None:
+    """The panel shipped; the sheet used to say it was "not yet built".
+
+    It is still not opened from the child's session -- it is the parent
+    login's -- so what this row owes a grown-up is the route, and every step
+    of it has to be real: the Log out row below, the `parent` account, and the
+    `Parent Panel` entry in Applications
+    (``system_files/usr/share/applications/kidnix-parent-panel.desktop``).
+    """
+    from kidnix_shell.screens.grownup import PANEL_ROUTE, PANEL_SUBTITLE, PANEL_TITLE
+
+    assert PANEL_TITLE == "Parent panel"
+    for text in (PANEL_ROUTE, PANEL_SUBTITLE):
+        for lie in ("not in v0.1", "not yet built", "will hold"):
+            assert lie not in text
+    assert "Log out" in PANEL_ROUTE
+    assert "parent" in PANEL_ROUTE
+    assert "Parent Panel" in PANEL_ROUTE and "Applications" in PANEL_ROUTE
+
+
+def test_the_desktop_entry_the_sheet_names_is_the_one_the_image_ships() -> None:
+    """The two halves of the route, checked against each other.
+
+    A sentence naming a menu entry is a promise about a file, and this is the
+    file. If somebody renames the desktop entry, this fails here rather than
+    in front of a parent at a login screen.
+    """
+    from pathlib import Path
+
+    from kidnix_shell.screens.grownup import PANEL_ROUTE
+
+    entry = (
+        Path(__file__).resolve().parents[2]
+        / "system_files/usr/share/applications/kidnix-parent-panel.desktop"
+    )
+    text = entry.read_text(encoding="utf-8")
+    assert "Name=Parent Panel" in text
+    assert "Name=Parent Panel".removeprefix("Name=") in PANEL_ROUTE
+    assert "Exec=/usr/bin/kidnix-parent-panel" in text
+
+
 # --- no return promises anywhere the child can hear one (D6) ------------
 
 

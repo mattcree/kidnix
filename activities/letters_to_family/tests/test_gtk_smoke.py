@@ -718,6 +718,87 @@ def test_the_shelf_is_not_a_dead_end(gtk, built, tmp_path):
     assert set(built.tiles) == {"grandad", "nanna"}
 
 
+def a_journal_reply(root: Path, entry_id: str = "r1", *, source: Path) -> Path:
+    """One imported reply, in the layout ``kidnix_shell.inbox`` writes."""
+    import cairo
+
+    directory = root / "2026" / "08" / "21" / entry_id
+    directory.mkdir(parents=True, exist_ok=True)
+    cairo.ImageSurface(cairo.FORMAT_ARGB32, 40, 40).write_to_png(str(directory / "v001.png"))
+    shutil.copy(directory / "v001.png", directory / "thumb.png")
+    (directory / "entry.json").write_text(
+        json.dumps(
+            {
+                "id": entry_id,
+                "activity_id": "letters",
+                "created": "2026-08-21T10:00:00",
+                "updated": "2026-08-21T10:00:00",
+                "title": "A letter from Grandad",
+                "source_path": str(source / "photo.png"),
+                "mime": "image/png",
+                "versions": [
+                    {"filename": "v001.png", "imported": "2026-08-21", "size": 1, "sha256": "x"}
+                ],
+            }
+        )
+    )
+    (directory / "meta.json").write_text(
+        json.dumps({"schema": 1, "kind": "letter-reply", "from": "Grandad", "source": str(source)})
+    )
+    return directory
+
+
+def test_the_shelf_reads_the_journal_and_shows_an_imported_letter_once(gtk, tmp_path):
+    """Design note section 7 step 5, landed 2026-08-24, through ``build()``.
+
+    The inbox folder is still there -- it is a grown-up's and nothing deletes
+    from it -- and the letter is already a card in My Things. One tile.
+    """
+    import cairo
+    from kidnix_activity.app import ActivityApplication
+    from kidnix_shell.voice import FakeRecorder
+
+    from letters_to_family import ACTIVITY_ID, TITLE
+    from letters_to_family.activity import LettersActivity
+
+    home = tmp_path / "home"
+    journal = home / ".local" / "share" / "kidnix" / "profiles" / "sam" / "journal"
+    inbox = tmp_path / "inbox"
+    folder = inbox / "sam" / "grandad"
+    folder.mkdir(parents=True)
+    cairo.ImageSurface(cairo.FORMAT_ARGB32, 20, 20).write_to_png(str(folder / "photo.png"))
+    a_journal_reply(journal, source=folder)
+
+    app = ActivityApplication(
+        ACTIVITY_ID,
+        TITLE,
+        env={
+            "HOME": str(home),
+            "XDG_DATA_HOME": str(home / ".local" / "share"),
+            "KIDNIX_ACTIVITY_ID": ACTIVITY_ID,
+            "KIDNIX_PROFILE_ID": "sam",
+        },
+        earcons=silent_earcons(),
+    )
+    activity = LettersActivity(
+        app,
+        recipients=family(),
+        journal_root=journal,
+        outbox_root=tmp_path / "outbox",
+        inbox_root=inbox,
+        scratch=tmp_path / "scratch",
+        recorder=FakeRecorder(),
+    )
+    app.set_build(activity.build)
+    activate(app)
+
+    assert [reply.path.name for reply in activity.replies] == ["r1"]
+    activity.build_shelf()
+    assert len(activity.tiles) == 1
+    # The grown-up's folder is untouched: read-only in both directions.
+    assert sorted(p.name for p in folder.iterdir()) == ["photo.png"]
+
+
 def test_going_back_for_a_second_letter_starts_a_clean_one(built):
     """And -- the load-bearing half -- it clears ``posted``, so put-away still
     keeps the second letter. Leaving it True would make ``finish`` decide there

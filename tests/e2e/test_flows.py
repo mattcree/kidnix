@@ -297,9 +297,7 @@ def face_ink(image, blob, threshold: int = 110) -> float:
     rested face and holds on the live one.
     """
     left, top, right, bottom = blob[3]
-    return dark_fraction(
-        image, (left - 10, top - 10, right + 10, bottom + 10), threshold=threshold
-    )
+    return dark_fraction(image, (left - 10, top - 10, right + 10, bottom + 10), threshold=threshold)
 
 
 def press_the_face(story, timeout: float = 60.0) -> tuple:

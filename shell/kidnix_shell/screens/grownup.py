@@ -5,8 +5,16 @@ Reached by a three-second hold on the plain corner tile, then a PIN
 this surface is not for the child and should not look like it is.
 
 v0.1 actions: start a session, end the session now, add 5/15/30 minutes, set
-the default session length, open the parent panel (a stub about-window), and
-log out to GDM.
+the default session length, the four sound-and-calm controls, set the PIN, say
+where the parent panel is (it is on the grown-up's own login and is never
+launched from the child's session), and log out to GDM.
+
+**Nothing on this sheet outlives the machine being switched off**, except a PIN
+that ``kidnix-set-pin`` managed to write: ``/etc/kidnix/parent.toml`` is
+root-owned on purpose and the shell runs as the child. Every control here that
+is memory-only says so in its own subtitle -- :data:`READ_ONLY_SUBTITLE` for
+the session length, :data:`UNTIL_SWITCHED_OFF` for the four in "Sound and
+calm" -- because a control that silently forgets is worse than no control.
 """
 
 from __future__ import annotations
@@ -38,6 +46,42 @@ LENGTH_SUBTITLE = N_("Minutes. No number here is evidence-based; 25 is the preca
 READ_ONLY_SUBTITLE = N_(
     "Kept for this boot only: /etc/kidnix/parent.toml is root-owned, "
     "which is what keeps the PIN out of the child's hands."
+)
+
+#: Appended to every control on this sheet that takes effect **now** and is
+#: gone at the next start. The four sound-and-calm rows apply straight into the
+#: running shell (``host.set_access``) and write nothing: the config is
+#: root-owned on purpose and the shell runs as the child, so a permanent
+#: version of these needs the parent's own account. Saying so once, in the same
+#: words, in all four places beats four bespoke sentences -- a grown-up reading
+#: down the group learns the rule once and then recognises it.
+#:
+#: A separate msgid from :data:`READ_ONLY_SUBTITLE`, which is the *session
+#: length* row's version of the same fact and names the file rather than the
+#: panel. Kept as its own sentence, appended, so each row's own first sentence
+#: is still the thing it says.
+UNTIL_SWITCHED_OFF = N_("Until the machine is switched off; the Parent Panel keeps it for good.")
+
+#: The parent panel exists (``/usr/bin/kidnix-parent-panel``, seven tabs, its
+#: own desktop entry). It is **not** launched from here and the row has no
+#: launch in it, because it belongs to the grown-up's own login: an adult
+#: settings window opened inside the child's session would leave allow-lists,
+#: time budgets and the child's own Journal on the screen a five-year-old is
+#: sitting in front of, in a kiosk with no window management to close it with,
+#: with nothing between them and it once the sheet is gone.
+PANEL_SUBTITLE = N_("Children, time, activities, their things -- on the grown-up's own login")
+PANEL_TITLE = N_("Parent panel")
+#: One paragraph, one msgid: the route, in the order it is walked. Named
+#: strings a translator must keep (an account name and a menu entry) are
+#: written into the sentence rather than substituted, because both are what a
+#: grown-up will literally read on the screens in front of them.
+PANEL_ROUTE = N_(
+    "The parent panel is not part of the child's session, and it is not missing: it is "
+    "on your own login, where the child cannot reach it.\n\n"
+    "Use Log out at the bottom of this sheet, sign in as parent at the login screen, "
+    "and open Parent Panel from Applications.\n\n"
+    "It holds children, time limits, activities, requests, their things, family and "
+    "sound -- and unlike this sheet, what you change there is kept."
 )
 
 #: The row that has to appear on every unconfigured machine, and did not.
@@ -254,6 +298,18 @@ def grant_refusal(minutes: int, floor_minutes: int, left_minutes: int) -> str:
     will conclude the machine did it (forum #59, #60).
     """
     return ngettext(*GRANT_REFUSED, left_minutes).format(left=left_minutes, floor=floor_minutes)
+
+
+def until_off(first: str) -> str:
+    """This row's own sentence, then the one every memory-only row shares.
+
+    Two sentences and two msgids rather than one: the shared half is
+    :data:`UNTIL_SWITCHED_OFF` and is word-for-word identical on all four
+    rows, which is the point -- a grown-up reads it once and then recognises
+    it. Pure and tested headless, because "does the control admit that it
+    forgets" is a claim about words and not about GTK.
+    """
+    return f"{first} {_(UNTIL_SWITCHED_OFF)}"
 
 
 def no_cut(row: Adw.PreferencesRow) -> Adw.PreferencesRow:
@@ -710,7 +766,7 @@ class GrownupSheet(Adw.Dialog):
 
         volume = no_cut(Adw.SpinRow.new_with_range(0, 100, 10))
         volume.set_title(_("Volume"))
-        volume.set_subtitle(_("Earcons and read-aloud. Captions keep working at zero."))
+        volume.set_subtitle(until_off(_("Earcons and read-aloud. Captions keep working at zero.")))
         volume.set_value(round(self.ctx.config.access.sound_volume * 100))
         volume.connect("notify::value", self._on_volume_changed)
         self._volume_row = volume
@@ -719,7 +775,9 @@ class GrownupSheet(Adw.Dialog):
         mute = no_cut(
             Adw.SwitchRow(
                 title=_("Mute"),
-                subtitle=_("Silence, not a broken machine: every line is still captioned."),
+                subtitle=until_off(
+                    _("Silence, not a broken machine: every line is still captioned.")
+                ),
             )
         )
         mute.set_active(self.ctx.config.access.mute)
@@ -730,9 +788,11 @@ class GrownupSheet(Adw.Dialog):
         calm = no_cut(
             Adw.SwitchRow(
                 title=_("Calm mode"),
-                subtitle=_(
-                    "Reduced motion, a slower voice, and only the 'kept it' sound. "
-                    "One switch for a sensory-sensitive, anxious or overloaded day."
+                subtitle=until_off(
+                    _(
+                        "Reduced motion, a slower voice, and only the 'kept it' sound. "
+                        "One switch for a sensory-sensitive, anxious or overloaded day."
+                    )
                 ),
             )
         )
@@ -744,9 +804,11 @@ class GrownupSheet(Adw.Dialog):
         captions = no_cut(
             Adw.SwitchRow(
                 title=_("Captions"),
-                subtitle=_(
-                    "Every spoken line, written under the band for four seconds. "
-                    "On by default. Turning it off takes effect at the next start."
+                subtitle=until_off(
+                    _(
+                        "Every spoken line, written under the band for four seconds. "
+                        "On by default. Turning it off takes effect at the next start."
+                    )
                 ),
             )
         )
@@ -797,11 +859,11 @@ class GrownupSheet(Adw.Dialog):
 
         panel = no_cut(
             Adw.ActionRow(
-                title=_("Parent panel"),
-                subtitle=_("Allow-lists, budgets, their things -- not in v0.1"),
+                title=_(PANEL_TITLE),
+                subtitle=_(PANEL_SUBTITLE),
             )
         )
-        panel_button = wrapping_button(_("Open"))
+        panel_button = wrapping_button(_("How to open it"))
         panel_button.set_valign(Gtk.Align.CENTER)
         panel_button.connect("clicked", lambda _b: self._open_panel())
         panel.add_suffix(panel_button)
@@ -889,8 +951,10 @@ class GrownupSheet(Adw.Dialog):
 
         It holds for this boot only, like every other setting on this sheet:
         ``/etc/kidnix/parent.toml`` is root-owned on purpose and the shell runs
-        as the child. A parent who wants it permanent edits the file, and the
-        file documents the keys.
+        as the child. Every one of the four rows says so
+        (:data:`UNTIL_SWITCHED_OFF`) and points at the lasting version, which
+        is the Parent Panel on the grown-up's own login -- it writes the same
+        ``[access]`` keys, from an account that may.
         """
         access = self.ctx.config.access.with_overrides(**changes)
         setter = getattr(self.ctx.host, "set_access", None)
@@ -928,19 +992,20 @@ class GrownupSheet(Adw.Dialog):
             log.warning("could not save parent config: %s", exc)
 
     def _open_panel(self) -> None:
-        about = Adw.AboutDialog(
-            application_name=_("kidnix parent panel"),
-            application_icon="preferences-system",
-            version=_("not yet built"),
-            comments=_(
-                "The parent panel is not in shell v0.1. It will hold children, "
-                "time, activities, requests, their things, family and calm mode. "
-                "Until then, the Journal is a plain directory tree under "
-                "~/.local/share/kidnix/journal that you can open in Files."
-            ),
-            license_type=Gtk.License.APACHE_2_0,
-        )
-        about.present(self)
+        """Say where the panel is and how to get to it. It is never launched.
+
+        This used to be an about-window saying "not yet built", which stopped
+        being true the day ``/usr/bin/kidnix-parent-panel`` shipped -- and a
+        sheet that tells a grown-up a thing they own does not exist is worse
+        than one that says nothing. It still does not *open* anything: see
+        :data:`PANEL_SUBTITLE` for why the panel is the parent login's and not
+        the child session's.
+        """
+        dialog = Adw.AlertDialog(heading=_(PANEL_TITLE), body=_(PANEL_ROUTE))
+        dialog.add_response("close", _("Close"))
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+        dialog.present(self)
 
     def _logout(self) -> None:
         self.ctx.host.logout()

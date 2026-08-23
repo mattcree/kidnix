@@ -38,6 +38,7 @@ from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..activities import Activity, ShelfGroup, in_age_band, shelf_groups  # noqa: E402
 from ..i18n import N_, _  # noqa: E402
+from ..settings import shelf_child_allowed  # noqa: E402
 from ..util import paginate  # noqa: E402
 from ..widgets import (  # noqa: E402
     ActivityTile,
@@ -174,11 +175,37 @@ class ShelfScreen(Screen):
 
     def _denial(self, activity: Activity) -> str | None:
         """Why this game cannot be opened, in the child's words -- or None."""
-        if not self.ctx.config.is_allowed(activity.id, self.ctx.profile.id):
+        if not self._allowed(activity):
             return _(NOT_ALLOWED_LINE)
         if not activity.usable:
             return _(NOT_READY_LINE)
         return None
+
+    def _allowed(self, activity: Activity) -> bool:
+        """The allow-list, read the way a *shelf* has to read it.
+
+        Home asks ``is_allowed`` about one id and that is the whole question
+        there. Here there are two ids in play -- this game's and the shelf it
+        is inside -- and a list that names only the shelf means the shelf: see
+        :func:`kidnix_shell.settings.shelf_child_allowed`, which is where the
+        rule and its reasons live. This screen is the only place that knows
+        which children belong to which shelf, which is why it is the place that
+        asks.
+        """
+        config = self.ctx.config
+        shelf = self.shelf
+        if shelf is None:  # pragma: no cover - no shelf, no children to draw
+            return config.is_allowed(activity.id, self.ctx.profile.id)
+        # Every child of the shelf, not just the ones this child's age band
+        # left on the page: "did the parent name any of them" is a question
+        # about the parent's list, not about who is looking at it.
+        siblings = [child.id for child in self.ctx.shelves.get(shelf.id, [])]
+        return shelf_child_allowed(
+            config.effective_allow_list(self.ctx.profile.id),
+            activity.id,
+            shelf.id,
+            siblings,
+        )
 
     def _activate(self, activity: Activity) -> None:
         denial = self._denial(activity)

@@ -9,6 +9,7 @@ rather than a traceback in front of a five-year-old.
 from __future__ import annotations
 
 import json
+import os
 
 from letters_to_family.journal_read import (
     DEFAULT_LIMIT,
@@ -167,3 +168,219 @@ def test_reading_the_journal_writes_nothing_into_it(tmp_path):
     recent_pictures(tmp_path)
     after = sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*"))
     assert before == after
+
+
+# --- the letters that came back (design note section 7 step 5) --------------
+#
+# Landed 2026-08-24: the shelf reads the Journal, where the shell put each
+# reply exactly once, instead of the inbox, which has no idea what the child
+# has already been given and so showed every letter forever.
+
+
+def write_reply(
+    root,
+    entry_id: str,
+    *,
+    created: str,
+    from_name: str = "Grandad",
+    source: str = "",
+    words: str = "",
+    voice: bool = False,
+    picture: bool = True,
+    thumb: bool = True,
+    kind: str = "letter-reply",
+    meta=None,
+):
+    """One imported reply, in the layout ``kidnix_shell.inbox`` writes."""
+    day = created[:10].replace("-", "/")
+    directory = root / day / entry_id
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = "v001.png" if picture else "v001.ogg"
+    (directory / filename).write_bytes(b"data-" + entry_id.encode())
+    if thumb:
+        (directory / "thumb.png").write_bytes(b"\x89PNG\r\n\x1a\nthumb")
+    if words:
+        (directory / "caption.txt").write_text(words, encoding="utf-8")
+    if voice:
+        (directory / "note.ogg").write_bytes(b"OggS")
+    (directory / "entry.json").write_text(
+        json.dumps(
+            {
+                "id": entry_id,
+                "activity_id": "letters",
+                "created": created + "T10:00:00",
+                "updated": created + "T10:00:00",
+                "title": f"A letter from {from_name}",
+                "source_path": source,
+                "mime": "image/png" if picture else "audio/ogg",
+                "versions": [
+                    {"filename": filename, "imported": created, "size": 5, "sha256": "x"}
+                ],
+            }
+        )
+    )
+    document = meta
+    if document is None:
+        document = {
+            "schema": 1,
+            "kind": kind,
+            "from": from_name,
+            "source": source or f"/var/lib/kidnix/inbox/sam/{entry_id}",
+            "caption": words,
+        }
+    (directory / "meta.json").write_text(json.dumps(document))
+    return directory
+
+
+def an_inbox_reply(inbox, name: str, *, profile: str = "sam"):
+    folder = inbox / profile / name
+    folder.mkdir(parents=True)
+    (folder / "photo.png").write_bytes(b"\x89PNG\r\n\x1a\nphoto")
+    return folder
+
+
+def test_an_imported_reply_is_read_back_off_the_shelf(tmp_path):
+    from letters_to_family.journal_read import letter_replies
+
+    directory = write_reply(
+        tmp_path, "r1", created="2026-08-21", from_name="Nanna", words="Thank you!", voice=True
+    )
+    (reply,) = letter_replies(tmp_path)
+    assert reply.path == directory
+    assert reply.from_name == "Nanna"
+    assert reply.words == "Thank you!"
+    assert reply.has_picture and reply.picture.name == "v001.png"
+    assert reply.has_voice and reply.voice.name == "note.ogg"
+    assert reply.speak_text == "A letter from Nanna."
+
+
+def test_a_thing_the_child_made_is_not_a_letter_that_came_back(tmp_path):
+    """``meta.json``'s kind is the whole test: a drawing must never turn up
+    on "Letters for you", and neither must a card we cannot identify."""
+    from letters_to_family.journal_read import letter_replies
+
+    write_entry(tmp_path, "mine", created="2026-08-20")  # no meta.json at all
+    write_reply(tmp_path, "theirs", created="2026-08-19", kind="drawing")
+    assert letter_replies(tmp_path) == []
+
+
+def test_the_card_is_what_the_tile_shows_so_a_voice_letter_is_not_a_blank(tmp_path):
+    """A reply that is only a voice has no picture -- it has the envelope the
+    shell drew, which is the difference between six letters and six
+    placeholders."""
+    from letters_to_family.journal_read import letter_replies
+
+    write_reply(tmp_path, "r1", created="2026-08-21", picture=False, voice=True)
+    (reply,) = letter_replies(tmp_path)
+    assert not reply.has_picture
+    assert reply.tile_image is not None and reply.tile_image.name == "thumb.png"
+
+
+def test_a_letter_with_no_card_at_all_falls_back_to_the_placeholder(tmp_path):
+    from letters_to_family.journal_read import letter_replies
+
+    write_reply(tmp_path, "r1", created="2026-08-21", picture=False, thumb=False)
+    (reply,) = letter_replies(tmp_path)
+    assert reply.tile_image is None
+
+
+def test_the_newest_letter_is_first(tmp_path):
+    from letters_to_family.journal_read import letter_replies
+
+    write_reply(tmp_path, "old", created="2026-08-01", from_name="Nanna")
+    write_reply(tmp_path, "new", created="2026-08-21", from_name="Grandad")
+    assert [r.from_name for r in letter_replies(tmp_path)] == ["Grandad", "Nanna"]
+
+
+def test_only_a_few_letters_are_shown(tmp_path):
+    from letters_to_family.journal_read import SHELF_LIMIT, letter_replies
+
+    for index in range(SHELF_LIMIT + 4):
+        write_reply(tmp_path, f"r{index:02d}", created=f"2026-08-{index + 1:02d}")
+    assert len(letter_replies(tmp_path)) == SHELF_LIMIT
+
+
+def test_a_letter_whose_meta_is_broken_is_simply_not_a_letter(tmp_path):
+    from letters_to_family.journal_read import letter_replies
+
+    directory = write_reply(tmp_path, "r1", created="2026-08-21")
+    (directory / "meta.json").write_text("{ not json")
+    assert letter_replies(tmp_path) == []
+
+
+def test_a_nameless_sender_is_never_a_blank_tile(tmp_path):
+    from letters_to_family.journal_read import letter_replies
+
+    write_reply(tmp_path, "r1", created="2026-08-21", meta={"kind": "letter-reply"})
+    (reply,) = letter_replies(tmp_path)
+    assert reply.from_name == "someone"
+
+
+def test_reading_the_letters_writes_nothing_into_the_journal(tmp_path):
+    from letters_to_family.journal_read import letter_replies
+
+    write_reply(tmp_path, "r1", created="2026-08-21", words="hello", voice=True)
+    before = sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*"))
+    letter_replies(tmp_path)
+    after = sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*"))
+    assert before == after
+
+
+# --- the shelf: the Journal, plus anything not swept yet --------------------
+
+
+def test_an_imported_reply_is_one_tile_and_not_two(tmp_path):
+    """The bug this closes: the letter was in My Things *and* still on the
+    shelf, because the inbox is a grown-up's folder and nothing in it is ever
+    marked read."""
+    from letters_to_family.journal_read import shelf_replies
+
+    inbox = tmp_path / "inbox"
+    folder = an_inbox_reply(inbox, "grandad")
+    write_reply(tmp_path / "journal", "r1", created="2026-08-21", source=str(folder))
+
+    found = shelf_replies(tmp_path / "journal", "sam", inbox)
+    assert len(found) == 1
+    assert found[0].path.name == "r1"  # the Journal's copy, with the card on it
+
+
+def test_a_reply_that_arrived_since_the_last_sweep_still_shows(tmp_path):
+    """The shell sweeps once a sitting. A folder dropped in while the child is
+    at the machine must not be invisible until the next login."""
+    from letters_to_family.journal_read import shelf_replies
+
+    inbox = tmp_path / "inbox"
+    an_inbox_reply(inbox, "nanna")
+    found = shelf_replies(tmp_path / "journal", "sam", inbox)
+    assert [r.from_name for r in found] == ["Nanna"]
+
+
+def test_the_two_sources_are_shown_newest_first_together(tmp_path):
+    from letters_to_family.journal_read import shelf_replies
+
+    inbox = tmp_path / "inbox"
+    fresh = an_inbox_reply(inbox, "nanna")
+    os.utime(fresh, (1_800_000_000, 1_800_000_000))
+    write_reply(tmp_path / "journal", "r1", created="2026-08-01", from_name="Grandad")
+
+    found = shelf_replies(tmp_path / "journal", "sam", inbox)
+    assert [r.from_name for r in found] == ["Nanna", "Grandad"]
+
+
+def test_a_shelf_with_nothing_anywhere_is_empty_and_quiet(tmp_path):
+    from letters_to_family.journal_read import shelf_replies
+
+    assert shelf_replies(tmp_path / "journal", "sam", tmp_path / "inbox") == []
+
+
+def test_the_shelf_reads_this_childs_journal_and_no_other(tmp_path):
+    """``journal_root`` is already one child's -- that is what keeps a sibling's
+    letters off this shelf without this module knowing about profiles."""
+    from letters_to_family.journal_read import shelf_replies
+
+    sam = tmp_path / "profiles" / "sam" / "journal"
+    rose = tmp_path / "profiles" / "rose" / "journal"
+    write_reply(sam, "r1", created="2026-08-21", from_name="Grandad")
+    write_reply(rose, "r2", created="2026-08-21", from_name="Auntie")
+
+    assert [r.from_name for r in shelf_replies(sam, "sam", tmp_path / "inbox")] == ["Grandad"]

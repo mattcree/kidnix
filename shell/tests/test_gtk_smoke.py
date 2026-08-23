@@ -2443,6 +2443,53 @@ def test_back_from_a_shelf_goes_home_and_not_out_of_the_session(tmp_path: Path) 
         window.shutdown()
 
 
+def test_a_shelf_named_in_the_allow_list_opens_every_game_on_it(tmp_path: Path) -> None:
+    """The hand-edited example in ``parent.toml`` names the *shelf*.
+
+    Before this, that list denied all six children behind a tile that opened:
+    six outlined tiles saying "Ask a grown-up for this one" and nothing for a
+    grown-up to give. ``kidnix_shell.settings.shelf_child_allowed`` is the
+    rule; this is it reaching the tiles.
+    """
+    from kidnix_shell.state import State
+
+    activities, shelves = shelf_world(tmp_path)
+    config = ParentConfig(allowed_activity_ids=["shelfy"])
+    window = build_window(tmp_path, config=config, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        window.open_shelf(next(a for a in activities if a.is_shelf))
+        tiles = [t for t in walk(window.screens["shelf"]) if isinstance(t, ActivityTile)]
+        assert len(tiles) == 6
+        assert not [t.log_id for t in tiles if t.has_css_class("not-allowed")]
+    finally:
+        window.shutdown()
+
+
+def test_naming_one_game_on_a_shelf_still_refuses_its_siblings(tmp_path: Path) -> None:
+    """The other half: a parent who ticked boxes in the panel is obeyed.
+
+    The panel writes the shelf's own switch *and* the rows inside it, so the
+    shelf's id being present cannot be allowed to widen a per-child choice --
+    or unticking one of the eighteen would do nothing at all.
+    """
+    from kidnix_shell.state import State
+
+    activities, shelves = shelf_world(tmp_path)
+    config = ParentConfig(allowed_activity_ids=["shelfy", "shelfy.aa", "shelfy.dd"])
+    window = build_window(tmp_path, config=config, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        window.open_shelf(next(a for a in activities if a.is_shelf))
+        tiles = [t for t in walk(window.screens["shelf"]) if isinstance(t, ActivityTile)]
+        denied = {t.log_id for t in tiles if t.has_css_class("not-allowed")}
+        assert denied == {"shelfy.bb", "shelfy.cc", "shelfy.ee", "shelfy.ff"}
+    finally:
+        window.shutdown()
+
+
 def test_a_shelf_has_no_all_done_of_its_own(tmp_path: Path) -> None:
     """ "All done" has one cell, on Home (spec 7d #5). Two places to reach for
     the escape hatch is one place too many for a child who navigates by

@@ -71,6 +71,7 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 from ..activities import Activity, in_age_band  # noqa: E402
 from ..i18n import N_, _  # noqa: E402
 from ..resting import DAYTIME_GOODNIGHT_ICON, goodnight_icon  # noqa: E402
+from ..settings import shelf_tile_allowed  # noqa: E402
 from ..util import paginate  # noqa: E402
 from ..widgets import (  # noqa: E402
     ActivityTile,
@@ -391,11 +392,31 @@ class HomeScreen(Screen):
         is not installed, or a Library with no books in it yet, is not that --
         so it gets the other line.
         """
-        if not self.ctx.config.is_allowed(activity.id, self.ctx.profile.id):
+        if not self._allowed(activity):
             return _(NOT_ALLOWED_LINE)
         if not getattr(activity, "usable", True):
             return _(NOT_READY_LINE)
         return None
+
+    def _allowed(self, activity: Activity) -> bool:
+        """The allow-list, read the way *Home* has to read it.
+
+        One id for an ordinary tile. For a shelf's tile the list may name the
+        shelf, or only something inside it -- and a door is allowed when
+        anything behind it is (:func:`kidnix_shell.settings.shelf_tile_allowed`,
+        which is where the rule and its reasons live).
+        """
+        config = self.ctx.config
+        if config.is_allowed(activity.id, self.ctx.profile.id):
+            return True
+        children = self.ctx.shelves.get(activity.id, [])
+        if not children:
+            return False
+        return shelf_tile_allowed(
+            config.effective_allow_list(self.ctx.profile.id),
+            activity.id,
+            [child.id for child in children],
+        )
 
     def _activate(self, activity: Activity) -> None:
         denial = self._denial(activity)

@@ -25,6 +25,7 @@ from kidnix_shell.activities import (
     resolve_shelves,
     shelf_groups,
 )
+from kidnix_shell.settings import shelf_child_allowed
 
 SHELF = """
 schema = 1
@@ -261,3 +262,108 @@ def test_no_shipped_manifest_declares_an_undo_key_we_cannot_send() -> None:
     """
     for activity in load_directory(SYSTEM).activities:
         assert activity.undo_key == "", activity.id
+
+
+# --- the allow-list, read the way a shelf has to read it -----------------
+#
+# The footgun this closes: `parent.toml`'s own worked example is
+# `allowed_activity_ids = ["tuxpaint", "ktuberling", "gcompris", "blinken"]`,
+# which named the *shelf*. Asked per child id, that list denied all eighteen
+# games behind a tile that opened -- eighteen "Ask a grown-up for this one"s
+# and nothing to ask for.
+
+KIDS = ("gcompris.erase", "gcompris.gletters", "gcompris.smallnumbers")
+
+
+def test_nothing_listed_allows_every_child() -> None:
+    """Empty is "all of them", one level down, as it is everywhere else."""
+    assert shelf_child_allowed((), "gcompris.erase", "gcompris", KIDS)
+
+
+def test_a_childs_own_id_in_the_list_allows_it() -> None:
+    allowed = ("tuxpaint", "gcompris.erase")
+    assert shelf_child_allowed(allowed, "gcompris.erase", "gcompris", KIDS)
+
+
+def test_listing_only_the_shelf_allows_all_of_its_children() -> None:
+    """A parent who wrote the file's own example gets what they asked for."""
+    allowed = ("tuxpaint", "ktuberling", "gcompris", "blinken")
+    for kid in KIDS:
+        assert shelf_child_allowed(allowed, kid, "gcompris", KIDS)
+
+
+def test_the_shelf_stops_standing_in_once_one_child_is_named() -> None:
+    """Per-child choices win: a sibling listed, me not, and I am refused.
+
+    This is the panel's shape -- it writes the shelf's switch *and* the rows
+    inside it -- and it is the half that must not be widened, or unticking one
+    of the eighteen would do nothing at all.
+    """
+    allowed = ("gcompris", "gcompris.erase")
+    assert shelf_child_allowed(allowed, "gcompris.erase", "gcompris", KIDS)
+    assert not shelf_child_allowed(allowed, "gcompris.gletters", "gcompris", KIDS)
+
+
+def test_a_child_of_a_shelf_nobody_named_is_refused() -> None:
+    """A non-empty list that mentions neither me nor my shelf still denies."""
+    assert not shelf_child_allowed(("tuxpaint",), "gcompris.erase", "gcompris", KIDS)
+
+
+def test_the_effective_list_is_the_childs_own_then_the_machines() -> None:
+    """What :meth:`ParentConfig.effective_allow_list` hands the rule above."""
+    from kidnix_shell.settings import ParentConfig, Profile
+
+    config = ParentConfig(
+        allowed_activity_ids=["tuxpaint", "gcompris"],
+        profiles=[
+            Profile(id="sam", name="Sam", allowed_activity_ids=("gcompris.erase",)),
+            Profile(id="rose", name="Rose"),
+        ],
+    )
+    assert config.effective_allow_list("sam") == ("gcompris.erase",)
+    assert config.effective_allow_list("rose") == ("tuxpaint", "gcompris")
+    assert config.effective_allow_list() == ("tuxpaint", "gcompris")
+    assert ParentConfig().effective_allow_list("rose") == ()
+
+
+def test_sam_gets_only_erase_and_rose_gets_the_whole_shelf() -> None:
+    """The two levels together, on one machine, for two children.
+
+    Sam's own list names one game, so the other seventeen are refused; Rose
+    has no list of her own and the machine's names the shelf, so she has all
+    of them. Same shelf, same session, two answers -- which is the point of
+    the per-child key.
+    """
+    from kidnix_shell.settings import ParentConfig, Profile
+
+    config = ParentConfig(
+        allowed_activity_ids=["tuxpaint", "gcompris"],
+        profiles=[
+            Profile(id="sam", name="Sam", allowed_activity_ids=("gcompris.erase",)),
+            Profile(id="rose", name="Rose"),
+        ],
+    )
+    for who, wanted in (("sam", {"gcompris.erase"}), ("rose", set(KIDS))):
+        got = {
+            kid
+            for kid in KIDS
+            if shelf_child_allowed(config.effective_allow_list(who), kid, "gcompris", KIDS)
+        }
+        assert got == wanted
+
+
+# --- the mirror rule: the shelf's own tile on Home (2026-08-24) -----------
+
+
+def test_shelf_tile_allowed_when_only_a_child_is_listed() -> None:
+    from kidnix_shell.settings import shelf_tile_allowed
+
+    kids = ["gcompris.erase", "gcompris.gletters"]
+    # The list names one game and not the shelf: the door must still open.
+    assert shelf_tile_allowed(["tuxpaint", "gcompris.erase"], "gcompris", kids)
+    # The list names the shelf itself.
+    assert shelf_tile_allowed(["gcompris"], "gcompris", kids)
+    # Empty is everything.
+    assert shelf_tile_allowed([], "gcompris", kids)
+    # The list names neither the shelf nor anything in it.
+    assert not shelf_tile_allowed(["tuxpaint"], "gcompris", kids)
