@@ -832,3 +832,19 @@ in it: **the shell's caption listener** (`docs/design/activity-sdk.md` §4.2 —
 until it exists the spoken prompt, which *is* the instruction here, is
 audio-only, and B2 is unfixed for the whole time a child spends in this
 activity); and **the phoneme clips** (§12.6).
+
+## 14. Open item: real phoneme recordings (2026-08-23)
+
+The install wave proved that GCompris's en_GB `alphabet` clips are letter
+*names*, and that Piper cannot render isolated plosives (they come back as
+schwa syllables). So the 44 phonemes currently ship as spelled labels. Options,
+in order of preference: (1) **record them ourselves** — a 20-minute session
+with a decent USB mic in a quiet room, following a validated SSP's
+pronunciation guide (pure sounds, no schwa: /t/ not "tuh"); a tiny
+`kidnix-record-phonemes` tool in the parent panel or a script with the
+prompt list; CC0 them and ship with provenance; (2) find an openly licensed
+phoneme set (none found so far — record the search in research 10's
+absences); (3) Kokoro pre-render — also a TTS, same plosive problem, untested.
+Matt is the obvious first voice; a second, child-familiar voice (a teacher,
+a grandparent) would be even better. Until then the activity is honest about
+it: the label is spoken, not the sound.
