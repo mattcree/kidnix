@@ -51,15 +51,30 @@ from sounds_and_words.activity import (  # noqa: E402
 )
 from sounds_and_words.blend import Stage  # noqa: E402
 from sounds_and_words.ceiling import ceiling_for_grapheme  # noqa: E402
+from sounds_and_words.distractors import board_graphemes  # noqa: E402
+from sounds_and_words.phonemes import say_label  # noqa: E402
 from sounds_and_words.schedule import ItemKind  # noqa: E402
+from sounds_and_words.text import FIND_IT, names_a_grapheme, tokens  # noqa: E402
 
 WINDOWS: list[ActivityWindow] = []
 
 
 class Sink(CaptionClient):
-    """A caption client that goes nowhere. No shell is listening in a test."""
+    """A caption client that goes nowhere, and writes down what it was given.
+
+    No shell is listening in a test, so ``send`` returns ``False`` and the
+    activity speaks the line itself -- the real behaviour on a developer's
+    desktop. The list is how a test reads the caption strip: everything kidnix
+    says passes through here *before* the "is speech even on?" check, which is
+    the invariant that makes mute safe to offer.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.lines: list[str] = []
 
     def send(self, text: str) -> bool:
+        self.lines.append(text)
         return False
 
 
@@ -123,7 +138,78 @@ def test_a_find_it_board_is_four_tiles_and_a_prompt(activity):
     activity.window = win
     screen = build_find_it(win, activity, activity.corpus.gpc_by_id["m"])
     assert len(screen.tiles) == 4
-    assert screen.prompt.text.startswith("Find the one that says")
+    assert screen.prompt.text == FIND_IT
+
+
+# --- the prompt does not print the answer ------------------------------------
+#
+# The checkpoint-2 audit's first defect against this activity: the screen said
+# "Find the one that says k." over four tiles, one of which was `k`. The task
+# is to match a *sound* to a grapheme, so the sound is a separate utterance and
+# the sentence stops at an ellipsis. The rule itself is tested headless in
+# `tests/test_text.py`; these are the assertions about what is on the glass.
+
+
+def test_the_prompt_never_prints_the_grapheme_it_is_asking_for(activity):
+    win = window("find_no_answer")
+    activity.window = win
+    for gpc_id in ("s", "m", "k", "sh", "ng"):
+        target = activity.corpus.gpc_by_id[gpc_id]
+        screen = build_find_it(win, activity, target)
+        assert names_a_grapheme(screen.prompt.text, board_graphemes(screen.board)) is None
+        assert target.grapheme not in tokens(screen.prompt.text)
+
+
+def test_the_instruction_and_the_sound_are_two_utterances(activity):
+    """Joined, they would put the answer back in the caption strip -- which is
+    where the audit found it."""
+    win = window("find_two_lines")
+    activity.window = win
+    target = activity.corpus.gpc_by_id["s"]
+    screen = build_find_it(win, activity, target)
+    activity.screen = screen
+
+    screen.announce()
+    assert win.speech.last_utterance == screen.prompt.text
+    assert names_a_grapheme(win.speech.last_utterance, board_graphemes(screen.board)) is None
+
+    screen.say_sound()
+    assert win.speech.last_utterance == say_label(target)
+
+
+def test_no_caption_of_the_instruction_carries_a_grapheme(activity):
+    """The caption strip is a deaf child's accommodation, not everybody's
+    answer key. The sound's own caption is the label -- that one *is* the
+    accommodation, and it is a separate line."""
+    win = window("find_caption")
+    activity.window = win
+    target = activity.corpus.gpc_by_id["k"]
+    screen = build_find_it(win, activity, target)
+    win.speech.captions.lines.clear()
+    screen.announce()
+    assert win.speech.captions.lines == [screen.prompt.text]
+    assert names_a_grapheme(win.speech.captions.lines[0], board_graphemes(screen.board)) is None
+
+
+def test_a_prompt_edited_to_name_a_tile_is_refused(activity, monkeypatch):
+    """`parent_text.toml` is copy a grown-up can edit and a translator will
+    rewrite. "Find the one that says k." is exactly the helpful edit somebody
+    makes, and the screen must not take it."""
+    monkeypatch.setitem(
+        activity.corpus.parent_text["child"], "find_it", "Find the one that says k."
+    )
+    win = window("find_bad_copy")
+    activity.window = win
+    screen = build_find_it(win, activity, activity.corpus.gpc_by_id["k"])
+    assert screen.prompt.text == FIND_IT
+
+
+def test_the_blend_it_prompt_says_what_to_do_and_not_the_word(activity):
+    win = window("blend_no_answer")
+    activity.window = win
+    screen = build_blend_it(win, activity, "ship")
+    assert "ship" not in tokens(screen.prompt.text)
+    assert names_a_grapheme(screen.prompt.text, board_graphemes(activity.corpus.gpcs)) is None
 
 
 def test_every_tile_is_forty_millimetres(activity):
@@ -457,3 +543,102 @@ def _walk(root: Gtk.Widget):
         yield child
         yield from _walk(child)
         child = child.get_next_sibling()
+
+
+# --- the clip player ---------------------------------------------------------
+#
+# `sounds_and_words.clips` is tested on its own, with a fake GStreamer, in
+# `tests/test_clips.py`. What is tested here is the *wiring*: which of the two
+# sounds a child gets, and what the caption strip is left holding.
+
+
+class FakePlayer:
+    """A clip player that makes no noise and remembers being asked."""
+
+    def __init__(self, *, ok: bool = True) -> None:
+        self.played: list[tuple[Path, float]] = []
+        self.ok = ok
+        self.closed = False
+
+    def play(self, path, *, volume: float = 1.0) -> bool:
+        self.played.append((Path(path), volume))
+        return self.ok
+
+    def stop(self) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def with_clip(activity, tmp_path, gpc_id="s", *, ok=True):
+    """An activity whose `s` has a recording, and a player that will take it."""
+    (tmp_path / f"{gpc_id}.ogg").write_bytes(b"OggS-not-really")
+    activity.clip_dir = tmp_path
+    player = FakePlayer(ok=ok)
+    activity._player = player
+    return player
+
+
+def test_a_recorded_phoneme_is_played_and_not_spoken(activity, tmp_path):
+    """The whole point of the recordings: a person saying /s/, not an engine
+    saying "sss"."""
+    win = window("clip_played")
+    activity.window = win
+    player = with_clip(activity, tmp_path)
+    win.speech.speak("something else")
+    activity.say_phoneme(activity.corpus.gpc_by_id["s"])
+    assert [path.name for path, _volume in player.played] == ["s.ogg"]
+    assert win.speech.last_utterance == "something else"
+
+
+def test_a_phoneme_with_no_recording_falls_back_to_the_spelled_label(activity, tmp_path):
+    win = window("clip_missing")
+    activity.window = win
+    activity.clip_dir = tmp_path  # empty: no clip for anything
+    player = FakePlayer()
+    activity._player = player
+    activity.say_phoneme(activity.corpus.gpc_by_id["s"])
+    assert player.played == []
+    assert win.speech.last_utterance == "sss"
+
+
+def test_a_player_that_cannot_play_still_leaves_the_child_a_sound(activity, tmp_path):
+    """Every failure path ends in a sound. A silent tile is the one outcome a
+    five-year-old cannot act on."""
+    win = window("clip_failed")
+    activity.window = win
+    with_clip(activity, tmp_path, ok=False)
+    activity.say_phoneme(activity.corpus.gpc_by_id["s"])
+    assert win.speech.last_utterance == "sss"
+
+
+def test_mute_takes_the_clip_away_and_leaves_the_caption(activity, tmp_path):
+    """Mute is silence *with the captions still running*. A clip played into a
+    muted sink would be silence with nothing on the strip, so the label's path
+    is taken instead -- it is the one that goes through the caption hook."""
+    win = window("clip_muted")
+    activity.window = win
+    player = with_clip(activity, tmp_path)
+    win.speech.apply_access(win.speech.access.with_overrides(mute=True))
+    win.speech.captions.lines.clear()
+    activity.say_phoneme(activity.corpus.gpc_by_id["s"])
+    assert player.played == []
+    assert win.speech.captions.lines == ["sss"]
+
+
+def test_the_clip_is_played_at_the_volume_the_parent_set(activity, tmp_path):
+    win = window("clip_volume")
+    activity.window = win
+    player = with_clip(activity, tmp_path)
+    win.speech.apply_access(win.speech.access.with_overrides(sound_volume=0.5))
+    activity.say_phoneme(activity.corpus.gpc_by_id["s"])
+    assert player.played[-1][1] == 0.5
+
+
+def test_the_player_is_let_go_when_the_session_ends(activity, tmp_path):
+    win = window("clip_finish")
+    activity.window = win
+    player = with_clip(activity, tmp_path)
+    activity.finish()
+    assert player.closed

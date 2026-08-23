@@ -11,10 +11,11 @@ So there are two routes to a sound, and this module is the one place that knows
 which one a given GPC is on:
 
 ``RECORDED``
-    A real recording of an adult saying the phoneme, played as audio.
-    :data:`CLIP_DIR` is where one would be, and **it is empty on the image
-    today**: the a-z clips in GCompris' ``voices-en_GB`` turned out to be the
-    letters' *names*, not their sounds. See below.
+    A real recording of an adult saying the phoneme, played as audio by
+    :mod:`sounds_and_words.clips`. :data:`CLIP_DIR` is where one would be, and
+    **it is empty on the image today**: the a-z clips in GCompris'
+    ``voices-en_GB`` turned out to be the letters' *names*, not their sounds.
+    See below.
 
 ``SPELLED``
     A **placeholder**, and marked as one everywhere it is used. The phoneme's
@@ -59,6 +60,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from .corpus import Gpc
+from .i18n import _
 
 __all__ = [
     "CLIP_DIR",
@@ -166,5 +168,11 @@ def yes_line(gpc: Gpc) -> str:
     Informational, not evaluative (research 05 section 2f). It names the sound
     they just found, which is the useful half; "well done" names them, which is
     the half the evidence says to leave out.
+
+    The sound is a placeholder, not a word, so it is **not** translated -- it
+    is the same noise in every language a child might be reading English in.
+    The "yes" around it is (ADR-0012, docs/design/i18n.md section 2.2: the
+    order is the translator's, which is why this is a placeholder and not a
+    concatenation).
     """
-    return f"yes, {say_label(gpc)}"
+    return _("yes, {sound}").format(sound=say_label(gpc))

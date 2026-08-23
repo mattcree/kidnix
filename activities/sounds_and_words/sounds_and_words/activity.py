@@ -38,6 +38,7 @@ import argparse
 import logging
 import random
 import tempfile
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
@@ -60,8 +61,10 @@ from kidnix_shell.widgets import ChildButton, fit_gtk_label, next_key  # noqa: E
 from . import ACTIVITY_ID, TITLE  # noqa: E402
 from .blend import BlendState, Mark, Stage, blend_word  # noqa: E402
 from .ceiling import Ceiling, ceiling_for_grapheme  # noqa: E402
+from .clips import ClipPlayer, make_player  # noqa: E402
 from .corpus import Corpus, Gpc, load_corpus  # noqa: E402
 from .distractors import find_it_options  # noqa: E402
+from .i18n import HAVE_CATALOGUE, _, install  # noqa: E402
 from .keys import BoardKeys, Press  # noqa: E402
 from .loop import Outcome, Plan, SessionRunner, plan_session  # noqa: E402
 from .phonemes import phoneme_for, say_label, yes_line  # noqa: E402
@@ -76,6 +79,21 @@ from .settings import (  # noqa: E402
     save_progress,
 )
 from .summary import Summary  # noqa: E402
+from .text import (  # noqa: E402
+    BLEND_IT,
+    CHILD_LINES,
+    DONE,
+    FIND_IT,
+    GROWN_UP_INVITE,
+    GROWN_UP_PROMPT,
+    GROWN_UP_TITLE,
+    NEXT_LABEL,
+    NEXT_SPEAK,
+    PUSH_LABEL,
+    PUSH_SPEAK,
+    SAY_IT_ALOUD,
+    names_a_grapheme,
+)
 
 log = logging.getLogger(__name__)
 
@@ -221,8 +239,12 @@ class FindIt:
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=area.gap)
         column.set_vexpand(True)
 
+        # The instruction, with the grapheme *not* in it. What the child is
+        # matching arrives in the ear a beat later, and the replay button
+        # replays the sound rather than the sentence, because the sentence is
+        # not the part they missed.
         self.prompt = Prompt(
-            self.owner.find_it_line(self.target),
+            self.owner.find_it_line(self.board),
             speech=window.speech,
             area=area,
             on_replay=self.say_sound,
@@ -259,7 +281,15 @@ class FindIt:
         self.owner.say_phoneme(self.target)
 
     def announce(self) -> None:
-        """The line the round opens with: the instruction, then the sound."""
+        """The line the round opens with.
+
+        **Two utterances, in this order, and never one.** The instruction is
+        said (and therefore captioned) first and carries no grapheme; the sound
+        follows on its own after :data:`SETTLE_MS`, from a recording where one
+        exists and from the spelled label where one does not. Joining them
+        would put the answer back in the caption strip, which is where the
+        checkpoint-2 audit found it.
+        """
         self.owner.window.speak(self.prompt.text)
 
     # -- what the child did --
@@ -369,8 +399,11 @@ class BlendIt:
         self.column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=area.gap)
         self.column.set_vexpand(True)
 
+        # No grapheme and no word in it either: the word is on the screen
+        # because reading it *is* the task, and the prompt says what to do with
+        # it rather than doing it for them.
         self.prompt = Prompt(
-            self.owner.child_text("blend_it", "Say the sounds, then push them together."),
+            self.owner.child_text("blend_it", BLEND_IT),
             speech=window.speech,
             area=area,
         )
@@ -401,8 +434,8 @@ class BlendIt:
         self.push_button = _icon_button(
             window,
             "push",
-            "push",
-            "Push the sounds together.",
+            _(PUSH_LABEL),
+            _(PUSH_SPEAK),
             self.push,
         )
         controls.append(self.push_button)
@@ -469,7 +502,7 @@ class BlendIt:
         area = window.area
 
         self.push_button.set_sensitive(False)
-        self.prompt.set_text(self.owner.child_text("say_it_aloud", "Now say it out loud."))
+        self.prompt.set_text(self.owner.child_text("say_it_aloud", SAY_IT_ALOUD))
         window.speak(self.prompt.text)
 
         card = GrownUpTurn(
@@ -483,7 +516,7 @@ class BlendIt:
         onwards = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=area.gap)
         onwards.set_halign(Gtk.Align.CENTER)
         onwards.append(
-            _icon_button(window, "next", "next", "Next one.", self.owner.next_item)
+            _icon_button(window, "next", _(NEXT_LABEL), _(NEXT_SPEAK), self.owner.next_item)
         )
         self.column.append(onwards)
         window.keys.set_content(window.content)
@@ -513,8 +546,15 @@ class SoundsAndWords:
         ceiling: Ceiling | None = None,
         seed: int | None = None,
         today: date | None = None,
+        clip_dir: Path | None = None,
+        player: ClipPlayer | None = None,
     ) -> None:
         self.app = app
+        #: Where the phoneme recordings are, or ``None`` for
+        #: :data:`sounds_and_words.phonemes.CLIP_DIR`. A test seam, and the
+        #: only way to exercise the clip path on a machine that ships none.
+        self.clip_dir = clip_dir
+        self._player: ClipPlayer | None = player
         self.corpus = corpus if corpus is not None else load_corpus()
         self.parent = load_parent_ceiling()
         self.ceiling = ceiling if ceiling is not None else resolve(self.corpus, self.parent)
@@ -543,31 +583,82 @@ class SoundsAndWords:
 
     # -- copy, from the corpus rather than from here ----------------------
 
-    def child_text(self, key: str, fallback: str) -> str:
-        """One of the child-facing lines in ``data/parent_text.toml``.
+    def child_text(self, key: str, fallback: str = "") -> str:
+        """One of the child-facing lines in ``data/parent_text.toml``, translated.
 
         The copy lives in the corpus because ``tests/test_parent_text.py``
         greps every string in it against the blacklist -- *score, level, star,
         streak, badge, percentile* -- and a line written inline here would be
         outside that net.
+
+        Which leaves the string in a TOML file, where ``xgettext`` cannot see
+        it. So :data:`CHILD_LINES` holds the same words as msgids, the corpus
+        is still what supplies them at runtime, and what comes back goes
+        through ``_()`` on the way out: en_GB returns it byte for byte, and a
+        Polish machine gets the catalogue's answer. A test pins the two lists
+        together so a corpus edit cannot silently orphan a translation.
         """
         section = self.corpus.parent_text.get("child", {})
-        return str(section.get(key) or fallback)
+        source = str(section.get(key) or CHILD_LINES.get(key) or fallback)
+        return _(source) if source else ""
 
-    def find_it_line(self, gpc: Gpc) -> str:
-        return f"{self.child_text('find_it', 'Find the one that says')} {say_label(gpc)}."
+    def find_it_line(self, board: Sequence[Gpc] = ()) -> str:
+        """The Find it instruction, checked against the board it will sit over.
+
+        **Never the grapheme** (:mod:`sounds_and_words.text`). The check is
+        here and not only in a test because the sentence comes out of
+        ``parent_text.toml`` -- copy a grown-up can edit and a translator will
+        certainly rewrite -- and "Find the one that says k." is exactly the
+        kind of helpful edit somebody makes. A prompt that names a tile is
+        refused, loudly, and the default stands in.
+        """
+        line = self.child_text("find_it", FIND_IT)
+        named = names_a_grapheme(line, [gpc.grapheme for gpc in board])
+        if named is None:
+            return line
+        log.error(
+            "the Find it prompt %r prints the grapheme %r, which is on the board; "
+            "using the default instead",
+            line,
+            named,
+        )
+        return _(FIND_IT)
 
     def grown_up_title(self) -> str:
         section = self.corpus.parent_text.get("grown_up_turn", {})
-        return str(section.get("title") or "Your turn")
+        return _(str(section.get("title") or GROWN_UP_TITLE))
 
     def grown_up_body(self) -> str:
         section = self.corpus.parent_text.get("grown_up_turn", {})
         prompts = section.get("prompts") or []
-        first = str(prompts[0]) if prompts else "Ask him to say the word out loud to you."
-        return f"{section.get('invite', 'Sit with him for this bit.')} {first}"
+        first = _(str(prompts[0])) if prompts else _(GROWN_UP_PROMPT)
+        invite = _(str(section.get("invite") or GROWN_UP_INVITE))
+        # TRANSLATORS: two sentences to the grown-up, joined. `{invite}` asks
+        # them to sit down; `{prompt}` is the thing to ask the child.
+        return _("{invite} {prompt}").format(invite=invite, prompt=first)
 
     # -- speaking ---------------------------------------------------------
+
+    @property
+    def player(self) -> ClipPlayer:
+        """The clip player, built on first use. Never ``None``.
+
+        Lazy because building it initialises GStreamer, and a session that
+        never reaches a Find it item should not have to.
+        """
+        if self._player is None:
+            self._player = make_player()
+        return self._player
+
+    @property
+    def access(self):
+        """The child's ``[access]`` settings, as the SDK resolved them.
+
+        Read through the window's voice rather than re-read from disk: the SDK
+        has already applied the profile's answer to the speech rate and the
+        volume, and two readers of one file is two chances to disagree.
+        """
+        return getattr(getattr(self.window, "speech", None), "access", None)
 
     def say_phoneme(self, gpc: Gpc) -> None:
         """Play the recorded clip if there is one; say the safe label if not.
@@ -576,18 +667,29 @@ class SoundsAndWords:
         *spelled* so an en-GB voice says the sound ("sss", "shh") rather than
         the schwa'd letter name ("suh"). That is a placeholder and
         :mod:`sounds_and_words.phonemes` says so; the recordings are the plan.
+
+        **Mute takes the clip away and leaves the label**, which looks backwards
+        until you remember what mute is for: silence with the captions still
+        running (``kidnix_shell.access``). The spoken label goes through the
+        SDK's caption hook, which fires *before* its own "is speech on?" check,
+        so a muted machine still writes the sound down. A clip played into a
+        muted sink would be silence with nothing on the strip.
         """
-        sound = phoneme_for(gpc)
+        sound = phoneme_for(gpc, clip_dir=self.clip_dir)
         if self.window is None:
             return
-        if sound.clip is not None:
-            # There is no clip player in the SDK yet (the a-z recordings are
-            # still inside GCompris's .rcc bundle -- see phonemes.py), so this
-            # branch is unreachable on today's image and is here so the day a
-            # clip appears the failure is a missing player and not a wrong
-            # sound. The label is still spoken, so nothing is silent.
-            log.info("clip %s is installed but there is no player yet", sound.clip)
+        if sound.clip is not None and self._play_clip(sound.clip):
+            return
         self.window.speak(sound.label)
+
+    def _play_clip(self, clip: Path) -> bool:
+        """Try the recording. ``False`` means "say the label instead"."""
+        access = self.access
+        volume = 1.0 if access is None else access.effective_volume
+        if volume <= 0.0:
+            log.info("muted, so %s is not played; the label carries the caption", clip)
+            return False
+        return self.player.play(clip, volume=volume)
 
     def after(self, milliseconds: int, callback) -> int:
         """Do something in a moment, on the main loop. Returns the source id."""
@@ -658,7 +760,7 @@ class SoundsAndWords:
         summary = self.summary()
         entry_path = self.keep(summary)
 
-        window.add(Prompt(self.child_text("done", "That's the lot for today."), speech=window.speech, area=area))
+        window.add(Prompt(self.child_text("done", DONE), speech=window.speech, area=area))
         if entry_path is not None:
             picture = Gtk.Picture()
             picture.add_css_class("word-picture")
@@ -676,7 +778,7 @@ class SoundsAndWords:
             )
         )
         window.keys.set_content(window.content)
-        window.speak(summary.caption if summary.words else self.child_text("done", "That's the lot for today."))
+        window.speak(summary.caption if summary.words else self.child_text("done", DONE))
 
     # -- keeping it -------------------------------------------------------
 
@@ -744,6 +846,8 @@ class SoundsAndWords:
         if self._saved:
             return
         self._saved = True
+        if self._player is not None:
+            self._player.close()
         try:
             save_progress(self.progress_path, self.progress)
             log.info("schedule saved to %s", self.progress_path)
@@ -790,7 +894,12 @@ class SoundsAndWords:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="kidnix-sounds-and-words", description=TITLE)
+    # The shell starts us with the language already chosen (LANG/LANGUAGE in
+    # our environment), so this normally only picks the catalogue up -- but it
+    # is what makes `python -m sounds_and_words` on a developer's machine
+    # behave like the real thing. docs/design/i18n.md, ADR-0012.
+    install()
+    parser = argparse.ArgumentParser(prog="kidnix-sounds-and-words", description=_(TITLE))
     parser.add_argument(
         "--screenshot",
         type=Path,
@@ -810,7 +919,9 @@ def main(argv: list[str] | None = None) -> int:
     args, rest = parser.parse_known_args(argv[1:] if argv else None)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    app = ActivityApplication(ACTIVITY_ID, TITLE)
+    if not HAVE_CATALOGUE:  # pragma: no cover - only off-image
+        log.warning("no translation catalogue reachable; every line will be en_GB")
+    app = ActivityApplication(ACTIVITY_ID, _(TITLE))
 
     ceiling = None
     if args.ceiling:

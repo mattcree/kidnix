@@ -41,19 +41,44 @@ of several equally good distractors gets used.
 
 from __future__ import annotations
 
+import logging
 import random
 from collections.abc import Iterable, Sequence
 
 from .ceiling import Ceiling
 from .corpus import Corpus, Gpc
 
+log = logging.getLogger(__name__)
+
 __all__ = [
+    "BOARD_TILES",
+    "CHOICE_CEILING",
     "REVERSALS",
     "SIMILAR",
+    "board_graphemes",
     "choose_distractors",
     "confusability",
     "find_it_options",
 ]
+
+#: **The five-choice ceiling, applied here** (ADR-0013, SYNTHESIS B2).
+#:
+#: ADR-0013 draws the line the checkpoint-2 audit asked for: five is the bound
+#: on a choice the child has to *weigh*, and not on a labelled grid whose items
+#: are the task itself (a number line, a clock face, a keyboard). A Find it
+#: board is squarely on the **choice** side of that line -- four graphemes, one
+#: of which answers a sound the child has just heard and three of which are
+#: there to be discriminated against -- so the ceiling binds, and four is
+#: inside it with a tile to spare.
+#:
+#: It is a constant rather than a comment because the tempting change is
+#: "one more distractor makes it harder", and the answer to that is an ADR.
+CHOICE_CEILING = 5
+
+#: How many tiles a full board carries. One target and three distractors: the
+#: three tiers below have something to say at three, and a fourth distractor
+#: would be tier 4 padding bought at the cost of a fifth thing to hold.
+BOARD_TILES = 4
 
 #: Tier 1: the same shape under a flip or a turn. Written as unordered pairs;
 #: :func:`_partners` expands them both ways.
@@ -184,7 +209,7 @@ def find_it_options(
     ceiling: Ceiling,
     target: Gpc,
     *,
-    count: int = 4,
+    count: int = BOARD_TILES,
     rng: random.Random | None = None,
 ) -> list[Gpc]:
     """The whole board: the target plus its distractors, in tile order.
@@ -192,7 +217,20 @@ def find_it_options(
     Shuffled, because a correct answer that is always in the same place is a
     position-memory task rather than a grapheme task -- and a five-year-old will
     find the pattern before an adult notices there is one.
+
+    ``count`` is held to :data:`CHOICE_CEILING` (ADR-0013). A caller asking for
+    more is asking for a decision a five-year-old has to hold more of than they
+    can, and the honest thing to do with it is to say so in the log and give
+    them five -- refusing outright would turn a design mistake into a child
+    staring at a screen that will not start.
     """
+    if count > CHOICE_CEILING:
+        log.warning(
+            "a Find it board of %d was asked for; ADR-0013 caps a choice set at %d",
+            count,
+            CHOICE_CEILING,
+        )
+        count = CHOICE_CEILING
     rng = rng or random.Random(target.order)
     board: list[Gpc] = [target, *choose_distractors(corpus, ceiling, target, count=count - 1, rng=rng)]
     rng.shuffle(board)

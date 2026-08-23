@@ -94,10 +94,22 @@ why = "The single clearest finding about phonics software is that it works when 
 
 # --------------------------------------------------------------------------
 # Lines the child may hear or see
+#
+# One rule beyond the blacklist above, and it is specific to `find_it`: **the
+# prompt never contains the grapheme.** The task is to match a *sound* to a
+# letter, so a line that prints the letter is the answer key printed over the
+# board (checkpoint-2 audit section 3, defect 1). The sound arrives as a
+# separate utterance -- a recording where one exists, the spelled label where
+# one does not -- and `tests/test_find_it_prompt.py` asserts that no prompt or
+# caption on that screen ever names a grapheme.
+#
+# These strings are also the msgids: `sounds_and_words.activity.CHILD_LINES`
+# holds the same words wrapped in `N_()` so `xgettext` can see them, and a test
+# fails if the two ever drift apart (docs/design/sounds-and-words.md section 15).
 # --------------------------------------------------------------------------
 
 [child]
-find_it = "Find the one that says"
+find_it = "Find the one that says…"
 blend_it = "Say the sounds, then push them together."
 read_it = "Read it to someone."
 say_it_aloud = "Now say it out loud."

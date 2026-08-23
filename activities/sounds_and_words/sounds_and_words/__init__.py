@@ -38,8 +38,10 @@ from .ceiling import (
     segment,
     tokenise,
 )
+from .clips import ClipPlayer, NullClipPlayer, make_player
 from .corpus import Corpus, Gpc, TrickyWord, Word, load_corpus
-from .distractors import choose_distractors, find_it_options
+from .distractors import CHOICE_CEILING, board_graphemes, choose_distractors, find_it_options
+from .i18n import N_
 from .keys import BoardKeys, Press, PressResult, keys_for
 from .loop import MAX_ITEMS, Outcome, Plan, SessionRunner, plan_session
 from .phonemes import Phoneme, Source, phoneme_for, say_label
@@ -61,12 +63,16 @@ from .summary import Summary, SummaryCard, caption_for, meta_for
 #: The manifest id the shell launches this as, and the id every Journal entry
 #: is filed under. It is a slug, and it is the identity everywhere that matters.
 ACTIVITY_ID = "sounds-and-words"
-#: The window title, and the fallback title of a Journal card.
-TITLE = "Sounds & words"
+#: The window title, and the fallback title of a Journal card. ``N_`` because
+#: it is a module-level constant: it holds the msgid, and the *use site* --
+#: :func:`sounds_and_words.activity.main` -- calls ``_()`` on it once a child's
+#: language is known (docs/design/i18n.md, ADR-0012).
+TITLE = N_("Sounds & words")
 
 __all__ = [
     "ACTIVITY_ID",
     "BOX_INTERVALS",
+    "CHOICE_CEILING",
     "MAX_ITEMS",
     "PICTURE_WORDS",
     "TITLE",
@@ -74,6 +80,7 @@ __all__ = [
     "BlendWord",
     "BoardKeys",
     "Ceiling",
+    "ClipPlayer",
     "Corpus",
     "Gpc",
     "GpcState",
@@ -81,6 +88,7 @@ __all__ = [
     "Item",
     "ItemKind",
     "Mark",
+    "NullClipPlayer",
     "Outcome",
     "ParentCeiling",
     "Phoneme",
@@ -107,6 +115,7 @@ __all__ = [
     "allowed_texts",
     "allowed_words",
     "blend_word",
+    "board_graphemes",
     "caption_for",
     "ceiling_for_grapheme",
     "ceiling_for_phase",
@@ -124,6 +133,7 @@ __all__ = [
     "load_parent_ceiling",
     "load_progress",
     "load_schemes",
+    "make_player",
     "meta_for",
     "phoneme_for",
     "picture_for",

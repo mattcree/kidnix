@@ -1,0 +1,116 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR kidnix contributors
+# This file is distributed under the same license as the kidnix package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: kidnix 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
+"POT-Creation-Date: 2026-08-23 16:37+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: sounds_and_words/__init__.py:70
+msgid "Sounds & words"
+msgstr ""
+
+#. TRANSLATORS: two sentences to the grown-up, joined. `{invite}` asks
+#. them to sit down; `{prompt}` is the thing to ask the child.
+#: sounds_and_words/activity.py:638
+#, python-brace-format
+msgid "{invite} {prompt}"
+msgstr ""
+
+#: sounds_and_words/phonemes.py:178
+#, python-brace-format
+msgid "yes, {sound}"
+msgstr ""
+
+#. TRANSLATORS: the caption of a session where nothing was blended. It
+#. must not sound like a failure -- the child did work, it just was not
+#. whole words.
+#: sounds_and_words/summary.py:104
+msgid "Some sounds today"
+msgstr ""
+
+#. TRANSLATORS: the Journal caption. `{words}` is the child's own word list,
+#. comma-separated and never counted. Keep the placeholder last if your
+#. language allows it; the words are the point of the sentence.
+#: sounds_and_words/summary.py:108
+#, python-brace-format
+msgid "Read today: {words}"
+msgstr ""
+
+#. TRANSLATORS: the small heading on the card the child keeps, set in
+#. lowercase because every child-facing letterform in this activity is.
+#. The words under it are the child's own and are never translated.
+#: sounds_and_words/summary.py:199
+msgid "read today"
+msgstr ""
+
+#: sounds_and_words/summary.py:200
+msgid "some sounds today"
+msgstr ""
+
+#: sounds_and_words/text.py:79
+msgid "Find the one that says…"
+msgstr ""
+
+#: sounds_and_words/text.py:81
+msgid "Say the sounds, then push them together."
+msgstr ""
+
+#: sounds_and_words/text.py:82
+msgid "Now say it out loud."
+msgstr ""
+
+#: sounds_and_words/text.py:83
+msgid "That's the lot for today."
+msgstr ""
+
+#: sounds_and_words/text.py:84
+msgid "Nothing to practise today. Go and find a book."
+msgstr ""
+
+#: sounds_and_words/text.py:85
+msgid "Have another go."
+msgstr ""
+
+#: sounds_and_words/text.py:86
+msgid "Read it to someone."
+msgstr ""
+
+#: sounds_and_words/text.py:109
+msgid "push"
+msgstr ""
+
+#: sounds_and_words/text.py:110
+msgid "Push the sounds together."
+msgstr ""
+
+#: sounds_and_words/text.py:111
+msgid "next"
+msgstr ""
+
+#: sounds_and_words/text.py:112
+msgid "Next one."
+msgstr ""
+
+#: sounds_and_words/text.py:115
+msgid "Your turn"
+msgstr ""
+
+#: sounds_and_words/text.py:116
+msgid "Sit with him for this bit."
+msgstr ""
+
+#: sounds_and_words/text.py:117
+msgid "Ask him to say the word out loud to you."
+msgstr ""

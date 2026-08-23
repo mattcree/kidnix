@@ -15,6 +15,8 @@ import pytest
 
 from sounds_and_words.ceiling import ceiling_for_grapheme
 from sounds_and_words.distractors import (
+    BOARD_TILES,
+    CHOICE_CEILING,
     board_graphemes,
     choose_distractors,
     confusability,
@@ -177,3 +179,31 @@ def test_confusability_is_a_sort_key_not_a_score(corpus):
     d, p, s = (corpus.gpc_by_id[i] for i in ("d", "p", "s"))
     assert confusability(d, p) < confusability(d, s)
     assert confusability(d, p)[0] == 0
+
+
+# --- the five-choice ceiling (ADR-0013) -------------------------------------
+
+
+def test_a_find_it_board_is_a_choice_set_and_stays_under_the_ceiling(corpus, phase3):
+    """ADR-0013 draws the line the checkpoint-2 audit asked for: five is the
+    bound on a choice the child has to *weigh*, not on a labelled grid whose
+    items are the task itself. Four graphemes, one of which answers a sound
+    they have just heard, is squarely a choice -- so the ceiling binds, and
+    four sits inside it with a tile to spare."""
+    for target in [g for g in corpus.gpcs if g.id in phase3.gpc_ids]:
+        board = find_it_options(corpus, phase3, target, rng=random.Random(1))
+        assert len(board) <= CHOICE_CEILING, (target.id, board_graphemes(board))
+
+
+def test_the_default_board_is_four_tiles(corpus, set3):
+    assert BOARD_TILES == 4
+    assert len(find_it_options(corpus, set3, corpus.gpc_by_id["t"])) == BOARD_TILES
+
+
+def test_asking_for_more_than_five_is_capped_rather_than_obeyed(corpus, phase3, caplog):
+    """Refusing outright would turn a design mistake into a child staring at a
+    screen that will not start. The cap is loud in the log instead."""
+    with caplog.at_level("WARNING"):
+        board = find_it_options(corpus, phase3, corpus.gpc_by_id["t"], count=9)
+    assert len(board) == CHOICE_CEILING
+    assert "ADR-0013" in caplog.text

@@ -39,6 +39,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+from .i18n import _
+
 __all__ = [
     "CARD_HEIGHT",
     "CARD_WIDTH",
@@ -96,8 +98,14 @@ def caption_for(words: Sequence[str]) -> str:
     """
     kept = [word.strip().lower() for word in words if word and word.strip()]
     if not kept:
-        return "Some sounds today"
-    return "Read today: " + ", ".join(kept)
+        # TRANSLATORS: the caption of a session where nothing was blended. It
+        # must not sound like a failure -- the child did work, it just was not
+        # whole words.
+        return _("Some sounds today")
+    # TRANSLATORS: the Journal caption. `{words}` is the child's own word list,
+    # comma-separated and never counted. Keep the placeholder last if your
+    # language allows it; the words are the point of the sentence.
+    return _("Read today: {words}").format(words=", ".join(kept))
 
 
 def meta_for(card: SummaryCard) -> dict:
@@ -185,7 +193,12 @@ def render_card(
     context.fill()
 
     lines = layout(card.words)
-    body = ["read today", *(" ".join(line) for line in lines)] if lines else ["some sounds today"]
+    # TRANSLATORS: the small heading on the card the child keeps, set in
+    # lowercase because every child-facing letterform in this activity is.
+    # The words under it are the child's own and are never translated.
+    heading = _("read today")
+    empty = _("some sounds today")
+    body = [heading, *(" ".join(line) for line in lines)] if lines else [empty]
 
     margin = width // 12
     usable = width - margin * 2
@@ -202,7 +215,8 @@ def render_card(
         pango_layout.set_text(text, -1)
         pango_layout.set_width(usable * Pango.SCALE)
         pango_layout.set_alignment(Pango.Alignment.LEFT)
-        _, logical = pango_layout.get_pixel_extents()
+        # Not `_`: that name belongs to gettext everywhere in this package.
+        _ink, logical = pango_layout.get_pixel_extents()
         layouts.append((pango_layout, logical.height))
         total += logical.height
 

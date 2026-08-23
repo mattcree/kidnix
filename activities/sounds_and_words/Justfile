@@ -49,6 +49,43 @@ test-gtk DISPLAY_NUMBER="108":
 lint:
     {{ uvrun }} ruff check .
 
+# --- translations (ADR-0012, docs/design/i18n.md, sounds-and-words.md §15) ----
+#
+# This activity has **no catalogue of its own**. It is a separate program and
+# not a separate release, so it shares the shell's `kidnix` domain and the
+# shell's `.mo` files -- a child cannot tell which process drew a sentence, and
+# two catalogues would be two places for the same word to be translated
+# differently.
+#
+# So `po/sounds-and-words.pot` below is a **review aid**, not a shipped file:
+# it is how you check that every child-facing string in this package is
+# extractable, and how a translator reads them all in one place. The strings
+# reach a real `.mo` only when `shell/Justfile`'s `po-extract` scans this
+# directory as well -- one line, written out in §15 of the design note. Keep
+# the keyword list below identical to the shell's, or the two will disagree
+# about what a msgid is.
+po-extract:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p po
+    mapfile -t sources < <(find sounds_and_words -name '*.py' | sort)
+    xgettext \
+        --language=Python \
+        --from-code=UTF-8 \
+        --keyword=_ \
+        --keyword=N_ \
+        --keyword=ngettext:1,2 \
+        --keyword=NP_:1,2 \
+        --package-name=kidnix \
+        --package-version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' sounds_and_words/__init__.py)" \
+        --msgid-bugs-address=https://github.com/mattcree/kidnix/issues \
+        --copyright-holder="kidnix contributors" \
+        --add-comments=TRANSLATORS \
+        --sort-by-file \
+        --output=po/sounds-and-words.pot \
+        "${sources[@]}"
+    echo "po/sounds-and-words.pot: $(grep -c '^msgid ' po/sounds-and-words.pot) entries"
+
 # Regenerate data/*.toml from the transcription. A test insists the checked-in
 # files match byte for byte.
 generate:

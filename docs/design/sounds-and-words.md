@@ -848,3 +848,188 @@ absences); (3) Kokoro pre-render — also a TTS, same plosive problem, untested.
 Matt is the obvious first voice; a second, child-familiar voice (a teacher,
 a grandparent) would be even better. Until then the activity is honest about
 it: the label is spoken, not the sound.
+
+## 15. The checkpoint-2 fixes (2026-08-23)
+
+> Items 6, 7 and 9 of `docs/design/cci-compliance-audit-2026-08-23-checkpoint-2.md`
+> §6, plus ADR-0013. This section is additive: where it disagrees with §12,
+> **this section is what the code does** and the difference is called out under
+> each heading.
+
+### 15.1 The prompt no longer prints the answer
+
+The audit's §3 defect 1: `activity.py` drew `f"Find the one that says
+{say_label(gpc)}."` and `saw-find-it.png` shows *"Find the one that says k."*
+over four tiles, one of which is `k`. The task is *match a sound to a
+grapheme*; the screen was showing the grapheme.
+
+What is on the glass now:
+
+```
+        Find the one that says…            [ear]
+
+           [ s ]  [ a ]  [ k ]  [ m ]
+```
+
+- **The visible line is `Find the one that says…`**, and it is the same string
+  in the caption strip, because the caption *is* the utterance
+  (`kidnix_activity.captions`). The ellipsis stands where the grapheme used to.
+- **The sound is a second utterance**, `SETTLE_MS` later
+  (`SoundsAndWords.show_find_it`): a recording where one exists, the spelled
+  label where one does not. Never joined into one sentence — joining them would
+  put the answer straight back into the caption strip.
+- **The replay button replays the sound**, not the sentence. The sentence is
+  not the part a child missed.
+- The sound's *own* caption is still the label ("sss"), and that is deliberate:
+  on that line the grapheme-shaped text is a deaf child's accommodation rather
+  than everyone's answer key, which is exactly the distinction the audit drew.
+- **Blend it** was already clean — *"Say the sounds, then push them together."*
+  names no grapheme and does not say the word, because reading the word on the
+  screen **is** the task. It is held to the same test.
+
+The rule is code, not a comment. `sounds_and_words/text.py` holds every
+child-facing msgid and `names_a_grapheme(text, graphemes)`, which tokenises a
+line and reports the first grapheme standing in it *as a word of its own*. It
+is deliberately not a substring search: "Find the one that says…" contains `s`,
+`a`, `t` and `i`, and a rule that banned that would ban speaking.
+
+`SoundsAndWords.find_it_line(board)` runs the prompt through it **before
+showing it** and falls back to the default, loudly, if the corpus names a tile
+— because `data/parent_text.toml` is copy a grown-up can edit and a translator
+will certainly rewrite, and "Find the one that says k." is exactly the helpful
+edit somebody makes.
+
+Tests: `tests/test_text.py` (headless, the rule and the shipped strings) and
+five new ones in `tests/test_gtk_screens.py` (the prompt over a real board for
+five targets, the two-utterance order, the caption strip, the refused edit, and
+Blend it). `data/parent_text.toml`'s `find_it` changed with them.
+
+> **Stale artefact:** `docs/design/screenshots/saw-find-it.png` still shows the
+> old line. `just screenshots` regenerates it under Broadway; the file is
+> outside this activity's directory and was left alone.
+
+### 15.2 There is a clip player now
+
+§12.6 said *"there is also no clip player in the SDK yet, so the first real
+clip will fail as a missing player rather than as a wrong sound"*. That is
+still true of the **SDK**, which speaks and does not play. The player is in the
+activity: `sounds_and_words/clips.py`, one GStreamer `playbin`, ~200 lines
+including the reasons.
+
+- `make_player()` returns a `GstClipPlayer` where GStreamer is usable and a
+  `NullClipPlayer` where it is not — no PyGObject, no `Gst` typelib, no
+  `playbin` element, a broken install: all four end in "no clip played", never
+  in an exception in front of a five-year-old.
+- **A new sound cancels the old one** (`NULL` before every `uri`), the same
+  policy `SpeechManager` has for sentences. A child sweeping four tiles must
+  not build up four phonemes to wait out.
+- **Mute takes the clip away and leaves the label.** That looks backwards until
+  you remember what mute is for: silence with the captions still running. The
+  spoken label goes through the caption hook, which fires *before* the "is
+  speech on?" check; a clip played into a muted sink would be silence with
+  nothing on the strip. `calm` does not silence a phoneme — it is the content
+  of the activity, not an earcon — and reaches it only through the volume.
+- The volume is `access.effective_volume`, read from the SDK's own
+  `ActivitySpeech.access` rather than re-read from disk.
+- `SoundsAndWords.clip_dir` is the test seam; `phonemes.CLIP_DIR`
+  (`/usr/share/kidnix/phonemes/en_GB/`) is still the answer on the image, and
+  it is still **empty**. Nothing about §14 changes: the ~20 recordings are
+  still one adult and one morning, and until they exist every phoneme is still
+  a spelled placeholder.
+
+Tests: `tests/test_clips.py` (a fake `Gst` namespace and a fake element — the
+cancel, the clamp, the failure paths, the bus, the idempotent close) and six in
+`tests/test_gtk_screens.py` for the wiring (played not spoken, the fallback, a
+player that refuses, mute, volume, and the player being let go on SIGTERM).
+
+**One hole, and it needs the SDK, not this activity.** A clip is not *said*, so
+it is not captioned, and the caption datagram has no "show this but do not say
+it" key to borrow — a delivered datagram **is** the utterance and the shell
+speaks it. So on the day the first recording lands, a deaf child gets the
+instruction captioned and the sound not. The fix is one optional key in
+`kidnix_activity.captions` + `kidnix_shell.captions` (`{"speak": …, "say":
+false}`), and it must land in the same wave as the recordings. Today no clip
+exists, so nothing is uncaptioned today.
+
+### 15.3 Every child-facing string is marked
+
+The audit found **0** `_()` calls here. Now:
+
+- `sounds_and_words/text.py` carries all 21 msgids — the seven `[child]` lines,
+  the two picture buttons' label-and-sentence pairs, the grown-up card's three,
+  the two on the summary card, `yes, {sound}` and the title. `N_()` at module
+  level, `_()` at the use site, never `_()` at module level (a module-level
+  translation freezes whichever language was installed at import time).
+- **The corpus still supplies the words at runtime.** `parent_text.toml` is
+  where the no-score blacklist test can see them; `text.CHILD_LINES` is where
+  `xgettext` can. `child_text()` reads the corpus and passes the result through
+  `_()`, and `tests/test_i18n.py` fails if the two lists ever drift apart.
+- Word order is a translator's, not ours: `yes, {sound}`, `Read today:
+  {words}`, `{invite} {prompt}` are placeholders rather than concatenations
+  (i18n.md §2.2).
+- `sounds_and_words/i18n.py` is a two-line wrapper, not a re-export, for one
+  reason: **the pure half of this package must import with no SDK installed**
+  (`tests/test_sdk.py` runs `python -c "import sounds_and_words"` in a
+  subprocess with neither `kidnix_activity` on its path nor `gi` in
+  `sys.modules`). With the SDK it is `kidnix_activity.i18n`; without it, the
+  identity function — and en_GB is the source, not a translation, so that is
+  not a degraded mode.
+- Three AST guards in `tests/test_i18n.py`: nothing translates at module level;
+  no child-facing widget (`Prompt`, `BigButton`, `GrownUpTurn`, `ChildButton`,
+  `_icon_button`) is handed a bare string literal; and `TITLE` is `N_`-marked.
+  Plus a real `xgettext` run over the package asserting every msgid comes out.
+
+**Extraction — and the one line this activity may not write.** kidnix has one
+gettext domain and one catalogue: an activity is a separate *program*, not a
+separate *release*, and two catalogues would be two places for the same word to
+be translated differently. So:
+
+- `just po-extract` **here** writes `po/sounds-and-words.pot` (21 entries). It
+  is a **review aid** — a translator reading the activity's words in one place,
+  and a check that they are all extractable. It is not shipped and no `.mo` is
+  built from it.
+- The strings reach a real catalogue only when the **shell's** `po-extract`
+  scans this directory. `shell/Justfile:84` finds `kidnix_shell` and
+  `kidnix_activity` and nothing else. The change is one line, and it belongs to
+  whoever owns `shell/`:
+
+  ```diff
+  -    mapfile -t sources < <(find kidnix_shell kidnix_activity -name '*.py' | sort)
+  +    mapfile -t sources < <(find kidnix_shell kidnix_activity \
+  +        ../activities/*/[a-z]*/ -name '*.py' | sort)
+  ```
+
+  The keyword list in this activity's recipe is a byte-for-byte copy of the
+  shell's, so the two cannot disagree about what a msgid is.
+
+**Not localised, and deliberately.** The *sounds* — `say_label()`'s "sss",
+"shh", "ay" — are not msgids. A phoneme is not a word; it is the same noise
+whatever language the child's machine is set to, and a translator asked to
+"translate sss" would be being asked the wrong question. The same goes for the
+corpus itself: an en-GB phonics corpus is content for teaching English, and a
+Welsh or Polish reading activity is a different corpus and a different design
+note, not a translation of this one. The **parent-facing** sections of
+`parent_text.toml` (`setup`, the three panes, `what_this_is_not`) are content
+too and follow i18n.md §4's per-locale-key route when the parent pane is built
+in week 5 — they are not in the 21.
+
+### 15.4 ADR-0013: a Find it board is a choice set, and four is inside the ceiling
+
+ADR-0013 draws the line the audit asked for: five is the bound on a choice the
+child has to *weigh*, and not on a labelled grid whose items are the task
+itself (a number line, a clock face, a keyboard). A Find it board is squarely
+on the **choice** side of it — four graphemes, one of which answers a sound
+they have just heard and three of which are there to be discriminated against —
+so the ceiling binds, and four sits inside it with a tile to spare.
+
+`distractors.CHOICE_CEILING = 5` and `BOARD_TILES = 4` are constants rather
+than comments, because the tempting change is "one more distractor makes it
+harder" and the answer to that is an ADR. A caller asking for more is **capped
+and logged**, not refused: refusing would turn a design mistake into a child
+staring at a screen that will not start. Three tests in
+`tests/test_distractors.py`, one of which walks every taught GPC.
+
+Blend it is the other direction and unchanged: its buttons are one per *sound
+in the word*, which is the word itself and not a set of alternatives — ADR-0013's
+labelled-grid side — and it is bounded by the corpus's taste for short words,
+not by our taste. Nothing in the v1 ceiling reaches five sounds.
