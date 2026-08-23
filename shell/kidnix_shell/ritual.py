@@ -122,7 +122,7 @@ class RitualAction(Enum):
 #: Where the child can be when the clock decides to interrupt them. The ritual
 #: screens themselves are not in here: an interruption on top of an
 #: interruption is how the offer loop happened.
-INTERRUPTIBLE = frozenset({State.HOME, State.IN_ACTIVITY, State.JOURNAL})
+INTERRUPTIBLE = frozenset({State.HOME, State.SHELF, State.IN_ACTIVITY, State.JOURNAL})
 
 #: Put away also reaches the child who is still looking at the offer, because
 #: not answering it is a legitimate answer -- and the child still sitting on
@@ -224,6 +224,78 @@ def next_action(
             # one (:meth:`kidnix_shell.launcher.Launcher.hard_stop`).
             return RitualAction.HARD_STOP
     return RitualAction.NOTHING
+
+
+# --- Undo, inside somebody else's program (spec 7d, and its limits) ------
+#
+# **The shell cannot undo inside an activity, and it should stop implying it
+# might.** The panel asked for `undo_key` in the manifest so that the band's
+# Undo could route a keystroke into the running program. It was investigated
+# and it does not exist as a clean mechanism on this machine:
+#
+# * a GTK client cannot synthesise input into *another* Wayland client -- that
+#   is the protocol working, not a gap;
+# * `wtype` needs the compositor to implement `virtual-keyboard-v1`, which
+#   mutter/gnome-kiosk deliberately does not;
+# * `ydotool` writes to `/dev/uinput`, i.e. a system-wide input-injection
+#   device. Handing the child's session write access to it would hand every
+#   program in that session a keylogger's twin, on the one account the whole
+#   image exists to fence in. Neither tool is installed and neither should be.
+#
+# So `undo_key` is *read* and never *sent*: it is what lets the shell say where
+# the child's undo actually is instead of guessing that there is one. The
+# honest, audible answer beats the clever, intermittent one -- the same rule as
+# "Nothing to undo".
+
+#: Where to point a child whose Undo press landed inside an activity. Kept
+#: short: it is spoken *and* captioned, and one caption line is ~57 characters
+#: on the narrowest panel kidnix ships for.
+UNDO_ELSEWHERE = "Undo for {name} is in {name}'s own buttons."
+UNDO_WITH_KEY = "Undo in {name} is {key}."
+UNDO_UNKNOWN = "This one has its own undo button."
+
+#: How a manifest's ``undo_key`` is said out loud. A pre-reader cannot read
+#: "ctrl+z", and espeak says it as a word; a grown-up sitting next to them can.
+KEY_WORDS = {
+    "ctrl": "Control",
+    "control": "Control",
+    "shift": "Shift",
+    "alt": "Alt",
+    "super": "Super",
+    "cmd": "Command",
+}
+
+
+def spoken_key(undo_key: str) -> str:
+    """``"ctrl+z"`` -> ``"Control and Z"``. Empty in, empty out."""
+    parts = [part.strip() for part in (undo_key or "").split("+") if part.strip()]
+    if not parts:
+        return ""
+    words = [
+        KEY_WORDS.get(part.lower(), part.upper() if len(part) == 1 else part) for part in parts
+    ]
+    if len(words) == 1:
+        return words[0]
+    # "Control and Z"; "Control, Shift and Z". Commas are ~200 ms of breath to
+    # speech-dispatcher, which is what keeps three key names from running into
+    # one another for a grown-up reading it out to the child.
+    return " and ".join([", ".join(words[:-1]), words[-1]])
+
+
+def undo_line(name: str, undo_key: str = "") -> str:
+    """What the band's Undo says when the child is inside an activity.
+
+    Three shapes, and the difference between them is how much the manifest
+    knows: a named activity with a known keystroke, a named activity without
+    one, and the fallback for an activity the shell has somehow lost the name
+    of. None of them claims the press did anything.
+    """
+    if not name:
+        return UNDO_UNKNOWN
+    key = spoken_key(undo_key)
+    if key:
+        return UNDO_WITH_KEY.format(name=name, key=key)
+    return UNDO_ELSEWHERE.format(name=name)
 
 
 # --- what Put away says, and why it is not always the same sentence ------

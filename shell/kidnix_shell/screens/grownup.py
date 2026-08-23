@@ -12,7 +12,10 @@ log out to GDM.
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 from datetime import datetime
+from pathlib import Path
 
 import gi
 
@@ -22,7 +25,7 @@ from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from ..context import ShellContext  # noqa: E402
 from ..session import MAX_SESSION_MINUTES, MIN_SESSION_MINUTES, StartRefusal  # noqa: E402
-from ..settings import rewrite_pin  # noqa: E402
+from ..settings import SYSTEM_CONFIG_DIR, rewrite_pin  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -48,12 +51,34 @@ STARTER_PIN_SUBTITLE = (
 
 #: What to tell a grown-up when the config is root-owned, which on a real
 #: machine it always is. A real command, runnable as it stands: the shell is
-#: its own root helper (``kidnix-shell --set-pin``). Never a pretend save.
-SET_PIN_COMMAND = "sudo kidnix-shell --set-pin"
+#: its own root helper (``kidnix-shell --set-pin``, or ``kidnix-set-pin``).
+#: Never a pretend save.
+SET_PIN_COMMAND = "sudo kidnix-set-pin"
 SET_PIN_READ_ONLY = (
-    "This PIN pad cannot write /etc/kidnix/parent.toml -- the shell runs as the "
-    f"child, and that is what keeps the PIN out of their hands. Run:\n\n    {SET_PIN_COMMAND}\n\n"
-    "on this machine (a terminal, or over SSH) and it will ask you for the new PIN."
+    "Kept for this session. This pad cannot write /etc/kidnix/parent.toml -- the shell "
+    "runs as the child, and that is what keeps the PIN out of their hands. The gate is "
+    "closed with your PIN until the machine restarts. To keep it, run:\n\n"
+    f"    {SET_PIN_COMMAND}\n\n"
+    "from a terminal on this machine, or from the parent account, and it will ask you "
+    "for the PIN again."
+)
+
+#: The root helper the shell tries first, before falling back to a PIN that
+#: holds for one boot. It exists, it works from the *parent's* account, and it
+#: is refused from the child's session by design -- see the note in
+#: :meth:`GrownupSheet._write_pin`.
+SET_PIN_HELPER = "/usr/bin/kidnix-set-pin"
+#: How long to wait for it. A polkit prompt the kid session cannot answer must
+#: not become a shell that has stopped responding to a five-year-old.
+SET_PIN_TIMEOUT_SECONDS = 20
+
+#: The first thing a grown-up sees on a machine nobody has set up. Not the
+#: pad, not the actions: the gate is unset and the only thing to do is set it
+#: (spec 7d #11).
+NO_PIN_TITLE = "This machine has no grown-up PIN yet"
+NO_PIN_SUBTITLE = (
+    "Nothing else in here opens until you have chosen four numbers. "
+    "Pick them somewhere they are not looking."
 )
 
 
@@ -117,6 +142,9 @@ class GrownupSheet(Adw.Dialog):
         #: check one: the first entry, then the confirmation.
         self._new_pin: str | None = None
         self._setting_pin = False
+        #: True when the machine has no PIN at all, so the flow may not be
+        #: escaped into the actions page (spec 7d #11).
+        self._pin_mandatory = False
 
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
@@ -129,6 +157,16 @@ class GrownupSheet(Adw.Dialog):
         toolbar.add_top_bar(header)
         toolbar.set_content(self._stack)
         self.set_child(toolbar)
+
+        # **A machine with no PIN opens on "choose one", before anything
+        # else** (spec 7d #11). The image ships `parent.toml` with no
+        # `pin_hash` at all now, so this is the state of every fresh install,
+        # and Mags's sentence is the specification: "make it refuse to start
+        # until I have picked my own four numbers." There is no pad to type
+        # 1234 into first -- the built-in default is a programmatic fallback
+        # and no longer a way in.
+        if ctx.config.must_set_pin:
+            self._begin_setting_pin(mandatory=True)
 
         self.connect("closed", lambda _d: ctx.host.close_grownup())
 
@@ -147,6 +185,14 @@ class GrownupSheet(Adw.Dialog):
         self._pin_title.set_wrap(True)
         self._pin_title.set_justify(Gtk.Justification.CENTER)
         box.append(self._pin_title)
+
+        # Only shown on the unconfigured machine, where the title alone would
+        # read as an obstacle rather than as an instruction.
+        self._pin_help = Gtk.Label(label="")
+        self._pin_help.set_wrap(True)
+        self._pin_help.set_justify(Gtk.Justification.CENTER)
+        self._pin_help.set_visible(False)
+        box.append(self._pin_help)
 
         self._display = Gtk.Label(label="_ _ _ _")
         self._display.add_css_class("pin-display")
@@ -210,8 +256,14 @@ class GrownupSheet(Adw.Dialog):
         self._display.set_label("_ _ _ _")
 
     def _cancel_pin(self) -> None:
-        """Cancel closes the sheet -- unless a PIN is being chosen."""
-        if self._setting_pin:
+        """Cancel closes the sheet -- unless a PIN is being chosen.
+
+        On a machine with no PIN at all, Cancel closes the **sheet**: there is
+        no actions page to go back to, because nothing behind this gate is open
+        until a grown-up has chosen four numbers. It is a way out of the
+        screen, never a way past it.
+        """
+        if self._setting_pin and not self._pin_mandatory:
             self._end_setting_pin()
             self._stack.set_visible_child_name("actions")
             return
@@ -219,7 +271,7 @@ class GrownupSheet(Adw.Dialog):
 
     # -- choosing a new PIN (panel ruling, 2026-08-23) --
 
-    def _begin_setting_pin(self) -> None:
+    def _begin_setting_pin(self, mandatory: bool = False) -> None:
         """Use the pad to *choose* a PIN: once, then again to confirm.
 
         The flow exists because Mags (forum #13, #56) has no way to change hers
@@ -227,18 +279,28 @@ class GrownupSheet(Adw.Dialog):
         in a row" to a six-year-old who watches her type. Whether it can
         actually be saved is a separate question, answered honestly in
         :meth:`_finish_setting_pin`.
+
+        ``mandatory`` is the unconfigured machine: the sheet **opens** here and
+        there is nothing else to reach until it is done.
         """
         self._setting_pin = True
+        self._pin_mandatory = mandatory
         self._new_pin = None
         self._reset_pin()
         self._error.set_label("")
-        self._pin_title.set_label("Choose a new grown-up PIN")
+        self._pin_title.set_label(
+            NO_PIN_TITLE if mandatory else "Choose a new grown-up PIN",
+        )
+        self._pin_help.set_label(NO_PIN_SUBTITLE if mandatory else "")
+        self._pin_help.set_visible(mandatory)
         self._stack.set_visible_child_name("pin")
 
     def _end_setting_pin(self) -> None:
         self._setting_pin = False
+        self._pin_mandatory = False
         self._new_pin = None
         self._reset_pin()
+        self._pin_help.set_visible(False)
         self._pin_title.set_label("Enter the grown-up PIN")
 
     def _check_setting(self) -> None:
@@ -257,34 +319,92 @@ class GrownupSheet(Adw.Dialog):
         self._finish_setting_pin(entered)
 
     def _finish_setting_pin(self, pin: str) -> None:
-        """Write it if we can, and say the command to run if we cannot.
+        """Take the PIN, write it where we can, and say exactly what happened.
 
-        **Never pretend.** A sheet that said "saved" while the file stayed
-        root-owned would leave a parent believing they had a lock they do not
-        have, which is the exact failure the starter-PIN row exists to end.
+        **Never pretend, and never refuse either.** Three outcomes, in this
+        order, and the third is the one a real kid session gets:
+
+        1. the config file is writable here (a developer's ``--config``, or a
+           parent running the shell in their own account) -- write it;
+        2. the root helper answers (``kidnix-set-pin``, through pkexec) --
+           write it that way;
+        3. neither -- **the PIN still takes effect for this session**, and the
+           sheet says so in as many words along with the command that makes it
+           permanent.
+
+        Outcome 3 is not a fudge. The alternative is a machine whose gate stays
+        unset because the only person who can close it is holding a screen that
+        will not let them, and the shipped state is now "no PIN at all" -- so
+        four numbers a grown-up chose beat no numbers even if they last only
+        until the machine restarts. Every other setting on this sheet already
+        holds for one boot for the same reason (``READ_ONLY_SUBTITLE``); this
+        one says so louder, because it is the lock.
         """
         config = self.ctx.config
-        target = config.writable_path
-        if target is None:
-            self._end_setting_pin()
-            self._pin_error_row(SET_PIN_READ_ONLY)
-            self._stack.set_visible_child_name("actions")
-            return
-        try:
-            rewrite_pin(target, pin)
-        except OSError as exc:
-            log.warning("could not write the new PIN to %s: %s", target, exc)
-            self._end_setting_pin()
-            self._pin_error_row(f"Could not write {target}: {exc}\n\nRun {SET_PIN_COMMAND}.")
-            self._stack.set_visible_child_name("actions")
-            return
+        written, message, warn = self._write_pin(pin)
+        # The PIN is in force either way: `set_pin` is what closes the gate and
+        # clears `must_set_pin`, and it is the same PIN in both cases.
         config.set_pin(pin)
-        config.is_default = False
-        log.info("the grown-up PIN was changed from the sheet")
+        log.info("the grown-up PIN was set from the sheet (%s)", "saved" if written else "one boot")
         self._end_setting_pin()
-        self._pin_error_row(f"New PIN saved to {target}.", warn=False)
+        self._pin_error_row(message, warn=warn)
         self._refresh_pin_rows()
+        self._refresh_actions()
         self._stack.set_visible_child_name("actions")
+
+    def _write_pin(self, pin: str) -> tuple[bool, str, bool]:
+        """Try to persist ``pin``. Returns ``(written, what to say, warn?)``."""
+        target = self.ctx.config.writable_path
+        if target is not None:
+            try:
+                rewrite_pin(target, pin)
+            except OSError as exc:
+                log.warning("could not write the new PIN to %s: %s", target, exc)
+                return False, f"Could not write {target}: {exc}\n\nRun {SET_PIN_COMMAND}.", True
+            return True, f"New PIN saved to {target}.", False
+        path = self._helper_wrote(pin)
+        if path:
+            return True, f"New PIN saved to {path}.", False
+        return False, SET_PIN_READ_ONLY, True
+
+    def _helper_wrote(self, pin: str) -> str:
+        """Ask the root helper to write it. Returns the path, or ``""``.
+
+        **This is expected to fail in the child's own session, and that is the
+        image working**: ``40-kidnix-kid.rules`` refuses the ``kid`` account
+        every ``org.kidnix.*`` polkit action (and ``org.freedesktop.policykit.``
+        besides), which is exactly the rule that stops a child authorising
+        ``kidnix-wipe``. So this path is for the parent's account and for a
+        machine whose rules a later wave relaxes; in the kiosk it returns ""
+        after one refused prompt and the caller falls through to the honest
+        "for this session" answer.
+
+        The PIN goes over **stdin**, never argv: an argument is visible in
+        ``ps`` to every process on the machine for as long as the helper runs.
+        """
+        if not Path(SET_PIN_HELPER).is_file() or shutil.which("pkexec") is None:
+            return ""
+        try:
+            completed = subprocess.run(  # fixed argv, no shell
+                ["pkexec", SET_PIN_HELPER, "--stdin"],
+                input=f"{pin}\n".encode(),
+                capture_output=True,
+                timeout=SET_PIN_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            log.info("kidnix-set-pin did not run (%s); keeping the PIN for this boot", exc)
+            return ""
+        if completed.returncode != 0:
+            log.info(
+                "kidnix-set-pin was refused (exit %d); keeping the PIN for this boot. %s",
+                completed.returncode,
+                completed.stderr.decode("utf-8", "replace").strip()[:200],
+            )
+            return ""
+        return completed.stdout.decode("utf-8", "replace").strip() or str(
+            SYSTEM_CONFIG_DIR / "parent.toml"
+        )
 
     def _pin_error_row(self, text: str, *, warn: bool = True) -> None:
         self._pin_message.set_title(text)
@@ -311,11 +431,17 @@ class GrownupSheet(Adw.Dialog):
         """
         accepted = self.ctx.config.check_pin(self._pin)
         self._reset_pin()
-        log.info(
-            "grown-up gate: PIN attempt %s at %s",
-            "accepted" if accepted else "rejected",
-            datetime.now().isoformat(timespec="seconds"),
-        )
+        if self.ctx.research.pin_logging:
+            # **Gated since 2026-08-23** (spec 7d #10). "Is the gate reachable?"
+            # is a research question; a standing record of every time a child
+            # tried to get past a grown-up is a behavioural log of one child,
+            # in a persistent journal, that the child was never told about
+            # (safety review, checklist #19). It ships off.
+            log.info(
+                "grown-up gate: PIN attempt %s at %s",
+                "accepted" if accepted else "rejected",
+                datetime.now().isoformat(timespec="seconds"),
+            )
         if accepted:
             self._error.set_label("")
             self._refresh_actions()
@@ -514,7 +640,19 @@ class GrownupSheet(Adw.Dialog):
         self._refresh_pin_rows()
 
     def _refresh_pin_rows(self) -> None:
-        self._starter_row.set_visible(self.ctx.config.pin_is_starter)
+        config = self.ctx.config
+        # Two different warnings and they are not the same machine: "no PIN at
+        # all" is a machine nobody set up (and the sheet opened on the flow
+        # that fixes it), "still the starter PIN" is one carrying the hash the
+        # image used to ship.
+        if config.must_set_pin:
+            self._starter_row.set_title(NO_PIN_TITLE)
+            self._starter_row.set_subtitle(NO_PIN_SUBTITLE)
+            self._starter_row.set_visible(True)
+            return
+        self._starter_row.set_title(STARTER_PIN_TITLE)
+        self._starter_row.set_subtitle(STARTER_PIN_SUBTITLE)
+        self._starter_row.set_visible(config.pin_is_starter)
 
     def _start(self) -> None:
         session = self.ctx.session

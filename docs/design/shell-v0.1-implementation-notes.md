@@ -2432,3 +2432,278 @@ window dim, with the refusal captioned).
 7. Everything still open in §§18.9, 19.5, 20.6 and 21.10 that this pass did not
    touch — in particular `kidnix-one-more.svg`, which still does not depict
    anything.
+
+## 23. v0.1.9 — shelves, the child's voice, per-profile data and the PIN (2026-08-23)
+
+> Implementer's eighth report, and the shell half of the panel's remaining
+> rulings: spec §7d **#9** (voice), **#10** (research logging), **#11**
+> (per-profile data, and the starter PIN), **#12** (the GCompris shelf), plus
+> the `undo_key` question and one regression the real-VM e2e caught in flight.
+>
+> Wave C wrote the contract for the shelf (`docs/spikes/panel-wave-c.md` §2)
+> and for `research.toml` (§6b); this implements both against those files as
+> written. Everything in §§1–22 stands except where named.
+
+### 23.1 The shelf — S2b, and why it is not a second Home
+
+`kidnix_shell/screens/shelf.py`, `activities.load_shelf_children`,
+`activities.shelf_groups`, `State.SHELF`.
+
+The teacher's blocker was that "Letters & numbers" opened GCompris' own
+198-activity menu with eighteen reviewed EYFS/KS1 mappings sitting unreachable
+behind it. Wave C made those eighteen ordinary manifests in a subdirectory. The
+rendering side is deliberately thin — **no new parser and no new schema**, the
+same `load_directory`, the same `Activity`, the same `ActivityTile` — and the
+decisions that are not thin are these:
+
+* **One group to a page**, heading written at the top and *spoken* on the page
+  turn. Six groups of three beats one wall of eighteen: choosing between three
+  pictures under a heading somebody read to you is choosing; choosing between
+  eighteen is scanning. A group larger than a page splits and repeats its
+  heading, exactly as the Journal does and for the same reason.
+* **The page budget is `Metrics.choice_per_page`** — one row fewer than Home,
+  because this screen has a title and Home does not. That arithmetic already
+  existed (`choice_size`, §22.0) and this is the second screen to use it, which
+  is the point of having modelled it.
+* **No "All done" here.** It has one cell, on Home (§7d #5). Two places to
+  reach for the escape hatch is one too many for a child who navigates by
+  position.
+* **Back goes Home**, and Back *from an activity launched on a shelf* comes
+  back to the shelf. The graph keeps one exit from `IN_ACTIVITY`
+  (`ACTIVITY_EXITED → HOME`) and the window re-fires `OPEN_SHELF`, rather than
+  two edges that have to agree.
+* **An empty shelf is not a tile.** The children are loaded and availability-
+  resolved once at start-up (`resolve_shelves`, on the context), so Home knows
+  before it draws whether a shelf has anything on it. Same rule as an activity
+  whose program is missing: a tile that opens an empty screen is a tile that
+  lies.
+* **The age band bites on the children, not on the shelf** — panel-wave-c §2's
+  own instruction. A 4-only profile loses the six banded 5-8; the shelf tile is
+  unaffected because it spans its children.
+* `children_dir` is validated to a **plain directory name** (`CHILDREN_DIR_RE`).
+  A manifest is data the shell reads at start-up, not a path it follows.
+
+`--demo` grows a shelf of its own (six pretend games in two groups) so the
+second level of Home is demonstrable on a laptop with no GCompris on it, and so
+the demo exercises the real loader rather than a mock of it.
+
+### 23.2 "Tell me about it" — the 20 s voice note
+
+`kidnix_shell/voice.py`, `widgets.MicButton`, S6 and the Journal's showing mode.
+
+The cheapest big win in the review. `voice.py` is GTK-free and the recorder is
+injected, so all of the behaviour is a headless test (`tests/test_voice.py`,
+`FakeRecorder`): one press starts, a second stops, **20 s stops it anyway**, the
+level meter runs while it runs, and the note lands as `note.ogg` **inside the
+Journal entry's own directory** — beside `entry.json` and `v001.png`, so
+`kidnix-export` already takes it and `kidnix-wipe` already deletes it. No
+transcription, nothing sent anywhere, and it is not instrumented at all.
+
+Three judgements worth arguing with:
+
+1. **It is not drawn on a machine with no microphone.** `GstRecorder` probes
+   `pipewiresrc`/`autoaudiosrc` and an Ogg encoder once, at start-up, and
+   `ShellWindow._build_voice()` returns `None` if that fails. A mic button that
+   does nothing is precisely the control spec 7a took Ask out of the band to
+   avoid.
+2. **On Journal cards it appears only in "Show a grown-up" mode.** An ordinary
+   card *resumes* — Sugar's one great uncopied idea — so tapping one leaves the
+   screen and there is no "the card I am talking about" for a mic to mean. In
+   showing mode the cards are read-only, tapping one selects it (and plays its
+   note if there is one, which *is* the showing), and one button under the grid
+   serves it. One rather than one-per-card because a card is ~32 mm and already
+   carries a full-size star; a third 20 mm target on it would be three
+   overlapping targets on one thumbnail.
+3. **No retakes UI.** A second recording replaces the first, with one quiet
+   "Again?" and only if there was already a note. Asking a five-year-old to
+   judge their own recording is a different product.
+
+A card with a note wears a small **ear badge**, top-right, opposite the star —
+a badge, not a control.
+
+`stop()` sends EOS rather than dropping the pipeline to NULL: oggmux has to see
+it to write its last page, and going straight to NULL truncates the file. The
+screens and `shutdown()` all stop a running note on the way out for that
+reason.
+
+### 23.3 Per-profile data, and the migration
+
+`Paths.for_profile`, `Paths.profile_data/profile_state`,
+`settings.migrate_profile_data`, `ShellWindow._use_profile`.
+
+"Profiles are cosmetic" (forum #4) was literally true: one Journal, one daily
+budget and one disclosure counter per *machine*. Everything a child owns now
+hangs off `<data>/kidnix/profiles/<id>/…` and `<state>/kidnix/profiles/<id>/…`,
+and `_use_profile` — called from "Who's here?" **before** the clock starts, so
+`may_start` reads the right child's usage — is the single place that swaps it.
+
+`migrate_profile_data` moves a pre-profiles machine's `kidnix/journal`,
+`usage.toml` and `progress.toml` into the **first** profile, once. It is
+idempotent, it never overwrites a destination that already exists, and it is
+never fatal. Doing nothing would show a child an empty My Things on the morning
+of an upgrade, which is the one failure "nothing is ever deleted" exists to
+prevent.
+
+**The honest limit, named rather than hidden:** the Journal *importer* watches
+the activities' own directories, which every child on the machine shares (Tux
+Paint saves where Tux Paint saves). So which profile a new drawing lands in is
+"whoever is logged in". That is right for one machine per child and it is the
+real boundary of profiles that share one Unix account. Two children who use the
+machine in the same session would need either separate accounts or a
+per-profile save directory per activity, and neither is a shell change.
+
+### 23.4 The PIN: the image ships without one
+
+`ParentConfig.pin_configured` / `must_set_pin`, the mandatory flow in
+`screens/grownup.py`, `system_files/usr/bin/kidnix-set-pin` +
+`org.kidnix.set-pin.policy`, and the two assertions in `70-hardening.sh` /
+`tests/image/test_hardening.sh`.
+
+Both copies of `parent.toml` now ship with **no `pin_hash` and no `pin_salt`**,
+so `must_set_pin` is true on every fresh machine and the grown-up sheet **opens
+on "Choose a grown-up PIN"** — a pad, twice — with nothing else reachable until
+it is done. There is no pad to type the documented 1234 into first. The
+built-in default survives only as a programmatic fallback (`__post_init__`) so
+`--demo`, `--config` and the tests still have a PIN to check; `to_toml()`
+refuses to write it out, because a file with a hash in it is a file that says a
+grown-up chose one.
+
+The assertions were inverted with it: the build and the image test now assert
+that the shipped file carries **no** PIN *and* that the shell answers that by
+demanding a new one. Asserting only the file would pass while the shell
+happily accepted 1234; asserting only the shell would pass on a file that still
+shipped a hash.
+
+**Where the chosen PIN goes, and the thing that needs a VM.** The sheet tries,
+in order: the config file if this process can write it (a developer's
+`--config`, or a parent running the shell in their own account); then
+`pkexec /usr/bin/kidnix-set-pin --stdin` (the PIN over stdin, never argv, which
+is visible in `ps`); and failing both it **keeps the PIN for the session** and
+says so in those words, with the command that makes it permanent.
+
+That third outcome is the one a real kid session gets, and the reason is a file
+this wave does not own: `40-kidnix-kid.rules` denies the `kid` account every
+`org.kidnix.*` polkit action — the rule that stops a child authorising
+`kidnix-wipe`, which deletes everything they have ever made. pkexec asks for
+the *annotated* action id, so there is no carve-out for set-pin that would not
+also open that door, and a five-year-old must not be able to set the PIN that
+fences them in in any case. So `kidnix-set-pin` is shipped for the **parent's**
+account, a terminal or SSH, and the kid-session flow degrades to a
+session-scoped PIN. Four numbers a grown-up chose beat no numbers even if they
+last until the next restart, and the machine asks again next boot, which is the
+pressure to run the command.
+
+**Needs a VM, not an image test** (the two things nothing here can prove):
+
+```sh
+# on the machine, as parent (wheel):
+kidnix-set-pin                 # must prompt twice and write /etc/kidnix/parent.toml
+sudo -u kid kidnix-set-pin     # must be REFUSED by polkit (40-kidnix-kid.rules)
+# and in the child's session: hold the grown-up gate on a fresh install --
+# it must open on "Choose a grown-up PIN", not on a pad that accepts 1234.
+```
+
+### 23.5 `research.toml` — nothing is logged unless a person said so
+
+`kidnix_shell/research.py`, and three call sites.
+
+Read once at start-up (`ResearchConfig` on the context and on the
+`SpeechManager`) and **failure-closed**: a missing, unreadable, malformed or
+wrong-typed file means every switch is false, and `enabled` is a master switch
+over all of them. Gated: `speech._log_hover` (which no longer even *schedules*
+its pending record when logging is off), `_flush_hover_log`'s `selected=` field
+(a second, separate switch — dwell-without-outcome measures legibility,
+dwell-with-outcome is a behavioural model of one child), and
+`grownup._check`'s PIN-attempt line.
+
+The **burst-click detector** the child-test method review asked for by name
+(CCI #54) is built: ≥ 3 presses inside 1 s that hit no control at all, one
+line per burst, counting nothing but the count. It is wired on both toplevels
+as a capture-phase gesture that claims nothing and discovers "did this hit a
+control?" by asking GTK what is under the pointer — a press a `ChildButton`
+claims never bubbles back. The wiring is unconditional and the *writing* is
+gated, so turning a study on does not also turn on a code path nobody has run.
+
+### 23.6 Undo inside an activity: `undo_key` is read, never sent
+
+`ritual.undo_line`, `Activity.undo_key`.
+
+The ruling asked for the band's Undo to route a keystroke into the running
+program. It was chased and **there is no mechanism for it on this machine that
+a child's session may have**: a GTK client cannot synthesise input into another
+Wayland client (that is the protocol working); `wtype` needs
+`virtual-keyboard-v1`, which mutter deliberately does not implement; `ydotool`
+writes to `/dev/uinput`, i.e. a system-wide input-injection device, and giving
+the kid session write access to it would hand every program in that session a
+keylogger's twin on the one account the image exists to fence in. Neither tool
+is installed and neither should be.
+
+So the manifest key exists and is *read*, and what it buys is a true sentence
+instead of a guess: "Undo in Draw is Control and Z." when a manifest names one,
+"Undo for Draw is in Draw's own buttons." when it does not. Spoken **and**
+captioned, which is the "point at where it really is" half. No shipped manifest
+sets `undo_key` today (asserted in `tests/test_shelf.py`) — Tux Paint's Ctrl+Z
+is real but naming it would tell a pre-reader with no keyboard about a control
+they cannot reach, and that is a decision for the child test, not for this
+wave.
+
+### 23.7 The Goodbye regression the e2e photographed
+
+`Metrics.goodbye_size()` and the `goodbye_*` sizes, `required_size()`.
+
+Mid-wave the real-VM e2e caught S7 overflowing a 1280×800 panel: the "Show a
+grown-up" / "Goodnight" row cut off by the bottom edge
+(`docs/design/screenshots/e2e-goodbye-v2-clipped.png`) — the two controls that
+end the session, on the screen whose whole job is ending the session.
+
+The cause is §22.0's, one screen later. `required_size()` modelled three
+shapes; **Goodbye is a fourth** (a 40 mm picture, a 40 pt headline, a row of
+thumbnails, a line of feedback and two ritual buttons, stacked) and was not
+budgeted, so `fit` never shrank for it and the measured backstop met a tree
+taller than the content window with nothing left to spend. It is budgeted now,
+every size on the screen comes from `Metrics`, and what gives way follows the
+ruling's own hierarchy: the **thumbnails** are chrome and are spent first (down
+to a 14 mm floor), then the spacing; the destination picture and the buttons
+scale only with the whole layout and never go under the 20 mm target floor.
+Both buttons keep `button.ritual`, whose 3/8 px border asymmetry is what
+`tests/e2e/pixels.py` finds boxes by.
+
+Cost, named: at 1280×800@**118** the tile falls from 37.2 mm to 35.3 mm. The
+panel we ship for (1280×800@102) is unchanged — 42.3 mm tiles, 8.2 mm gaps, a
+154 px band window.
+
+### 23.8 Tests
+
+New: `tests/test_shelf.py` (20), `tests/test_voice.py` (15),
+`tests/test_research.py` (13), `tests/test_profiles.py` (22). Extended:
+`test_gtk_smoke.py` with the shelf on a real window (one group a page, the
+spoken heading, Back to Home, no "All done", the return-to-shelf after an
+activity, a hidden empty shelf), the mic on S6 and on a Journal card (record,
+auto-stop, ear badge, playback on tap in showing mode, and *no* mic without a
+microphone), Undo's two sentences, the mandatory PIN flow, and **S7 measured
+with the screen full** at three panels.
+
+`just lint` and `just test-headless` are green; `just test-e2e -k test_01`
+against the wave-A/B image still reports `shell geometry ok`. Screenshots at
+1280x800@102: `demo-wave-e-shelf.png`, `demo-wave-e-put-away.png` (the mic on
+"Let's keep that"), `demo-wave-e-goodbye.png`.
+
+### 23.9 Still open after this pass
+
+1. **The kid session cannot persist a PIN** (§23.4). It needs either a
+   `/var/lib/kidnix` directory the shell may write (wave C offered the
+   `tmpfiles.d` fragment) or a deliberate polkit carve-out, and both are
+   decisions about the lockdown, not about the shell.
+2. **Two children in one Unix account share the activities' save directories**
+   (§23.3). Per-profile Journals do not make Tux Paint save to two places.
+3. **`undo_key` is unset everywhere** (§23.6). Whether to name Tux Paint's
+   Ctrl+Z is a child-test question.
+4. **The voice note has no delete.** Nothing in the Journal does (SYNTHESIS
+   C2), and a recording of a child's voice is the first thing that makes
+   "whose journal is it as the child ages?" (SYNTHESIS §7) urgent rather than
+   philosophical. The parent's exit is `kidnix-export` / `kidnix-wipe` and
+   deleting one note means deleting one directory in Files.
+5. **The mic is not on the keyboard ring's radar as anything special** — it is
+   an ordinary focusable control, which is correct, but a switch user cannot
+   press-and-check-the-meter the way a pointer user can.
+6. Everything still open in §§18.9, 19.5, 20.6, 21.10 and 22.7.

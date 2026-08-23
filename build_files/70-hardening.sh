@@ -387,15 +387,32 @@ python3 - "${PARENT_ETC}" <<'PY' || die "the shipped parent.toml does not load t
 import sys
 from pathlib import Path
 
-from kidnix_shell.settings import DEFAULT_PIN, ParentConfig
+from kidnix_shell.settings import ParentConfig
 
 path = Path(sys.argv[1])
 config = ParentConfig.load(path)
 
 assert config.path == path, f"loaded from {config.path}"
-assert config.pin_salt and config.pin_hash, "the shipped file has no PIN hash"
-assert config.check_pin(DEFAULT_PIN), f"the shipped PIN hash does not verify {DEFAULT_PIN!r}"
-assert not config.check_pin("0000"), "the shipped PIN hash verifies the wrong PIN"
+
+# **THE SHIPPED FILE HAS NO PIN, AND THE SHELL TREATS THAT AS "MUST SET ONE".**
+#
+# Inverted on 2026-08-23 (spec 7d #11). This used to assert that the shipped
+# hash verified 1234 -- which was true, and was the blocker: `is_default` is
+# only ever set when NO pin_hash is found, so shipping one suppressed the very
+# warning that would have told a parent their gate was open (forum #44, #56).
+#
+# Both halves are asserted, because either one alone can pass while the gate is
+# open: the *file* must carry no hash, and the *shell* must answer that by
+# demanding a new PIN before anything else in the grown-up sheet.
+raw = path.read_text(encoding="utf-8")
+offenders = [
+    line
+    for line in raw.splitlines()
+    if line.strip().startswith(("pin_hash", "pin_salt")) and "=" in line
+]
+assert not offenders, f"the shipped parent.toml carries a PIN: {offenders}"
+assert config.must_set_pin, "the shell does not treat the shipped file as 'no PIN set'"
+assert config.is_default, "a file with no PIN must flag is_default so the warning appears"
 assert config.default_session_minutes == 25, config.default_session_minutes
 # Empty *or* absent both mean "every activity is allowed"
 # (ParentConfig.is_allowed); the shipped file states the empty list so a
@@ -404,8 +421,8 @@ assert not config.allowed_activity_ids, "shipping a non-empty allow-list hides a
 assert config.is_allowed("tuxpaint"), "the shipped config must allow every installed activity"
 assert [p.id for p in config.profiles] == ["child"], [p.id for p in config.profiles]
 assert config.profiles[0].name == "Me", config.profiles[0].name
-print(f"  -- parent.toml loads: PIN {DEFAULT_PIN}, {config.default_session_minutes} min, "
-      f"{len(config.profiles)} profile(s)")
+print(f"  -- parent.toml loads: no PIN yet (the gate will ask for one), "
+      f"{config.default_session_minutes} min, {len(config.profiles)} profile(s)")
 PY
 
 # And report the path the shell will actually take, rather than assuming it.

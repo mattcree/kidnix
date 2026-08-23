@@ -85,6 +85,27 @@ STUBBORN = {"sticky"}
 #: re-ask happens on screen and the kill still lands at the hard stop.
 STUBBORN_GRACE_SECONDS = 8
 
+#: The demo's stand-in for the GCompris shelf (spec 7d #12), so ``--demo`` shows
+#: the second level of Home on a laptop with no GCompris on it. Same data shape
+#: as the real one -- ``kind = "shelf"``, a ``children_dir`` beside the
+#: manifest, children carrying ``shelf_group*`` -- so the demo exercises the
+#: real loader rather than a mock of it.
+DEMO_SHELF_ID = "shelfy"
+DEMO_SHELF_NAME = "Letters & numbers"
+DEMO_SHELF_DIR = "shelfy"
+
+#: ``(id, title, group id, group name)``, in shelf order. Two groups of three,
+#: which is the real shelf's shape at a third of the size: enough to show a
+#: heading, a page turn and a spoken group name.
+DEMO_SHELF_CHILDREN: tuple[tuple[str, str, str, str], ...] = (
+    ("shelfy.aa", "Find the A", "letters", "Letters"),
+    ("shelfy.bb", "Big and small", "letters", "Letters"),
+    ("shelfy.cc", "Name the letter", "letters", "Letters"),
+    ("shelfy.dots", "Dice dots", "counting", "Counting"),
+    ("shelfy.more", "Which has more?", "counting", "Counting"),
+    ("shelfy.order", "Put them in order", "counting", "Counting"),
+)
+
 
 # --- building the demo world (used by the shell) -------------------------
 
@@ -157,12 +178,85 @@ def build_demo_world(root: Path | None = None) -> tuple[Path, list[Any], list[st
             lines.append("exec_resume = [" + ", ".join(f'"{a}"' for a in resume) + "]")
         (manifests / f"{activity_id}.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+    _write_demo_shelf(base, manifests, script)
+
     result = load_directory(manifests, home=base)
     for error in result.errors:
         log.error("demo manifest is broken: %s", error)
     activities = resolve_availability(sorted(result.activities, key=lambda a: a.sort_key))
     allowed = [a.id for a in activities if a.id not in NOT_ALLOWED]
     return base, activities, allowed
+
+
+def _write_demo_shelf(base: Path, manifests: Path, script: Path) -> None:
+    """A shelf tile and its children, in the shape the image actually ships.
+
+    The children go in a **subdirectory** for the same reason the real ones do:
+    ``load_directory`` globs one directory and does not recurse, so six extra
+    tiles cannot leak onto Home. A demo that put them beside the others would
+    prove the opposite of what it is for.
+    """
+    children_dir = manifests / DEMO_SHELF_DIR
+    children_dir.mkdir(parents=True, exist_ok=True)
+    watch = base / "work" / DEMO_SHELF_ID
+    watch.mkdir(parents=True, exist_ok=True)
+
+    def argv(name: str, colour: str) -> list[str]:
+        return [
+            sys.executable,
+            str(script),
+            "--play",
+            "--name",
+            name,
+            "--colour",
+            colour,
+            "--out",
+            str(watch),
+        ]
+
+    shelf = [
+        "schema = 1",
+        f'id = "{DEMO_SHELF_ID}"',
+        f'name = "{DEMO_SHELF_NAME}"',
+        'audio_label = "Letters, counting and shapes. Choose a game."',
+        'icon = "kidnix-learn"',
+        'icon_kind = "icon-name"',
+        'kind = "shelf"',
+        f'children_dir = "{DEMO_SHELF_DIR}"',
+        # The fallback exec, which a shell that renders shelves never runs. It
+        # is the first child rather than anything menu-shaped, exactly as the
+        # real gcompris.toml's is (panel-wave-c section 2).
+        "exec = [" + ", ".join(f'"{a}"' for a in argv("Find the A", "#4527a0")) + "]",
+        'category = "learn"',
+        "order = 35",
+        'age_band = "4-8"',
+        "network_required = false",
+        "journal_watch = []",
+        'goal = "A pretend shelf, for demonstrating the second level of Home."',
+    ]
+    (manifests / f"{DEMO_SHELF_ID}.toml").write_text("\n".join(shelf) + "\n", encoding="utf-8")
+
+    for index, (child_id, title, group, group_name) in enumerate(DEMO_SHELF_CHILDREN):
+        lines = [
+            "schema = 1",
+            f'id = "{child_id}"',
+            f'name = "{title}"',
+            f'audio_label = "{title}. A pretend game."',
+            'icon = "kidnix-learn"',
+            'icon_kind = "icon-name"',
+            f"order = {(index + 1) * 10}",
+            "exec = [" + ", ".join(f'"{a}"' for a in argv(title, "#4527a0")) + "]",
+            'category = "learn"',
+            'age_band = "4-8"',
+            "network_required = false",
+            f'journal_watch = ["{watch}"]',
+            'journal_glob = "*.png"',
+            f'goal = "A pretend shelf child ({group_name})."',
+            f'shelf_group = "{group}"',
+            f'shelf_group_name = "{group_name}"',
+            f'shelf_group_audio_label = "{group_name}"',
+        ]
+        (children_dir / f"{child_id}.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 # --- the fake activity itself (run as a subprocess) ----------------------

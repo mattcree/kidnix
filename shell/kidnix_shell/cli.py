@@ -20,8 +20,10 @@ from .activities import (
     load_activities,
     load_directory,
     resolve_availability,
+    resolve_shelves,
 )
 from .metrics import ScreenOverride, parse_screen
+from .research import discover as discover_research
 from .session import SessionPolicy, load_policy
 from .settings import DEFAULT_PIN, ParentConfig, Paths
 
@@ -97,7 +99,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--start-on",
-        choices=("choosing", "next-after", "home", "goodbye", "resting", "offer"),
+        choices=(
+            "choosing",
+            "next-after",
+            "home",
+            "shelf",
+            "journal",
+            "put-away",
+            "goodbye",
+            "resting",
+            "offer",
+        ),
         default="choosing",
         help=(
             "which surface to open on (development). The child always starts on "
@@ -251,6 +263,15 @@ def main(argv: list[str] | None = None) -> int:
         config.allowed_activity_ids = allowed
         config.path = paths.config_home / "kidnix" / "parent.toml"
         config.read_only = False
+        # A demo shell is a developer's shell: it must not open on the "choose
+        # a PIN" flow every time somebody wants to look at Home.
+        config.pin_configured = True
+        shelves = resolve_shelves(activities, home=root)
+        # The demo allow-list is non-empty on purpose (one tile is outlined to
+        # show SYNTHESIS G3), and a non-empty list is a *restriction* -- so the
+        # shelf's children have to be on it or a demo shelf is six dashed
+        # tiles saying "ask a grown-up".
+        allowed += [child.id for children in shelves.values() for child in children]
         policy = SessionPolicy.demo()
         log.info("demo world in %s (%d activities, 3-minute session)", root, len(activities))
     else:
@@ -262,10 +283,20 @@ def main(argv: list[str] | None = None) -> int:
         # One PATH lookup (and at most one `flatpak info`) per program, at
         # startup, so Home never draws a tile for something that cannot run.
         activities = resolve_availability(result.activities)
+        # A shelf tile's children are ordinary manifests one directory down
+        # (docs/spikes/panel-wave-c.md section 2). Loaded here, once, because
+        # Home has to know whether a shelf has anything on it *before* drawing
+        # its tile -- a tile that opens an empty screen is a tile that lies.
+        shelves = resolve_shelves(activities, home=paths.home)
         if not activities:
             log.warning("no activities found in %s", [str(d) for d in directories])
         elif not any(a.on_home for a in activities):
             log.warning("no activity on Home is installed; the child gets an empty grid")
+
+    # Every instrument in the shell is behind this file, and it ships false
+    # (spec 7d #10). Read once, here, and handed down; nothing decides for
+    # itself whether it may log.
+    research = discover_research()
 
     from .app import ShellApplication
 
@@ -281,6 +312,8 @@ def main(argv: list[str] | None = None) -> int:
         screen=args.screen,
         screenshot=args.screenshot,
         start_on=args.start_on,
+        shelves=shelves,
+        research=research,
     )
     return int(application.run([]))
 

@@ -9,6 +9,7 @@ import logging
 
 import pytest
 
+from kidnix_shell.research import ResearchConfig
 from kidnix_shell.speech import (
     HOVER_DWELL_MS,
     HOVER_LOG_PREFIX,
@@ -31,6 +32,15 @@ def make() -> tuple[SpeechManager, FakeBackend, FakeScheduler]:
     return SpeechManager(backend=backend, scheduler=scheduler), backend, scheduler
 
 
+#: What a machine that is part of a study has in /etc/kidnix/research.toml.
+STUDY = ResearchConfig(
+    enabled=True,
+    hover_instrumentation=True,
+    hover_record_selection=True,
+    pin_attempt_logging=True,
+)
+
+
 class Pointer:
     """A fake clock and a fake pointer, moved together.
 
@@ -39,12 +49,19 @@ class Pointer:
     50 ms" and mean it.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, research: ResearchConfig | None = None) -> None:
         self.backend = FakeBackend()
         self.scheduler = FakeScheduler()
         self.seconds = 0.0
+        # **The hover log is off on a shipped machine** (spec 7d #10), and the
+        # tests below are the tests *of the instrument*, so they hand it a
+        # research.toml that turned it on. `test_the_hover_log_is_off_...`
+        # holds the shipped default.
         self.speech = SpeechManager(
-            backend=self.backend, scheduler=self.scheduler, clock=lambda: self.seconds
+            backend=self.backend,
+            scheduler=self.scheduler,
+            clock=lambda: self.seconds,
+            research=research if research is not None else STUDY,
         )
         self.x = 0.0
         self.y = 0.0

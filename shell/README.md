@@ -249,22 +249,52 @@ what lets `just test-headless` prove the ten shipped names fit at 1280x800 at
 
 | File | Owner | What |
 |---|---|---|
-| `/etc/kidnix/parent.toml`, then `/usr/share/kidnix/parent.toml` | **root** | PIN hash, default session length, activity allow-list (empty = all), child profiles (`age_band`, `skip_next_choice`), `hover_dwell_ms`, `[home]` (progressive disclosure), `[[next_after]]` (S1b's options) |
+| `/etc/kidnix/parent.toml`, then `/usr/share/kidnix/parent.toml` | **root** | PIN hash (**absent on a fresh image** — see below), default session length, activity allow-list (empty = all), child profiles (`age_band`, `skip_next_choice`), `hover_dwell_ms`, `[home]` (progressive disclosure), `[[next_after]]` (S1b's options) |
 | `/etc/kidnix/session.toml`, then `/usr/share/kidnix/session.toml` | **root** | session length, daily budget, ending offer / put away offsets, bedtime window |
-| `<state>/kidnix/usage.toml` | child | seconds used today (budget day rolls at 04:00) |
-| `<state>/kidnix/progress.toml` | child | sessions completed, ever — the clock progressive disclosure runs on. Not a streak: nothing shows it to the child |
-| `<data>/kidnix/journal/` | child | the Journal: `YYYY/MM/DD/<entry>/entry.json` + versions + `thumb.png` |
+| `/etc/kidnix/research.toml` | **root** | the switch every instrument is behind (hover-speech log, PIN attempts, burst-click). Ships **false**; missing, unreadable or malformed also means false |
+| `<state>/kidnix/profiles/<id>/usage.toml` | child | seconds used today, **per child** (budget day rolls at 04:00) |
+| `<state>/kidnix/profiles/<id>/progress.toml` | child | sessions completed, ever — the clock progressive disclosure runs on. Not a streak: nothing shows it to the child |
+| `<data>/kidnix/profiles/<id>/journal/` | child | the Journal: `YYYY/MM/DD/<entry>/entry.json` + versions + `thumb.png` + `note.ogg` |
 | `<cache>/kidnix/sounds/` | child | generated earcons, when `/usr` is read-only |
 
 **The parent config is never read from the child's home.** `~/.config` belongs
 to the five-year-old, and a child-writable PIN is not a PIN. If no root-owned
 copy exists the shell prints a loud banner to stderr and runs on the built-in
-defaults (PIN **1234**, every activity allowed). `--config PATH` is the one
-exception and exists for development.
+defaults (every activity allowed). `--config PATH` is the one exception and
+exists for development.
 
-The PIN is stored as a PBKDF2-SHA256 hash. Changing settings from the grown-up
-sheet holds for the current boot; making them permanent means writing
-`/etc/kidnix/parent.toml` as root, which is the parent panel's job.
+**The image ships no PIN at all** (spec §7d #11). `ParentConfig.must_set_pin` is
+therefore true on a fresh machine, and the grown-up sheet **opens on "Choose a
+grown-up PIN"** — typed twice — with nothing else reachable until it is done.
+There is no pad to type the old documented 1234 into first. The PIN is stored as
+a PBKDF2-SHA256 hash; to make one permanent from a terminal or the parent
+account:
+
+```sh
+sudo kidnix-set-pin          # or: sudo kidnix-shell --set-pin
+```
+
+From the *child's* session that helper is refused by polkit
+(`40-kidnix-kid.rules` denies `kid` every `org.kidnix.*` action, which is what
+stops a child authorising `kidnix-wipe`), so the sheet keeps the chosen PIN for
+that session and says so. Changing any other setting from the sheet holds for
+the current boot in the same way.
+
+**Per profile.** Everything a child owns — Journal, daily budget, progressive
+disclosure counter — lives under `profiles/<id>/`. A machine built before
+2026-08-23 has the old single-profile layout, which is *moved* into the first
+profile once, idempotently, on the next start (`settings.migrate_profile_data`).
+
+**Shelves.** A manifest with `kind = "shelf"` and `children_dir = "<name>"`
+opens one more screen of tiles instead of launching: the children are ordinary
+manifests in that subdirectory (so they can never appear on Home), grouped by
+`shelf_group` / `shelf_group_name`, one group to a page. See
+`docs/spikes/panel-wave-c.md` §2.
+
+**"Tell me about it".** A 20 s voice note on "Let's keep that" and on Journal
+cards in "Show a grown-up" mode, written as `note.ogg` inside the entry's own
+directory. One press starts, a second (or twenty seconds) stops, it plays back
+once, and on a machine with no microphone the button is not drawn at all.
 
 ## Accessible without a pointer
 

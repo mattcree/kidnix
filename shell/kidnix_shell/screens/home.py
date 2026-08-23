@@ -181,9 +181,26 @@ class HomeScreen(Screen):
         """
         band = self.ctx.profile.age_range
         shown = [
-            a for a in self.ctx.activities if getattr(a, "on_home", True) and in_age_band(a, band)
+            a
+            for a in self.ctx.activities
+            if getattr(a, "on_home", True) and in_age_band(a, band) and self._shelf_has_anything(a)
         ]
         return lay_out(self._revealed(shown), all_done_index(self.ctx.metrics.per_page))
+
+    def _shelf_has_anything(self, activity: Activity) -> bool:
+        """A shelf with nothing on it is not a tile (spec 7d #12).
+
+        The same rule as an activity whose program is not installed, applied one
+        level up: a tile that opens an empty screen is a tile that lies, and it
+        costs a five-year-old a press and a page they cannot read. The children
+        were loaded and age-filtered at start-up, so this is a dictionary
+        lookup rather than a directory scan on every arrival at Home.
+        """
+        if not activity.is_shelf:
+            return True
+        band = self.ctx.profile.age_range
+        children = self.ctx.shelves.get(activity.id, [])
+        return any(child.on_home and in_age_band(child, band) for child in children)
 
     def _revealed(self, activities: list[Activity]) -> list[Activity]:
         """The prefix of ``activities`` this child has met. "All done" is free.
@@ -291,6 +308,13 @@ class HomeScreen(Screen):
             # SYNTHESIS G3: never a silent denial. v0.1 has no Ask queue yet,
             # so the honest thing is to say so and leave the child on Home.
             self.ctx.speech.speak(denial)
+            return
+        if activity.is_shelf:
+            # A shelf opens a screen, not a program. Its ``exec`` is the
+            # fallback for a shell that has not learned about shelves, and on
+            # this one it is never run: for GCompris that argv *is* the
+            # 198-activity menu the curation exists to close.
+            self.ctx.host.open_shelf(activity)
             return
         self.ctx.host.launch(activity)
 

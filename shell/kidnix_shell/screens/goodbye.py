@@ -12,7 +12,7 @@ sentence about something else (forum #24, #30, #51).
 
 So, top to bottom:
 
-1. **the chosen picture, large** (:data:`NEXT_AFTER_ICON_MM`, >= 40 mm) and
+1. **the chosen picture, large** (`Metrics.goodbye_destination`, >= 40 mm) and
    "Ready to go outside?" as the headline -- Coco's Videos' exact move;
 2. **what was made**: the thumbnails, and one line of descriptive feedback
    computed from this session's Journal entries
@@ -61,6 +61,11 @@ from ..feedback import (  # noqa: E402
     words_for,
 )
 from ..journal import Entry  # noqa: E402
+from ..metrics import (  # noqa: E402
+    GOODBYE_BUTTON_WIDTH_MM,
+    GOODBYE_THUMBNAIL_ASPECT,
+    GOODBYE_THUMBNAILS,
+)
 from ..resting import ALL_DONE_HEADLINE, goodnight_label  # noqa: E402
 from ..suggestions import offline_suggestion  # noqa: E402
 from ..theme import points_for  # noqa: E402
@@ -69,17 +74,19 @@ from . import Screen  # noqa: E402
 
 __all__ = ["MAX_THUMBNAILS", "GoodbyeScreen", "count_phrase"]
 
-MAX_THUMBNAILS = 3
-#: The picture the child chose on S1b. It was 24 mm, beside a quiet line, at
-#: the bottom of the screen; the ruling makes it the biggest thing here and
-#: never under 40 mm -- Home's own tile floor, which is the size this child
-#: already knows means "a thing you choose".
-NEXT_AFTER_ICON_MM = 40.0
+#: How many of the day's things are shown. The number lives in
+#: :mod:`kidnix_shell.metrics` too, because the height budget counts them.
+MAX_THUMBNAILS = GOODBYE_THUMBNAILS
 #: theme.css ``button.ritual``: 28 px of padding and a 3 px border either side.
 RITUAL_CHROME_X_PX = 62
-#: Thumbnails of the day's work. Smaller than the destination on purpose --
-#: this is the hierarchy the ruling inverts.
-THUMBNAIL_MM = 24.0
+
+# **Every size on this screen now comes from `Metrics`** (`goodbye_*`), and
+# that is the fix for the clipping the e2e photographed rather than a tidy-up:
+# a screen whose sizes are its own cannot be *budgeted* for, so
+# `required_size()` was blind to it, so `fit` never shrank for it, so the
+# measured backstop met a tree taller than the content window and had nothing
+# left to spend. The destination and the buttons scale with `fit` and stop at
+# the 20 mm floor; the thumbnails are chrome and are spent first.
 
 
 class GoodbyeScreen(Screen):
@@ -96,7 +103,7 @@ class GoodbyeScreen(Screen):
 
         # 1. The destination: the picture first, then the question.
         self.next_after_icon = Gtk.Image()
-        self.next_after_icon.set_pixel_size(metrics.mm(NEXT_AFTER_ICON_MM))
+        self.next_after_icon.set_pixel_size(metrics.goodbye_destination)
         self.next_after_icon.set_halign(Gtk.Align.CENTER)
         self.append(self.next_after_icon)
 
@@ -114,7 +121,7 @@ class GoodbyeScreen(Screen):
         # 3. The two buttons.
         buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=metrics.gap * 2)
         buttons.set_halign(Gtk.Align.CENTER)
-        inner = max(1, metrics.target_mm(60) - RITUAL_CHROME_X_PX)
+        inner = max(1, metrics.target_mm(GOODBYE_BUTTON_WIDTH_MM) - RITUAL_CHROME_X_PX)
         base = points_for(metrics, ".big-line")
         # One size across the pair: two buttons side by side at two different
         # sizes read as one of them mattering more.
@@ -134,8 +141,8 @@ class GoodbyeScreen(Screen):
             on_activate=self.ctx.host.show_a_grownup,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual",),
-            width=metrics.target_mm(60),
-            height=metrics.target_mm(28),
+            width=metrics.target_mm(GOODBYE_BUTTON_WIDTH_MM),
+            height=metrics.goodbye_button,
         )
         self.show_button.set_child(self._button_label("Show a grown-up"))
         buttons.append(self.show_button)
@@ -145,8 +152,8 @@ class GoodbyeScreen(Screen):
             on_activate=self.ctx.host.goodnight,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual",),
-            width=metrics.target_mm(60),
-            height=metrics.target_mm(28),
+            width=metrics.target_mm(GOODBYE_BUTTON_WIDTH_MM),
+            height=metrics.goodbye_button,
         )
         self._goodnight_label = self._button_label("Goodnight")
         self.goodnight_button.set_child(self._goodnight_label)
@@ -188,7 +195,8 @@ class GoodbyeScreen(Screen):
             # A *box*, not a square: the canvases are landscape, and a square
             # request lets the picture grow taller than the row budgeted for --
             # which is how the two buttons ended up on the panel's bottom edge.
-            picture.set_size_request(metrics.mm(THUMBNAIL_MM * 4 / 3), metrics.mm(THUMBNAIL_MM))
+            thumb_height = metrics.goodbye_thumbnail
+            picture.set_size_request(int(thumb_height * GOODBYE_THUMBNAIL_ASPECT), thumb_height)
             picture.set_vexpand(False)
             picture.set_valign(Gtk.Align.CENTER)
             self.thumbnails.append(picture)
@@ -258,7 +266,7 @@ class GoodbyeScreen(Screen):
         self.next_after_icon = icon_image(
             chosen.icon,
             chosen.icon_kind,
-            self.ctx.metrics.mm(NEXT_AFTER_ICON_MM),
+            self.ctx.metrics.goodbye_destination,
             fallback="kidnix-play",
         )
         self.next_after_icon.set_halign(Gtk.Align.CENTER)

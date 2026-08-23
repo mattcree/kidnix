@@ -7,6 +7,8 @@ from pathlib import Path
 
 from kidnix_shell.demo import (
     DEMO_ACTIVITIES,
+    DEMO_SHELF_CHILDREN,
+    DEMO_SHELF_ID,
     NEEDS_CONTENT,
     NOT_ALLOWED,
     STUBBORN,
@@ -21,8 +23,31 @@ from .conftest import NOW, write_png
 
 def test_the_demo_world_loads_through_the_real_manifest_loader(tmp_path: Path) -> None:
     root, activities, _allowed = build_demo_world(tmp_path)
-    assert len(activities) == len(DEMO_ACTIVITIES)
+    # The fake activities, plus the one shelf tile (its children live one
+    # directory down and must never be loaded as tiles of their own).
+    assert len(activities) == len(DEMO_ACTIVITIES) + 1
     assert root == tmp_path
+
+
+def test_the_demo_shelfs_children_are_not_tiles_on_home(tmp_path: Path) -> None:
+    """The subdirectory is the whole guarantee (panel-wave-c section 2).
+
+    ``load_directory`` globs one directory and does not recurse, so a shelf's
+    children cannot leak onto Home -- and a demo that put them beside the other
+    manifests would prove the opposite of what --demo is for.
+    """
+    from kidnix_shell.activities import load_shelf_children, resolve_shelves
+
+    root, activities, _ = build_demo_world(tmp_path)
+    ids = {a.id for a in activities}
+    assert DEMO_SHELF_ID in ids
+    assert not any(child_id in ids for child_id, *_ in DEMO_SHELF_CHILDREN)
+
+    shelf = next(a for a in activities if a.id == DEMO_SHELF_ID)
+    assert shelf.is_shelf
+    children = load_shelf_children(shelf, home=root)
+    assert [c.id for c in children] == [child_id for child_id, *_ in DEMO_SHELF_CHILDREN]
+    assert set(resolve_shelves(activities, home=root)) == {DEMO_SHELF_ID}
 
 
 def test_the_demo_has_more_than_one_page_of_tiles(tmp_path: Path) -> None:
@@ -56,6 +81,11 @@ def test_every_demo_activity_watches_its_own_directory(tmp_path: Path) -> None:
     _, activities, _ = build_demo_world(tmp_path)
     seen: set[Path] = set()
     for activity in activities:
+        if activity.is_shelf:
+            # A shelf launches nothing and so saves nothing; its children have
+            # the watch directory, exactly as the real gcompris.toml does.
+            assert activity.journal_watch == ()
+            continue
         assert len(activity.journal_watch) == 1
         directory = activity.journal_watch[0]
         assert directory.is_dir()

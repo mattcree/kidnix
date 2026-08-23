@@ -329,25 +329,38 @@ assert_eq "/etc/kidnix/parent.toml is 0644 root:root" "644 root root" \
 assert_eq "/usr/share/kidnix/parent.toml is 0644 root:root" "644 root root" \
     "$(stat -c '%a %U %G' /usr/share/kidnix/parent.toml 2>/dev/null || true)"
 
-# The PIN is a hash, never the PIN.
-if grep -Eq '^pin[_a-z]* *= *"?1234"?' /etc/kidnix/parent.toml; then
-    _report no "the PIN is stored as a hash, not in the clear" "found a literal 1234"
+# **The shipped file carries NO PIN at all** (spec 7d #11).
+#
+# This assertion is the inverse of the one it replaces. Until 2026-08-23 the
+# image shipped the documented 1234 hash, which meant `ParentConfig.is_default`
+# was false on a stock install and the shell's "this machine has no parent
+# config" warning never appeared -- the one signal that the gate was open was
+# suppressed by the file that opened it (forum #44, #56). Now the file has no
+# hash, `must_set_pin` is true, and the grown-up sheet opens on "choose a PIN"
+# before anything else is reachable.
+if grep -Eq '^ *pin_(hash|salt) *=' /etc/kidnix/parent.toml; then
+    _report no "the shipped parent.toml has NO pin_hash" \
+        "it carries one; a fresh machine must demand its own PIN"
 else
-    _report ok "the PIN is stored as a hash, not in the clear"
+    _report ok "the shipped parent.toml has NO pin_hash (the gate asks for one)"
 fi
-assert_grep '^pin_salt = "[0-9a-f]{32}"$' /etc/kidnix/parent.toml "pin_salt is a 16-byte hex salt"
-assert_grep '^pin_hash = "[0-9a-f]{64}"$' /etc/kidnix/parent.toml "pin_hash is a SHA-256-sized digest"
+if grep -Eq '^pin[_a-z]* *= *"?1234"?' /etc/kidnix/parent.toml; then
+    _report no "no PIN is stored in the clear" "found a literal 1234"
+else
+    _report ok "no PIN is stored in the clear"
+fi
 
-# The assertion that actually pins the schema: load the shipped file through
-# the shell's own code, which 60-shell.sh installed into site-packages.
+# The assertion that actually pins the schema *and* the behaviour: load the
+# shipped file through the shell's own code (60-shell.sh installed it into
+# site-packages) and check that the shell treats "no hash" as "must set one".
 if python3 - <<'PY' >/dev/null 2>&1
 from pathlib import Path
 
-from kidnix_shell.settings import DEFAULT_PIN, ParentConfig
+from kidnix_shell.settings import ParentConfig
 
 config = ParentConfig.load(Path("/etc/kidnix/parent.toml"))
-assert config.check_pin(DEFAULT_PIN)
-assert not config.check_pin("0000")
+assert config.must_set_pin, "the shell does not treat the shipped file as 'no PIN set'"
+assert config.is_default, "no PIN must flag is_default so the warning is visible"
 assert config.default_session_minutes == 25
 # Empty or absent both mean "all allowed" (ParentConfig.is_allowed).
 assert not config.allowed_activity_ids
@@ -355,11 +368,17 @@ assert config.is_allowed("tuxpaint")
 assert [p.id for p in config.profiles] == ["child"]
 PY
 then
-    _report ok "the shipped parent.toml loads through kidnix_shell.settings and its PIN verifies"
+    _report ok "the shell loads the shipped parent.toml and demands a new PIN"
 else
-    _report no "the shipped parent.toml loads through kidnix_shell.settings and its PIN verifies" \
-        "ParentConfig.load rejected it, or the key names have drifted"
+    _report no "the shell loads the shipped parent.toml and demands a new PIN" \
+        "ParentConfig.load rejected it, must_set_pin was false, or the keys have drifted"
 fi
+
+# The helper the sheet points at when it cannot write /etc itself.
+assert_file /usr/bin/kidnix-set-pin
+assert_eq "/usr/bin/kidnix-set-pin is executable" "755 root root" \
+    "$(stat -c '%a %U %G' /usr/bin/kidnix-set-pin 2>/dev/null || true)"
+assert_file /usr/share/polkit-1/actions/org.kidnix.set-pin.policy
 
 # -----------------------------------------------------------------------------
 section "the image did not lose anything load-bearing"

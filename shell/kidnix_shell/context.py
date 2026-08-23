@@ -7,9 +7,12 @@ launcher or the session directly. They call the host, which is
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+
+from .research import ResearchConfig
+from .voice import VoiceNote
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .access import AccessConfig
@@ -33,6 +36,8 @@ class ShellHost(Protocol):
     def choose_next_after(self, option: NextAfter) -> None: ...
 
     def launch(self, activity: Activity, resume: Path | None = None) -> None: ...
+
+    def open_shelf(self, shelf: Activity) -> None: ...
 
     def resume_entry(self, entry: Entry) -> None: ...
 
@@ -103,3 +108,17 @@ class ShellContext:
     #: that, not a description of the machine's state (panel ruling,
     #: 2026-08-23; forum #46, #59).
     rest_reason: str = ""
+    #: Shelf id to its children, loaded once at start-up
+    #: (:func:`kidnix_shell.activities.resolve_shelves`). Home reads it to know
+    #: whether a shelf has anything on it; the shelf screen reads it to draw
+    #: the tiles. Empty on a machine with no shelves, which is every machine
+    #: before the GCompris curation landed.
+    shelves: dict[str, list[Activity]] = field(default_factory=dict)
+    #: ``/etc/kidnix/research.toml``, which ships with everything false. The
+    #: gate on hover-speech logging, PIN-attempt logging and the burst-click
+    #: detector (:mod:`kidnix_shell.research`).
+    research: ResearchConfig = field(default_factory=ResearchConfig)
+    #: "Tell me about it" -- the 20 s recorder on S6 and on Journal cards, or
+    #: ``None`` on a machine with no microphone, where the button is not drawn
+    #: at all (:mod:`kidnix_shell.voice`).
+    voice: VoiceNote | None = None

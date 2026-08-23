@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+
+<!--
+  kidnix: choosing the grown-up PIN.
+
+  /etc/kidnix/parent.toml is root-owned and the shell runs as `kid`, which is
+  the whole reason the grown-up gate means anything (a child-writable PIN is
+  not a PIN). So the shell's PIN pad cannot save what it collects, and this is
+  the action behind the helper that can (/usr/bin/kidnix-set-pin).
+
+  allow_active=auth_admin_keep: a grown-up sitting at the machine, in the wheel
+  group, typing their own password: the same shape as org.kidnix.parent-tools
+  and the stock Fedora admin experience, not a new secret to remember.
+
+  READ THIS BEFORE ASSUMING THE KID SESSION CAN USE IT. It cannot, and that is
+  correct. /usr/share/polkit-1/rules.d/40-kidnix-kid.rules denies the `kid`
+  user every action whose id begins "org.kidnix.": the rule that stops a
+  child authorising kidnix-wipe, which deletes everything they have ever made.
+  pkexec asks for the *annotated* action id, so there is no carve-out for this
+  one that would not also open that door, and a five-year-old must not be able
+  to set the PIN that fences them in in any case. The shell therefore tries
+  this, is refused, and falls back to holding the chosen PIN for the session
+  while telling the grown-up which command makes it permanent.
+
+  This action is for the parent's own account, a terminal, or SSH.
+-->
+<policyconfig>
+  <vendor>kidnix</vendor>
+  <vendor_url>https://github.com/mattcree/kidnix</vendor_url>
+
+  <action id="org.kidnix.set-pin">
+    <description>Set the grown-up PIN</description>
+    <description xml:lang="en_GB">Set the grown-up PIN</description>
+    <message>Authentication is required to change the grown-up PIN on this machine</message>
+    <message xml:lang="en_GB">Authentication is required to change the grown-up PIN on this machine</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/kidnix-set-pin</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

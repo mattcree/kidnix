@@ -123,6 +123,45 @@ TILE_ICON_FRACTION = 0.52
 TILE_ICON_MIN_FRACTION = 0.45
 TILE_ICON_MIN_PX = 24
 
+# --- Goodbye (S7), which is a *fourth* shape ------------------------------
+#
+# **The screen that was not budgeted.** ``required_size()`` modelled Home, a
+# titled grid and the chooser; S7 is none of the three -- a 40 mm picture, a
+# 40 pt headline, a row of thumbnails, a line of feedback and two ritual
+# buttons, stacked. It came in taller than the content window on the panel we
+# ship for, and the e2e photographed the consequence: the "Show a grown-up" and
+# "Goodnight" row cut off by the bottom edge of a 1280x800 panel
+# (``docs/design/screenshots/e2e-goodbye-v2-clipped.png``), i.e. the two
+# controls that end the session, on the screen whose entire job is ending the
+# session.
+#
+# The order of what gives way is the ruling's own hierarchy (spec 7d #3): the
+# **thumbnails** go first (they are the smallest claim on the screen and there
+# are already three of them), then the spacing, and the destination picture and
+# the buttons only shrink when the whole layout does -- and never below the
+# 20 mm floor.
+
+#: The chosen destination, spec 7d #3's ">= 40 mm picture". Fit-scaled like a
+#: tile, floored at :data:`MIN_TARGET_MM` like everything else.
+GOODBYE_DESTINATION_MM = 40.0
+#: One of the day's thumbnails. Chrome-scaled: this is the cheapest thing on
+#: the screen and it is what gets spent first.
+GOODBYE_THUMBNAIL_MM = 24.0
+#: ...but never smaller than this, or it stops being a picture of a drawing.
+GOODBYE_THUMBNAIL_MIN_MM = 14.0
+#: Journal thumbnails are landscape canvases, so the row is budgeted as boxes
+#: rather than as squares -- a square request lets the picture grow taller than
+#: the row allowed for, which is how the buttons ended up on the panel's edge.
+GOODBYE_THUMBNAIL_ASPECT = 4 / 3
+#: How many are shown (``screens.goodbye.MAX_THUMBNAILS``).
+GOODBYE_THUMBNAILS = 3
+#: The two ritual buttons: preferred height, floored at the 20 mm target.
+GOODBYE_BUTTON_MM = 28.0
+#: ...and their preferred width, from ``screens.goodbye``.
+GOODBYE_BUTTON_WIDTH_MM = 60.0
+#: ``theme.css`` ``.quiet-line``: the descriptive-feedback line under the work.
+QUIET_LINE_PT = 22.0
+
 #: Spec 7a: "the band scales with the same factor, clamped to 80-128 px" --
 #: **80-136 since ADR-0011**, which raised the target floor to 20 mm and said
 #: in as many words that the clamp may rise to hold one. 136 px is 20 mm plus
@@ -646,22 +685,73 @@ class Metrics:
         """A face tile: the picture, its name, and the tile's own chrome."""
         return self.avatar_size + self.tile_label_height + TILE_CHROME_PX + TILE_SPACING_PX
 
+    # --- Goodbye's own sizes, so the screen and the budget cannot drift ---
+
+    @property
+    def goodbye_destination(self) -> int:
+        """The chosen picture: 40 mm preferred, the 20 mm floor underneath."""
+        return self.target_mm(GOODBYE_DESTINATION_MM)
+
+    @property
+    def goodbye_thumbnail(self) -> int:
+        """One thumbnail's height. **The first thing S7 spends.**"""
+        return max(
+            self.mm_floor(GOODBYE_THUMBNAIL_MIN_MM),
+            self.chrome(self.mm(GOODBYE_THUMBNAIL_MM)),
+        )
+
+    @property
+    def goodbye_button(self) -> int:
+        """A ritual button's height. Never under the 20 mm target floor."""
+        return self.target_mm(GOODBYE_BUTTON_MM)
+
+    def goodbye_size(self) -> tuple[int, int]:
+        """What S7 needs: destination, headline, thumbnails, a line, two buttons.
+
+        Modelled here rather than discovered by the measured backstop, for the
+        reason the whole of ``required_size`` exists: a backstop that has to
+        close the same gap on every boot is a model that is wrong, and on this
+        screen the gap it could not close was the two buttons.
+        """
+        thumbnails = self.goodbye_thumbnail
+        height = (
+            self.band_window_height
+            + self.goodbye_destination
+            # The headline, plus the one gap `screen_title_height` carries.
+            + self.screen_title_height
+            + thumbnails
+            + self.line_height(self.child_points(QUIET_LINE_PT))
+            + self.goodbye_button
+            # Five children in the box: four spacings, minus the one already in
+            # `screen_title_height`, plus the screen's own bottom margin.
+            + 4 * self.gap
+        )
+        row = (
+            GOODBYE_THUMBNAILS * _ceil(thumbnails * GOODBYE_THUMBNAIL_ASPECT)
+            + (GOODBYE_THUMBNAILS - 1) * self.gap
+        )
+        buttons = 2 * self.target_mm(GOODBYE_BUTTON_WIDTH_MM) + 2 * self.gap
+        return max(row, buttons, self.goodbye_destination) + 2 * self.gap, height
+
     def required_size(self) -> tuple[int, int]:
         """The whole shell's minimum: the **tallest** surface, not just Home.
 
-        Three shapes, because the shell has three: Home's untitled grid, a
-        titled grid (What's next after), and the chooser (Who's here). Until
-        2026-08-23 only the first was modelled, so the measured backstop was
-        left to discover the other two on every boot -- and on the panel we
+        **Four** shapes, because the shell has four: Home's untitled grid, a
+        titled grid (What's next after), the chooser (Who's here) and Goodbye.
+        Until 2026-08-23 only the first was modelled, so the measured backstop
+        was left to discover the others on every boot -- and on the panel we
         ship for it could not close the gap, which is a content window taller
-        than the strip gnome-kiosk gives it.
+        than the strip gnome-kiosk gives it. Goodbye was the last one in, and
+        the e2e caught it in the worst possible place: its two buttons off the
+        bottom edge of a 1280x800 panel.
         """
         home_width, home_height = self.home_size()
         choice_width, choice_height = self.choice_size()
         chooser_width, chooser_height = self.chooser_size()
+        goodbye_width, goodbye_height = self.goodbye_size()
         return (
-            max(home_width, choice_width, chooser_width, self.band_width()),
-            max(home_height, choice_height, chooser_height),
+            max(home_width, choice_width, chooser_width, goodbye_width, self.band_width()),
+            max(home_height, choice_height, chooser_height, goodbye_height),
         )
 
     def fits(self) -> bool:
@@ -717,6 +807,7 @@ class Metrics:
             self.pager_height,
             self.card_size,
             self.avatar_size,
+            self.goodbye_thumbnail,
             self.chrome(self.design(320)),
         )
 

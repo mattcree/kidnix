@@ -22,6 +22,7 @@ it is not true, and the screen says something else
 from __future__ import annotations
 
 from functools import partial
+from pathlib import Path
 
 import gi
 
@@ -33,7 +34,15 @@ from ..band import Sun  # noqa: E402
 from ..ritual import KEEP_LINE, OFFER_QUESTION, OfferAnswer, put_away_line  # noqa: E402
 from ..sound import KEEP  # noqa: E402
 from ..theme import points_for  # noqa: E402
-from ..widgets import ChildButton, big_label, page_label_fit  # noqa: E402
+from ..voice import has_note  # noqa: E402
+from ..widgets import (  # noqa: E402
+    MIC_AGAIN_SPEAK,
+    MIC_SPEAK,
+    ChildButton,
+    MicButton,
+    big_label,
+    page_label_fit,
+)
 from . import Screen  # noqa: E402
 
 PUT_AWAY_ANIMATION_MS = 1100
@@ -175,6 +184,75 @@ class PutAwayScreen(Screen):
         self.append(self.headline)
         self._animation: Adw.TimedAnimation | None = None
 
+        # **"Tell me about it"** (spec 7d #9). The one moment in the session
+        # when the child has just made the thing and still has the whole
+        # sentence about it in their head -- which is the teacher's argument
+        # for putting it here and not only in the Journal.
+        #
+        # It is **not drawn at all** on a machine with no microphone. A mic
+        # button that does nothing is the control spec 7a took Ask out of the
+        # band to avoid, and this screen is the one place in the shell where
+        # nothing else is a decision.
+        self.mic: MicButton | None = None
+        self._note_dir: Path | None = None
+        if self.ctx.voice is not None:
+            self.mic = MicButton(metrics, self.ctx.speech_ui, self._on_mic)
+            self.append(self.mic)
+
+    # -- the voice note --
+
+    def _on_mic(self) -> None:
+        """One press: start, or stop. Everything else is :mod:`voice`'s.
+
+        The "again?" is the whole of the retakes UI, deliberately: a second
+        recording replaces the first, and the only acknowledgement a child gets
+        is one quiet word, and only if they pressed a mic that already had a
+        note behind it. Asking a five-year-old to judge their own recording is
+        a different product.
+        """
+        voice, entry_dir = self.ctx.voice, self._note_dir
+        if voice is None or entry_dir is None:
+            return
+        if voice.recording:
+            voice.stop()
+            return
+        if has_note(entry_dir):
+            self.ctx.speech.speak(MIC_AGAIN_SPEAK)
+        voice.start(entry_dir)
+
+    def _mic_state(self, recording: bool) -> None:
+        if self.mic is not None:
+            self.mic.set_recording(recording)
+
+    def _mic_level(self, level: float) -> None:
+        if self.mic is not None:
+            self.mic.set_level(level)
+
+    def _note_saved(self, _path: Path) -> None:
+        """Play it back, once. A note the child never hears is not a note."""
+        if self._note_dir is not None and self.ctx.voice is not None:
+            self.ctx.voice.play(self._note_dir)
+
+    def _prepare_mic(self) -> None:
+        """Point the mic at the newest entry, or take it off the screen.
+
+        There is nothing to attach a note *to* until something has been kept,
+        and a session that ended with nothing made -- or with the hard stop
+        having destroyed it -- has nothing to be told about.
+        """
+        if self.mic is None:
+            return
+        voice = self.ctx.voice
+        latest = next(iter(self.ctx.journal.entries), None)
+        self._note_dir = None if (latest is None or self.ctx.work_lost) else latest.directory
+        self.mic.set_visible(self._note_dir is not None)
+        if self._note_dir is None or voice is None:
+            return
+        voice.on_state = self._mic_state
+        voice.on_level = self._mic_level
+        voice.on_saved = self._note_saved
+        self.mic.set_recording(False)
+
     def on_enter(self) -> None:
         metrics = self.ctx.metrics
         # The words have to be true (spec 7c). If put away had to kill the
@@ -184,6 +262,7 @@ class PutAwayScreen(Screen):
         lost = self.ctx.work_lost
         line = put_away_line("signal", lost=lost)
         self.headline.set_label(line)
+        self._prepare_mic()
 
         latest = next(iter(self.ctx.journal.entries), None)
         thumb = latest.thumbnail if latest is not None else None
@@ -193,7 +272,13 @@ class PutAwayScreen(Screen):
         else:
             self._picture.set_visible(False)
 
-        self.ctx.speech.speak(line)
+        # "Let's keep that." and then, as its own sentence after a beat,
+        # "Tell me about it" -- the invitation, spoken and captioned, only when
+        # there is actually something to be told about.
+        if self.mic is not None and self.mic.get_visible():
+            self.ctx.speech.speak_then(line, MIC_SPEAK)
+        else:
+            self.ctx.speech.speak(line)
         if not lost:
             self.ctx.earcons.play(KEEP, speaking=True)
 
@@ -230,3 +315,8 @@ class PutAwayScreen(Screen):
             self._animation.pause()
             self._animation = None
         self._picture.set_opacity(1.0)
+        # A recording that was still running when the ritual moved on is still
+        # the child's: stopping closes the Ogg properly rather than truncating
+        # it, and the note stays in the entry for My Things to show.
+        if self.ctx.voice is not None and self.ctx.voice.recording:
+            self.ctx.voice.stop()

@@ -21,8 +21,12 @@ from gi.repository import Adw, Gtk  # noqa: E402
 
 from ..journal import Entry, build_pages  # noqa: E402
 from ..theme import points_for  # noqa: E402
+from ..voice import has_note  # noqa: E402
 from ..widgets import (  # noqa: E402
+    MIC_AGAIN_SPEAK,
+    MIC_SPEAK,
     ChildButton,
+    MicButton,
     Pager,
     big_label,
     icon_image,
@@ -93,6 +97,25 @@ class JournalScreen(Screen):
         self.pager = Pager(metrics, self.ctx.speech_ui, self._on_page, what="things")
         self.pager.set_margin_bottom(metrics.gap)
         self.append(self.pager)
+
+        # **"Tell me about it", in "Show a grown-up" mode** (spec 7d #9).
+        #
+        # Why only there, and why one button rather than one per card. A card
+        # in the ordinary Journal *resumes* -- Sugar's one great uncopied idea
+        # (08 section 2.1) -- so tapping one leaves this screen and there is no
+        # "the card I am talking about" for a mic to mean. In showing mode the
+        # cards are read-only, so tapping one selects it, and "Show a grown-up"
+        # is exactly the moment a child wants to say what a thing is. One
+        # button under the grid rather than one on each card because a card is
+        # ~32 mm and already carries a full-size star: a third 20 mm target on
+        # it would be three overlapping targets on one thumbnail.
+        self.mic: MicButton | None = None
+        self._note_entry: Entry | None = None
+        if self.ctx.voice is not None:
+            self.mic = MicButton(metrics, self.ctx.speech_ui, self._on_mic)
+            self.mic.set_margin_bottom(metrics.gap)
+            self.mic.set_visible(False)
+            self.append(self.mic)
 
         self._pages: list[Gtk.Widget] = []
         self._page_labels: list[str] = []
@@ -214,6 +237,21 @@ class JournalScreen(Screen):
         star.set_halign(Gtk.Align.END)
         star.set_valign(Gtk.Align.END)
         overlay.add_overlay(star)
+
+        # **The ear badge** (spec 7d #9): a small ear, top-right, on a card
+        # that has a voice note behind it. A *badge*, not a control -- the card
+        # is one target and adding a second small one on it would be two
+        # things to hit inside 20 mm. Tapping the card is what plays the note
+        # in "Show a grown-up" mode.
+        if has_note(entry.directory):
+            ear = icon_image("kidnix-ear", "icon-name", max(20, int(size * 0.18)))
+            ear.add_css_class("note-badge")
+            ear.set_halign(Gtk.Align.END)
+            ear.set_valign(Gtk.Align.START)
+            ear.set_margin_end(6)
+            ear.set_margin_top(6)
+            ear.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
+            overlay.add_overlay(ear)
         return overlay
 
     def _thumbnail(self, entry: Entry, size: int) -> Gtk.Widget:
@@ -242,10 +280,60 @@ class JournalScreen(Screen):
     def _open(self, entry: Entry) -> None:
         if self.showing_mode:
             # S7's showing mode is read-only: this is the child showing a
-            # grown-up what they made, not starting something new.
+            # grown-up what they made, not starting something new. If they
+            # recorded a note about this one, playing it back **is** the
+            # showing -- the child's own voice saying what it is, which is
+            # what the whole feature is for.
+            self._select_for_note(entry)
+            if self.ctx.voice is not None and self.ctx.voice.play(entry.directory):
+                return
             self.ctx.speech.speak(entry.spoken())
             return
         self.ctx.host.resume_entry(entry)
+
+    # -- the voice note --
+
+    def _select_for_note(self, entry: Entry) -> None:
+        """This is the thing the mic is about now. Only in showing mode."""
+        if self.mic is None or not self.showing_mode:
+            return
+        self._note_entry = entry
+        self.mic.set_visible(True)
+        self.mic.set_recording(False)
+        voice = self.ctx.voice
+        if voice is not None:
+            voice.on_state = self._mic_state
+            voice.on_level = self._mic_level
+            voice.on_saved = self._note_saved
+
+    def _on_mic(self) -> None:
+        voice, entry = self.ctx.voice, self._note_entry
+        if voice is None or entry is None:
+            return
+        if voice.recording:
+            voice.stop()
+            return
+        if has_note(entry.directory):
+            # The whole of the retakes UI: one quiet word, and only when there
+            # was already a note. A second recording replaces the first.
+            self.ctx.speech.speak(MIC_AGAIN_SPEAK)
+        voice.start(entry.directory)
+
+    def _mic_state(self, recording: bool) -> None:
+        if self.mic is not None:
+            self.mic.set_recording(recording)
+
+    def _mic_level(self, level: float) -> None:
+        if self.mic is not None:
+            self.mic.set_level(level)
+
+    def _note_saved(self, _path: object) -> None:
+        """Play it back once, then redraw so the card gets its ear."""
+        entry = self._note_entry
+        if entry is not None and self.ctx.voice is not None:
+            self.ctx.voice.play(entry.directory)
+            self.refresh()
+            self._note_entry = entry
 
     def _toggle_star(self, entry: Entry) -> None:
         starred = self.ctx.journal.toggle_star(entry)
@@ -275,11 +363,22 @@ class JournalScreen(Screen):
 
     def on_enter(self) -> None:
         self.refresh()
+        # Nothing is selected on arrival, so there is nothing for the mic to be
+        # about yet: it appears when the child picks a thing to talk about.
+        self._note_entry = None
+        if self.mic is not None:
+            self.mic.set_visible(False)
         count = len(self.ctx.journal.entries)
         if count == 0:
             self.ctx.speech.speak("My Things. Nothing here yet.")
+        elif self.showing_mode:
+            self.ctx.speech.speak_then("My Things.", MIC_SPEAK)
         else:
             self.ctx.speech.speak("My Things.")
+
+    def on_leave(self) -> None:
+        if self.ctx.voice is not None and self.ctx.voice.recording:
+            self.ctx.voice.stop()
 
     def resume_path(self, entry: Entry) -> Path | None:
         return entry.latest_path

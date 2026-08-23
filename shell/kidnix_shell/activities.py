@@ -71,6 +71,23 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 CATEGORIES = frozenset({"make", "learn", "play"})
 ICON_KINDS = frozenset({"icon-name", "path"})
 
+#: What a manifest *is*. ``activity`` (the default) is a tile that launches a
+#: program; ``shelf`` is a tile that opens one more screen of tiles, built from
+#: the manifests in :attr:`Activity.children_dir`
+#: (``docs/spikes/panel-wave-c.md`` section 2).
+#:
+#: There is deliberately **no new schema**: a shelf's children are ordinary
+#: activity manifests, parsed by this same module, so the whole shelf feature is
+#: one more directory and one screen rather than a second parser.
+KIND_ACTIVITY = "activity"
+KIND_SHELF = "shelf"
+KINDS = frozenset({KIND_ACTIVITY, KIND_SHELF})
+
+#: ``children_dir`` is resolved **relative to the manifest's own directory** and
+#: may only ever be a plain directory name. A manifest is data the shell reads
+#: at start-up; a ``children_dir`` of ``../../..`` would make it a path.
+CHILDREN_DIR_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
 #: The two ways a program answers "please finish" (spec 7c).
 #:
 #: ``signal`` -- SIGTERM ends it. Either it saves on the way out or it had
@@ -134,6 +151,14 @@ KNOWN_KEYS = frozenset(
         "package",
         "licence",
         "license",
+        # A shelf, and what a shelf's children say about themselves.
+        "kind",
+        "children_dir",
+        "shelf_group",
+        "shelf_group_name",
+        "shelf_group_audio_label",
+        # The key the band's Undo sends into this activity, if it has one.
+        "undo_key",
     }
 )
 
@@ -182,6 +207,21 @@ class Activity:
     content_required: tuple[str, ...] = ()
     notes: str = ""
     package: str = ""
+    #: ``activity`` or ``shelf`` (:data:`KINDS`).
+    kind: str = KIND_ACTIVITY
+    #: For a shelf: the directory of child manifests, **relative to this
+    #: manifest's own directory**. Empty for an ordinary activity.
+    children_dir: str = ""
+    #: For a shelf's *child*: which group of the shelf it belongs to, and what
+    #: that group is called. Ignored everywhere else.
+    shelf_group: str = ""
+    shelf_group_name: str = ""
+    shelf_group_audio_label: str = ""
+    #: The keystroke this activity's own Undo is on, e.g. ``"ctrl+z"``. Read by
+    #: the band so it can say where Undo lives rather than guessing that the
+    #: activity has one -- the shell cannot *send* it (see
+    #: :meth:`kidnix_shell.app.ShellWindow.on_undo`).
+    undo_key: str = ""
     #: Set by :func:`resolve_availability` at startup, not by the manifest.
     available: bool = True
     #: Set by :func:`resolve_availability` at startup: every glob in
@@ -221,6 +261,28 @@ class Activity:
         denial, but also never a lie).
         """
         return self.usable or self.show_when_unavailable
+
+    @property
+    def is_shelf(self) -> bool:
+        """Does tapping this open a screen of tiles rather than a program?
+
+        The shelf's own ``exec`` is the fallback for a shell that has not
+        learned about shelves; once this is true it is never run
+        (``docs/spikes/panel-wave-c.md`` section 2).
+        """
+        return self.kind == KIND_SHELF
+
+    @property
+    def children_path(self) -> Path | None:
+        """Where this shelf's child manifests live, or ``None``.
+
+        Relative to the shelf manifest's own directory, so the system copy
+        resolves under ``/usr/share/kidnix/activities/`` and a developer's
+        override in ``$XDG_DATA_HOME`` resolves beside itself.
+        """
+        if not self.is_shelf or not self.children_dir:
+            return None
+        return self.source_path.parent / self.children_dir
 
     @property
     def flatpak_ref(self) -> str:
@@ -430,6 +492,19 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
     if order is not None and (isinstance(order, bool) or not isinstance(order, int)):
         raise ManifestError(path, "'order' must be a whole number")
 
+    kind = _opt_str(data, "kind", path, KIND_ACTIVITY) or KIND_ACTIVITY
+    if kind not in KINDS:
+        raise ManifestError(path, f"kind {kind!r} must be one of {sorted(KINDS)}")
+    children_dir = _opt_str(data, "children_dir", path)
+    if children_dir and not CHILDREN_DIR_RE.match(children_dir):
+        raise ManifestError(
+            path,
+            f"children_dir {children_dir!r} must be a plain directory name beside this "
+            "manifest -- it is resolved relative to it, never as a path",
+        )
+    if kind == KIND_SHELF and not children_dir:
+        raise ManifestError(path, "a shelf must say which directory its children are in")
+
     age_min = _opt_int(data, "age_min", path)
     age_max = _opt_int(data, "age_max", path)
     band_text = _opt_str(data, "age_band", path)
@@ -469,6 +544,12 @@ def parse_manifest(data: dict[str, Any], path: Path, home: Path | None = None) -
         content_required=content_required,
         notes=_opt_str(data, "notes", path),
         package=_opt_str(data, "package", path),
+        kind=kind,
+        children_dir=children_dir,
+        shelf_group=_opt_str(data, "shelf_group", path),
+        shelf_group_name=_opt_str(data, "shelf_group_name", path),
+        shelf_group_audio_label=_opt_str(data, "shelf_group_audio_label", path),
+        undo_key=_opt_str(data, "undo_key", path),
     )
 
 
@@ -516,6 +597,106 @@ def load_activities(directories: list[Path], home: Path | None = None) -> LoadRe
             by_id[activity.id] = activity
     combined.activities = sorted(by_id.values(), key=lambda a: a.sort_key)
     return combined
+
+
+# --- shelves --------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ShelfGroup:
+    """One heading on a shelf, and the tiles under it.
+
+    Groups exist so a shelf of eighteen small games is six short answers to
+    "what do you want to do?" rather than one wall of pictures. The names come
+    off the child manifests themselves (``shelf_group_name``), so nothing has
+    to re-read ``curated.toml`` at runtime.
+    """
+
+    id: str
+    name: str
+    audio_label: str
+    activities: tuple[Activity, ...]
+
+    @property
+    def speak_text(self) -> str:
+        return self.audio_label or self.name
+
+
+def load_shelf_children(shelf: Activity, home: Path | None = None) -> list[Activity]:
+    """Every child manifest of ``shelf``, in ``order``. Never raises.
+
+    A shelf whose directory is missing loads as an empty shelf, which Home then
+    treats exactly as it treats an activity that is not installed: no tile. A
+    tile that opens an empty screen is the same lie as a tile that opens
+    nothing (``docs/spikes/e2e-scenario.md`` section 3.1).
+    """
+    directory = shelf.children_path
+    if directory is None:
+        return []
+    result = load_directory(directory, home)
+    for error in result.errors:
+        log.warning("shelf %r: skipping child manifest: %s", shelf.id, error)
+    if not result.activities:
+        log.warning("shelf %r has no children in %s", shelf.id, directory)
+    return sorted(result.activities, key=lambda a: a.sort_key)
+
+
+def resolve_shelves(
+    activities: list[Activity],
+    home: Path | None = None,
+    availability: Availability | None = None,
+) -> dict[str, list[Activity]]:
+    """Load every shelf's children once, at start-up, and stamp availability.
+
+    One dictionary, shelf id to children, handed to the screens on the context.
+    Doing it at start-up rather than on the tap is what lets Home know whether a
+    shelf has anything on it *before* a child presses it -- an empty shelf gets
+    no tile, exactly like an activity that is not installed.
+    """
+    checker = availability or Availability()
+    shelves: dict[str, list[Activity]] = {}
+    for shelf in activities:
+        if not shelf.is_shelf:
+            continue
+        children = resolve_availability(load_shelf_children(shelf, home), checker)
+        shelves[shelf.id] = children
+        log.info(
+            "shelf %r: %d child activities, %d usable",
+            shelf.id,
+            len(children),
+            sum(1 for child in children if child.usable),
+        )
+    return shelves
+
+
+def shelf_groups(activities: list[Activity], default_name: str = "") -> list[ShelfGroup]:
+    """Group ``activities`` by ``shelf_group``, in the order they arrive.
+
+    The children are already sorted by ``order`` and ``curated.toml`` numbers
+    them group by group, so first appearance *is* the curated group order --
+    there is nothing else to sort by and nothing to look up.
+
+    A child with no ``shelf_group`` falls into one group named after the shelf,
+    which is what a hand-written shelf with no groups in it gets.
+    """
+    order: list[str] = []
+    members: dict[str, list[Activity]] = {}
+    names: dict[str, tuple[str, str]] = {}
+    for activity in activities:
+        key = activity.shelf_group or ""
+        if key not in members:
+            order.append(key)
+            members[key] = []
+            names[key] = (
+                activity.shelf_group_name or default_name,
+                activity.shelf_group_audio_label or activity.shelf_group_name or default_name,
+            )
+        members[key].append(activity)
+    return [
+        ShelfGroup(id=key, name=names[key][0], audio_label=names[key][1], activities=tuple(group))
+        for key in order
+        if (group := members[key])
+    ]
 
 
 def default_activity_dirs(data_home: Path | None = None) -> list[Path]:

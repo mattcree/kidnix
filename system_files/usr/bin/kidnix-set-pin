@@ -1,0 +1,125 @@
+#!/usr/bin/bash
+# Choose the grown-up PIN for this machine.
+#
+#   kidnix-set-pin              -> asks you twice, nothing echoed
+#   kidnix-set-pin --stdin      -> reads one PIN from stdin (the shell uses this)
+#
+# WHY THIS EXISTS. /etc/kidnix/parent.toml is root-owned and the shell runs as
+# the child -- which is the whole reason the grown-up gate means anything. So
+# the PIN pad in the shell cannot save what it collects, and rather than
+# pretend to, it runs this. If it cannot run this either (see the polkit note
+# below) it keeps the PIN for the session and says so in those words.
+#
+# The image ships parent.toml with NO pin_hash at all (spec 7d #11), so a fresh
+# machine's gate opens on "choose a PIN" rather than on a pad that would accept
+# the documented 1234. This is the command that makes that choice permanent.
+#
+# POLKIT, AND THE HONEST LIMIT. Like kidnix-export and kidnix-wipe this is a
+# pkexec wrapper around itself, with the action org.kidnix.set-pin. That works
+# from the PARENT's account. It does **not** work from the child's session:
+# /usr/share/polkit-1/rules.d/40-kidnix-kid.rules refuses the `kid` user every
+# "org.kidnix." action, which is deliberately what stops a child authorising
+# kidnix-wipe -- and pkexec asks for the annotated action id, so there is no
+# carve-out that would not also open that door. A five-year-old must not be
+# able to set the PIN that fences them in either. So: run this from a terminal,
+# over SSH, or from the parent account.
+#
+# The PIN is never written to disk, never passed as an argument (an argument is
+# visible in `ps` to every process on the machine), and never logged. What is
+# stored is PBKDF2-HMAC-SHA256, 200000 rounds, over the PIN with a fresh random
+# salt -- kidnix_shell.settings.rewrite_pin, which edits those two lines and
+# leaves the other ninety alone.
+set -euo pipefail
+
+readonly CONFIG=/etc/kidnix/parent.toml
+readonly ACTION=org.kidnix.set-pin
+readonly PIN_LENGTH=4
+# The PIN every kidnix used to ship with. Refused here for the same reason the
+# file no longer carries it: it is written down in the documentation and is the
+# first four buttons in a row to a six-year-old watching you type.
+readonly REFUSED_PIN=1234
+
+die() { printf 'kidnix-set-pin: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+    cat >&2 <<'EOF'
+usage: kidnix-set-pin [--stdin] [PATH]
+
+  --stdin   read the PIN from standard input instead of prompting
+  PATH      a parent.toml to write (default /etc/kidnix/parent.toml)
+
+Run it as yourself; it asks polkit for the root it needs. From the child's
+session polkit will refuse it -- that is the lockdown working. Use a terminal,
+SSH, or the parent account.
+EOF
+    exit 64
+}
+
+from_stdin=false
+target="${CONFIG}"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --stdin) from_stdin=true; shift ;;
+        -h|--help) usage ;;
+        -*) die "unknown option $1" ;;
+        *) target="$1"; shift ;;
+    esac
+done
+
+# Not root yet: borrow it through polkit, exactly as kidnix-export does.
+if [[ "${EUID}" -ne 0 ]]; then
+    command -v pkexec >/dev/null 2>&1 \
+        || die "pkexec is missing; run 'sudo kidnix-set-pin' instead"
+    args=()
+    "${from_stdin}" && args+=(--stdin)
+    args+=("${target}")
+    exec pkexec /usr/bin/kidnix-set-pin "${args[@]}"
+fi
+
+[[ -d "$(dirname "${target}")" ]] || die "no such directory: $(dirname "${target}")"
+
+read_pin() {
+    # $1 is the prompt. Never echoed, never in the shell's history, and the
+    # variable is unset by the caller as soon as it has been used.
+    local prompt="$1" value
+    read -r -s -p "${prompt}" value </dev/tty
+    printf '\n' >&2
+    printf '%s' "${value}"
+}
+
+if "${from_stdin}"; then
+    # One line, from whatever asked for this (the shell's PIN pad). Reading a
+    # line rather than the whole stream means a caller cannot smuggle a second
+    # command in behind it.
+    IFS= read -r pin || die "nothing on stdin"
+else
+    printf 'Setting the grown-up PIN in %s.\n' "${target}" >&2
+    printf 'Four digits. It is not echoed, and only a hash of it is stored.\n' >&2
+    pin="$(read_pin 'New PIN: ')"
+    again="$(read_pin 'Type it again: ')"
+    [[ "${pin}" == "${again}" ]] || die "those two did not match; nothing was changed"
+    unset again
+fi
+
+[[ "${pin}" =~ ^[0-9]{${PIN_LENGTH}}$ ]] || die "a PIN is ${PIN_LENGTH} digits; nothing was changed"
+[[ "${pin}" != "${REFUSED_PIN}" ]] \
+    || die "${REFUSED_PIN} is the PIN every kidnix used to ship with; pick another"
+
+# The hashing and the in-place edit are the shell's own code, so the file
+# format and the shell's reader can never disagree about what a PIN is.
+KIDNIX_PIN="${pin}" python3 - "${target}" <<'PY' || die "could not write ${target}"
+import os
+import sys
+from pathlib import Path
+
+from kidnix_shell.settings import rewrite_pin
+
+path = Path(sys.argv[1])
+rewrite_pin(path, os.environ["KIDNIX_PIN"])
+# The caller (the shell's PIN pad) reads this to say where it went.
+print(path)
+PY
+unset pin
+
+printf 'Done. The old PIN, if there was one, no longer works.\n' >&2
+printf 'Action id for reference: %s\n' "${ACTION}" >&2

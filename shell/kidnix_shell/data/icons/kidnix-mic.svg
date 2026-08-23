@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Tell me about it</title>
+  <!-- A microphone, drawn as the thing itself rather than as a symbol: a
+       pre-reader has seen one held in front of somebody talking. Depictive,
+       per the panel ruling on icons (7d #6). -->
+  <rect x="24" y="8" width="16" height="30" rx="8" fill="#f6c9a8"
+        stroke="#16181d" stroke-width="4"/>
+  <path d="M16 30 C16 42 24 48 32 48 C40 48 48 42 48 30" fill="none"
+        stroke="#16181d" stroke-width="4" stroke-linecap="round"/>
+  <path d="M32 48 L32 56" stroke="#16181d" stroke-width="4" stroke-linecap="round"/>
+  <path d="M22 56 L42 56" stroke="#16181d" stroke-width="4" stroke-linecap="round"/>
+  <!-- Two grille lines, so the head reads as a microphone and not as a pill. -->
+  <path d="M27 17 L37 17 M27 24 L37 24" stroke="#16181d" stroke-width="2.5"
+        stroke-linecap="round"/>
+</svg>

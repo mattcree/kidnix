@@ -57,6 +57,7 @@ from .kiosk import BAND_TITLE, CONTENT_TITLE, WindowConfig, placed  # noqa: E402
 from .launcher import Launcher, RunningActivity  # noqa: E402
 from .metrics import Metrics, ScreenOverride, detect_metrics, pin_font_dpi  # noqa: E402
 from .next_after import NextAfter  # noqa: E402
+from .research import BurstDetector, ResearchConfig  # noqa: E402
 from .resting import refusal_line  # noqa: E402
 from .ritual import (  # noqa: E402
     OFFER_QUESTION,
@@ -65,6 +66,7 @@ from .ritual import (  # noqa: E402
     back_delay_seconds,
     next_action,
     put_away_line,
+    undo_line,
 )
 from .screens import Screen  # noqa: E402
 from .screens.ending import EndingOfferScreen, PutAwayScreen  # noqa: E402
@@ -73,6 +75,7 @@ from .screens.grownup import GrownupSheet  # noqa: E402
 from .screens.home import HomeScreen  # noqa: E402
 from .screens.journal import JournalScreen  # noqa: E402
 from .screens.next_after import NextAfterScreen  # noqa: E402
+from .screens.shelf import ShelfScreen  # noqa: E402
 from .screens.sleeping import SleepingScreen  # noqa: E402
 from .screens.whos_here import WhosHereScreen  # noqa: E402
 from .session import (  # noqa: E402
@@ -84,12 +87,19 @@ from .session import (  # noqa: E402
     budget_day,
     time_left_words,
 )
-from .settings import KidState, ParentConfig, Paths, Profile  # noqa: E402
+from .settings import (  # noqa: E402
+    KidState,
+    ParentConfig,
+    Paths,
+    Profile,
+    migrate_profile_data,
+)
 from .sound import BACK, KEEP, PHASE, SLEEP, TAP, Earcons  # noqa: E402
 from .speech import GLibScheduler, SpeechManager, select_backend  # noqa: E402
 from .state import Event, State, StateMachine  # noqa: E402
 from .sun import idle_fraction  # noqa: E402
 from .theme import dynamic_css  # noqa: E402
+from .voice import GstRecorder, VoiceNote  # noqa: E402
 from .widgets import SpeechUI  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -166,6 +176,7 @@ STATE_TO_SCREEN = {
     State.CHOOSING: "choosing",
     State.NEXT_CHOICE: "next_after",
     State.HOME: "home",
+    State.SHELF: "shelf",
     State.JOURNAL: "journal",
     State.SHOWING: "journal",
     State.IN_ACTIVITY: "home",  # the shell sits behind the activity's window
@@ -245,11 +256,15 @@ class ShellWindow(Adw.ApplicationWindow):
         fullscreen: bool = True,
         speech_backend: str | None = None,
         screen: ScreenOverride | None = None,
+        shelves: dict[str, list[Activity]] | None = None,
+        research: ResearchConfig | None = None,
     ) -> None:
         super().__init__(application=application)
         self.set_title(CONTENT_TITLE)
         self.add_css_class("kidnix")
 
+        #: The machine's paths. Everything a *child* owns hangs off
+        #: ``paths.for_profile(...)`` instead -- see :meth:`_use_profile`.
         self.paths = paths
         self.demo = demo
         self._screen_override = screen
@@ -287,10 +302,15 @@ class ShellWindow(Adw.ApplicationWindow):
         # -- services --
         # Spec 7b: the hover dwell is a parent-tunable number, because it is
         # the first thing the child test (P5) will move.
+        #: ``/etc/kidnix/research.toml``. Read once, here, and handed to
+        #: everything that could log: nothing in the shell decides for itself
+        #: whether it is being studied (spec 7d #10).
+        self.research = research if research is not None else ResearchConfig()
         self.speech = SpeechManager(
             backend=select_backend(speech_backend),
             scheduler=GLibScheduler(),
             dwell_ms=config.hover_dwell_ms,
+            research=self.research,
         )
         log.info(
             "read-aloud backend: %s (hover dwell %d ms, settle-gated)",
@@ -312,12 +332,24 @@ class ShellWindow(Adw.ApplicationWindow):
         # child's cache when the package directory cannot be written.
         self.earcons = Earcons(cache_dir=paths.sounds_cache, access=self.access)
 
-        self.journal = Journal(paths.journal_root)
+        #: Whose things are open right now. The first profile's, until "Who's
+        #: here?" says otherwise -- a shell that came up on nobody's journal
+        #: would have nothing to show on the tile thumbnails.
+        self.profile_paths = paths.for_profile(config.profiles[0].id)
+        migrate_profile_data(paths, config.profiles[0].id)
+
+        self.journal = Journal(self.profile_paths.journal_root)
         self.journal.load()
+        # The importer watches the *activities'* directories, which are shared
+        # by every child on the machine (Tux Paint saves where Tux Paint
+        # saves). Which profile a new file lands in is therefore "whoever is
+        # logged in", which is right for one machine per child and is the
+        # honest limit of profiles that share one Unix account -- see the
+        # implementation notes.
         self.importer = JournalImporter(self.journal, activities)
         self.watcher = JournalWatcher(self.importer, on_import=self._on_new_work)
 
-        usage = DailyUsage.for_now(paths.usage_state, datetime.now())
+        usage = DailyUsage.for_now(self.profile_paths.usage_state, datetime.now())
         self.session = Session(policy=policy, usage=usage)
         self.launcher = Launcher(paths.home)
         self.launcher.on_exit = self._on_activity_exit
@@ -369,8 +401,23 @@ class ShellWindow(Adw.ApplicationWindow):
         self._one_window = False
         self._shutting_down = False
 
-        self.kid_state = KidState.load(paths.progress_state)
-        log.info("%d session(s) completed on this machine", self.kid_state.sessions_completed)
+        #: Which shelf the child is standing in, if any. Set by
+        #: :meth:`open_shelf`, cleared by Back to Home, and read after an
+        #: activity exits so the child lands back where they launched from
+        #: rather than one level out (``panel-wave-c`` section 2).
+        self._shelf: Activity | None = None
+        #: Presses that hit no control at all, counted for the child test's
+        #: burst detector (CCI #54). It logs nothing unless ``research.toml``
+        #: says it may; it is constructed either way so the wiring is not a
+        #: conditional the study has to trust.
+        self.bursts = BurstDetector(research=self.research)
+
+        self.kid_state = KidState.load(self.profile_paths.progress_state)
+        log.info(
+            "%d session(s) completed by %s",
+            self.kid_state.sessions_completed,
+            config.profiles[0].id,
+        )
 
         profile = config.profiles[0]
         self.ctx = ShellContext(
@@ -387,6 +434,9 @@ class ShellWindow(Adw.ApplicationWindow):
             profile=profile,
             kid_state=self.kid_state,
             demo=demo,
+            shelves=shelves or {},
+            research=self.research,
+            voice=self._build_voice(),
         )
 
         # -- layout --
@@ -435,6 +485,7 @@ class ShellWindow(Adw.ApplicationWindow):
         # Keyboard is never required, but Escape must never be a trap either.
         self.connect("close-request", self._on_close)
 
+        self._watch_for_bursts()
         self.watcher.start()
         self._tick_handle = GLib.timeout_add(TICK_MS, self._tick)
         self._show_state()
@@ -442,6 +493,103 @@ class ShellWindow(Adw.ApplicationWindow):
         # Render the earcons (about 13 ms) off the first frame rather than off
         # the first thing the child presses.
         GLib.idle_add(self._warm_earcons)
+
+    # -- the burst-click detector (spec 7d #10, CCI #54) ---------------
+
+    def _watch_for_bursts(self) -> None:
+        """Notice a child pressing a patch of screen that is not a button.
+
+        The child-test method review named this as missing by name: an ABAB
+        design cannot tell "exploring" from "has stopped believing the screen
+        will answer" without it, and three presses in a second on nothing at
+        all is the observable difference.
+
+        It is one gesture on each toplevel, in the **capture** phase and
+        claiming nothing, so it sees every press before any control does and
+        changes none of them. What lands on a control is discovered by asking
+        GTK what is under the pointer (:meth:`Gtk.Widget.pick`) rather than by
+        waiting to see whether a handler ran -- a press that a ``ChildButton``
+        claims never bubbles back here at all.
+
+        Nothing is written unless ``research.toml`` says so; the wiring is
+        unconditional so that turning the study on does not also turn on a code
+        path nobody has run.
+        """
+        for window in (self, self.band_window):
+            gesture = Gtk.GestureClick.new()
+            gesture.set_button(0)
+            gesture.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            gesture.connect("pressed", self._on_any_press)
+            window.add_controller(gesture)
+
+    def _on_any_press(self, gesture: Gtk.GestureClick, _n: int, x: float, y: float) -> None:
+        widget = gesture.get_widget()
+        on_target = False
+        try:
+            picked = widget.pick(x, y, Gtk.PickFlags.DEFAULT)
+            while picked is not None:
+                if isinstance(picked, Gtk.Button):
+                    on_target = True
+                    break
+                picked = picked.get_parent()
+        except Exception:  # pragma: no cover - picking must never break a press
+            return
+        if self.bursts.press(time.monotonic(), on_target=on_target):
+            log.debug("burst of presses on nothing (state %s)", self.machine.state.value)
+
+    # -- "tell me about it" (spec 7d #9) -------------------------------
+
+    @staticmethod
+    def _build_voice() -> VoiceNote | None:
+        """The recorder, or ``None`` on a machine with no microphone.
+
+        Probed **here**, once, at start-up, rather than when a child presses
+        something: the answer decides whether the button is drawn at all, and a
+        mic button that appears and then does nothing is exactly the control
+        spec 7a took Ask out of the band to avoid.
+        """
+        note = VoiceNote(recorder=GstRecorder(), scheduler=GLibScheduler())
+        if not note.available:
+            log.info("no microphone; 'tell me about it' is off for this run")
+            note.close()
+            return None
+        log.info("voice notes are available (%.0f s maximum)", note.max_seconds)
+        return note
+
+    # -- whose machine this is right now (spec 7d #11) -----------------
+
+    def _use_profile(self, profile: Profile) -> None:
+        """Point the Journal, the budget and the progress counter at one child.
+
+        Until 2026-08-23 there was one of each per *machine*, so a second child
+        opened their sibling's My Things, inherited their spent afternoon and
+        their grown grid -- "profiles are cosmetic" (forum #4) was literally
+        true. Everything a child owns now hangs off ``paths.for_profile``, and
+        this is the single place that swaps it.
+
+        The old single-profile layout is migrated into the **first** profile,
+        once, idempotently (:func:`kidnix_shell.settings.migrate_profile_data`)
+        so that nobody's existing drawings disappear on the morning of an
+        upgrade.
+        """
+        self.ctx.profile = profile
+        paths = self.paths.for_profile(profile.id)
+        if paths == self.profile_paths:
+            return
+        migrate_profile_data(self.paths, profile.id)
+        self.profile_paths = paths
+        self.journal.root = paths.journal_root
+        self.journal.load()
+        self.session.usage = DailyUsage.for_now(paths.usage_state, datetime.now())
+        self.kid_state = KidState.load(paths.progress_state)
+        self.ctx.kid_state = self.kid_state
+        log.info(
+            "profile %r: journal %s, %d session(s) completed, %d minute(s) used today",
+            profile.id,
+            paths.journal_root,
+            self.kid_state.sessions_completed,
+            self.session.usage.seconds // 60,
+        )
 
     # -- access (captions, calm, volume) ------------------------------
 
@@ -582,6 +730,7 @@ class ShellWindow(Adw.ApplicationWindow):
             "choosing": WhosHereScreen(self.ctx),
             "next_after": NextAfterScreen(self.ctx),
             "home": HomeScreen(self.ctx),
+            "shelf": ShelfScreen(self.ctx),
             "journal": JournalScreen(self.ctx),
             "ending": EndingOfferScreen(self.ctx),
             "put_away": PutAwayScreen(self.ctx),
@@ -980,6 +1129,12 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _on_state_change(self, previous: State, current: State, event: Event) -> None:
         log.info("state %s -> %s (%s)", previous.value, current.value, event.value)
+        # Leaving the shelf for anywhere that is not inside it forgets it. The
+        # three exceptions are the three ways of being *still* in it: the shelf
+        # itself, an activity launched from it, and the grown-up sheet, which
+        # is a modal over wherever the child was and puts them back.
+        if current not in (State.SHELF, State.IN_ACTIVITY, State.GROWNUP):
+            self._shelf = None
         if current is State.SLEEPING:
             self._slept_at = datetime.now()
         elif previous is State.SLEEPING:
@@ -998,6 +1153,13 @@ class ShellWindow(Adw.ApplicationWindow):
         journal_screen = self.screens["journal"]
         assert isinstance(journal_screen, JournalScreen)
         journal_screen.showing_mode = state is State.SHOWING
+        shelf_screen = self.screens["shelf"]
+        assert isinstance(shelf_screen, ShelfScreen)
+        # One screen serves every shelf, so it is told which one it is *before*
+        # `on_enter` builds the tiles. A rebuilt layout (a monitor change, the
+        # measured-fit backstop) comes back through here too, which is why the
+        # answer lives on the window rather than on the screen.
+        shelf_screen.set_shelf(self._shelf)
 
         previous = self.stack.get_visible_child_name()
         if previous != name:
@@ -1036,7 +1198,9 @@ class ShellWindow(Adw.ApplicationWindow):
                     window.add_css_class(css_class)
                 else:
                     window.remove_css_class(css_class)
-        self.band.set_journal_sensitive(state in (State.HOME, State.JOURNAL, State.IN_ACTIVITY))
+        self.band.set_journal_sensitive(
+            state in (State.HOME, State.SHELF, State.JOURNAL, State.IN_ACTIVITY)
+        )
         if state is not State.IN_ACTIVITY:
             self.screens[name].on_enter()
         # **Focus, on every arrival** (review B1: nothing called `grab_focus`
@@ -1350,7 +1514,9 @@ class ShellWindow(Adw.ApplicationWindow):
         # quietly starting a clock behind a screen that is not asking.
         if not self.machine.can(Event.CHOOSE_PROFILE):
             return
-        self.ctx.profile = profile
+        # Whose journal, whose budget, whose grid -- before the clock starts,
+        # because `may_start` reads this child's usage and not the machine's.
+        self._use_profile(profile)
         self._apply_tint(profile)
         now = datetime.now()
         refusal = self.session.may_start(now)
@@ -1420,6 +1586,24 @@ class ShellWindow(Adw.ApplicationWindow):
         self.earcons.play(TAP)
         self.machine.try_fire(Event.LAUNCH_ACTIVITY)
 
+    def open_shelf(self, shelf: Activity) -> None:
+        """A shelf tile was tapped: one more screen of tiles, and only one.
+
+        The shelf's own ``exec`` is deliberately never run (it is the fallback
+        for a shell that has no shelf screen, and for GCompris it is a single
+        curated activity rather than the 198-activity menu). What is opened is
+        :class:`kidnix_shell.screens.shelf.ShelfScreen`, over this shelf's
+        children.
+        """
+        if not shelf.is_shelf or not self.machine.can(Event.OPEN_SHELF):
+            return
+        self._shelf = shelf
+        self.earcons.play(TAP)
+        log.info(
+            "opening the %r shelf (%d children)", shelf.id, len(self.ctx.shelves.get(shelf.id, []))
+        )
+        self.machine.try_fire(Event.OPEN_SHELF)
+
     def resume_entry(self, entry: Entry) -> None:
         activity = next((a for a in self.ctx.activities if a.id == entry.activity_id), None)
         if activity is None:
@@ -1473,7 +1657,18 @@ class ShellWindow(Adw.ApplicationWindow):
             self._enter_put_away(self._put_away_event)
             return
         if self.machine.state is State.IN_ACTIVITY:
+            # Held across the transition: ACTIVITY_EXITED lands on Home, and
+            # arriving at Home is what *forgets* a shelf, so the answer has to
+            # be taken before the question is asked.
+            shelf = self._shelf
             self.machine.try_fire(Event.ACTIVITY_EXITED)
+            if shelf is not None and not self._journal_after_activity:
+                # Back from a game goes back to the shelf it was chosen from,
+                # not one level further out. A child who came in through
+                # "Letters & numbers" and lands on Home has been moved without
+                # being shown the move (panel-wave-c section 2).
+                self._shelf = shelf
+                self.machine.try_fire(Event.OPEN_SHELF)
         if self._journal_after_activity:
             # My Things was pressed *inside* the activity: the child asked to
             # go and look at their things, and the activity had to finish
@@ -1547,13 +1742,33 @@ class ShellWindow(Adw.ApplicationWindow):
         self.speech.speak(f"{name} is asking if you're done.")
         return False
 
-    def _running_activity_name(self) -> str:
-        """What the child calls the thing they are in ("Draw"), or a fallback."""
+    def _running_activity(self) -> Activity | None:
+        """The manifest behind the program on screen, if we still have it.
+
+        Looked up in the shelves as well as on Home: a game launched from the
+        "Letters & numbers" shelf is not in ``ctx.activities`` at all, and
+        until this looked there the shell could not name the thing the child
+        was actually inside.
+        """
         running = self.launcher.current
         if running is None:
-            return ""
-        activity = next((a for a in self.ctx.activities if a.id == running.activity_id), None)
+            return None
+        pools: list[list[Activity]] = [self.ctx.activities, *self.ctx.shelves.values()]
+        for pool in pools:
+            for activity in pool:
+                if activity.id == running.activity_id:
+                    return activity
+        return None
+
+    def _running_activity_name(self) -> str:
+        """What the child calls the thing they are in ("Draw"), or a fallback."""
+        activity = self._running_activity()
         return activity.name if activity is not None else ""
+
+    def _running_undo_key(self) -> str:
+        """The running activity's own undo keystroke, if its manifest names one."""
+        activity = self._running_activity()
+        return activity.undo_key if activity is not None else ""
 
     def _on_new_work(self, entries: list[Entry]) -> None:
         log.info("kept %d new thing(s)", len(entries))
@@ -1763,18 +1978,20 @@ class ShellWindow(Adw.ApplicationWindow):
         one that is always in the same place and sometimes says "Nothing to
         undo" -- spatial stability beats availability signalling here.
 
-        **Inside an activity it says so rather than doing nothing** (v0.1.5).
-        Routing Undo into a running program would mean synthesising a key press
-        the shell has no documented contract for -- Tux Paint's undo is
-        Ctrl+Z, GCompris's is not, and a shell that guessed would be teaching a
-        child that the button is unreliable. Honest and audible beats clever
-        and intermittent, and it is the same rule as "Nothing to undo".
+        **Inside an activity it says where the child's undo actually is**
+        (:func:`kidnix_shell.ritual.undo_line`, and the note above it). The
+        panel asked for ``undo_key`` routing; the manifest key exists and is
+        read, and the *sending* half does not, because no mechanism for it on
+        this machine is one a child's session may have -- a GTK client cannot
+        inject into another Wayland client, mutter does not implement
+        ``virtual-keyboard-v1``, and ``ydotool`` would mean handing the kid
+        account ``/dev/uinput``. So the press is answered with a true sentence,
+        spoken and captioned, naming the activity's own control. Honest and
+        audible beats clever and intermittent -- the same rule as "Nothing to
+        undo".
         """
         if self.machine.state is State.IN_ACTIVITY:
-            name = self._running_activity_name()
-            self.speech.speak(
-                f"{name} has its own undo button." if name else "This one has its own undo button."
-            )
+            self.speech.speak(undo_line(self._running_activity_name(), self._running_undo_key()))
             return
         journal_screen = self.screens["journal"]
         in_journal = self.machine.state is State.JOURNAL
@@ -1932,6 +2149,10 @@ class ShellWindow(Adw.ApplicationWindow):
         self.session.end(datetime.now())
         self.speech.close()
         self.earcons.close()
+        if self.ctx.voice is not None:
+            # A recording still running at shutdown is still the child's: stop
+            # closes the Ogg container properly rather than truncating it.
+            self.ctx.voice.close()
 
 
 class ShellApplication(Adw.Application):
@@ -1958,6 +2179,8 @@ class ShellApplication(Adw.Application):
         screen: ScreenOverride | None = None,
         screenshot: Path | None = None,
         start_on: str = "choosing",
+        shelves: dict[str, list[Activity]] | None = None,
+        research: ResearchConfig | None = None,
     ) -> None:
         super().__init__(application_id=APP_ID)
         self._paths = paths
@@ -1971,6 +2194,8 @@ class ShellApplication(Adw.Application):
         self._screen = screen
         self._screenshot = screenshot
         self._start_on = start_on
+        self._shelves = shelves or {}
+        self._research = research if research is not None else ResearchConfig()
         self.window: ShellWindow | None = None
 
     def do_activate(self) -> None:
@@ -1985,6 +2210,8 @@ class ShellApplication(Adw.Application):
                 fullscreen=self._fullscreen,
                 speech_backend=self._speech_backend,
                 screen=self._screen,
+                shelves=self._shelves,
+                research=self._research,
             )
             if self._start_on != "choosing" and self._config.profiles:
                 # Development only (--start-on): a --screenshot run should
@@ -2035,6 +2262,23 @@ class ShellApplication(Adw.Application):
             window.machine.try_fire(Event.IM_FINISHED)
             window.session.end(datetime.now())
             window.machine.try_fire(Event.GOODBYE_DUE)
+        if self._start_on in ("put-away", "journal", "shelf"):
+            # The screens that need something to have been *made*: S6 has a
+            # thumbnail flying into My Things and a mic to talk about it, and a
+            # Journal with nothing in it photographs its empty state.
+            from .demo import seed_work
+
+            if self._demo:
+                seed_work(self._activities)
+                window.watcher.sweep_now()
+        if self._start_on == "shelf":
+            shelf = next((a for a in self._activities if a.is_shelf), None)
+            if shelf is not None:
+                window.open_shelf(shelf)
+        if self._start_on == "journal":
+            window.open_journal()
+        if self._start_on == "put-away":
+            window.machine.try_fire(Event.IM_FINISHED)
         if self._start_on == "offer":
             # The band offer, added to the band rather than replacing Undo and
             # My Things. Driven directly: the shape of the band is the point,

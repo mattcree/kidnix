@@ -271,6 +271,13 @@ def test_the_highlight_is_still_the_only_reserved_colour() -> None:
         # own: `:focus-visible` stops drawing on whichever of the two windows
         # the compositor has not focused, which is exactly the half a keyboard
         # user has just tabbed into (kidnix_shell.keyboard).
+        # A mic that is recording. The reserved colour means "the thing you
+        # can touch right now", and while a twenty-second note is being
+        # recorded there is exactly one thing to touch: the button that stops
+        # it. It is the same argument as the band's arriving offer buttons,
+        # and it clears the edge rule for the same reason -- `button.mic`
+        # carries a 3 px @kid-edge border underneath the yellow.
+        "button.mic.recording",
         ".kid-focus",
         "button.kid-focus",
         ".tile.kid-focus",

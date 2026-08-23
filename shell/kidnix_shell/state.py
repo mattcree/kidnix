@@ -1,6 +1,7 @@
 """The shell state machine (spec section 2 and 7b).
 
-``CHOOSING -> NEXT_CHOICE -> HOME <-> IN_ACTIVITY``, ``HOME <-> JOURNAL``,
+``CHOOSING -> NEXT_CHOICE -> HOME <-> IN_ACTIVITY``, ``HOME <-> SHELF``,
+``HOME <-> JOURNAL``,
 ``{HOME, IN_ACTIVITY, JOURNAL} -> ENDING_OFFER -> PUT_AWAY -> GOODBYE ->
 SLEEPING -> CHOOSING``, plus ``GROWNUP`` as a modal sheet reachable from
 anywhere.
@@ -26,6 +27,7 @@ class State(Enum):
     CHOOSING = "choosing"  # S1 Who's here?
     NEXT_CHOICE = "next_choice"  # S1b What's next after? (spec 7b)
     HOME = "home"  # S2
+    SHELF = "shelf"  # S2b: one shelf tile's children (spec 7d #12)
     IN_ACTIVITY = "in_activity"  # S3
     JOURNAL = "journal"  # S4 My Things
     ENDING_OFFER = "ending_offer"  # S5
@@ -44,6 +46,7 @@ class Event(Enum):
     #: goes straight to Home. A separate event rather than a conditional edge:
     #: the graph has to say out loud that the screen can be skipped.
     SKIP_NEXT_CHOICE = "skip_next_choice"
+    OPEN_SHELF = "open_shelf"  # a `kind = "shelf"` tile was tapped
     LAUNCH_ACTIVITY = "launch_activity"
     ACTIVITY_EXITED = "activity_exited"
     OPEN_JOURNAL = "open_journal"
@@ -94,8 +97,29 @@ TRANSITIONS: dict[State, dict[Event, State | None]] = {
     },
     State.HOME: {
         Event.LAUNCH_ACTIVITY: State.IN_ACTIVITY,
+        Event.OPEN_SHELF: State.SHELF,
         Event.OPEN_JOURNAL: State.JOURNAL,
         Event.BACK: State.HOME,  # "You're home" -- never a dead end, never a jolt
+        Event.ENDING_OFFER_DUE: State.ENDING_OFFER,
+        Event.PUT_AWAY_DUE: State.PUT_AWAY,
+        Event.IM_FINISHED: State.PUT_AWAY,
+        Event.OPEN_GROWNUP: State.GROWNUP,
+    },
+    # S2b. A shelf is Home one level in, and it behaves like Home in every way
+    # that matters to a child who is standing in it: Back goes Home (never out
+    # of the session), a tile launches, My Things is reachable, and the ending
+    # ritual reaches it exactly as it reaches Home. It has no "All done" of its
+    # own -- that control has one cell, on Home (spec 7d #5).
+    #
+    # Returning to the shelf after an activity is deliberately **not** an edge
+    # here: ACTIVITY_EXITED lands on Home and `ShellWindow` re-fires OPEN_SHELF
+    # when the child came from one, so the graph keeps one exit from an
+    # activity rather than two that have to agree.
+    State.SHELF: {
+        Event.OPEN_SHELF: State.SHELF,  # idempotent under burst-clicking
+        Event.LAUNCH_ACTIVITY: State.IN_ACTIVITY,
+        Event.OPEN_JOURNAL: State.JOURNAL,
+        Event.BACK: State.HOME,
         Event.ENDING_OFFER_DUE: State.ENDING_OFFER,
         Event.PUT_AWAY_DUE: State.PUT_AWAY,
         Event.IM_FINISHED: State.PUT_AWAY,
@@ -111,6 +135,7 @@ TRANSITIONS: dict[State, dict[Event, State | None]] = {
     },
     State.JOURNAL: {
         Event.BACK: State.HOME,
+        Event.OPEN_SHELF: State.SHELF,
         Event.LAUNCH_ACTIVITY: State.IN_ACTIVITY,  # resume from a card
         Event.OPEN_JOURNAL: State.JOURNAL,  # idempotent under burst-clicking
         Event.ENDING_OFFER_DUE: State.ENDING_OFFER,
@@ -163,6 +188,7 @@ RETURNABLE = frozenset(
         State.CHOOSING,
         State.NEXT_CHOICE,
         State.HOME,
+        State.SHELF,
         State.IN_ACTIVITY,
         State.JOURNAL,
         State.ENDING_OFFER,

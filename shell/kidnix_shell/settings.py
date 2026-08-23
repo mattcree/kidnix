@@ -129,11 +129,26 @@ def is_system_path(path: Path | None) -> bool:
     return any(path == directory / path.name for directory in CONFIG_SEARCH_PATH)
 
 
+#: Where a child's own things live under ``kidnix/``. **One directory per
+#: profile since 2026-08-23** (spec 7d #11): until then a second child on the
+#: same machine shared the first one's Journal, their daily budget and their
+#: progressive-disclosure counter, so "profiles are cosmetic" (forum #4) was
+#: literally true -- the colour changed and nothing else did. A parent panel
+#: reviewer put the consequence plainly: "one journal, one budget, one
+#: disclosure counter per machine" is a blocker for a second child.
+PROFILES_DIR = "profiles"
+
+
 @dataclass(frozen=True)
 class Paths:
     """Every directory the shell touches, resolved once and passed around.
 
     Built from the environment so tests can point the whole shell at a tmpdir.
+
+    ``profile`` is which child's things these are. Empty is the **legacy**
+    layout -- ``kidnix/journal``, ``kidnix/usage.toml`` -- which is what every
+    machine built before 2026-08-23 has on disk and what
+    :func:`migrate_profile_data` moves out of the way exactly once.
     """
 
     home: Path
@@ -142,6 +157,8 @@ class Paths:
     cache_home: Path
     state_home: Path
     runtime_dir: Path | None = None
+    #: The profile id these paths belong to. ``""`` is the pre-profiles layout.
+    profile: str = ""
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Paths:
@@ -162,10 +179,40 @@ class Paths:
             runtime_dir=Path(runtime) if runtime else None,
         )
 
+    def for_profile(self, profile_id: str) -> Paths:
+        """The same machine, this child's things.
+
+        A whole :class:`Paths` rather than three extra properties, so nothing
+        downstream has to remember to ask for the per-profile spelling: the
+        Journal, the usage file and the progress file all move together or none
+        of them does.
+        """
+        return replace(self, profile=profile_id or "")
+
+    def _owned(self, base: Path) -> Path:
+        """``<base>/kidnix`` for the legacy layout, ``.../profiles/<id>`` now."""
+        root = base / "kidnix"
+        return root / PROFILES_DIR / self.profile if self.profile else root
+
+    @property
+    def profile_data(self) -> Path:
+        """This child's data directory. What ``kidnix-export`` copies."""
+        return self._owned(self.data_home)
+
+    @property
+    def profile_state(self) -> Path:
+        """This child's state directory: usage and progress."""
+        return self._owned(self.state_home)
+
     @property
     def journal_root(self) -> Path:
-        """Spec section 5: ``$XDG_DATA_HOME/kidnix/journal/``."""
-        return self.data_home / "kidnix" / "journal"
+        """Spec section 5: ``$XDG_DATA_HOME/kidnix/profiles/<id>/journal/``.
+
+        The profile segment is inside ``kidnix/`` rather than beside it so that
+        one export, one wipe and one backup still take everything: a parent
+        reasoning about "where does my child's work live" gets one answer.
+        """
+        return self.profile_data / "journal"
 
     @property
     def parent_config(self) -> Path | None:
@@ -188,8 +235,14 @@ class Paths:
 
     @property
     def usage_state(self) -> Path:
-        """Kid-owned: how much of today's budget has been spent."""
-        return self.state_home / "kidnix" / "usage.toml"
+        """Kid-owned: how much of **this child's** budget today has been spent.
+
+        Per profile since 2026-08-23. Sharing it meant a second child's first
+        sitting of the day started with their sibling's hour already spent --
+        the daily budget is a policy about one child's afternoon, not about the
+        machine's.
+        """
+        return self.profile_state / "usage.toml"
 
     @property
     def progress_state(self) -> Path:
@@ -199,8 +252,64 @@ class Paths:
         04:00, and progressive disclosure (spec 7b, SYNTHESIS B2) counts across
         the whole life of the machine. Nothing in here can widen what the child
         is allowed to do -- the ceiling is still the allow-list.
+
+        Per profile: progressive disclosure counts *this child's* sessions, and
+        a younger sibling should not inherit an older one's grid.
         """
-        return self.state_home / "kidnix" / "progress.toml"
+        return self.profile_state / "progress.toml"
+
+
+#: What :func:`migrate_profile_data` moves, relative to ``kidnix/`` in the data
+#: and state directories respectively. Journal first, because it is the one
+#: whose loss a child would notice.
+LEGACY_DATA = ("journal",)
+LEGACY_STATE = ("usage.toml", "progress.toml")
+
+
+def migrate_profile_data(paths: Paths, profile_id: str) -> list[Path]:
+    """Move a pre-profiles machine's data into its **first** profile. Once.
+
+    Every machine built before 2026-08-23 has ``kidnix/journal`` and
+    ``kidnix/usage.toml`` where the profile directories now go. Doing nothing
+    would present a child with an empty My Things on the morning of an upgrade,
+    which is the one failure "nothing is ever deleted" (SYNTHESIS C2) exists to
+    prevent -- so the old layout is *moved*, not copied and not left behind.
+
+    Three properties, and all three are tested:
+
+    * **Idempotent.** A destination that already exists is never touched; the
+      second run finds nothing to move and says nothing.
+    * **Non-destructive.** ``Path.rename`` within one filesystem, and a
+      destination that exists is a reason to stop rather than to overwrite. If
+      a machine somehow has both, the profile's own copy wins and the legacy
+      one is left where a parent can find it.
+    * **Never fatal.** A read-only disk, a permission problem, a half-mounted
+      home: logged, and the session carries on with an empty Journal rather
+      than not starting.
+
+    Returns what was moved, for the log line and for the test.
+    """
+    if not profile_id:
+        return []
+    target = paths.for_profile(profile_id)
+    moved: list[Path] = []
+    plan = [
+        (paths.data_home / "kidnix" / name, target.profile_data / name) for name in LEGACY_DATA
+    ] + [(paths.state_home / "kidnix" / name, target.profile_state / name) for name in LEGACY_STATE]
+    for source, destination in plan:
+        if not source.exists() or destination.exists():
+            continue
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            source.rename(destination)
+        except OSError as exc:
+            log.warning("could not move %s to %s (%s); leaving it alone", source, destination, exc)
+            continue
+        moved.append(destination)
+        log.info("moved %s into profile %r", source, profile_id)
+    if moved:
+        log.info("migrated %d item(s) into the first profile (%s)", len(moved), profile_id)
+    return moved
 
 
 # --- PIN -----------------------------------------------------------------
@@ -400,10 +509,24 @@ class ParentConfig:
     read_only: bool = False
     #: True when nothing was found and the dev PIN is in force.
     is_default: bool = False
+    #: **Has a grown-up ever chosen the four numbers?** Set by
+    #: :meth:`load` when the file carried a ``pin_hash``, and by
+    #: :meth:`set_pin`. False is what makes the gate open the Set-PIN flow
+    #: before anything else (:attr:`must_set_pin`), and it is the state a
+    #: freshly installed machine is now in **by design**: the image ships
+    #: ``parent.toml`` with no hash at all (panel ruling, spec 7d #11).
+    pin_configured: bool = False
 
     def __post_init__(self) -> None:
         if not self.pin_hash:
+            # A fallback, not a gate. Nothing child-facing reaches it any more:
+            # `must_set_pin` sends the grown-up sheet straight to "choose a
+            # PIN" and does not let anything else happen first. It exists so a
+            # developer's shell, `--demo` and the tests still have a PIN to
+            # check, and so a *programmatic* caller never meets an empty hash.
             self.pin_salt, self.pin_hash = hash_pin(DEFAULT_PIN)
+        else:
+            self.pin_configured = True
         if not self.profiles:
             self.profiles = [DEFAULT_PROFILE]
 
@@ -414,6 +537,26 @@ class ParentConfig:
 
     def set_pin(self, pin: str) -> None:
         self.pin_salt, self.pin_hash = hash_pin(pin)
+        self.pin_configured = True
+        self.is_default = False
+
+    @property
+    def must_set_pin(self) -> bool:
+        """Is the gate still unset, i.e. must it ask for a new PIN first?
+
+        The image ships ``parent.toml`` **without** a ``pin_hash``, so on a
+        stock machine this is true and the grown-up sheet opens on "Choose a
+        grown-up PIN" rather than on a pad that would accept 1234. That is the
+        panel's ruling (7d #11) and Mags's own sentence for it: *"please make
+        it refuse to start until I have picked my own four numbers, and please
+        let me pick them somewhere he is not looking."*
+
+        It is the *only* condition on the flow. It goes false as soon as a PIN
+        has been chosen, whether or not it could be written to disk -- see
+        :meth:`kidnix_shell.screens.grownup.GrownupSheet._finish_setting_pin`,
+        which never claims to have saved something it did not.
+        """
+        return not self.pin_configured
 
     @property
     def pin_is_starter(self) -> bool:
@@ -521,8 +664,13 @@ class ParentConfig:
             read_only=read_only,
         )
         if not str(data.get("pin_hash", "")):
+            # **The shipped state**, since the image stopped carrying a hash:
+            # the gate is unconfigured, `must_set_pin` is true, and the sheet
+            # opens on "choose a PIN". INFO rather than WARNING because it is
+            # now the expected condition of a machine nobody has set up yet,
+            # and the thing that acts on it is a screen, not a log line.
             config.is_default = True
-            log.warning("parent config %s has no PIN; the dev default is in force", path)
+            log.info("parent config %s has no PIN yet; the gate will ask for one", path)
         return config
 
     def save(self, path: Path | None = None) -> Path:
@@ -542,8 +690,19 @@ class ParentConfig:
         lines = [
             "# kidnix parent config. Written by the grown-up sheet.",
             "# The PIN is stored as a PBKDF2-SHA256 hash; it is not recoverable.",
-            f"pin_salt = {_toml_str(self.pin_salt)}",
-            f"pin_hash = {_toml_str(self.pin_hash)}",
+        ]
+        if self.pin_configured:
+            lines += [
+                f"pin_salt = {_toml_str(self.pin_salt)}",
+                f"pin_hash = {_toml_str(self.pin_hash)}",
+            ]
+        else:
+            # **Never write out the built-in default.** A file with a hash in
+            # it is a file that says a grown-up chose a PIN, and `pin_hash` is
+            # the only thing `must_set_pin` reads. Round-tripping the fallback
+            # here would silently re-open the gate the ruling closed.
+            lines.append("# no pin_hash: the grown-up gate will ask for a new PIN")
+        lines += [
             f"default_session_minutes = {self.default_session_minutes}",
             f"hover_dwell_ms = {self.hover_dwell_ms}",
         ]

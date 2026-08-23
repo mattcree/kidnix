@@ -20,18 +20,44 @@
 #
 # --- THE PIN ---------------------------------------------------------------
 #
+# **THERE IS NO PIN IN THIS FILE, AND THAT IS THE POINT.**
+#
+# This file used to ship the documented development PIN 1234, hashed with a
+# fixed public salt. The 2026-08-23 expert panel called that a blocker from two
+# directions at once and both are worth keeping written down:
+#
+#   * `ParentConfig.is_default` -- and therefore the shell's "this machine has
+#     no parent config" warning -- was only ever true when NO pin_hash was
+#     found. The shipped file had one. So on a stock install the warning never
+#     appeared: "the one signal that the gate is open was suppressed by the
+#     file that opens it" (forum #44).
+#   * A grandmother on the parent panel, reading that: "the only way I would
+#     ever learn my lock is not a lock is by reading a file I would never open.
+#     Please make it refuse to start until I have picked my own four numbers,
+#     and please let me pick them somewhere he is not looking." (#56)
+#
+# So the image ships **no pin_hash at all**. `ParentConfig.must_set_pin` is
+# therefore true on every fresh machine, and the grown-up gate opens on
+# "Choose a grown-up PIN" -- a pad, entered twice -- before anything else in
+# the sheet is reachable. There is no pad to type 1234 into first.
+#
+# WHERE THE PIN GOES WHEN A GROWN-UP CHOOSES ONE. This file is root-owned and
+# the shell runs as the child (which is what makes the gate mean anything), so
+# the sheet tries, in order: this file if it happens to be writable, then the
+# root helper /usr/bin/kidnix-set-pin through pkexec, and failing both it
+# keeps the PIN **for that session** and says so in those words. To make one
+# permanent from a terminal or from the parent's account:
+#
+#     sudo kidnix-set-pin
+#
+# It writes pin_salt and pin_hash here and leaves every other line alone.
 # pin_hash is PBKDF2-HMAC-SHA256, 200000 rounds, over the UTF-8 PIN with
-# pin_salt as the (hex) salt. The PIN itself is never stored and is not
+# pin_salt as the (hex) salt; the PIN itself is never stored and is not
 # recoverable from this file.
 #
-# The shipped value is the documented development PIN **1234** (shell spec S9)
-# with a fixed, public salt. That is deliberate and it is not a secret: a
-# freshly installed machine has to let the grown-up in before there is any UI
-# to set a PIN with. It is also the first thing a parent should change, and
-# the parent panel will make them. Treat "still 1234" as "unconfigured", never
-# as "secured".
-pin_salt = "9f2c1a6d4b8e0357c9d1e2f3a4b5c6d7"
-pin_hash = "3d6495d0f726f531cef756cad4ee152a662ac68a68782658c75494d91c267f4d"
+# A parent who wants to pre-seed one when building an image adds the two keys
+# here. Anything else -- including the old 1234 hash -- puts the machine back
+# in the state the ruling closed.
 
 # How long one session lasts by default, in minutes. The rest of the session
 # policy (daily budget, the ending ritual's warning points, bedtime) is

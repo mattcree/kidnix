@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from .access import SPEECH_RATE
+from .research import ResearchConfig
 
 log = logging.getLogger(__name__)
 
@@ -455,11 +456,17 @@ class SpeechManager:
         dwell_ms: int = HOVER_DWELL_MS,
         enabled: bool = True,
         clock: Callable[[], float] = time.monotonic,
+        research: ResearchConfig | None = None,
     ) -> None:
         self.backend: SpeechBackend = backend or NullBackend()
         self.scheduler: Scheduler = scheduler or GLibScheduler()
         self.dwell_ms = dwell_ms
         self.enabled = enabled
+        #: **The gate on P5's hover log** (spec 7d #10). It ships false, and
+        #: false means the line below is never emitted and the timer that would
+        #: have emitted it is never even scheduled. Read-aloud itself is
+        #: untouched: what is gated is the *record* of it, not the speech.
+        self.research: ResearchConfig = research or ResearchConfig()
         self._clock = clock
         self.last_utterance: str = ""
         self.speaking_key: str | None = None
@@ -662,7 +669,14 @@ class SpeechManager:
         the same control inside :data:`HOVER_SELECTION_WINDOW_MS`, the line is
         emitted at once with ``selected=True``; otherwise the timer emits it
         with ``selected=False``.
+
+        **Nothing at all happens here unless ``research.toml`` says so** (spec
+        7d #10). The gate is at the top rather than at the ``log.info`` so that
+        a machine that is not part of a study does not even carry a pending
+        record of what its child hovered.
         """
+        if not self.research.hover_logging:
+            return
         self._flush_hover_log()
         self._pending_log = _PendingHoverLog(log_id=log_id, dwell_ms=dwell_ms, key=key)
         self._pending_log_handle = self.scheduler.schedule(
@@ -674,6 +688,11 @@ class SpeechManager:
         pending = self._pending_log
         if pending is None or pending.key != key:
             return
+        if not self.research.hover_selection:
+            # Flushing early would put "they chose it" into the record by the
+            # *timing* of the line even with the field left out. Let the timer
+            # emit it, indistinguishable from a hover nothing followed.
+            return
         self._flush_hover_log(selected=True)
 
     def _flush_hover_log(self, selected: bool = False) -> None:
@@ -681,7 +700,19 @@ class SpeechManager:
         if self._pending_log_handle is not None:
             self.scheduler.cancel(self._pending_log_handle)
             self._pending_log_handle = None
-        if pending is None:
+        if pending is None or not self.research.hover_logging:
+            return
+        if not self.research.hover_selection:
+            # Dwell without outcome measures whether a screen is *legible*.
+            # Adding "and then they opened it" makes it a behavioural model of
+            # one child, which is a separate switch and a separate consent
+            # (research.toml: hover_record_selection).
+            log.info(
+                "%s: id=%s dwell_ms=%d",
+                HOVER_LOG_PREFIX,
+                pending.log_id,
+                pending.dwell_ms,
+            )
             return
         log.info(
             "%s: id=%s dwell_ms=%d selected=%s",

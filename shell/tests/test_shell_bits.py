@@ -188,7 +188,9 @@ def test_the_sheet_points_at_a_command_that_exists() -> None:
     """ "do not pretend": the sheet's fallback has to be runnable."""
     from kidnix_shell.screens.grownup import SET_PIN_COMMAND
 
-    assert SET_PIN_COMMAND == "sudo kidnix-shell --set-pin"
+    # `kidnix-set-pin` is the image's own wrapper; `kidnix-shell --set-pin` is
+    # what it runs, and is still the command on a machine without the wrapper.
+    assert SET_PIN_COMMAND == "sudo kidnix-set-pin"
     assert build_parser().parse_args(["--set-pin"]).set_pin == ""
 
 

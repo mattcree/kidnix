@@ -32,6 +32,7 @@ if not Gtk.init_check():  # pragma: no cover - display present but unusable
 
 Adw.init()
 
+from kidnix_shell.activities import Activity  # noqa: E402
 from kidnix_shell.context import ShellContext  # noqa: E402
 from kidnix_shell.journal import Journal  # noqa: E402
 from kidnix_shell.metrics import (  # noqa: E402
@@ -47,10 +48,23 @@ from kidnix_shell.screens.journal import JournalScreen  # noqa: E402
 from kidnix_shell.screens.sleeping import SleepingScreen  # noqa: E402
 from kidnix_shell.screens.whos_here import WhosHereScreen  # noqa: E402
 from kidnix_shell.session import DailyUsage, Session, SessionPolicy  # noqa: E402
-from kidnix_shell.settings import HomeConfig, KidState, ParentConfig, Paths  # noqa: E402
+from kidnix_shell.settings import (  # noqa: E402
+    DEFAULT_PIN,
+    HomeConfig,
+    KidState,
+    ParentConfig,
+    Paths,
+)
 from kidnix_shell.sound import Earcons  # noqa: E402
 from kidnix_shell.speech import FakeBackend, FakeScheduler, SpeechManager  # noqa: E402
-from kidnix_shell.widgets import ActivityTile, ChildButton, Pager, SpeechUI  # noqa: E402
+from kidnix_shell.widgets import (  # noqa: E402
+    DEBOUNCE_MS,
+    ActivityTile,
+    ChildButton,
+    MicButton,
+    Pager,
+    SpeechUI,
+)
 
 
 class RecordingHost:
@@ -79,6 +93,11 @@ def ctx(tmp_path: Path) -> ShellContext:
     journal.load()
     speech = SpeechManager(backend=FakeBackend(), scheduler=FakeScheduler())
     config = ParentConfig()
+    # A machine a grown-up has already set up. Without this every sheet in
+    # every test would open on the mandatory "choose a PIN" flow (spec 7d #11),
+    # which is its own test below. The PIN is the documented one so the
+    # existing gate tests still type four digits they know.
+    config.set_pin(DEFAULT_PIN)
     activities = [
         make_activity("scribble", category="make"),
         make_activity("letters", category="learn"),
@@ -400,6 +419,8 @@ def build_window(  # type: ignore[no-untyped-def]
     tmp_path: Path,
     screen: str = "1280x800@102",
     config: ParentConfig | None = None,
+    shelves: dict[str, list[Activity]] | None = None,
+    voice: object | None = None,
 ):
     """A real ShellWindow, never presented, on a pretend panel."""
     from kidnix_shell.app import ShellApplication, ShellWindow
@@ -413,6 +434,9 @@ def build_window(  # type: ignore[no-untyped-def]
         state_home=tmp_path / "state",
     )
     config = config or ParentConfig()
+    # A shell whose gate is already set: `must_set_pin` opens the grown-up
+    # sheet on the PIN flow, which is its own test.
+    config.pin_configured = True
     application = ShellApplication(
         paths=paths,
         config=config,
@@ -422,7 +446,7 @@ def build_window(  # type: ignore[no-untyped-def]
         fullscreen=False,
         speech_backend="null",
     )
-    return ShellWindow(
+    window = ShellWindow(
         application,
         paths=paths,
         config=config,
@@ -432,7 +456,11 @@ def build_window(  # type: ignore[no-untyped-def]
         fullscreen=False,
         speech_backend="null",
         screen=parse_screen(screen),
+        shelves=shelves or {},
     )
+    if voice is not None:
+        window.ctx.voice = voice  # type: ignore[assignment]
+    return window
 
 
 @pytest.mark.parametrize("screen", ["1280x800@96", "1280x800@102", "1280x800@118", "1366x768@96"])
@@ -1118,15 +1146,17 @@ def test_a_new_session_forgets_last_time_s_answer(tmp_path: Path) -> None:
 def test_goodbye_leads_with_the_childs_own_choice(ctx: ShellContext) -> None:
     """The ruling: the destination is the headline and the biggest picture on
     the screen, not a 24 mm icon on the bottom edge (forum #24, #30, #51)."""
-    from kidnix_shell.screens.goodbye import NEXT_AFTER_ICON_MM, THUMBNAIL_MM
+    from kidnix_shell.metrics import GOODBYE_DESTINATION_MM
 
     ctx.next_after = ctx.config.next_after[0]
     screen = GoodbyeScreen(ctx)
     screen.on_enter()
     assert screen.headline.get_label() == "Ready to go outside?"
     assert screen.next_after_icon.get_visible()
-    assert NEXT_AFTER_ICON_MM >= 40.0
-    assert NEXT_AFTER_ICON_MM > THUMBNAIL_MM
+    assert GOODBYE_DESTINATION_MM >= 40.0
+    # The hierarchy, as *drawn*: the destination is bigger than a thumbnail on
+    # whatever panel this is, including one the layout has had to shrink.
+    assert ctx.metrics.goodbye_destination > ctx.metrics.goodbye_thumbnail
     assert "Ready to go outside?" in ctx.speech.last_utterance
 
 
@@ -1311,11 +1341,26 @@ def test_the_pin_pad_is_not_voiced(ctx: ShellContext) -> None:
 def test_a_wrong_pin_is_free_silent_and_logged_without_the_digits(
     ctx: ShellContext, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """SYNTHESIS G2: no lockout, no delay, no counter, no voice -- one log line."""
+    """SYNTHESIS G2: no lockout, no delay, no counter, no voice.
+
+    And **no log either, on a shipped machine** (spec 7d #10): "a log of every
+    time a child tried to get past a grown-up" is research, not product, so it
+    is behind ``research.toml`` and that file ships false. What is asserted
+    here is both halves -- silence by default, and no digits when a study has
+    deliberately turned it on.
+    """
+    from kidnix_shell.research import ResearchConfig
     from kidnix_shell.screens.grownup import GrownupSheet
 
     sheet = GrownupSheet(ctx)
     ctx.speech.backend.spoken.clear()  # type: ignore[attr-defined]
+    with caplog.at_level(logging.INFO, logger="kidnix_shell.screens.grownup"):
+        for digit in "9999":
+            sheet._push(digit)
+    assert not [m for m in caplog.messages if m.startswith("grown-up gate")]
+
+    ctx.research = ResearchConfig(enabled=True, pin_attempt_logging=True)
+    caplog.clear()
     with caplog.at_level(logging.INFO, logger="kidnix_shell.screens.grownup"):
         for digit in "9999":
             sheet._push(digit)
@@ -2155,3 +2200,543 @@ def test_every_ritual_screen_fits_the_window_it_is_given(tmp_path: Path, screen:
                 )
     finally:
         window.shutdown()
+
+
+# --- S2b, the shelf (spec 7d #12) ---------------------------------------
+
+
+def shelf_world(tmp_path: Path):  # type: ignore[no-untyped-def]
+    """A shelf manifest and six children in two groups, on disk."""
+    from kidnix_shell.activities import load_directory, resolve_shelves
+
+    root = tmp_path / "manifests"
+    children = root / "games"
+    children.mkdir(parents=True)
+    (root / "shelfy.toml").write_text(
+        'schema = 1\nid = "shelfy"\nname = "Letters & numbers"\n'
+        'audio_label = "Choose a game."\nkind = "shelf"\nchildren_dir = "games"\n'
+        'exec = ["/bin/true"]\ncategory = "learn"\norder = 5\nage_band = "4-8"\n',
+        encoding="utf-8",
+    )
+    rows = [
+        ("aa", 10, "letters", "Letters"),
+        ("bb", 20, "letters", "Letters"),
+        ("cc", 30, "letters", "Letters"),
+        ("dd", 40, "counting", "Counting"),
+        ("ee", 50, "counting", "Counting"),
+        ("ff", 60, "counting", "Counting"),
+    ]
+    for child_id, order, group, group_name in rows:
+        (children / f"{child_id}.toml").write_text(
+            f'schema = 1\nid = "shelfy.{child_id}"\nname = "Game {child_id.upper()}"\n'
+            f'audio_label = "Game {child_id}."\nexec = ["/bin/true"]\ncategory = "learn"\n'
+            f'order = {order}\nage_band = "4-8"\nshelf_group = "{group}"\n'
+            f'shelf_group_name = "{group_name}"\nshelf_group_audio_label = "{group_name}"\n',
+            encoding="utf-8",
+        )
+    activities = load_directory(root).activities
+    return activities, resolve_shelves(activities)
+
+
+def test_a_shelf_tile_opens_a_screen_rather_than_launching_its_exec(tmp_path: Path) -> None:
+    """The shelf's ``exec`` is the fallback for a shell with no shelf screen.
+
+    On this one it must never run: for GCompris that argv is a single curated
+    activity and the bare command is the 198-activity menu the curation exists
+    to close.
+    """
+    from kidnix_shell.state import State
+
+    activities, shelves = shelf_world(tmp_path)
+    window = build_window(tmp_path, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        shelf = next(a for a in activities if a.is_shelf)
+        window.open_shelf(shelf)
+        assert _state(window) is State.SHELF
+        assert not window.launcher.running
+        assert window.screens["shelf"].shelf is shelf
+    finally:
+        window.shutdown()
+
+
+def test_the_shelf_draws_one_group_a_page_and_speaks_the_heading(tmp_path: Path) -> None:
+    from kidnix_shell.screens.shelf import ShelfScreen
+    from kidnix_shell.state import State
+
+    activities, shelves = shelf_world(tmp_path)
+    window = build_window(tmp_path, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        window.open_shelf(next(a for a in activities if a.is_shelf))
+        screen = window.screens["shelf"]
+        assert isinstance(screen, ShelfScreen)
+        # Two groups of three, and each group is its own page.
+        assert screen.pager.pages == 2
+        assert screen.title.get_label() == "Letters"
+        names = [b.speak_text for b in walk(screen) if isinstance(b, ActivityTile)]
+        assert len(names) == 6  # every child has a tile, one page apart
+        screen._on_page(1)
+        assert screen.title.get_label() == "Counting"
+        assert window.ctx.speech.last_utterance == "Counting"
+    finally:
+        window.shutdown()
+
+
+def test_back_from_a_shelf_goes_home_and_not_out_of_the_session(tmp_path: Path) -> None:
+    from kidnix_shell.state import State
+
+    activities, shelves = shelf_world(tmp_path)
+    window = build_window(tmp_path, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        window.open_shelf(next(a for a in activities if a.is_shelf))
+        window.on_back()
+        assert _state(window) is State.HOME
+    finally:
+        window.shutdown()
+
+
+def test_a_shelf_has_no_all_done_of_its_own(tmp_path: Path) -> None:
+    """ "All done" has one cell, on Home (spec 7d #5). Two places to reach for
+    the escape hatch is one place too many for a child who navigates by
+    position."""
+    from kidnix_shell.screens.home import ALL_DONE_ID
+    from kidnix_shell.state import State
+
+    activities, shelves = shelf_world(tmp_path)
+    window = build_window(tmp_path, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        window.open_shelf(next(a for a in activities if a.is_shelf))
+        tiles = [t for t in walk(window.screens["shelf"]) if isinstance(t, ActivityTile)]
+        assert tiles
+        assert not any(ALL_DONE_ID in t.key for t in tiles)
+    finally:
+        window.shutdown()
+
+
+def test_home_hides_a_shelf_with_nothing_on_it(tmp_path: Path) -> None:
+    """The same rule as an activity that is not installed, one level up."""
+    from kidnix_shell.screens.home import HomeScreen
+
+    activities, _ = shelf_world(tmp_path)
+    window = build_window(tmp_path, shelves={})  # no children resolved at all
+    try:
+        window.ctx.activities = activities
+        home = window.screens["home"]
+        assert isinstance(home, HomeScreen)
+        assert not any(getattr(c, "is_shelf", False) for c in home.cells() if c is not None)
+    finally:
+        window.shutdown()
+
+
+def test_an_activity_launched_from_a_shelf_comes_back_to_the_shelf(tmp_path: Path) -> None:
+    from kidnix_shell.state import Event, State
+
+    activities, shelves = shelf_world(tmp_path)
+    window = build_window(tmp_path, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        window.open_shelf(next(a for a in activities if a.is_shelf))
+        window.machine.try_fire(Event.LAUNCH_ACTIVITY)
+        assert _state(window) is State.IN_ACTIVITY
+        window._activity_finished()
+        assert _state(window) is State.SHELF
+    finally:
+        window.shutdown()
+
+
+def test_leaving_a_shelf_for_home_forgets_it(tmp_path: Path) -> None:
+    from kidnix_shell.state import State
+
+    activities, shelves = shelf_world(tmp_path)
+    window = build_window(tmp_path, shelves=shelves)
+    try:
+        window.ctx.activities = activities
+        window.machine.state = State.HOME
+        window.open_shelf(next(a for a in activities if a.is_shelf))
+        window.on_back()
+        assert window._shelf is None
+    finally:
+        window.shutdown()
+
+
+# --- "tell me about it" (spec 7d #9) ------------------------------------
+
+
+def voice_note():  # type: ignore[no-untyped-def]
+    from kidnix_shell.speech import FakeScheduler
+    from kidnix_shell.voice import FakeRecorder, VoiceNote
+
+    class Player:
+        def __init__(self) -> None:
+            self.played: list[Path] = []
+
+        def play(self, path: Path) -> bool:
+            self.played.append(path)
+            return True
+
+        def close(self) -> None:
+            pass
+
+    scheduler = FakeScheduler()
+    player = Player()
+    note = VoiceNote(recorder=FakeRecorder(), scheduler=scheduler, player=player)
+    return note, scheduler, player
+
+
+def kept_entry(ctx: ShellContext, tmp_path: Path):  # type: ignore[no-untyped-def]
+    """One thing in the Journal, with a thumbnail, as if just made."""
+    source = write_png(tmp_path / "work" / "drawing.png")
+    entry = ctx.journal.import_file(source, "scribble", activity_name="Scribble")
+    assert entry is not None
+    return entry
+
+
+def test_the_mic_is_not_drawn_at_all_without_a_microphone(
+    ctx: ShellContext, tmp_path: Path
+) -> None:
+    """**Degrade silently.** A mic that does nothing teaches a child that
+    buttons lie -- the rule that took Ask out of the band (spec 7a)."""
+    ctx.voice = None
+    kept_entry(ctx, tmp_path)
+    screen = PutAwayScreen(ctx)
+    screen.on_enter()
+    assert screen.mic is None
+    assert not any(isinstance(w, MicButton) for w in walk(screen))
+
+
+def test_the_mic_records_a_note_beside_the_drawing(ctx: ShellContext, tmp_path: Path) -> None:
+    from kidnix_shell.voice import has_note
+
+    note, _scheduler, player = voice_note()
+    ctx.voice = note
+    entry = kept_entry(ctx, tmp_path)
+
+    screen = PutAwayScreen(ctx)
+    screen.on_enter()
+    assert screen.mic is not None
+    assert screen.mic.get_visible()
+
+    screen.mic.button.fire()
+    assert note.recording
+    assert screen.mic.meter.get_visible()
+
+    # A *second* press, not the same one twice: `ChildButton` swallows a burst
+    # inside DEBOUNCE_MS, which is the rule that stops eight clicks a second
+    # becoming eight actions (SYNTHESIS A3).
+    time.sleep(DEBOUNCE_MS / 1000.0 + 0.02)
+    screen.mic.button.fire()
+    assert not note.recording
+    assert has_note(entry.directory)
+    # ...and it plays back once, immediately.
+    assert player.played == [entry.directory / "note.ogg"]
+    assert not screen.mic.meter.get_visible()
+
+
+def test_the_mic_stops_itself_after_twenty_seconds(ctx: ShellContext, tmp_path: Path) -> None:
+    from kidnix_shell.voice import MAX_SECONDS, has_note
+
+    note, scheduler, _player = voice_note()
+    ctx.voice = note
+    entry = kept_entry(ctx, tmp_path)
+    screen = PutAwayScreen(ctx)
+    screen.on_enter()
+    assert screen.mic is not None
+
+    screen.mic.button.fire()
+    scheduler.advance(int(MAX_SECONDS * 1000) + 10)
+    assert not note.recording
+    assert has_note(entry.directory)
+
+
+def test_put_away_invites_the_child_to_talk_and_captions_it(
+    ctx: ShellContext, tmp_path: Path
+) -> None:
+    from kidnix_shell.widgets import MIC_SPEAK
+
+    note, _scheduler, _player = voice_note()
+    ctx.voice = note
+    kept_entry(ctx, tmp_path)
+    said: list[str] = []
+    ctx.speech.on_caption = said.append
+    screen = PutAwayScreen(ctx)
+    screen.on_enter()
+    # "Let's keep that." first, then the invitation as its own sentence, after
+    # a beat -- `speak_then` runs on the speech manager's own scheduler.
+    ctx.speech.scheduler.advance(20_000)  # type: ignore[attr-defined]
+    assert said[0] == "Let's keep that."
+    assert MIC_SPEAK in said
+
+
+def test_there_is_no_mic_when_nothing_was_made(ctx: ShellContext, tmp_path: Path) -> None:
+    """Nothing to attach a note to, and nothing to be told about."""
+    note, _scheduler, _player = voice_note()
+    ctx.voice = note
+    screen = PutAwayScreen(ctx)
+    screen.on_enter()
+    assert screen.mic is not None
+    assert not screen.mic.get_visible()
+
+
+def test_a_journal_card_with_a_note_wears_an_ear(ctx: ShellContext, tmp_path: Path) -> None:
+    from kidnix_shell.voice import NOTE_NAME
+
+    entry = kept_entry(ctx, tmp_path)
+    screen = JournalScreen(ctx)
+    screen.refresh()
+    images = [w for w in walk(screen) if isinstance(w, Gtk.Image)]
+    assert not any(w.has_css_class("note-badge") for w in images)
+
+    (entry.directory / NOTE_NAME).write_bytes(b"OggS...")
+    screen.refresh()
+    images = [w for w in walk(screen) if isinstance(w, Gtk.Image)]
+    assert any(w.has_css_class("note-badge") for w in images)
+
+
+def test_showing_a_grownup_plays_the_note_on_tap(ctx: ShellContext, tmp_path: Path) -> None:
+    """ "Show a grown-up" is the moment the child says what a thing is, and
+    their own voice saying it *is* the showing."""
+    from kidnix_shell.voice import NOTE_NAME
+
+    note, _scheduler, player = voice_note()
+    ctx.voice = note
+    entry = kept_entry(ctx, tmp_path)
+    (entry.directory / NOTE_NAME).write_bytes(b"OggS...")
+
+    screen = JournalScreen(ctx)
+    screen.showing_mode = True
+    screen.on_enter()
+    screen._open(entry)
+    assert player.played == [entry.directory / NOTE_NAME]
+    # And the mic is now about that card, so a grown-up can ask for another.
+    assert screen.mic is not None and screen.mic.get_visible()
+
+
+def test_an_ordinary_journal_tap_still_resumes(ctx: ShellContext, tmp_path: Path) -> None:
+    """Sugar's resume-not-open is untouched by any of this (08 section 2.1)."""
+    note, _scheduler, player = voice_note()
+    ctx.voice = note
+    entry = kept_entry(ctx, tmp_path)
+    screen = JournalScreen(ctx)
+    screen.on_enter()
+    screen._open(entry)
+    assert player.played == []
+    assert any(call == "resume_entry" for call, _ in ctx.host.calls)  # type: ignore[attr-defined]
+
+
+# --- Undo, inside somebody else's program (spec 7d, and its limits) -----
+
+
+def test_undo_inside_an_activity_says_where_the_childs_undo_is(tmp_path: Path) -> None:
+    """The shell cannot inject a keystroke into another Wayland client, so the
+    press is answered with a true sentence rather than a guess."""
+    from kidnix_shell.state import State
+
+    window = build_window(tmp_path)
+    try:
+        window.ctx.activities = [make_activity("draw", name="Draw")]
+        window.machine.state = State.IN_ACTIVITY
+
+        class Running:
+            activity_id = "draw"
+
+        window.launcher.current = Running()
+        window.on_undo()
+        assert window.ctx.speech.last_utterance == "Undo for Draw is in Draw's own buttons."
+    finally:
+        window.launcher.current = None
+        window.shutdown()
+
+
+def test_a_manifest_that_names_its_undo_key_gets_it_spoken(tmp_path: Path) -> None:
+    from kidnix_shell.state import State
+
+    window = build_window(tmp_path)
+    try:
+        window.ctx.activities = [make_activity("draw", name="Draw", undo_key="ctrl+z")]
+        window.machine.state = State.IN_ACTIVITY
+
+        class Running:
+            activity_id = "draw"
+
+        window.launcher.current = Running()
+        window.on_undo()
+        assert window.ctx.speech.last_utterance == "Undo in Draw is Control and Z."
+    finally:
+        window.launcher.current = None
+        window.shutdown()
+
+
+# --- S7's fit budget (the e2e's clipped Goodbye) ------------------------
+
+
+@pytest.mark.parametrize("screen", ["1280x800@102", "1366x768@96", "1280x800@118"])
+def test_goodbye_fits_with_everything_on_it(tmp_path: Path, screen: str) -> None:
+    """**The regression the real-VM e2e photographed**
+    (``docs/design/screenshots/e2e-goodbye-v2-clipped.png``): the "Show a
+    grown-up" / "Goodnight" row cut off by the bottom edge of a 1280x800 panel.
+
+    ``required_size()`` modelled Home, a titled grid and the chooser; S7 is a
+    fourth shape and was not budgeted, so ``fit`` never shrank for it and the
+    measured backstop met a tree taller than the content window. Measured here
+    with the screen *full*: a destination, three thumbnails and a line of
+    feedback, which is the state the e2e caught.
+    """
+    window = build_window(tmp_path, screen=screen)
+    try:
+        metrics = window.metrics
+        window.ctx.next_after = window.ctx.config.next_after[0]
+        for index in range(3):
+            source = write_png(tmp_path / "work" / f"drawing{index}.png", colour=(index * 60, 0, 0))
+            window.journal.import_file(source, "a0", activity_name="Scribble")
+
+        goodbye = window.screens["goodbye"]
+        goodbye.on_enter()
+
+        tall = goodbye.measure(Gtk.Orientation.VERTICAL, -1)[0]
+        wide = goodbye.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+        assert tall <= metrics.content_height, (tall, metrics.describe())
+        assert wide <= metrics.screen_width, (wide, metrics.describe())
+
+        # The two controls that end the session are fully inside the window,
+        # and each is still a 20 mm target (ADR-0011).
+        for button in (goodbye.show_button, goodbye.goodnight_button):
+            height = button.measure(Gtk.Orientation.VERTICAL, -1)[0]
+            assert metrics.mm_of(height) >= 20.0, metrics.mm_of(height)
+            assert height <= metrics.content_height
+
+        # And the arithmetic agrees with the tree, which is the point of
+        # budgeting it: a backstop that has to close the same gap every boot
+        # is a model that is wrong.
+        _, budget = metrics.goodbye_size()
+        assert budget <= metrics.screen_height, (budget, metrics.describe())
+    finally:
+        window.shutdown()
+
+
+def test_the_goodbye_buttons_keep_the_border_the_e2e_looks_for(tmp_path: Path) -> None:
+    """``pixels.find_box`` reads the thin-top/thick-bottom asymmetry, so the
+    ritual class is load-bearing for the test suite as well as for the child."""
+    window = build_window(tmp_path)
+    try:
+        goodbye = window.screens["goodbye"]
+        for button in (goodbye.show_button, goodbye.goodnight_button):
+            assert button.has_css_class("ritual")
+    finally:
+        window.shutdown()
+
+
+def test_the_thumbnails_are_what_goodbye_spends_first(tmp_path: Path) -> None:
+    """The ruling's hierarchy, as arithmetic: the destination and the buttons
+    scale with the whole layout, the thumbnails are chrome."""
+    from dataclasses import replace
+
+    from kidnix_shell.metrics import Metrics
+
+    roomy = Metrics.for_screen(1920, 1080, dpi=96.0)
+    tight = replace(roomy, chrome_fit=0.45)
+    assert tight.goodbye_thumbnail < roomy.goodbye_thumbnail
+    assert tight.goodbye_destination == roomy.goodbye_destination
+    assert tight.goodbye_button == roomy.goodbye_button
+    # ...and never below a floor, on either.
+    assert tight.mm_of(tight.goodbye_thumbnail) >= 13.9
+    assert tight.mm_of(tight.goodbye_button) >= 20.0
+
+
+# --- the gate on a machine nobody has set up (spec 7d #11) --------------
+
+
+def test_the_gate_opens_on_choose_a_pin_when_there_is_none(ctx: ShellContext) -> None:
+    """**Mags's sentence, as a test**: "make it refuse to start until I have
+    picked my own four numbers, and please let me pick them somewhere he is not
+    looking" (forum #56).
+
+    The image ships ``parent.toml`` with no ``pin_hash``, so there is no pad to
+    type the documented 1234 into first: the sheet opens on the flow that sets
+    one, and nothing else is reachable until it is done.
+    """
+    from kidnix_shell.screens.grownup import NO_PIN_TITLE, GrownupSheet
+
+    ctx.config = ParentConfig()  # i.e. the shipped state: no PIN
+    assert ctx.config.must_set_pin
+    sheet = GrownupSheet(ctx)
+    assert sheet._stack.get_visible_child_name() == "pin"
+    assert sheet._pin_title.get_label() == NO_PIN_TITLE
+    assert sheet._pin_help.get_visible()
+
+
+def test_the_mandatory_flow_cannot_be_escaped_into_the_actions(ctx: ShellContext) -> None:
+    """Cancel is a way out of the *screen*, never a way past it."""
+    from kidnix_shell.screens.grownup import GrownupSheet
+
+    ctx.config = ParentConfig()
+    sheet = GrownupSheet(ctx)
+    sheet._cancel_pin()
+    assert sheet._stack.get_visible_child_name() == "pin"
+
+
+def test_choosing_a_pin_twice_closes_the_gate(ctx: ShellContext) -> None:
+    """Typed twice, and only a match counts. Once it is chosen the gate is
+    closed **for this session** whether or not the root-owned file could be
+    written -- the sheet says which of the two happened, and never pretends."""
+    from kidnix_shell.screens.grownup import GrownupSheet
+
+    ctx.config = ParentConfig()
+    sheet = GrownupSheet(ctx)
+
+    for digit in "8471":
+        sheet._push(digit)
+    for digit in "8470":  # a mismatch: start again, still on the flow
+        sheet._push(digit)
+    assert sheet._stack.get_visible_child_name() == "pin"
+    assert ctx.config.must_set_pin
+
+    for digit in "8471":
+        sheet._push(digit)
+    for digit in "8471":
+        sheet._push(digit)
+    assert not ctx.config.must_set_pin
+    assert ctx.config.check_pin("8471")
+    assert not ctx.config.check_pin(DEFAULT_PIN)
+    assert sheet._stack.get_visible_child_name() == "actions"
+    # And it says, in writing, what actually happened to the file.
+    assert sheet._pin_message.get_visible()
+
+
+def test_a_configured_machine_opens_on_the_ordinary_pad(ctx: ShellContext) -> None:
+    from kidnix_shell.screens.grownup import GrownupSheet
+
+    ctx.config.set_pin("2468")
+    sheet = GrownupSheet(ctx)
+    assert sheet._stack.get_visible_child_name() == "pin"
+    assert sheet._pin_title.get_label() == "Enter the grown-up PIN"
+    assert not sheet._pin_help.get_visible()
+    for digit in "2468":
+        sheet._push(digit)
+    assert sheet._stack.get_visible_child_name() == "actions"
+
+
+# --- the burst-click detector, on the real windows ----------------------
+
+
+def test_the_shell_watches_for_presses_that_hit_nothing(tmp_path: Path) -> None:
+    """The detector is wired on both toplevels, unconditionally, and logs
+    nothing on a machine that is not part of a study (spec 7d #10)."""
+    from kidnix_shell.research import BURST_LOG_PREFIX
+
+    window = build_window(tmp_path)
+    try:
+        assert not window.research.burst_logging
+        for at in range(4):
+            window.bursts.press(at * 0.2, on_target=False)
+        assert window.bursts.bursts == 1
+    finally:
+        window.shutdown()
+    assert BURST_LOG_PREFIX == "burst-click"

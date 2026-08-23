@@ -48,11 +48,15 @@ from .speech import SpeechManager  # noqa: E402
 DEBOUNCE_MS = 150
 
 __all__ = [
+    "MIC_AGAIN_SPEAK",
+    "MIC_SPEAK",
+    "MIC_STOP_SPEAK",
     "TILE_CHROME_PX",
     "TILE_CHROME_X_PX",
     "TILE_SPACING_PX",
     "ActivityTile",
     "ChildButton",
+    "MicButton",
     "PageDots",
     "Pager",
     "SpeechUI",
@@ -587,6 +591,80 @@ class ActivityTile(ChildButton):
         self.label = label
         box.append(label)
         self.set_child(box)
+
+
+#: What the mic button says before, during and after a recording. Short, because
+#: every one of them is spoken *and* captioned.
+MIC_SPEAK = "Tell me about it"
+MIC_STOP_SPEAK = "Stop"
+#: The quiet "again?" -- said only when a child presses a mic that already has a
+#: note behind it, and only then. There is no retakes dialogue: a second
+#: recording simply replaces the first (:mod:`kidnix_shell.voice`).
+MIC_AGAIN_SPEAK = "Again?"
+
+
+class MicButton(Gtk.Box):
+    """ "Tell me about it": one press, a level meter, and no other controls.
+
+    The button and its meter are one widget because they are one idea to the
+    child -- "it is listening to me" is the meter moving inside the thing they
+    just pressed. Nothing here decides anything: the screen hands it a
+    :class:`kidnix_shell.voice.VoiceNote` and a directory, and the
+    behaviour (twenty seconds, the auto-stop, the playback) is that class's.
+
+    It is a **plain box, not a subclass of ChildButton**, because the meter has
+    to live under the button without being part of its hit area: a 20 mm target
+    has to stay 20 mm of *button*.
+    """
+
+    def __init__(
+        self,
+        metrics: Metrics,
+        speech_ui: SpeechUI,
+        on_press: Callable[[], None],
+        *,
+        size: int | None = None,
+    ) -> None:
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.set_halign(Gtk.Align.CENTER)
+        target = size or max(metrics.min_target, metrics.design(96))
+
+        self.button = ChildButton(
+            speak_text=MIC_SPEAK,
+            on_activate=on_press,
+            speech_ui=speech_ui,
+            css_classes=("mic",),
+            size=target,
+            key=next_key("mic"),
+            log_id="voice-note",
+        )
+        self.button.set_child(icon_image("kidnix-mic", "icon-name", int(target * 0.6)))
+        self.append(self.button)
+
+        # The meter is *decoration of a state*, not a control and not a
+        # measurement anybody reads: it exists so a five-year-old can tell
+        # "listening" from "broken". It is hidden when nothing is recording so
+        # the button does not appear to be doing something it is not.
+        self.meter = Gtk.ProgressBar()
+        self.meter.add_css_class("mic-level")
+        self.meter.set_size_request(target, -1)
+        self.meter.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
+        self.meter.set_visible(False)
+        self.append(self.meter)
+
+    def set_recording(self, recording: bool) -> None:
+        """Wear the state. The word on the button changes with it."""
+        self.meter.set_visible(recording)
+        if not recording:
+            self.meter.set_fraction(0.0)
+        self.button.set_speak_text(MIC_STOP_SPEAK if recording else MIC_SPEAK)
+        if recording:
+            self.button.add_css_class("recording")
+        else:
+            self.button.remove_css_class("recording")
+
+    def set_level(self, level: float) -> None:
+        self.meter.set_fraction(max(0.0, min(1.0, level)))
 
 
 class PageDots(Gtk.Box):

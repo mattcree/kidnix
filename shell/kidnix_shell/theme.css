@@ -394,6 +394,62 @@ button.star {
   padding: 4px;
 }
 
+/* --- "tell me about it": the voice note (spec 7d #9) --------------------- */
+
+/* The same thin-top/thick-bottom box every child-facing control in kidnix
+   wears -- so the e2e's border finder sees it, and so a child recognises it as
+   "a thing you press" without being told. Round, because it is one action and
+   not a choice between several. */
+button.mic {
+  background-color: @kid-paper;
+  border: 3px solid @kid-edge;
+  border-bottom-width: 8px;
+  border-radius: 50%;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.14);
+  padding: 8px;
+}
+
+button.mic:active,
+button.mic.pressed {
+  margin-top: 5px;
+  border-bottom-width: 3px;
+  box-shadow: none;
+}
+
+/* Recording. The reserved highlight is "the thing you can touch right now",
+   and while a note is being recorded the one thing to touch is the button that
+   stops it. No pulsing, no red: 08 section 4.6's rule about the sun applies to
+   every state indicator in the shell. */
+button.mic.recording {
+  background-color: @kid-highlight;
+}
+
+/* The meter is the *only* moving thing here, and it moves because the child's
+   own voice moves it. Its height is a bar a five-year-old can see across a
+   room, not a progress bar an adult reads. */
+progressbar.mic-level trough {
+  min-height: 10px;
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge;
+  border-radius: 6px;
+}
+
+progressbar.mic-level progress {
+  min-height: 10px;
+  background-color: @kid-primary;
+  border-radius: 4px;
+}
+
+/* An entry with a voice note behind it wears a small ear, bottom-left of the
+   card, opposite the star. Shape, not colour: it has to survive being 6 mm
+   across and read in greyscale (accessibility review M2). */
+.note-badge {
+  background-color: @kid-paper;
+  border: 2px solid @kid-edge;
+  border-radius: 50%;
+  padding: 2px;
+}
+
 .day-heading {
   font-size: 26pt;
   font-weight: 700;
