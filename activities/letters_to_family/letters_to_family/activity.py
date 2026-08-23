@@ -57,6 +57,7 @@ from kidnix_shell.voice import MAX_SECONDS, VoiceNote  # noqa: E402
 from . import ACTIVITY_ID, TITLE, draw, words  # noqa: E402
 from .assemble import post_letter  # noqa: E402
 from .env import quiet  # noqa: E402
+from .i18n import HAVE_CATALOGUE, _, install  # noqa: E402
 from .journal_read import recent_pictures  # noqa: E402
 from .keys import guard_ring  # noqa: E402
 from .letter import (  # noqa: E402
@@ -332,10 +333,10 @@ class LettersActivity:
         """
         self.step = Step.NOBODY
         box = self._fresh()
-        box.append(self._set_prompt(words.NOBODY_YET))
+        box.append(self._set_prompt(_(words.NOBODY_YET)))
         card = GrownUpTurn(
-            words.GROWNUP_NO_FAMILY_BODY,
-            title=words.GROWNUP_NO_FAMILY_TITLE,
+            _(words.GROWNUP_NO_FAMILY_BODY),
+            title=_(words.GROWNUP_NO_FAMILY_TITLE),
             speech=self.app.speech,
             area=self.area,
         )
@@ -350,7 +351,7 @@ class LettersActivity:
     def build_who(self, window: ActivityWindow) -> None:
         self.step = Step.WHO
         box = self._fresh()
-        box.append(self._set_prompt(words.WHO_FOR))
+        box.append(self._set_prompt(_(words.WHO_FOR)))
 
         grid = Gtk.Grid(column_spacing=self.area.gap, row_spacing=self.area.gap)
         grid.set_halign(Gtk.Align.CENTER)
@@ -390,7 +391,7 @@ class LettersActivity:
         box = self._fresh()
         name = self.letter.recipient.name
         box.append(
-            self._set_prompt(f"{words.your_letter_for(name)} {words.CHOOSE_PICTURE}")
+            self._set_prompt(f"{words.your_letter_for(name)} {_(words.CHOOSE_PICTURE)}")
         )
 
         row = self._row()
@@ -408,9 +409,9 @@ class LettersActivity:
             row.append(tile)
         row.append(
             BigButton(
-                words.DRAW_ONE,
+                _(words.DRAW_ONE),
                 icon="kidnix-draw",
-                speak_text=words.DRAW_ONE,
+                speak_text=_(words.DRAW_ONE),
                 on_activate=self.start_drawing,
                 speech=self.app.speech,
                 area=self.area,
@@ -453,7 +454,7 @@ class LettersActivity:
         """
         assert self.letter is not None and self.window is not None
         box = self._fresh()
-        box.append(self._set_prompt(words.PICK_A_COLOUR))
+        box.append(self._set_prompt(_(words.PICK_A_COLOUR)))
 
         self.canvas = ScribbleCanvas(self.scribble, *self._canvas_size())
         box.append(self.canvas)
@@ -463,9 +464,9 @@ class LettersActivity:
             controls.append(self._crayon(colour))
         controls.append(
             BigButton(
-                "Undo",
+                _(words.UNDO_LABEL),
                 icon="kidnix-undo",
-                speak_text="Take the last line off.",
+                speak_text=_(words.UNDO_SPEAK),
                 on_activate=self.undo_stroke,
                 speech=self.app.speech,
                 area=self.area,
@@ -473,9 +474,9 @@ class LettersActivity:
         )
         controls.append(
             BigButton(
-                "That's it",
+                _(words.KEEP_LABEL),
                 icon="kidnix-keep",
-                speak_text="That's my picture.",
+                speak_text=_(words.KEEP_SPEAK),
                 on_activate=self.finish_drawing,
                 speech=self.app.speech,
                 area=self.area,
@@ -556,14 +557,14 @@ class LettersActivity:
         self.step = Step.WORDS
         assert self.letter is not None
         box = self._fresh()
-        box.append(self._set_prompt(words.TELL_THEM))
+        box.append(self._set_prompt(_(words.TELL_THEM)))
 
         choices = self._row()
         choices.append(
             BigButton(
-                words.WRITE_IT,
+                _(words.WRITE_IT),
                 icon="kidnix-word",
-                speak_text=words.WRITE_IT,
+                speak_text=_(words.WRITE_IT),
                 on_activate=self.show_caption,
                 speech=self.app.speech,
                 area=self.area,
@@ -573,9 +574,9 @@ class LettersActivity:
             # No microphone means no button at all: a mic button that does
             # nothing teaches a child that buttons lie (kidnix_shell.voice).
             self.voice_button = BigButton(
-                words.SAY_IT,
+                _(words.SAY_IT),
                 icon="kidnix-ear",
-                speak_text=words.SAY_IT,
+                speak_text=_(words.SAY_IT),
                 on_activate=self.toggle_voice,
                 speech=self.app.speech,
                 area=self.area,
@@ -583,9 +584,9 @@ class LettersActivity:
             choices.append(self.voice_button)
         choices.append(
             BigButton(
-                "Grown-up",
+                _(words.GROWNUP_LABEL),
                 icon="kidnix-grownup",
-                speak_text=words.ASK_A_GROWNUP,
+                speak_text=_(words.ASK_A_GROWNUP),
                 on_activate=self.show_grownup,
                 speech=self.app.speech,
                 area=self.area,
@@ -598,9 +599,9 @@ class LettersActivity:
         box.append(self.slot)
 
         self.post_button = BigButton(
-            words.POST_IT,
+            _(words.POST_IT),
             icon="kidnix-keep",
-            speak_text=words.POST_IT,
+            speak_text=_(words.POST_IT),
             on_activate=self.post,
             speech=self.app.speech,
             area=self.area,
@@ -668,8 +669,8 @@ class LettersActivity:
         """
         self._clear_slot()
         card = GrownUpTurn(
-            words.GROWNUP_WRITE_BODY,
-            title=words.GROWNUP_WRITE_TITLE,
+            _(words.GROWNUP_WRITE_BODY),
+            title=_(words.GROWNUP_WRITE_TITLE),
             speech=self.app.speech,
             area=self.area,
         )
@@ -784,7 +785,7 @@ class LettersActivity:
 
     def _shelf_button(self) -> BigButton:
         button = BigButton(
-            words.SHELF_TITLE,
+            _(words.SHELF_TITLE),
             icon="kidnix-journal",
             speak_text=words.shelf_button(len(self.replies)),
             on_activate=self.build_shelf,
@@ -807,7 +808,7 @@ class LettersActivity:
         assert self.window is not None
         self.step = Step.SHELF
         box = self._fresh()
-        box.append(self._set_prompt(words.SHELF_TITLE if self.replies else words.SHELF_EMPTY))
+        box.append(self._set_prompt(_(words.SHELF_TITLE) if self.replies else _(words.SHELF_EMPTY)))
 
         row = self._row()
         row.set_vexpand(True)
@@ -849,9 +850,9 @@ class LettersActivity:
         if reply.has_voice and reply.voice is not None:
             buttons.append(
                 BigButton(
-                    "Listen",
+                    _(words.LISTEN_LABEL),
                     icon="kidnix-ear",
-                    speak_text="Hear it.",
+                    speak_text=_(words.LISTEN_SPEAK),
                     on_activate=lambda: self.play_reply(reply),
                     speech=self.app.speech,
                     area=self.area,
@@ -859,9 +860,9 @@ class LettersActivity:
             )
         buttons.append(
             BigButton(
-                words.SHELF_TITLE,
+                _(words.SHELF_TITLE),
                 icon="kidnix-journal",
-                speak_text=words.SHELF_TITLE,
+                speak_text=_(words.SHELF_TITLE),
                 on_activate=self.build_shelf,
                 speech=self.app.speech,
                 area=self.area,
@@ -936,7 +937,12 @@ def _load_css() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="kidnix-letters", description=TITLE)
+    # The shell starts us with the language already chosen (LANG/LANGUAGE in
+    # our environment), so this normally only picks the catalogue up -- but it
+    # is what makes `python -m letters_to_family` on a developer's machine
+    # behave like the real thing. docs/design/i18n.md, ADR-0012.
+    install()
+    parser = argparse.ArgumentParser(prog="kidnix-letters", description=_(TITLE))
     parser.add_argument(
         "--screenshot",
         type=Path,
@@ -946,9 +952,11 @@ def main(argv: list[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
+    if not HAVE_CATALOGUE:  # pragma: no cover - only off-image
+        log.warning("no translation catalogue reachable; every line will be en_GB")
     app = ActivityApplication(
         ACTIVITY_ID,
-        TITLE,
+        _(TITLE),
         # None means "build your own"; a disabled set means silence. See
         # :func:`quiet` -- and note that this is a *development* switch: the
         # child's own volume, mute and calm mode are `[access]` in parent.toml

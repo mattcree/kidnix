@@ -42,6 +42,7 @@ from kidnix_shell.widgets import (  # noqa: E402
     pango_wrapper,
 )
 
+from .i18n import N_, _  # noqa: E402
 from .metrics import BIG_BUTTON_MM, PICTURE_TILE_MM, ContentArea  # noqa: E402
 from .speech import ActivitySpeech  # noqa: E402
 
@@ -49,20 +50,27 @@ __all__ = ["BigButton", "GrownUpTurn", "PictureTile", "Prompt", "fit_label"]
 
 log = logging.getLogger(__name__)
 
+# ADR-0012 / docs/design/i18n.md: these are the SDK's *own* child- and
+# grown-up-facing sentences -- every activity built on it inherits them, so a
+# literal here is a literal in four activities at once. `N_` marks the msgid at
+# module level and the **use site** calls `_()`, once the child's language is
+# known. Never `_()` here: a module-level translation would freeze whichever
+# catalogue happened to be installed when Python first imported the file.
+
 #: What the replay control says when it is focused or hovered. The Ear in the
 #: band says the same thing about the shell's own last line; this one is about
 #: the prompt it sits next to, which is a different sentence and a different
 #: button, deliberately: a child should not have to work out whose voice the
 #: Ear is repeating.
-REPLAY_SPEAK = "Say it again."
+REPLAY_SPEAK = N_("Say it again.")
 #: The icon on the replay control. Falls back to the shell's bundled set, then
 #: to the icon theme, then to nothing visible -- but the accessible name and
-#: the spoken string are always there.
+#: the spoken string are always there. An icon name, never translated.
 REPLAY_ICON = "kidnix-ear"
 
 #: The grown-up card's own words, when the activity does not give its own.
-GROWNUP_TITLE = "Your turn, grown-up"
-GROWNUP_DONE = "Done"
+GROWNUP_TITLE = N_("Your turn, grown-up")
+GROWNUP_DONE = N_("Done")
 
 
 def _ui(speech: ActivitySpeech | None, speech_ui: SpeechUI | None) -> SpeechUI | None:
@@ -352,7 +360,7 @@ class Prompt(Gtk.Box):
         self.replay: ChildButton | None = None
         if replay:
             self.replay = ChildButton(
-                speak_text=REPLAY_SPEAK,
+                speak_text=_(REPLAY_SPEAK),
                 on_activate=on_replay or self._replay,
                 speech_ui=_ui(speech, speech_ui),
                 css_classes=("replay",),
@@ -423,8 +431,8 @@ class GrownUpTurn(Gtk.Box):
         self,
         body: str,
         *,
-        title: str = GROWNUP_TITLE,
-        done_label: str = GROWNUP_DONE,
+        title: str | None = None,
+        done_label: str | None = None,
         on_done: Callable[[], None] | None = None,
         speech: ActivitySpeech | None = None,
         speech_ui: SpeechUI | None = None,
@@ -433,6 +441,14 @@ class GrownUpTurn(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.area = area
         self.speech = speech
+        # `None` rather than the msgid as the default, so the SDK's own words
+        # are translated **here**, when a child is already sitting down -- and
+        # so an activity that passes its own sentence (already translated, in
+        # its own catalogue entry) gets it through untouched.
+        if title is None:
+            title = _(GROWNUP_TITLE)
+        if done_label is None:
+            done_label = _(GROWNUP_DONE)
         self.title_text = " ".join((title or "").split())
         self.body_text = " ".join((body or "").split())
         self.set_spacing(8)

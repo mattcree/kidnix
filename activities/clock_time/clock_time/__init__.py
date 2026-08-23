@@ -32,6 +32,7 @@ the clock they made in My Things.*
 """
 
 from .dial import draw_dial, draw_disc, draw_sky, render_card, total_from_point
+from .i18n import N_
 from .keys import Action, Screen, action_for
 from .minute import DiscGeometry, Length, Phase, Verdict, disc_geometry, verdict_for
 from .routine import DEFAULT_ROUTINE, Routine, RoutineItem, Sky, parse_hhmm
@@ -41,8 +42,9 @@ from .words import ClockTime, Mode, hour_name, snap
 #: The manifest id the shell launches this as, and the id every Journal entry
 #: is filed under. A slug, and the identity everywhere that matters.
 ACTIVITY_ID = "clock-time"
-#: The window title, and the fallback title of a Journal card.
-TITLE = "Clock"
+#: The window title, and the fallback title of a Journal card. A msgid: the
+#: use site calls ``_()`` on it once a child's language is known (ADR-0012).
+TITLE = N_("Clock")
 
 __all__ = [
     "ACTIVITY_ID",

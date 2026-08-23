@@ -29,8 +29,17 @@ struggle at five.
 
 from __future__ import annotations
 
+from .i18n import N_, _
+
 __all__ = [
+    "AGAIN_LABEL",
+    "AGAIN_SPEAK",
+    "BOX_EMPTY_SPEAK",
+    "BOX_FULL_SPEAK",
+    "LOST_LINE",
     "MAX_NUMBER",
+    "MORE_LABEL",
+    "MORE_SPEAK",
     "NUMBER_WORDS",
     "bond_ask_again",
     "bond_prompt",
@@ -57,18 +66,26 @@ MAX_NUMBER = 10
 #: Index is the number. ``NUMBER_WORDS[0]`` exists because a frame can be empty,
 #: not because zero is ever an answer -- see :mod:`numbers_activity.items`,
 #: where a bond's two parts are both at least one.
+#:
+#: **A table, not a formatting rule** (ADR-0012). ``str(n)`` is not a word in
+#: any language and no language builds its number words the way another does,
+#: so the eleven words are eleven msgids and every sentence below is composed
+#: from them with *named* placeholders a translator may reorder. They are
+#: marked with :func:`~numbers_activity.i18n.N_` because this is module level:
+#: the catalogue in force at import time is not the one in force when a child
+#: is sitting down.
 NUMBER_WORDS: tuple[str, ...] = (
-    "zero",
-    "one",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-    "ten",
+    N_("zero"),
+    N_("one"),
+    N_("two"),
+    N_("three"),
+    N_("four"),
+    N_("five"),
+    N_("six"),
+    N_("seven"),
+    N_("eight"),
+    N_("nine"),
+    N_("ten"),
 )
 
 
@@ -76,7 +93,7 @@ def number_word(number: int) -> str:
     """``4`` -> ``"four"``. The only way a number reaches the voice."""
     if not 0 <= number <= MAX_NUMBER:
         raise ValueError(f"no word for {number}")
-    return NUMBER_WORDS[number]
+    return _(NUMBER_WORDS[number])
 
 
 def numeral(number: int) -> str:
@@ -94,6 +111,73 @@ def numeral(number: int) -> str:
     return str(number)
 
 
+# -- the msgids -------------------------------------------------------------
+#
+# Every sentence this activity can say, as a module-level constant marked with
+# `N_` and translated by `_()` at the use site (ADR-0012, docs/design/i18n.md).
+# Placeholders are **named**, never positional and never concatenation, so a
+# translator may reorder them or fold a number into the word beside it.
+
+#: TRANSLATORS: the question. Two words on purpose (SYNTHESIS B5).
+HOW_MANY = N_("How many?")
+#: TRANSLATORS: {number} is a number word -- "four", never a digit.
+YES = N_("Yes, {number}.")
+#: TRANSLATORS: what is said instead of "no". A method, not a verdict.
+LOOK_AGAIN = N_("Let's look again, and count them.")
+#: TRANSLATORS: {counted} is the count so far ("One, two, three"), {total} the
+#: last number said again -- the cardinal, which is the whole point of it.
+COUNTED = N_("{counted}. {total}.")
+#: TRANSLATORS: {number} is a number word.
+TELL = N_("There are {number}.")
+
+#: TRANSLATORS: {shown} and {total} are number words.
+BOND_PROMPT = N_("Here are {shown}. How many more make {total}?")
+#: TRANSLATORS: {total} is a number word.
+BOND_ASK_AGAIN = N_("Count the empty boxes. How many more make {total}?")
+#: TRANSLATORS: the sentence the whole second half of the activity produces.
+#: All three are number words: "Three and two make five."
+BOND_SENTENCE = N_("{shown} and {missing} make {total}.")
+
+END = N_("That is all of them. There is a card of it to show a grown-up.")
+GROWNUP_TITLE = N_("Your turn, grown-up")
+#: TRANSLATORS: the co-use card, written for an adult in an adult's register.
+#: {number} and {total} are number words.
+GROWNUP_BODY = N_(
+    "Show {number} fingers and ask how many -- quickly, before they can "
+    "count. Then hide a couple behind your back and ask how many more would "
+    "make {total}. Fingers beat a screen for this, and doing it away from the "
+    "computer is what makes it stick."
+)
+
+#: TRANSLATORS: the Journal card when nothing was put together.
+CARD_NOTHING = N_("Today: seeing how many.")
+#: TRANSLATORS: the Journal card. {sentence} is a bond sentence with its full
+#: stop removed -- "three and two make five".
+CARD_ONE = N_("Today: {sentence}")
+#: TRANSLATORS: {count} is a number word: "Today: three and two make five, and
+#: two more".
+CARD_MORE = N_("Today: {sentence}, and {count} more")
+
+# -- what the window's own controls say --------------------------------------
+#
+# They live here rather than in `activity.py` for the reason at the top of this
+# module: a translator reads one file, and a headless test can check every word
+# a child meets without a display.
+
+#: What the child hears when the save failed (SYNTHESIS C3).
+LOST_LINE = N_("I could not keep that one. Ask a grown-up.")
+#: The button that brings the picture back. Not a hint and not a penalty: a
+#: child who wants another look is doing the right thing.
+AGAIN_LABEL = N_("Look")
+AGAIN_SPEAK = N_("Show me the dots again.")
+#: The button at the end of the loop. Pressed, never automatic (D6: no autoplay).
+MORE_LABEL = N_("Some more")
+MORE_SPEAK = N_("Some more numbers.")
+#: The two faces of a ten-frame box, which is a control a child presses twice.
+BOX_EMPTY_SPEAK = N_("Put a counter in.")
+BOX_FULL_SPEAK = N_("Take it out again.")
+
+
 # -- how many? ---------------------------------------------------------------
 
 
@@ -104,7 +188,7 @@ def how_many_prompt() -> str:
     words. This one is two words because a child who has heard it four times
     should not have to listen to it a fifth.
     """
-    return "How many?"
+    return _(HOW_MANY)
 
 
 def yes_line(number: int) -> str:
@@ -113,12 +197,12 @@ def yes_line(number: int) -> str:
     "Yes" is information -- it answers the question the child just answered --
     and it is the whole of the celebration. There is deliberately no adjective.
     """
-    return f"Yes, {number_word(number)}."
+    return _(YES).format(number=number_word(number))
 
 
 def look_again() -> str:
     """What is said instead of "no". The next thing to do, not a verdict."""
-    return "Let's look again, and count them."
+    return _(LOOK_AGAIN)
 
 
 def count_aloud(number: int) -> str:
@@ -132,8 +216,11 @@ def count_aloud(number: int) -> str:
     """
     if number < 1:
         raise ValueError("there is nothing to count")
+    # The comma is not in the catalogue: it is a list separator, and every
+    # language this is likely to reach separates a spoken count the same way.
+    # What *is* translatable is the sentence the two halves make (`COUNTED`).
     counted = ", ".join(number_word(n) for n in range(1, number + 1))
-    return f"{counted.capitalize()}. {number_word(number).capitalize()}."
+    return _(COUNTED).format(counted=counted.capitalize(), total=number_word(number).capitalize())
 
 
 def tell_line(number: int) -> str:
@@ -142,7 +229,7 @@ def tell_line(number: int) -> str:
     Nobody is asked a third time. Two goes and then being told is the shape of
     a grown-up sitting next to you; a fourth attempt is the shape of a test.
     """
-    return f"There are {number_word(number)}."
+    return _(TELL).format(number=number_word(number))
 
 
 def tile_speech(number: int) -> str:
@@ -161,12 +248,12 @@ def tile_speech(number: int) -> str:
 
 def bond_prompt(shown: int, total: int) -> str:
     """``(3, 5)`` -> ``"Here are three. How many more make five?"``"""
-    return f"Here are {number_word(shown)}. How many more make {number_word(total)}?"
+    return _(BOND_PROMPT).format(shown=number_word(shown), total=number_word(total))
 
 
 def bond_ask_again(total: int) -> str:
     """The second go at a bond. Again: the method, not a verdict."""
-    return f"Count the empty boxes. How many more make {number_word(total)}?"
+    return _(BOND_ASK_AGAIN).format(total=number_word(total))
 
 
 def bond_sentence(shown: int, missing: int, total: int) -> str:
@@ -178,9 +265,10 @@ def bond_sentence(shown: int, missing: int, total: int) -> str:
     *composition*, and five-year-olds meet it as two amounts being put together
     long before they meet an equals sign.
     """
-    return (
-        f"{number_word(shown).capitalize()} and {number_word(missing)} "
-        f"make {number_word(total)}."
+    return _(BOND_SENTENCE).format(
+        shown=number_word(shown).capitalize(),
+        missing=number_word(missing),
+        total=number_word(total),
     )
 
 
@@ -189,7 +277,7 @@ def bond_sentence(shown: int, missing: int, total: int) -> str:
 
 def end_line() -> str:
     """The end of the loop. Not a congratulation and not a cliffhanger."""
-    return "That is all of them. There is a card of it to show a grown-up."
+    return _(END)
 
 
 def grownup_title() -> str:
@@ -198,7 +286,7 @@ def grownup_title() -> str:
     The child is told whose turn it is. What the adult is being asked to do is
     on the card, for the adult, and is not read to a five-year-old.
     """
-    return "Your turn, grown-up"
+    return _(GROWNUP_TITLE)
 
 
 def grownup_body(number: int, total: int) -> str:
@@ -213,12 +301,7 @@ def grownup_body(number: int, total: int) -> str:
     conversation between a parent and a child* moved the outcome. This card is
     that prompt, and it asks for the thing a screen cannot do: fingers.
     """
-    return (
-        f"Show {number_word(number)} fingers and ask how many -- quickly, before "
-        f"they can count. Then hide a couple behind your back and ask how many "
-        f"more would make {number_word(total)}. Fingers beat a screen for this, "
-        f"and doing it away from the computer is what makes it stick."
-    )
+    return _(GROWNUP_BODY).format(number=number_word(number), total=number_word(total))
 
 
 def card_caption(bonds: tuple[tuple[int, int, int], ...] | list[tuple[int, int, int]]) -> str:
@@ -228,13 +311,19 @@ def card_caption(bonds: tuple[tuple[int, int, int], ...] | list[tuple[int, int, 
     is why it names what was practised rather than how it went. There is no
     "got four right" here and there is no version of this function that could
     produce one -- it never sees an outcome.
+
+    The known limitation of docs/design/i18n.md section 2.3 applies to the
+    lower-casing below: it is English's rule for a sentence folded into a
+    bigger one, and a language that capitalises nouns will want the whole line
+    rewritten in the catalogue instead. ``CARD_ONE`` and ``CARD_MORE`` are two
+    msgids so that a translator can do exactly that.
     """
     bonds = list(bonds)
     if not bonds:
-        return "Today: seeing how many."
+        return _(CARD_NOTHING)
     first = bond_sentence(*bonds[0])
     lowered = first[0].lower() + first[1:]
     rest = len(bonds) - 1
     if rest == 0:
-        return f"Today: {lowered[:-1]}"
-    return f"Today: {lowered[:-1]}, and {number_word(rest)} more"
+        return _(CARD_ONE).format(sentence=lowered[:-1])
+    return _(CARD_MORE).format(sentence=lowered[:-1], count=number_word(rest))

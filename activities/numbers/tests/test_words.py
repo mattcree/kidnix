@@ -199,18 +199,47 @@ def test_no_caption_could_be_read_as_a_mark() -> None:
 # -- and the same rules over the window module -------------------------------
 
 
+#: How a msgid is marked. Since ADR-0012 the window's own labels are
+#: ``N_("...")`` constants in :mod:`numbers_activity.words` and the use site
+#: calls ``_()`` on them, so the literal a child meets is one level down inside
+#: a call -- which is where this looks for it.
+_MARKERS = {"N_", "_"}
+
+
+def _marked(node: ast.AST) -> list[str]:
+    """Every string literal inside an ``N_()`` or ``_()`` call in ``node``."""
+    found: list[str] = []
+    for child in ast.walk(node):
+        if isinstance(child, ast.Call) and getattr(child.func, "id", "") in _MARKERS:
+            for argument in child.args:
+                if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                    found.append(argument.value)
+    return found
+
+
 def _window_strings() -> list[str]:
-    """Child-facing literals in ``activity.py``: labels, and everything spoken.
+    """Child-facing copy in the window: labels, and everything spoken.
 
     Read out of the syntax tree rather than by grepping the file, so that a
     docstring explaining *why there is no score* does not trip a test looking
     for the word "score" -- and so that a new ``speak_text=`` on a new control
     is caught the day it is added, with no list to remember to update.
+
+    Two sources since the strings became msgids (ADR-0012): the marked
+    constants in ``words.py`` that ``activity.py`` imports, and anything in
+    ``activity.py`` itself -- marked or, if somebody forgot,
+    :func:`~numbers_activity.i18n.N_`-less and inline. The i18n guard in
+    ``tests/test_i18n.py`` is what fails on the second kind; this file still
+    checks *what they say*, wrapped or not.
     """
-    source = Path(words.__file__).with_name("activity.py").read_text()
-    tree = ast.parse(source)
+    words_source = Path(words.__file__)
     found: list[str] = []
-    for node in ast.walk(tree):
+    for name, value in vars(words).items():
+        if name.endswith(("_LINE", "_LABEL", "_SPEAK")) and isinstance(value, str):
+            found.append(value)
+    activity = ast.parse(words_source.with_name("activity.py").read_text())
+    found.extend(_marked(activity))
+    for node in ast.walk(activity):
         if (
             isinstance(node, ast.keyword)
             and node.arg in {"speak_text", "label", "title"}
@@ -218,15 +247,6 @@ def _window_strings() -> list[str]:
             and isinstance(node.value.value, str)
         ):
             found.append(node.value.value)
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if (
-                    isinstance(target, ast.Name)
-                    and target.id.endswith(("_LINE", "_LABEL"))
-                    and isinstance(node.value, ast.Constant)
-                    and isinstance(node.value.value, str)
-                ):
-                    found.append(node.value.value)
     return found
 
 

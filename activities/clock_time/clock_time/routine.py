@@ -32,11 +32,14 @@ from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
+from .i18n import N_, _
 from .words import ClockTime
 
 __all__ = [
     "DEFAULT_ROUTINE",
+    "IS_AT",
     "MINUTES_IN_A_DAY",
+    "SKY_WORDS",
     "Routine",
     "RoutineItem",
     "Sky",
@@ -65,7 +68,7 @@ class Sky(Enum):
     @property
     def words(self) -> str:
         """"in the morning". What the voice adds after the time, sometimes."""
-        return f"in the {self.value}" if self is not Sky.NIGHT else "at night"
+        return _(SKY_WORDS[self])
 
     @classmethod
     def at(cls, minutes: int) -> Sky:
@@ -84,6 +87,23 @@ class Sky(Enum):
         """Is there a moon in the sky rather than a sun?"""
         return self is Sky.NIGHT
 
+
+#: What each sky is called out loud. Four msgids rather than ``f"in the
+#: {value}"`` (ADR-0012): the enum's values are slugs -- they key a palette in
+#: :mod:`clock_time.dial` and land in the Journal meta -- and no language builds
+#: "in the morning" out of "morning" the way English does. "at night" is not
+#: "in the night" in English either, which is the smaller version of the same
+#: point.
+SKY_WORDS: dict[Sky, str] = {
+    Sky.MORNING: N_("in the morning"),
+    Sky.AFTERNOON: N_("in the afternoon"),
+    Sky.EVENING: N_("in the evening"),
+    Sky.NIGHT: N_("at night"),
+}
+
+#: TRANSLATORS: what one moment in the day is, said. {name} is the family's own
+#: word for it -- "Tea", "Bath" -- and {time} is a whole time, "half past five".
+IS_AT = N_("{name} is at {time}.")
 
 _HHMM = re.compile(r"^\s*(\d{1,2})\s*[:.]\s*(\d{2})\s*$")
 
@@ -137,9 +157,20 @@ class RoutineItem:
         return Sky.at(self.at)
 
     @property
+    def name_words(self) -> str:
+        """What this moment is called, in the language in force.
+
+        The eight defaults are msgids, so a Welsh child gets "Amser gwely"; a
+        name a grown-up typed into ``clock_time.toml`` is already in their own
+        words and comes back through ``_()`` unchanged, because it is not in
+        any catalogue. Both are the right answer and neither needed a flag.
+        """
+        return _(self.name)
+
+    @property
     def sentence(self) -> str:
         """"Tea is at half past five." One line, for the ear and the strip."""
-        return f"{self.name} is at {self.clock.words()}."
+        return _(IS_AT).format(name=self.name_words, time=self.clock.words())
 
 
 #: What a machine with nobody's config file on it uses.
@@ -153,15 +184,19 @@ class RoutineItem:
 #: The pictures are plain (05 section 2c, Kaminski & Sloutsky: perceptual
 #: richness makes children count the decorations) -- one object, flat colour,
 #: no scene, nothing countable in it.
+#: The eight names are msgids (ADR-0012) -- these are *our* words, shipped with
+#: the activity, and a Welsh machine should say them in Welsh. A name from a
+#: grown-up's ``clock_time.toml`` is theirs and passes through untranslated;
+#: :attr:`RoutineItem.name_words` is where both go.
 DEFAULT_ROUTINE: tuple[RoutineItem, ...] = (
-    RoutineItem("wake", "Wake up", 7 * 60),
-    RoutineItem("breakfast", "Breakfast", 7 * 60 + 30),
-    RoutineItem("school", "School", 9 * 60),
-    RoutineItem("lunch", "Lunch", 12 * 60),
-    RoutineItem("home", "Home", 15 * 60 + 30),
-    RoutineItem("tea", "Tea", 17 * 60 + 30),
-    RoutineItem("bath", "Bath", 18 * 60 + 30),
-    RoutineItem("bed", "Bed", 19 * 60),
+    RoutineItem("wake", N_("Wake up"), 7 * 60),
+    RoutineItem("breakfast", N_("Breakfast"), 7 * 60 + 30),
+    RoutineItem("school", N_("School"), 9 * 60),
+    RoutineItem("lunch", N_("Lunch"), 12 * 60),
+    RoutineItem("home", N_("Home"), 15 * 60 + 30),
+    RoutineItem("tea", N_("Tea"), 17 * 60 + 30),
+    RoutineItem("bath", N_("Bath"), 18 * 60 + 30),
+    RoutineItem("bed", N_("Bed"), 19 * 60),
 )
 
 

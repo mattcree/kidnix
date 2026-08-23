@@ -53,6 +53,7 @@ five", and find a card of what they made in My Things.*
 
 from .arrange import Arrangement, Shape, arrangement_for, dice, scatter, ten_frame
 from .draw import draw_arrangement, draw_bond_frame, draw_pattern, render_card
+from .i18n import N_
 from .items import (
     HowMany,
     Item,
@@ -88,8 +89,9 @@ from .words import (
 #: The manifest id the shell launches this as, and the id every Journal entry
 #: is filed under. A slug, and the identity everywhere that matters.
 ACTIVITY_ID = "numbers"
-#: The window title, and the fallback title of a Journal card.
-TITLE = "Numbers"
+#: The window title, and the fallback title of a Journal card. A msgid: the
+#: use site calls ``_()`` on it once a child's language is known (ADR-0012).
+TITLE = N_("Numbers")
 
 __all__ = [
     "ACTIVITY_ID",

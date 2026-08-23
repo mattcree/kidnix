@@ -62,14 +62,17 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from .i18n import _
 from .letter import (
     CAPTION_NAME,
     CARD_NAME,
     META_NAME,
     PICTURE_NAME,
+    SOMEONE,
     VOICE_NAME,
     Letter,
 )
+from .words import reply_line
 
 log = logging.getLogger(__name__)
 
@@ -218,7 +221,7 @@ class Reply:
     @property
     def speak_text(self) -> str:
         """What the tile says. The sender, because that is who it is from."""
-        return f"A letter from {self.from_name}."
+        return reply_line(self.from_name)
 
 
 def _first_with_suffix(files: Sequence[Path], suffixes: Iterable[str]) -> Path | None:
@@ -239,7 +242,7 @@ def _name_from(stem: str) -> str:
     parts = [part for part in stem.replace("_", "-").replace(" ", "-").split("-") if part]
     words = [part for part in parts if not part.isdigit()]
     if not words:
-        return "someone"
+        return _(SOMEONE)
     return " ".join(word[:1].upper() + word[1:] for word in words)
 
 

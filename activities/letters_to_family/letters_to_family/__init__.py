@@ -52,6 +52,7 @@ spelling exactly as it was typed.*
 from .assemble import Posted, post_letter
 from .draw import draw_placeholder, render_card, render_scribble
 from .env import quiet
+from .i18n import N_
 from .journal_read import JournalPicture, read_entry, recent_pictures
 from .keys import guard_ring, ring_consumes
 from .letter import (
@@ -81,8 +82,9 @@ from .words import posted_line, reply_line, your_letter_for
 #: The manifest id the shell launches this as, and the id every Journal entry is
 #: filed under. A slug, and the identity everywhere that matters.
 ACTIVITY_ID = "letters"
-#: The window title, and the word on the tile.
-TITLE = "Letters"
+#: The window title, and the word on the tile. A msgid: the use site calls
+#: ``_()`` on it once a child's language is known (ADR-0012).
+TITLE = N_("Letters")
 
 __all__ = [
     "ACTIVITY_ID",

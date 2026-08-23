@@ -30,6 +30,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .i18n import N_, _
+
 __all__ = [
     "COLOURS",
     "COLOUR_NAMES",
@@ -54,7 +56,8 @@ class Colour:
 
     @property
     def speak_text(self) -> str:
-        return self.name
+        """The crayon's name, said. A msgid: see :data:`COLOURS`."""
+        return _(self.name)
 
 
 #: The three. They are the shell's own tokens -- ``@kid-primary``,
@@ -63,10 +66,14 @@ class Colour:
 #: file and fails if they ever drift. Three hues that also differ in *lightness*
 #: (B6: colour is never the sole carrier), so a child with a colour-vision
 #: deficiency can still tell which crayon is which and so can a photocopy.
+#: The ``key`` is machine vocabulary -- a CSS class and a stroke's colour in a
+#: saved scribble -- and is never translated. The ``name`` is what a child
+#: *hears* when they focus the crayon, so it is a msgid (ADR-0012) and
+#: :attr:`Colour.speak_text` is where it is translated.
 COLOURS: tuple[Colour, ...] = (
-    Colour(key="teal", name="Teal", hex="#0f8a8a"),
-    Colour(key="pink", name="Pink", hex="#f06292"),
-    Colour(key="black", name="Black", hex="#16181d"),
+    Colour(key="teal", name=N_("Teal"), hex="#0f8a8a"),
+    Colour(key="pink", name=N_("Pink"), hex="#f06292"),
+    Colour(key="black", name=N_("Black"), hex="#16181d"),
 )
 
 COLOUR_NAMES = tuple(colour.name for colour in COLOURS)

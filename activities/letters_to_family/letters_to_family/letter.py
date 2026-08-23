@@ -37,14 +37,17 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
+from .i18n import N_, _
 from .recipients import Recipient, slugify
 
 __all__ = [
     "CAPTION_NAME",
     "CARD_NAME",
     "KIND",
+    "LETTER_FOR",
     "META_NAME",
     "PICTURE_NAME",
+    "SOMEONE",
     "STATUS_UNPOSTED",
     "STATUS_WAITING",
     "VOICE_NAME",
@@ -71,6 +74,13 @@ STATUS_WAITING = "waiting for a grown-up to send"
 #: Journal and **no outbox copy**. A grown-up who was never asked to send
 #: something must not find it in the folder they send things out of.
 STATUS_UNPOSTED = "not posted -- Post it was never pressed"
+
+#: TRANSLATORS: the Journal card's title when the child wrote no words.
+#: {name} is a person -- "A letter for Grandad".
+LETTER_FOR = N_("A letter for {name}")
+#: Who a letter is for when we somehow do not know. Said out loud, so it is a
+#: word rather than a blank.
+SOMEONE = N_("someone")
 
 #: Filenames inside an outbox directory. Boring, conventional and open (F4): a
 #: parent opens the folder in Files and sees a picture, a card and a recording.
@@ -131,8 +141,8 @@ def letter_title(recipient: Recipient | None) -> str:
     *has* written something, the SDK's ``title_for`` uses their words instead,
     and that is the better answer: the card then says what they said.
     """
-    name = recipient.name if recipient is not None else "someone"
-    return f"A letter for {name}"
+    name = recipient.name if recipient is not None else _(SOMEONE)
+    return _(LETTER_FOR).format(name=name)
 
 
 def outbox_name(recipient: Recipient, when: datetime) -> str:

@@ -44,11 +44,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from .i18n import N_, _
+
 log = logging.getLogger(__name__)
 
 __all__ = [
     "ENTRY_FILE",
     "ENTRY_GLOB",
+    "SOMETHING_I_MADE",
     "THUMB_NAME",
     "JournalPicture",
     "read_entry",
@@ -57,6 +60,10 @@ __all__ = [
 
 ENTRY_FILE = "entry.json"
 THUMB_NAME = "thumb.png"
+#: What a picture with no caption is called out loud. A card in My Things
+#: always has *something* to say, because a tile a pre-reader cannot hear is a
+#: tile they cannot use.
+SOMETHING_I_MADE = N_("A thing I made")
 #: The shell's own four-level glob. ``.incoming`` is two levels deep, where this
 #: cannot reach, which is exactly why the SDK assembles entries there.
 ENTRY_GLOB = "*/*/*/*/" + ENTRY_FILE
@@ -99,7 +106,7 @@ class JournalPicture:
         cards needs it; a row of four does not, and every word saved is one a
         five-year-old does not have to sit through before pressing.
         """
-        return self.title or "A thing I made"
+        return self.title or _(SOMETHING_I_MADE)
 
 
 def _parse_created(raw: str) -> datetime:

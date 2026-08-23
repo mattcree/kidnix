@@ -33,9 +33,16 @@ from dataclasses import dataclass
 from datetime import datetime, time
 from enum import Enum
 
+from .i18n import N_, _
+
 __all__ = [
+    "ABOUT",
     "HOUR_NAMES",
     "MINUTES_ON_A_DIAL",
+    "OCLOCK",
+    "ON_THE_HOUR",
+    "PAST_THE_HOUR",
+    "TO_THE_HOUR",
     "ClockTime",
     "Mode",
     "grid_for",
@@ -53,19 +60,24 @@ MINUTES_ON_A_DIAL = 720
 
 #: One to twelve, said. Index 0 is "twelve", because midnight and midday are
 #: both twelve o'clock and a dial has no zero on it.
+#:
+#: **A table of msgids, not a formatting rule** (ADR-0012). Marked with
+#: :func:`~clock_time.i18n.N_` because this is module level: the catalogue in
+#: force when Python imports this file is not the one in force when a child
+#: sits down. :func:`hour_name` is what translates one.
 HOUR_NAMES: tuple[str, ...] = (
-    "twelve",
-    "one",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-    "ten",
-    "eleven",
+    N_("twelve"),
+    N_("one"),
+    N_("two"),
+    N_("three"),
+    N_("four"),
+    N_("five"),
+    N_("six"),
+    N_("seven"),
+    N_("eight"),
+    N_("nine"),
+    N_("ten"),
+    N_("eleven"),
 )
 
 #: What the minute hand says, at each five-minute mark, in the half of the
@@ -73,21 +85,44 @@ HOUR_NAMES: tuple[str, ...] = (
 #: hyphenated ("twenty-five past"), because the caption is read as well as
 #: heard.
 _PAST: dict[int, str] = {
-    5: "five past",
-    10: "ten past",
-    15: "quarter past",
-    20: "twenty past",
-    25: "twenty-five past",
-    30: "half past",
+    5: N_("five past"),
+    10: N_("ten past"),
+    15: N_("quarter past"),
+    20: N_("twenty past"),
+    25: N_("twenty-five past"),
+    30: N_("half past"),
 }
 #: And in the half that counts *to* the next hour.
 _TO: dict[int, str] = {
-    35: "twenty-five to",
-    40: "twenty to",
-    45: "quarter to",
-    50: "ten to",
-    55: "five to",
+    35: N_("twenty-five to"),
+    40: N_("twenty to"),
+    45: N_("quarter to"),
+    50: N_("ten to"),
+    55: N_("five to"),
 }
+
+#: The name of the position at the top of the dial, with no hour attached.
+OCLOCK = N_("o'clock")
+
+# How a whole time is put together, as three msgids with **named** holes in
+# them (docs/design/i18n.md section 2.2). Telling the time is where languages
+# stop agreeing with English: German's "halb vier" is half past *three*, and
+# plenty of languages put the hour first or drop the preposition. Composing
+# here, in one function, with one catalogue entry per shape, is what lets a
+# translator rewrite the sentence rather than have it built out of their words
+# in English's order.
+
+#: TRANSLATORS: a whole time on the hour. {hour} is an hour name -- "three".
+ON_THE_HOUR = N_("{hour} o'clock")
+#: TRANSLATORS: minutes past the hour. {past} is "half past", "quarter past",
+#: "ten past"; {hour} is the hour it is past -- "half past three".
+PAST_THE_HOUR = N_("{past} {hour}")
+#: TRANSLATORS: minutes to the next hour. {to} is "quarter to", "twenty to";
+#: {hour} is the hour being counted to -- "quarter to eight".
+TO_THE_HOUR = N_("{to} {hour}")
+#: TRANSLATORS: the hedge when the hands are between marks, because the Now
+#: button puts them at a real time. {time} is a whole time as composed above.
+ABOUT = N_("about {time}")
 
 
 class Mode(Enum):
@@ -198,7 +233,7 @@ def snap(total: int, mode: Mode) -> int:
 
 def hour_name(hour: int) -> str:
     """``3`` -> ``"three"``; ``0`` and ``12`` -> ``"twelve"``."""
-    return HOUR_NAMES[hour % 12]
+    return _(HOUR_NAMES[hour % 12])
 
 
 def minute_words(minute: int) -> str:
@@ -211,11 +246,11 @@ def minute_words(minute: int) -> str:
     """
     minute = int(minute) % 60
     if minute == 0:
-        return "o'clock"
+        return _(OCLOCK)
     if minute in _PAST:
-        return _PAST[minute]
+        return _(_PAST[minute])
     if minute in _TO:
-        return _TO[minute]
+        return _(_TO[minute])
     return minute_words(round(minute / 5.0) * 5)
 
 
@@ -301,11 +336,11 @@ class ClockTime:
         """
         minute = self.minute
         if minute == 0:
-            return f"{hour_name(self.hour)} o'clock"
+            return _(ON_THE_HOUR).format(hour=hour_name(self.hour))
         if minute in _PAST:
-            return f"{_PAST[minute]} {hour_name(self.hour)}"
+            return _(PAST_THE_HOUR).format(past=_(_PAST[minute]), hour=hour_name(self.hour))
         if minute in _TO:
-            return f"{_TO[minute]} {hour_name(self.next_hour)}"
+            return _(TO_THE_HOUR).format(to=_(_TO[minute]), hour=hour_name(self.next_hour))
         return ClockTime(nearest_on_grid(self.total, Mode.Y2)).words()
 
     def spoken(self, mode: Mode = Mode.Y2) -> str:
@@ -319,7 +354,7 @@ class ClockTime:
         """
         landed = snap(self.total, mode)
         words = ClockTime(landed).words()
-        return words if landed == self.total else f"about {words}"
+        return words if landed == self.total else _(ABOUT).format(time=words)
 
     # -- drawing it --
 

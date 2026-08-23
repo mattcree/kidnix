@@ -66,6 +66,7 @@ from .draw import (  # noqa: E402
     frame_geometry,
     render_card,
 )
+from .i18n import HAVE_CATALOGUE, _, install  # noqa: E402
 from .items import (  # noqa: E402
     HowMany,
     Item,
@@ -79,6 +80,13 @@ from .items import (  # noqa: E402
 from .keys import number_for_keyval  # noqa: E402
 from .settings import Frame, ParentSettings, load_settings  # noqa: E402
 from .words import (  # noqa: E402
+    AGAIN_LABEL,
+    AGAIN_SPEAK,
+    BOX_EMPTY_SPEAK,
+    BOX_FULL_SPEAK,
+    LOST_LINE,
+    MORE_LABEL,
+    MORE_SPEAK,
     bond_ask_again,
     bond_prompt,
     bond_sentence,
@@ -131,13 +139,11 @@ TILE_MM: tuple[float, ...] = (36.0, 30.0, 24.0, 20.0)
 #: The frame gets at least this much of the content height. It is the subject.
 STAGE_HEIGHT_FRACTION = 0.52
 
-#: What the child hears when the save failed (SYNTHESIS C3).
-LOST_LINE = "I could not keep that one. Ask a grown-up."
-#: The button that brings the picture back. Not a hint and not a penalty: a
-#: child who wants another look is doing the right thing.
-AGAIN_LABEL = "Look"
-#: The button at the end of the loop. Pressed, never automatic (D6: no autoplay).
-MORE_LABEL = "Some more"
+# Every sentence a child hears or reads is a msgid in `numbers_activity.words`
+# (ADR-0012, docs/design/i18n.md) -- including this window's own labels, which
+# live there so that a translator reads one file and `tests/test_i18n.py` can
+# check them with no display. `_()` is called at the use site, below, because
+# the language is not known at import time.
 
 
 # -- the picture -------------------------------------------------------------
@@ -240,7 +246,7 @@ class BondFrame(Gtk.Overlay):
         self.targets: dict[int, ChildButton] = {}
         for index in range(item.shown, item.total):
             button = ChildButton(
-                speak_text="Put a counter in.",
+                speak_text=_(BOX_EMPTY_SPEAK),
                 on_activate=lambda i=index: self._pressed(i),
                 speech_ui=speech_ui if speech_ui is not None else _ui_of(speech),
                 css_classes=("box",),
@@ -272,7 +278,7 @@ class BondFrame(Gtk.Overlay):
     def _sync(self) -> None:
         for index, button in self.targets.items():
             button.set_speak_text(
-                "Take it out again." if index in self.placed else "Put a counter in."
+                _(BOX_FULL_SPEAK) if index in self.placed else _(BOX_EMPTY_SPEAK)
             )
         self.canvas.queue_draw()
 
@@ -526,10 +532,10 @@ class NumbersActivity:
         self.card = DotCard(area)
         row.append(self.card)
         again = BigButton(
-            AGAIN_LABEL,
+            _(AGAIN_LABEL),
             icon=str(LOOK_ICON),
             icon_kind="path",
-            speak_text="Show me the dots again.",
+            speak_text=_(AGAIN_SPEAK),
             on_activate=self.flash_again,
             speech=window.speech,
             area=area,
@@ -706,9 +712,9 @@ class NumbersActivity:
         row.set_halign(Gtk.Align.CENTER)
         row.append(
             BigButton(
-                MORE_LABEL,
+                _(MORE_LABEL),
                 icon="kidnix-one-more",
-                speak_text="Some more numbers.",
+                speak_text=_(MORE_SPEAK),
                 on_activate=self.again,
                 speech=window.speech,
                 area=area,
@@ -767,7 +773,7 @@ class NumbersActivity:
         except JournalError as exc:
             log.error("could not keep the numbers card: %s", exc)
             if self.window is not None:
-                self.window.speak(LOST_LINE)
+                self.window.speak(_(LOST_LINE))
             return
         log.info("kept %s (%s)", entry.id, caption)
         self.practised.clear()
@@ -870,7 +876,12 @@ def _load_css() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="kidnix-numbers", description=TITLE)
+    # The shell starts us with the language already chosen (LANG/LANGUAGE in
+    # our environment), so this normally only picks the catalogue up -- but it
+    # is what makes `python -m numbers_activity` on a developer's machine
+    # behave like the real thing. docs/design/i18n.md, ADR-0012.
+    install()
+    parser = argparse.ArgumentParser(prog="kidnix-numbers", description=_(TITLE))
     parser.add_argument(
         "--screenshot",
         type=Path,
@@ -900,7 +911,9 @@ def main(argv: list[str] | None = None) -> int:
             source=settings.source,
         )
 
-    app = ActivityApplication(ACTIVITY_ID, TITLE)
+    if not HAVE_CATALOGUE:  # pragma: no cover - only off-image
+        log.warning("no translation catalogue reachable; every line will be en_GB")
+    app = ActivityApplication(ACTIVITY_ID, _(TITLE))
     activity = NumbersActivity(
         app, settings, rng=random.Random(args.seed) if args.seed is not None else None
     )

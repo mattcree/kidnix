@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kidnix 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
-"POT-Creation-Date: 2026-08-23 16:43+0100\n"
+"POT-Creation-Date: 2026-08-23 17:59+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,6 +17,625 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: ../activities/clock_time/clock_time/__init__.py:47
+#: ../activities/clock_time/clock_time/activity.py:167
+msgid "Clock"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:135
+msgid "Move the hands. What time is it?"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:136
+msgid "How long is a minute?"
+msgstr ""
+
+#. TRANSLATORS: what the prompt and the voice say as the hands move. {time} is
+#. a whole time ("Half past three") and {sentence} is the routine line for that
+#. moment ("Tea is at half past five.").
+#: ../activities/clock_time/clock_time/activity.py:141
+#, python-brace-format
+msgid "{time}. {sentence}"
+msgstr ""
+
+#. TRANSLATORS: the Now button's answer. {time} may be hedged -- "about half
+#. past three" -- because real time is almost never on the rim.
+#: ../activities/clock_time/clock_time/activity.py:144
+#, python-brace-format
+msgid "Right now it is {time}. {sentence}"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:147
+msgid "Now"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:148
+msgid "Show me the time right now."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:149
+msgid "Minute"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:152
+#: kidnix_shell/screens/grownup.py:654
+msgid "Start"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:153
+msgid "Start. Press stop when you think the time has gone."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:154
+#: kidnix_shell/widgets.py:613
+msgid "Stop"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:155
+msgid "Stop. That feels like the right time."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:157
+msgid "Watch"
+msgstr ""
+
+#. TRANSLATORS: {length} is an interval -- "a minute", "two minutes".
+#: ../activities/clock_time/clock_time/activity.py:159
+#, python-brace-format
+msgid "Watch {length} go past."
+msgstr ""
+
+#. TRANSLATORS: {length} is an interval. What an interval button says.
+#: ../activities/clock_time/clock_time/activity.py:161
+#, python-brace-format
+msgid "Try {length}."
+msgstr ""
+
+#. TRANSLATORS: {length} is an interval. Said as the disc starts to empty.
+#: ../activities/clock_time/clock_time/activity.py:163
+#, python-brace-format
+msgid "Here is {length}."
+msgstr ""
+
+#. TRANSLATORS: {length} is an interval. Said when it has gone.
+#: ../activities/clock_time/clock_time/activity.py:165
+#, python-brace-format
+msgid "That was {length}."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:168
+msgid "Back to the clock."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:181
+msgid ""
+"Ask what happens at the time they made on the clock -- and tell them what "
+"happens at that time in your house. Then guess a minute together: say when "
+"you think it has gone, and let them tell you who was closer."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/activity.py:186
+#: ../activities/numbers/numbers_activity/words.py:168
+msgid "I could not keep that one. Ask a grown-up."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:116
+msgid "half a minute"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:117
+msgid "a minute"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:118
+msgid "two minutes"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:125
+msgid "Half"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:126
+msgid "One"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:127
+msgid "Two"
+msgstr ""
+
+#. TRANSLATORS: {length} is an interval -- "half a minute", "two minutes".
+#: ../activities/clock_time/clock_time/minute.py:131
+#, python-brace-format
+msgid "Press stop when you think {length} has gone."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:162
+msgid "a bit early"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:163
+msgid "just right!"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/minute.py:164
+msgid "a bit late"
+msgstr ""
+
+#. TRANSLATORS: {length} is an interval -- "a minute". The exclamation mark is
+#. the whole of the celebration; there is no praise adjective anywhere here.
+#: ../activities/clock_time/clock_time/minute.py:179
+#, python-brace-format
+msgid "That was {length}. Just right!"
+msgstr ""
+
+#. TRANSLATORS: {verdict} is "a bit early" or "a bit late", {length} is the
+#. interval that was being judged -- "That was a bit early for a minute."
+#: ../activities/clock_time/clock_time/minute.py:182
+#, python-brace-format
+msgid "That was {verdict} for {length}."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:98
+msgid "in the morning"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:99
+msgid "in the afternoon"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:100
+msgid "in the evening"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:101
+msgid "at night"
+msgstr ""
+
+#. TRANSLATORS: what one moment in the day is, said. {name} is the family's own
+#. word for it -- "Tea", "Bath" -- and {time} is a whole time, "half past five".
+#: ../activities/clock_time/clock_time/routine.py:106
+#, python-brace-format
+msgid "{name} is at {time}."
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:192
+msgid "Wake up"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:193
+msgid "Breakfast"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:194
+msgid "School"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:195
+msgid "Lunch"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:196
+#: kidnix_shell/screens/home.py:169
+msgid "Home"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:197
+msgid "Tea"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:198
+msgid "Bath"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/routine.py:199
+msgid "Bed"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:69 kidnix_shell/words.py:46
+msgid "twelve"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:70
+#: ../activities/numbers/numbers_activity/words.py:79 kidnix_shell/words.py:35
+msgid "one"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:71
+#: ../activities/numbers/numbers_activity/words.py:80 kidnix_shell/words.py:36
+msgid "two"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:72
+#: ../activities/numbers/numbers_activity/words.py:81 kidnix_shell/words.py:37
+msgid "three"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:73
+#: ../activities/numbers/numbers_activity/words.py:82 kidnix_shell/words.py:38
+msgid "four"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:74
+#: ../activities/numbers/numbers_activity/words.py:83 kidnix_shell/words.py:39
+msgid "five"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:75
+#: ../activities/numbers/numbers_activity/words.py:84 kidnix_shell/words.py:40
+msgid "six"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:76
+#: ../activities/numbers/numbers_activity/words.py:85 kidnix_shell/words.py:41
+msgid "seven"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:77
+#: ../activities/numbers/numbers_activity/words.py:86 kidnix_shell/words.py:42
+msgid "eight"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:78
+#: ../activities/numbers/numbers_activity/words.py:87 kidnix_shell/words.py:43
+msgid "nine"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:79
+#: ../activities/numbers/numbers_activity/words.py:88 kidnix_shell/words.py:44
+msgid "ten"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:80 kidnix_shell/words.py:45
+msgid "eleven"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:88
+msgid "five past"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:89
+msgid "ten past"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:90
+msgid "quarter past"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:91
+msgid "twenty past"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:92
+msgid "twenty-five past"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:93
+msgid "half past"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:97
+msgid "twenty-five to"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:98
+msgid "twenty to"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:99
+msgid "quarter to"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:100
+msgid "ten to"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:101
+msgid "five to"
+msgstr ""
+
+#: ../activities/clock_time/clock_time/words.py:105
+msgid "o'clock"
+msgstr ""
+
+#. TRANSLATORS: a whole time on the hour. {hour} is an hour name -- "three".
+#: ../activities/clock_time/clock_time/words.py:116
+#, python-brace-format
+msgid "{hour} o'clock"
+msgstr ""
+
+#. TRANSLATORS: minutes past the hour. {past} is "half past", "quarter past",
+#. "ten past"; {hour} is the hour it is past -- "half past three".
+#: ../activities/clock_time/clock_time/words.py:119
+#, python-brace-format
+msgid "{past} {hour}"
+msgstr ""
+
+#. TRANSLATORS: minutes to the next hour. {to} is "quarter to", "twenty to";
+#. {hour} is the hour being counted to -- "quarter to eight".
+#: ../activities/clock_time/clock_time/words.py:122
+#, python-brace-format
+msgid "{to} {hour}"
+msgstr ""
+
+#. TRANSLATORS: the hedge when the hands are between marks, because the Now
+#. button puts them at a real time. {time} is a whole time as composed above.
+#: ../activities/clock_time/clock_time/words.py:125
+#, python-brace-format
+msgid "about {time}"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/__init__.py:87
+#: kidnix_shell/inbox.py:106
+msgid "Letters"
+msgstr ""
+
+#. TRANSLATORS: the small label at the top of the letter card. {name} is a
+#. person -- "for Grandad". Written on the card, not spoken.
+#: ../activities/letters_to_family/letters_to_family/draw.py:69
+#, python-brace-format
+msgid "for {name}"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/journal_read.py:66
+#: kidnix_shell/journal.py:246
+msgid "A thing I made"
+msgstr ""
+
+#. TRANSLATORS: the Journal card's title when the child wrote no words.
+#. {name} is a person -- "A letter for Grandad".
+#: ../activities/letters_to_family/letters_to_family/letter.py:80
+#, python-brace-format
+msgid "A letter for {name}"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/letter.py:83
+#: kidnix_shell/inbox.py:151
+msgid "someone"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/scribble.py:74
+msgid "Teal"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/scribble.py:75
+msgid "Pink"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/scribble.py:76
+msgid "Black"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:77
+msgid "Who is your letter for?"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:82
+msgid "There is nobody to write to yet. Ask a grown-up."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:84
+#: ../activities/letters_to_family/letters_to_family/words.py:122
+#: ../activities/numbers/numbers_activity/words.py:142
+#: kidnix_activity/widgets.py:72
+msgid "Your turn, grown-up"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:86
+msgid ""
+"Ask a grown-up to add someone in the parent panel. Parent Panel on the grown-"
+"up's account, then the Family tab: a name, a photo if you have one, and how "
+"they are related. Nothing is sent from this machine -- you take the finished "
+"letter out of the outbox yourself."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:94
+msgid "Choose a picture to send, or draw a new one."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:95
+msgid "Draw one"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:96
+msgid "Pick a colour, then draw."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:101
+#: kidnix_shell/band.py:495
+msgid "Undo"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:102
+msgid "Take the last line off."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:103
+msgid "That's it"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:104
+msgid "That's my picture."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:113
+msgid "Tell them one thing that happened today."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:115
+msgid "Write it"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:116
+msgid "Say it"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:117
+msgid "Ask a grown-up to write it"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:120
+#: kidnix_shell/screens/grownup.py:277 kidnix_shell/screens/whos_here.py:30
+msgid "Grown-up"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:124
+msgid ""
+"Write down what they tell you, in their words. Do not tidy the spelling of "
+"anything they wrote themselves -- invented spelling is the Year One "
+"curriculum, and the person receiving this would rather have their words."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:129
+msgid "Post it"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:133
+msgid "Letters for you"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:134
+msgid "No letters yet. There will be one day."
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:136
+msgid "Listen"
+msgstr ""
+
+#: ../activities/letters_to_family/letters_to_family/words.py:137
+msgid "Hear it."
+msgstr ""
+
+#. TRANSLATORS: {name} is a person -- "Grandad", "Auntie Jo".
+#: ../activities/letters_to_family/letters_to_family/words.py:140
+#, python-brace-format
+msgid "Your letter for {name}."
+msgstr ""
+
+#. TRANSLATORS: what is said when the letter is posted. {name} is a person. It
+#. says who does the next thing and deliberately not when.
+#: ../activities/letters_to_family/letters_to_family/words.py:143
+#, python-brace-format
+msgid "Posted! A grown-up will send it to {name}."
+msgstr ""
+
+#. TRANSLATORS: a reply on the shelf. {name} is the person who sent it.
+#: ../activities/letters_to_family/letters_to_family/words.py:145
+#, python-brace-format
+msgid "A letter from {name}."
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/__init__.py:94
+msgid "Numbers"
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:78
+msgid "zero"
+msgstr ""
+
+#. TRANSLATORS: the question. Two words on purpose (SYNTHESIS B5).
+#: ../activities/numbers/numbers_activity/words.py:122
+msgid "How many?"
+msgstr ""
+
+#. TRANSLATORS: {number} is a number word -- "four", never a digit.
+#: ../activities/numbers/numbers_activity/words.py:124
+#, python-brace-format
+msgid "Yes, {number}."
+msgstr ""
+
+#. TRANSLATORS: what is said instead of "no". A method, not a verdict.
+#: ../activities/numbers/numbers_activity/words.py:126
+msgid "Let's look again, and count them."
+msgstr ""
+
+#. TRANSLATORS: {counted} is the count so far ("One, two, three"), {total} the
+#. last number said again -- the cardinal, which is the whole point of it.
+#: ../activities/numbers/numbers_activity/words.py:129
+#, python-brace-format
+msgid "{counted}. {total}."
+msgstr ""
+
+#. TRANSLATORS: {number} is a number word.
+#: ../activities/numbers/numbers_activity/words.py:131
+#, python-brace-format
+msgid "There are {number}."
+msgstr ""
+
+#. TRANSLATORS: {shown} and {total} are number words.
+#: ../activities/numbers/numbers_activity/words.py:134
+#, python-brace-format
+msgid "Here are {shown}. How many more make {total}?"
+msgstr ""
+
+#. TRANSLATORS: {total} is a number word.
+#: ../activities/numbers/numbers_activity/words.py:136
+#, python-brace-format
+msgid "Count the empty boxes. How many more make {total}?"
+msgstr ""
+
+#. TRANSLATORS: the sentence the whole second half of the activity produces.
+#. All three are number words: "Three and two make five."
+#: ../activities/numbers/numbers_activity/words.py:139
+#, python-brace-format
+msgid "{shown} and {missing} make {total}."
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:141
+msgid "That is all of them. There is a card of it to show a grown-up."
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:146
+#, python-brace-format
+msgid ""
+"Show {number} fingers and ask how many -- quickly, before they can count. "
+"Then hide a couple behind your back and ask how many more would make "
+"{total}. Fingers beat a screen for this, and doing it away from the computer "
+"is what makes it stick."
+msgstr ""
+
+#. TRANSLATORS: the Journal card when nothing was put together.
+#: ../activities/numbers/numbers_activity/words.py:153
+msgid "Today: seeing how many."
+msgstr ""
+
+#. TRANSLATORS: the Journal card. {sentence} is a bond sentence with its full
+#. stop removed -- "three and two make five".
+#: ../activities/numbers/numbers_activity/words.py:156
+#, python-brace-format
+msgid "Today: {sentence}"
+msgstr ""
+
+#. TRANSLATORS: {count} is a number word: "Today: three and two make five, and
+#. two more".
+#: ../activities/numbers/numbers_activity/words.py:159
+#, python-brace-format
+msgid "Today: {sentence}, and {count} more"
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:171
+msgid "Look"
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:172
+msgid "Show me the dots again."
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:174
+msgid "Some more"
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:175
+msgid "Some more numbers."
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:177
+msgid "Put a counter in."
+msgstr ""
+
+#: ../activities/numbers/numbers_activity/words.py:178
+msgid "Take it out again."
+msgstr ""
 
 #: ../activities/sounds_and_words/sounds_and_words/__init__.py:70
 msgid "Sounds & words"
@@ -37,14 +656,14 @@ msgstr ""
 #. TRANSLATORS: the caption of a session where nothing was blended. It
 #. must not sound like a failure -- the child did work, it just was not
 #. whole words.
-#: ../activities/sounds_and_words/sounds_and_words/summary.py:104
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:108
 msgid "Some sounds today"
 msgstr ""
 
 #. TRANSLATORS: the Journal caption. `{words}` is the child's own word list,
 #. comma-separated and never counted. Keep the placeholder last if your
 #. language allows it; the words are the point of the sentence.
-#: ../activities/sounds_and_words/sounds_and_words/summary.py:108
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:112
 #, python-brace-format
 msgid "Read today: {words}"
 msgstr ""
@@ -52,68 +671,134 @@ msgstr ""
 #. TRANSLATORS: the small heading on the card the child keeps, set in
 #. lowercase because every child-facing letterform in this activity is.
 #. The words under it are the child's own and are never translated.
-#: ../activities/sounds_and_words/sounds_and_words/summary.py:199
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:181
 msgid "read today"
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/summary.py:200
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:182
 msgid "some sounds today"
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:79
+#. TRANSLATORS: the Journal caption for a book the child read. `{title}` is
+#. the book's own name and is never translated -- these are en-GB phonics
+#. texts, and a French kidnix would need its own, not these ones rendered.
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:272
+#, python-brace-format
+msgid "I read: {title}"
+msgstr ""
+
+#. TRANSLATORS: the small heading on the card a child keeps after reading a
+#. book, set in lowercase like every child-facing letterform here. The title
+#. under it is the book's own name and is not translated.
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:317
+msgid "i read"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:90
 msgid "Find the one that says…"
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:81
+#: ../activities/sounds_and_words/sounds_and_words/text.py:92
 msgid "Say the sounds, then push them together."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:82
+#: ../activities/sounds_and_words/sounds_and_words/text.py:93
 msgid "Now say it out loud."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:83
+#: ../activities/sounds_and_words/sounds_and_words/text.py:94
 msgid "That's the lot for today."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:84
+#: ../activities/sounds_and_words/sounds_and_words/text.py:95
 msgid "Nothing to practise today. Go and find a book."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:85
+#: ../activities/sounds_and_words/sounds_and_words/text.py:96
 msgid "Have another go."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:86
-msgid "Read it to someone."
+#: ../activities/sounds_and_words/sounds_and_words/text.py:100
+msgid "Read it to someone!"
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:109
+#: ../activities/sounds_and_words/sounds_and_words/text.py:104
+msgid "Pick a book."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:128
 msgid "push"
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:110
+#: ../activities/sounds_and_words/sounds_and_words/text.py:129
 msgid "Push the sounds together."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:111
+#: ../activities/sounds_and_words/sounds_and_words/text.py:130
+#: ../activities/sounds_and_words/sounds_and_words/text.py:139
 msgid "next"
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:112
+#: ../activities/sounds_and_words/sounds_and_words/text.py:131
 msgid "Next one."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:115
+#: ../activities/sounds_and_words/sounds_and_words/text.py:137
+msgid "back"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:138
+msgid "The page before."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:140
+msgid "The next page."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:143
+msgid "read it"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:144
+msgid "Read it to me."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:149
+#, python-brace-format
+msgid "{title}. A book to read."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:150
+msgid "More books, the other way."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:151
+msgid "More books."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:154
 msgid "Your turn"
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:116
+#: ../activities/sounds_and_words/sounds_and_words/text.py:155
 msgid "Sit with him for this bit."
 msgstr ""
 
-#: ../activities/sounds_and_words/sounds_and_words/text.py:117
+#: ../activities/sounds_and_words/sounds_and_words/text.py:156
 msgid "Ask him to say the word out loud to you."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:162
+msgid ""
+"Ask him to read it to you — the words are all sounds he has been taught."
+msgstr ""
+
+#: kidnix_activity/widgets.py:65
+msgid "Say it again."
+msgstr ""
+
+#: kidnix_activity/widgets.py:73
+msgid "Done"
 msgstr ""
 
 #: kidnix_shell/app.py:131
@@ -157,10 +842,6 @@ msgstr ""
 msgid "Back"
 msgstr ""
 
-#: kidnix_shell/band.py:495
-msgid "Undo"
-msgstr ""
-
 #: kidnix_shell/band.py:498 kidnix_shell/screens/journal.py:44
 msgid "My Things"
 msgstr ""
@@ -173,7 +854,7 @@ msgstr ""
 msgid "One last little thing"
 msgstr ""
 
-#: kidnix_shell/band.py:556 kidnix_shell/speech.py:585
+#: kidnix_shell/band.py:556 kidnix_shell/speech.py:601
 msgid "Say it again"
 msgstr ""
 
@@ -256,10 +937,6 @@ msgstr[1] ""
 msgid "played"
 msgstr ""
 
-#: kidnix_shell/inbox.py:106
-msgid "Letters"
-msgstr ""
-
 #: kidnix_shell/inbox.py:144
 #, python-brace-format
 msgid "A letter from {name}"
@@ -268,10 +945,6 @@ msgstr ""
 #: kidnix_shell/inbox.py:148
 #, python-brace-format
 msgid "There's a letter for you from {name}. It's in My Things."
-msgstr ""
-
-#: kidnix_shell/inbox.py:151
-msgid "someone"
 msgstr ""
 
 #: kidnix_shell/journal.py:56
@@ -284,10 +957,6 @@ msgstr ""
 
 #: kidnix_shell/journal.py:58
 msgid "Before"
-msgstr ""
-
-#: kidnix_shell/journal.py:246
-msgid "A thing I made"
 msgstr ""
 
 #: kidnix_shell/journal.py:250
@@ -426,7 +1095,7 @@ msgstr ""
 msgid "kidnix is sleeping."
 msgstr ""
 
-#: kidnix_shell/resting.py:82 kidnix_shell/screens/home.py:117
+#: kidnix_shell/resting.py:82 kidnix_shell/screens/home.py:125
 msgid "All done"
 msgstr ""
 
@@ -434,68 +1103,68 @@ msgstr ""
 msgid "All done. Time to rest."
 msgstr ""
 
-#: kidnix_shell/resting.py:103
+#: kidnix_shell/resting.py:122
 msgid "That's all the computer time for today. Ready to go and play?"
 msgstr ""
 
-#: kidnix_shell/resting.py:105
+#: kidnix_shell/resting.py:124
 msgid "It's night time. kidnix is going to sleep."
 msgstr ""
 
-#: kidnix_shell/resting.py:117
+#: kidnix_shell/resting.py:136
 msgid "Not computer time just now. Back after tea."
 msgstr ""
 
-#: kidnix_shell/resting.py:118
+#: kidnix_shell/resting.py:137
 msgid "Not computer time just now. Back tomorrow."
 msgstr ""
 
-#: kidnix_shell/resting.py:120
+#: kidnix_shell/resting.py:139
 #, python-brace-format
 msgid "Not computer time just now. Back {day}."
 msgstr ""
 
-#: kidnix_shell/resting.py:123
+#: kidnix_shell/resting.py:142
 msgid "Not computer time just now."
 msgstr ""
 
-#: kidnix_shell/resting.py:128
+#: kidnix_shell/resting.py:147
 msgid "All done for today."
 msgstr ""
 
-#: kidnix_shell/resting.py:134
+#: kidnix_shell/resting.py:153
 msgid "after tea"
 msgstr ""
 
-#: kidnix_shell/resting.py:135
+#: kidnix_shell/resting.py:154
 msgid "tomorrow"
 msgstr ""
 
-#: kidnix_shell/resting.py:147
+#: kidnix_shell/resting.py:166
 msgid "on Monday"
 msgstr ""
 
-#: kidnix_shell/resting.py:148
+#: kidnix_shell/resting.py:167
 msgid "on Tuesday"
 msgstr ""
 
-#: kidnix_shell/resting.py:149
+#: kidnix_shell/resting.py:168
 msgid "on Wednesday"
 msgstr ""
 
-#: kidnix_shell/resting.py:150
+#: kidnix_shell/resting.py:169
 msgid "on Thursday"
 msgstr ""
 
-#: kidnix_shell/resting.py:151
+#: kidnix_shell/resting.py:170
 msgid "on Friday"
 msgstr ""
 
-#: kidnix_shell/resting.py:152
+#: kidnix_shell/resting.py:171
 msgid "on Saturday"
 msgstr ""
 
-#: kidnix_shell/resting.py:153
+#: kidnix_shell/resting.py:172
 msgid "on Sunday"
 msgstr ""
 
@@ -706,10 +1375,6 @@ msgid ""
 "rather than only until the machine restarts."
 msgstr ""
 
-#: kidnix_shell/screens/grownup.py:277 kidnix_shell/screens/whos_here.py:30
-msgid "Grown-up"
-msgstr ""
-
 #: kidnix_shell/screens/grownup.py:278
 msgid "Enter the grown-up PIN"
 msgstr ""
@@ -776,10 +1441,6 @@ msgstr ""
 
 #: kidnix_shell/screens/grownup.py:652
 msgid "Uses the default length"
-msgstr ""
-
-#: kidnix_shell/screens/grownup.py:654
-msgid "Start"
 msgstr ""
 
 #: kidnix_shell/screens/grownup.py:664
@@ -908,27 +1569,23 @@ msgid ""
 "you can open in Files."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:101 kidnix_shell/widgets.py:602
+#: kidnix_shell/screens/home.py:109 kidnix_shell/widgets.py:602
 msgid "Ask a grown-up for this one."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:102
+#: kidnix_shell/screens/home.py:110
 msgid "This one isn't ready yet. Ask a grown-up."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:107
+#: kidnix_shell/screens/home.py:115
 msgid "Home. What shall we make?"
 msgstr ""
 
-#: kidnix_shell/screens/home.py:121
+#: kidnix_shell/screens/home.py:132
 msgid "All done for today?"
 msgstr ""
 
-#: kidnix_shell/screens/home.py:158
-msgid "Home"
-msgstr ""
-
-#: kidnix_shell/screens/home.py:170
+#: kidnix_shell/screens/home.py:181
 msgid "activities"
 msgstr ""
 
@@ -998,23 +1655,23 @@ msgstr ""
 msgid "Who's here?"
 msgstr ""
 
-#: kidnix_shell/session.py:819
+#: kidnix_shell/session.py:818
 msgid "Lots of time left."
 msgstr ""
 
-#: kidnix_shell/session.py:822
+#: kidnix_shell/session.py:821
 msgid "About as long as one story."
 msgstr ""
 
-#: kidnix_shell/session.py:824
+#: kidnix_shell/session.py:823
 msgid "A little bit of time left."
 msgstr ""
 
-#: kidnix_shell/session.py:826
+#: kidnix_shell/session.py:825
 msgid "Nearly time to put things away."
 msgstr ""
 
-#: kidnix_shell/session.py:828
+#: kidnix_shell/session.py:827
 msgid "The sun has gone down for today."
 msgstr ""
 
@@ -1092,64 +1749,12 @@ msgstr ""
 msgid "Tell me about it"
 msgstr ""
 
-#: kidnix_shell/widgets.py:613
-msgid "Stop"
-msgstr ""
-
 #: kidnix_shell/widgets.py:617
 msgid "Again?"
 msgstr ""
 
 #: kidnix_shell/words.py:34
 msgid "nothing"
-msgstr ""
-
-#: kidnix_shell/words.py:35
-msgid "one"
-msgstr ""
-
-#: kidnix_shell/words.py:36
-msgid "two"
-msgstr ""
-
-#: kidnix_shell/words.py:37
-msgid "three"
-msgstr ""
-
-#: kidnix_shell/words.py:38
-msgid "four"
-msgstr ""
-
-#: kidnix_shell/words.py:39
-msgid "five"
-msgstr ""
-
-#: kidnix_shell/words.py:40
-msgid "six"
-msgstr ""
-
-#: kidnix_shell/words.py:41
-msgid "seven"
-msgstr ""
-
-#: kidnix_shell/words.py:42
-msgid "eight"
-msgstr ""
-
-#: kidnix_shell/words.py:43
-msgid "nine"
-msgstr ""
-
-#: kidnix_shell/words.py:44
-msgid "ten"
-msgstr ""
-
-#: kidnix_shell/words.py:45
-msgid "eleven"
-msgstr ""
-
-#: kidnix_shell/words.py:46
-msgid "twelve"
 msgstr ""
 
 #: kidnix_shell/words.py:47

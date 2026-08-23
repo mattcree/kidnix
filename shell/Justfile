@@ -85,9 +85,13 @@ po-extract:
     set -euo pipefail
     mkdir -p po
     # Sorted so the .pot does not churn on filesystem order.
-    # The shell, the SDK and every first-party activity package (not their tests).
+    # The shell, the SDK and every first-party activity package -- not their
+    # tests, and not their virtualenvs: a developer's `.venv` is thousands of
+    # third-party files, and a stray `_("...")` in one of them would land in a
+    # translator's catalogue as if we had written it.
     mapfile -t sources < <( (find kidnix_shell kidnix_activity -name '*.py'; \
-        find ../activities -path '*/tests' -prune -o -name '*.py' -print) | sort)
+        find ../activities \( -name '.venv' -o -name 'tests' \) -prune -o \
+            -name '*.py' -print) | sort)
     xgettext \
         --language=Python \
         --from-code=UTF-8 \

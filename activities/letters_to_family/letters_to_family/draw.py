@@ -39,6 +39,7 @@ from pathlib import Path
 
 import cairo
 
+from .i18n import N_, _
 from .scribble import Scribble
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ __all__ = [
     "CARD_HEIGHT",
     "CARD_WIDTH",
     "EDGE",
+    "FOR_NAME",
     "INK",
     "PAPER",
     "PRIMARY",
@@ -62,6 +64,10 @@ INK = (0x16 / 255, 0x18 / 255, 0x1D / 255)
 PAPER = (0xFB / 255, 0xF7 / 255, 0xEF / 255)
 PAPER_DIM = (0xEF / 255, 0xE8 / 255, 0xDA / 255)
 EDGE = (0x7E / 255, 0x83 / 255, 0x8C / 255)
+#: TRANSLATORS: the small label at the top of the letter card. {name} is a
+#: person -- "for Grandad". Written on the card, not spoken.
+FOR_NAME = N_("for {name}")
+
 PRIMARY = (0x0F / 255, 0x8A / 255, 0x8A / 255)
 SECONDARY = (0xF0 / 255, 0x62 / 255, 0x92 / 255)
 
@@ -243,7 +249,7 @@ def render_card(
     ctx.select_font_face(ADULT_FONT, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     ctx.set_font_size(width * 0.045)
     ctx.set_source_rgb(*EDGE)
-    heading = f"for {recipient_name}"
+    heading = _(FOR_NAME).format(name=recipient_name)
     ctx.move_to(margin, margin)
     ctx.show_text(heading)
 

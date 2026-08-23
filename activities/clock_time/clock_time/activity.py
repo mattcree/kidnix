@@ -71,6 +71,7 @@ from .dial import (  # noqa: E402
     render_card,
     total_from_point,
 )
+from .i18n import HAVE_CATALOGUE, N_, _, install  # noqa: E402
 from .icons import icon_for, length_icon  # noqa: E402
 from .keys import Action, Screen, action_for_keyval  # noqa: E402
 from .minute import LENGTHS, Length, Phase, disc_geometry, verdict_for  # noqa: E402
@@ -127,8 +128,44 @@ TILE_CHROME_X = 24
 #: A width no label will ever reach, for measuring a string *unwrapped*.
 UNBOUNDED_PX = 100_000
 
-PROMPT_CLOCK = "Move the hands. What time is it?"
-PROMPT_MINUTE = "How long is a minute?"
+# ADR-0012 / docs/design/i18n.md: every sentence this window says is a msgid
+# marked here with `N_`, and `_()` is called at the use site -- because the
+# language is a property of the child sitting down, not of the import that
+# happened at boot. Placeholders are named, never positional.
+PROMPT_CLOCK = N_("Move the hands. What time is it?")
+PROMPT_MINUTE = N_("How long is a minute?")
+
+#: TRANSLATORS: what the prompt and the voice say as the hands move. {time} is
+#: a whole time ("Half past three") and {sentence} is the routine line for that
+#: moment ("Tea is at half past five.").
+TIME_AND_MOMENT = N_("{time}. {sentence}")
+#: TRANSLATORS: the Now button's answer. {time} may be hedged -- "about half
+#: past three" -- because real time is almost never on the rim.
+RIGHT_NOW = N_("Right now it is {time}. {sentence}")
+
+#: The two controls beside the clock face.
+NOW_LABEL = N_("Now")
+NOW_SPEAK = N_("Show me the time right now.")
+MINUTE_LABEL = N_("Minute")
+
+#: The one two-faced control on the minute screen, and its two faces.
+START_LABEL = N_("Start")
+START_SPEAK = N_("Start. Press stop when you think the time has gone.")
+STOP_LABEL = N_("Stop")
+STOP_SPEAK = N_("Stop. That feels like the right time.")
+#: Watch one go past. Nobody is being asked anything.
+WATCH_LABEL = N_("Watch")
+#: TRANSLATORS: {length} is an interval -- "a minute", "two minutes".
+WATCH_SPEAK = N_("Watch {length} go past.")
+#: TRANSLATORS: {length} is an interval. What an interval button says.
+TRY_LENGTH = N_("Try {length}.")
+#: TRANSLATORS: {length} is an interval. Said as the disc starts to empty.
+HERE_IS = N_("Here is {length}.")
+#: TRANSLATORS: {length} is an interval. Said when it has gone.
+THAT_WAS = N_("That was {length}.")
+#: The way back to the clock screen.
+BACK_LABEL = N_("Clock")
+BACK_SPEAK = N_("Back to the clock.")
 
 #: The co-use moment (SUITE section 3). Addressed to the adult, in the adult's
 #: words, and it never blocks the child.
@@ -140,13 +177,13 @@ PROMPT_MINUTE = "How long is a minute?"
 #: nothing. So the card is one press away, it names both screens, and the clock
 #: screen's own co-use prompt is the sentence already written across the top of
 #: it ("Home time is at half past three"), which is the thing to talk about.
-GROWNUP_BODY = (
+GROWNUP_BODY = N_(
     "Ask what happens at the time they made on the clock -- and tell them what "
     "happens at that time in your house. Then guess a minute together: say when "
     "you think it has gone, and let them tell you who was closer."
 )
 #: What the child hears when the save failed (SYNTHESIS C3).
-LOST_LINE = "I could not keep that one. Ask a grown-up."
+LOST_LINE = N_("I could not keep that one. Ask a grown-up.")
 
 
 # -- one correction to the SDK's labels --------------------------------------
@@ -686,9 +723,15 @@ class ClockActivity:
             self.face.set_clock(clock, sky)
         self._highlight(item)
         if self.prompt is not None:
-            self.prompt.set_text(f"{clock.words().capitalize()}. {item.sentence}")
+            self.prompt.set_text(
+                _(TIME_AND_MOMENT).format(
+                    time=clock.words().capitalize(), sentence=item.sentence
+                )
+            )
         if speak and self.window is not None:
-            self.window.speak(f"{clock.words()}. {item.sentence}")
+            self.window.speak(
+                _(TIME_AND_MOMENT).format(time=clock.words(), sentence=item.sentence)
+            )
 
     def _highlight(self, item: RoutineItem) -> None:
         for key, tile in self.tiles.items():
@@ -720,7 +763,9 @@ class ClockActivity:
         real = ClockTime.from_time(self.now())
         self.set_time(real, speak=False)
         if self.window is not None:
-            self.window.speak(f"Right now it is {real.spoken(self.mode)}. {self.item.sentence}")
+            self.window.speak(
+                _(RIGHT_NOW).format(time=real.spoken(self.mode), sentence=self.item.sentence)
+            )
 
     # -- screen one: play with the clock --
 
@@ -737,7 +782,7 @@ class ClockActivity:
         self.disc = self.go = None
         area = window.area
 
-        self.prompt = _shrinkable(Prompt(PROMPT_CLOCK, speech=window.speech, area=area))
+        self.prompt = _shrinkable(Prompt(_(PROMPT_CLOCK), speech=window.speech, area=area))
         window.add(self.prompt)
 
         middle = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=area.gap)
@@ -759,10 +804,10 @@ class ClockActivity:
         side.set_valign(Gtk.Align.CENTER)
         side.append(
             _big(
-                "Now",
+                _(NOW_LABEL),
                 icon=str(ICON),
                 icon_kind="path",
-                speak_text="Show me the time right now.",
+                speak_text=_(NOW_SPEAK),
                 on_activate=self.jump_to_now,
                 speech=window.speech,
                 area=area,
@@ -770,8 +815,8 @@ class ClockActivity:
         )
         side.append(
             _big(
-                "Minute",
-                speak_text="How long is a minute?",
+                _(MINUTE_LABEL),
+                speak_text=_(PROMPT_MINUTE),
                 on_activate=lambda: self.build_minute(window),
                 speech=window.speech,
                 area=area,
@@ -804,7 +849,7 @@ class ClockActivity:
                 )
 
         self.set_time(self.time, speak=False, played=False)
-        window.speak(PROMPT_CLOCK)
+        window.speak(_(PROMPT_CLOCK))
 
     def _strip_plan(self, area: ContentArea, sample: Gtk.Widget) -> StripPlan:
         """The biggest tiles, and the biggest type, that let the day fit across.
@@ -832,7 +877,9 @@ class ClockActivity:
         ``sample`` is any widget with a Pango context -- what the strip is
         measured with is the face it will be drawn in.
         """
-        names = [item.name for item in self.routine]
+        # The *translated* names, because a strip measured in English and drawn
+        # in Welsh is a strip that overflows the panel (docs/design/i18n.md).
+        names = [item.name_words for item in self.routine]
         count = max(1, len(names))
         base_pt = area.points(20.0)
         floor_pt = area.points(18.0)
@@ -894,7 +941,7 @@ class ClockActivity:
             tile = _tile(
                 picture_path(item),
                 area,
-                item.name,
+                item.name_words,
                 plan.tile_mm,
                 width=width,
                 points=plan.points,
@@ -918,7 +965,7 @@ class ClockActivity:
         self.tiles = {}
         area = window.area
 
-        self.prompt = _shrinkable(Prompt(PROMPT_MINUTE, speech=window.speech, area=area))
+        self.prompt = _shrinkable(Prompt(_(PROMPT_MINUTE), speech=window.speech, area=area))
         window.add(self.prompt)
 
         self.disc = Disc(area)
@@ -942,10 +989,10 @@ class ClockActivity:
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=area.gap)
         row.set_halign(Gtk.Align.CENTER)
         self.go = _big(
-            "Start",
+            _(START_LABEL),
             icon=icon_for("start"),
             icon_kind="path",
-            speak_text="Start. Press stop when you think the time has gone.",
+            speak_text=_(START_SPEAK),
             on_activate=self.start_or_stop,
             speech=window.speech,
             area=area,
@@ -954,10 +1001,10 @@ class ClockActivity:
         row.append(self.go)
         row.append(
             _big(
-                "Watch",
+                _(WATCH_LABEL),
                 icon=icon_for("again"),
                 icon_kind="path",
-                speak_text=f"Watch {self.length.words} go past.",
+                speak_text=_(WATCH_SPEAK).format(length=self.length.words),
                 on_activate=self.watch,
                 speech=window.speech,
                 area=area,
@@ -970,7 +1017,7 @@ class ClockActivity:
                     length.label,
                     icon=length_icon(length),
                     icon_kind="path",
-                    speak_text=f"Try {length.words}.",
+                    speak_text=_(TRY_LENGTH).format(length=length.words),
                     on_activate=lambda w=length: self.choose(w),
                     speech=window.speech,
                     area=area,
@@ -980,10 +1027,10 @@ class ClockActivity:
             )
         row.append(
             _big(
-                "Clock",
+                _(BACK_LABEL),
                 icon=icon_for("back"),
                 icon_kind="path",
-                speak_text="Back to the clock.",
+                speak_text=_(BACK_SPEAK),
                 on_activate=lambda: self.build_clock(window),
                 speech=window.speech,
                 area=area,
@@ -991,7 +1038,7 @@ class ClockActivity:
             )
         )
         window.add(row)
-        window.add(GrownUpTurn(GROWNUP_BODY, speech=window.speech, area=area))
+        window.add(GrownUpTurn(_(GROWNUP_BODY), speech=window.speech, area=area))
 
         self.disc.set_state(Phase.READY, 0.0)
         window.speak(self.length.prompt)
@@ -1009,11 +1056,11 @@ class ClockActivity:
         if self.go is None:
             return
         if stopping:
-            self.go.set_speak_text("Stop. That feels like the right time.")
-            _reface(self.go, self._area, icon_for("stop"), "Stop")
+            self.go.set_speak_text(_(STOP_SPEAK))
+            _reface(self.go, self._area, icon_for("stop"), _(STOP_LABEL))
         else:
-            self.go.set_speak_text("Start. Press stop when you think the time has gone.")
-            _reface(self.go, self._area, icon_for("start"), "Start")
+            self.go.set_speak_text(_(START_SPEAK))
+            _reface(self.go, self._area, icon_for("start"), _(START_LABEL))
 
     def choose(self, length: Length) -> None:
         """A different interval. Stops whatever was running, quietly."""
@@ -1038,9 +1085,9 @@ class ClockActivity:
             self.disc.set_state(Phase.SHOWING, 0.0)
         self._go_face(stopping=False)
         if self.prompt is not None:
-            self.prompt.set_text(f"Watch {self.length.words} go past.")
+            self.prompt.set_text(_(WATCH_SPEAK).format(length=self.length.words))
         if self.window is not None:
-            self.window.speak(f"Here is {self.length.words}.")
+            self.window.speak(_(HERE_IS).format(length=self.length.words))
         self._tick_id = GLib.timeout_add(FRAME_MS, self._frame)
 
     def start_or_stop(self) -> None:
@@ -1086,9 +1133,9 @@ class ClockActivity:
             self.phase = Phase.RESULT
             self._tick_id = 0
             if self.prompt is not None:
-                self.prompt.set_text(f"That was {self.length.words}.")
+                self.prompt.set_text(_(THAT_WAS).format(length=self.length.words))
             if self.window is not None:
-                self.window.speak(f"That was {self.length.words}.")
+                self.window.speak(_(THAT_WAS).format(length=self.length.words))
             return GLib.SOURCE_REMOVE
         return GLib.SOURCE_CONTINUE
 
@@ -1134,7 +1181,7 @@ class ClockActivity:
         except JournalError as exc:
             log.error("could not keep the clock: %s", exc)
             if self.window is not None:
-                self.window.speak(LOST_LINE)
+                self.window.speak(_(LOST_LINE))
             return
         log.info("kept %s (%s)", entry.id, caption)
 
@@ -1221,7 +1268,12 @@ def _load_css() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="kidnix-clock-time", description=TITLE)
+    # The shell starts us with the language already chosen (LANG/LANGUAGE in
+    # our environment), so this normally only picks the catalogue up -- but it
+    # is what makes `python -m clock_time` on a developer's machine behave like
+    # the real thing. docs/design/i18n.md, ADR-0012.
+    install()
+    parser = argparse.ArgumentParser(prog="kidnix-clock-time", description=_(TITLE))
     parser.add_argument(
         "--screenshot",
         type=Path,
@@ -1230,7 +1282,9 @@ def main(argv: list[str] | None = None) -> int:
     args, rest = parser.parse_known_args(argv[1:] if argv else None)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    app = ActivityApplication(ACTIVITY_ID, TITLE)
+    if not HAVE_CATALOGUE:  # pragma: no cover - only off-image
+        log.warning("no translation catalogue reachable; every line will be en_GB")
+    app = ActivityApplication(ACTIVITY_ID, _(TITLE))
     activity = ClockActivity(app)
 
     if args.screenshot is not None:

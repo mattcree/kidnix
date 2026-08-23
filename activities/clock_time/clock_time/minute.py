@@ -40,17 +40,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .i18n import N_, _
+
 __all__ = [
     "EARLY_BAND",
     "HORIZON_FRACTION",
+    "JUST_RIGHT_SENTENCE",
     "LATE_BAND",
     "LENGTHS",
+    "LENGTH_LABELS",
+    "LENGTH_WORDS",
     "MAX_RADIUS_FRACTION",
     "MIN_RADIUS_FRACTION",
+    "PRESS_STOP",
     "SUN_EDGE_INNER",
     "SUN_EDGE_OUTER",
     "SUN_FILL",
     "TOP_PAD_FRACTION",
+    "VERDICT_SENTENCE",
     "DiscGeometry",
     "Length",
     "Phase",
@@ -83,11 +90,8 @@ class Length(Enum):
 
     @property
     def words(self) -> str:
-        return {
-            Length.HALF_MINUTE: "half a minute",
-            Length.MINUTE: "a minute",
-            Length.TWO_MINUTES: "two minutes",
-        }[self]
+        """"half a minute". Translated here, at the moment it is said."""
+        return _(LENGTH_WORDS[self])
 
     @property
     def label(self) -> str:
@@ -97,17 +101,34 @@ class Length(Enum):
         wrapped -- and at this size every one of the three full phrases does --
         is a label a five-year-old reads as a shape rather than a word.
         """
-        return {
-            Length.HALF_MINUTE: "Half",
-            Length.MINUTE: "One",
-            Length.TWO_MINUTES: "Two",
-        }[self]
+        return _(LENGTH_LABELS[self])
 
     @property
     def prompt(self) -> str:
         """The question, in the imperative, under twelve words (SYNTHESIS B5)."""
-        return f"Press stop when you think {self.words} has gone."
+        return _(PRESS_STOP).format(length=self.words)
 
+
+#: What each interval is *called*, as msgids (ADR-0012). A dict beside the enum
+#: rather than the enum's own values, because the values are seconds -- and
+#: because a table is what a translator can read without reading Python.
+LENGTH_WORDS: dict[Length, str] = {
+    Length.HALF_MINUTE: N_("half a minute"),
+    Length.MINUTE: N_("a minute"),
+    Length.TWO_MINUTES: N_("two minutes"),
+}
+
+#: TRANSLATORS: the one short word on each interval button. Keep it short: it
+#: sits under a picture on a 26 mm control and a wrapped label is a shape
+#: rather than a word to a five-year-old.
+LENGTH_LABELS: dict[Length, str] = {
+    Length.HALF_MINUTE: N_("Half"),
+    Length.MINUTE: N_("One"),
+    Length.TWO_MINUTES: N_("Two"),
+}
+
+#: TRANSLATORS: {length} is an interval -- "half a minute", "two minutes".
+PRESS_STOP = N_("Press stop when you think {length} has gone.")
 
 #: In the order the buttons sit in, shortest first.
 LENGTHS: tuple[Length, ...] = (Length.HALF_MINUTE, Length.MINUTE, Length.TWO_MINUTES)
@@ -135,19 +156,30 @@ class Verdict(Enum):
     useful to say about it that is not a judgement.
     """
 
-    EARLY = "a bit early"
-    JUST_RIGHT = "just right!"
-    LATE = "a bit late"
+    #: The value **is** the msgid: the words are what this band is, and there
+    #: is nothing else it could be keyed by. `N_` marks it for extraction and
+    #: :attr:`words` is what translates it, once a child is sitting down.
+    EARLY = N_("a bit early")
+    JUST_RIGHT = N_("just right!")
+    LATE = N_("a bit late")
 
     @property
     def words(self) -> str:
-        return self.value
+        return _(self.value)
 
     def sentence(self, length: Length) -> str:
         """What the voice says. One clause, and it names what was being judged."""
         if self is Verdict.JUST_RIGHT:
-            return f"That was {length.words}. Just right!"
-        return f"That was {self.words} for {length.words}."
+            return _(JUST_RIGHT_SENTENCE).format(length=length.words)
+        return _(VERDICT_SENTENCE).format(verdict=self.words, length=length.words)
+
+
+#: TRANSLATORS: {length} is an interval -- "a minute". The exclamation mark is
+#: the whole of the celebration; there is no praise adjective anywhere here.
+JUST_RIGHT_SENTENCE = N_("That was {length}. Just right!")
+#: TRANSLATORS: {verdict} is "a bit early" or "a bit late", {length} is the
+#: interval that was being judged -- "That was a bit early for a minute."
+VERDICT_SENTENCE = N_("That was {verdict} for {length}.")
 
 
 def verdict_for(elapsed: float, length: Length) -> Verdict:
