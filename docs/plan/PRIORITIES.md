@@ -57,8 +57,11 @@ afterwards; the loop is the hard part.
 10. Multi-child profiles (colour = whose), instant switching, "both of us".
     **Done**: per-profile journal/budget/progress with a migration, per-child
     allow-lists and age bands, profiles managed from the panel's Children page.
-    Residual: two children in one Unix account still share an activity's own
-    save directory.
+    Instant switching became *true* on 2026-08-23 (ADR-0014): resting is per
+    child, a sibling's afternoon survives the other one's ending, and a rested
+    face is dimmed on Who's here with the reason spoken. Residual: two
+    children in one Unix account still share an activity's own save
+    directory; "both of us" (co-use) still has no affordance.
 11. Ask-a-grown-up flow end-to-end (request queue in parent panel; outline
     tiles; async reply incl. parent voice note).
 12. Parent panel app: Children · Time (session length, daily budget, bedtime,
