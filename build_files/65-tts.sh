@@ -308,6 +308,20 @@ grep -q '^AddModule "kidnix-piper" "sd_generic" "kidnix-piper.conf"$' "${SPEECHD
 grep -q '^DefaultModule kidnix-piper$' "${SPEECHD_CONF}" \
     || die "kidnix-piper is not the default module"
 
+# dotconf has no floats, so sd_generic reads Generic*Multiply as HUNDREDTHS:
+# `1` is x0.01, not x1.0. Shipping `GenericRateMultiply 1` meant every client's
+# rate was multiplied by 0.01 and then truncated to 0 by ForceInteger, so the
+# image spoke every sentence at piper's default length_scale 1.000 -- adult
+# pace -- instead of the 1.10 the shell asks for, and speech-dispatcher's
+# volume was flattened to 1 the same way. Nothing in the container could see
+# it; it took a booted VM logging the helper's argv (docs/spikes/tts.md 8).
+# Fail the build rather than ship a mute rate control again.
+for _scale in Rate Volume Pitch; do
+    grep -q "^Generic${_scale}Multiply 100\$" "${MODULE_CONF}" \
+        || die "Generic${_scale}Multiply must be 100 (dotconf hundredths: 100 == x1.0); \
+speech-dispatcher's ${_scale,,} would never reach piper"
+done
+
 # Python is the only runtime the server and client need; both are stdlib-only.
 python3 -c 'import array, json, socket, wave' || die "stdlib pieces the TTS server needs are missing"
 # Syntax check without py_compile: these files have no .py suffix, so

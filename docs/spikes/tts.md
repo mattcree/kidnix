@@ -7,7 +7,10 @@ and **verified in a booted VM as the `kid` user** — `spd-say` through the
 speaks a tile label in **under 200 ms** (§4). What is **only structurally
 verified** is the last hop, "and then a speaker moves": no machine in this loop
 has an audio device, so the VM run writes into a PipeWire null sink. Nobody has
-listened to the voice. See §6 before quoting §2.
+listened to the voice. See §6 before quoting §2 — **and §8 before quoting §2.4
+or §4**, which a booted qcow2 VM has since corrected: speech-dispatcher's rate
+never reached piper at all, so every measurement of speaking *pace* above
+describes a code path the running image did not take.
 
 **Owner of this milestone:** the Piper half of ADR-0008. The shell half
 (`shell/kidnix_shell/speech.py`) needed **no changes at all** — see §5.
@@ -428,3 +431,182 @@ All three are now covered by assertions in `tests/image/test_tts.sh`.
 5. **`docs/research/07 §2.4` needs a correction** recording that
    `python3-onnxruntime` *is* in Fedora 44 (§1.1 above), so the next person
    does not re-derive it.
+
+---
+
+## 8. 2026-08-23: "it sounds like Stephen Hawking"
+
+A parent listened to a real qcow2 VM with a sound card and reported that
+read-aloud sounded like espeak-ng. Everything above says it should not. This
+section is what a day of looking found, because most of it contradicts §4.
+
+### 8.1 It was not espeak. It was Piper, at the wrong speed.
+
+Booted `output/qcow2/disk.qcow2` headless with a real HD-audio codec whose
+output goes to a file (`-audiodev wav,... -device intel-hda -device
+hda-duplex`), then asked the machine three independent questions:
+
+| Question | Answer |
+|---|---|
+| `spd-say -O` as `kid` | `espeak-ng`, `kidnix-piper` |
+| speech-dispatcher at `LogLevel 5`, for an utterance with no `-o` | `In queue_message desired output module is kidnix-piper` → `200 OK SPEAKING` on the generic module → `702 END` 1.77 s later |
+| `kidnix-piperd`'s own journal | `spoke 22 chars in 200 ms` for that same utterance |
+| PipeWire clients in kid's session | `speech-dispatcher-generic`, never `speech-dispatcher-espeak-ng` — until `spd-say -o espeak-ng` was run deliberately, at which point it appeared |
+| the sink monitor, recorded with `pw-record` and cross-correlated against in-guest Piper and espeak-ng renderings of the same sentence | **0.72 against Piper, 0.48 against espeak-ng**; the recorded utterance is 1.77 s, Piper's is 1.72 s and espeak-ng's is 1.37 s |
+
+So the espeak-ng module has not spoken a word in a booted kidnix session. What
+*is* wrong is the pace, and it is wrong in a way §2.4 could never have caught.
+
+### 8.2 The bug: `GenericRateMultiply 1` means ×0.01
+
+`sd_generic` computes
+
+```
+value = speechd_value * (GenericRateMultiply / 100) + GenericRateAdd
+```
+
+because dotconf has no float type. Fedora's own `dtk-generic.conf` says so out
+loud: *"These values are multiplied by 100, because DotConf currently doesn't
+support floats. So you can write 0.85 as 85."* `kidnix-piper.conf` shipped
+`GenericRateMultiply 1` meaning to say "pass it through untouched"; it actually
+said ×0.01, and `GenericRateForceInteger 1` then truncated the result to zero.
+
+Instrumenting `kidnix-piper-say` to log its own argv, inside the VM:
+
+```
+Multiply 1    kidnix-piper-say: ARGV ['--rate', '0',   '--volume', '1',   '--language', 'en-gb']
+Multiply 100  kidnix-piper-say: ARGV ['--rate', '-20', '--volume', '100', '--language', 'en-gb']
+```
+
+and in `kidnix-piperd`'s journal, for the same two runs:
+
+```
+piper spawned: model=en_GB-cori-high.onnx length_scale=1.000
+piper spawned: model=en_GB-cori-high.onnx length_scale=1.100
+```
+
+**Every sentence this image has ever spoken came out at `length_scale` 1.000 —
+piper's own adult default — instead of the 1.10 the shell asks for.** The same
+truncation flattened `$VOLUME` to 1, so `attenuate()` never attenuated, calm
+mode's slower voice did nothing, and the shell's volume control was decorative.
+
+Why §2.4 missed it: that table was measured by running
+`kidnix-piper-say --rate -60 --stdout` **directly**, and so is
+`tests/image/test_tts.sh`'s "rate really moves" check. Both bypass the one
+component that was broken. The lesson generalises past TTS — a helper tested on
+its own argv proves nothing about the config that builds that argv.
+
+### 8.3 Two traps that make this failure class invisible
+
+1. **`kidnix-piper-say`'s stderr does not go to the journal.** speech-dispatcher
+   redirects a module's stderr into
+   `$XDG_RUNTIME_DIR/speech-dispatcher/log/kidnix-piper.log`, so §5.3's claim
+   that the helper "logs `falling back to espeak-ng` to the journal" was simply
+   false. It is true now: `alert()` writes to `/run/systemd/journal/socket`
+   directly (stdlib, ten lines, no `logger` process and no RPM) as well as to
+   stderr, and `journalctl -t kidnix-piper-say` shows it.
+
+2. **speech-dispatcher 0.12.1 has a hidden fallback module.** Startup logs
+
+   ```
+   Module kidnix-piper started successfully with message: Everything ok so far.
+   Error: Module reported error in request from speechd (code 3xx):
+       300-Opening sound device failed. Reason: server audio is not supported.
+   Initializing output module espeak-ng-fallback with binary .../sd_espeak-ng
+   ```
+
+   The 300 is benign — `sd_generic` plays its own audio and always refuses
+   speechd's server-audio handshake; `sd_dummy` does the same. But the string
+   `espeak-ng-fallback` is **hardcoded in the speech-dispatcher binary** (there
+   is no `FallbackModule` option to switch it off), and speechd routes to it
+   whenever the desired module is not `working`, does not support the message's
+   language, or cannot do sound icons. A module that dies once therefore turns
+   the whole session robotic, silently, with `spd-say` still returning 0.
+
+   That is the shape of the reported symptom even though it was not its cause,
+   so `kidnix-piper.service` now carries `StartLimitIntervalSec=0`: without it,
+   five crashes in ten seconds (an OOM against `MemoryMax=512M`, say) retire the
+   unit for the rest of the session and every later utterance takes the espeak
+   path. A child cannot restart a unit.
+
+### 8.4 One more path that could have muted the machine for good
+
+`main()` ended in `return play(wav)`. §3 is emphatic that a non-zero exit leaves
+speech-dispatcher stuck on *"Continuing because already speaking"* — and on a
+machine with no sink, `pw-play` exits non-zero. The last route from "no sound
+card" to "permanently mute computer" is closed: the player's status is now an
+`alert()` and a zero.
+
+### 8.5 What is checked now
+
+`tests/image/test_tts.sh` (78 assertions, was 73) gained the four hundreds, the
+`StartLimitIntervalSec=0` line and the sentence pause. Against the image built
+*before* this section it fails exactly five times and passes 73; against the
+fixed files it is 78/0.
+
+`tests/boot/bcvk_boot_test.py` gained `assert_read_aloud()`, which is about
+**identity and pace, never success** — `spd-say` returns 0 whether Piper or
+espeak-ng spoke, so an rc-based test proves nothing:
+
+| Probe key | Assertion |
+|---|---|
+| `tts_modules` | `spd-say -O` offers `kidnix-piper` |
+| `tts_socket` | `kidnix-piper.socket` is listening in kid's session |
+| `tts_service_before` / `_after` | the service is active *before* the test speaks (the shell's greeting loaded the model) and still active after |
+| `tts_spoke_before` / `_after` | **an utterance with no `-o` moved `kidnix-piperd`'s own "spoke N chars" counter** — the one check that distinguishes the good voice from the guaranteed one |
+| `tts_fallbacks` | zero `falling back to espeak-ng` lines in the boot's journal |
+| `tts_length_scale` | speechd rate −20 arrives at piper as `length_scale=1.100` |
+
+Measured on the fixed image in the qcow2 VM:
+
+```
+tts_modules=OUTPUT MODULES espeak-ng kidnix-piper
+tts_socket=active          tts_service_before=active   tts_service_after=active
+tts_spoke_before=49        tts_spoke_after=50          tts_spd_rc=0
+tts_length_scale=1.100     tts_fallbacks=0
+```
+
+and with `kidnix-piper.socket` stopped, to prove the checks can fail:
+
+```
+kidnix-piper-say[4314]: piper server unavailable ([Errno 2] No such file or
+    directory); falling back to espeak-ng
+tts_fallbacks=1            tts_spd_rc=0
+```
+
+### 8.6 Naturalness, now that the knobs are connected
+
+- **`length_scale` 1.10** for the child (speechd rate −20, `SPEECH_RATE`), 1.05
+  for everything else (`DefaultRate -10`). 1.05–1.15 is unhurried without
+  sounding like a slowed-down recording.
+- **`sentence_silence` 0.25 s**, down from 0.35. The gap a child hears between
+  two sentences is not this number — `SpeechManager.speak_then()` leaves its own
+  `SENTENCE_GAP_MS = 400` — so 0.35 stacked on top of that and made two-clause
+  lines drag. This value only bites *within* one utterance.
+- **`noise_scale` / `noise_w` left at piper's defaults (0.667 / 0.8)** and
+  documented in `tts.env` as deliberately absent. Turning them down is what
+  actually makes a neural voice sound like a robot; the only place kidnix sets
+  them to 0 is the build-time determinism probe, where nobody is listening.
+- **Pitch stays neutral.** A VITS model sings at the pitch it was trained at.
+
+`/etc/kidnix/tts.env` now carries all of that as prose, including a
+"knobs that are deliberately NOT in this file" section, because the next person
+to be told the voice sounds wrong will open that file first.
+
+### 8.7 Ten voices, for an ear that is not mine
+
+`output/tts-samples/` has all ten en_GB Piper voices saying the shell's real
+lines at the settings above, plus `all-voices-line5.wav` — 69 seconds, every
+voice announcing itself in its own voice and then reading the Goodnight line.
+`output/tts-samples/README.md` has the licences: only **cori** (today's default)
+is public domain; alba, aru and vctk are CC-BY-4.0; the two OpenSLR voices are
+CC-BY-SA-4.0; jenny and alan have no usable licence statement and semaine is
+CC-BY-NC-SA, so those three are not shippable and are included only so the
+comparison is honest.
+
+Measured, not judged — nobody in this loop can hear. The one number worth
+carrying: the pitch standard deviation over the Goodnight line is 53.5 Hz for
+`cori-high` against 41 Hz for espeak-ng at 104 Hz mean, and 19.2 Hz for
+`northern_english_male-medium`, which is the flattest of the ten. §6 item 2
+still stands: **no one has listened**, and that is still the only test that
+matters.

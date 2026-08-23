@@ -12,6 +12,16 @@ After=kidnix-piper.socket
 ConditionPathExists=/usr/lib/kidnix/piper/piper
 ConditionPathExists=/etc/kidnix/tts.env
 
+# Never let systemd give up on the voice. The default start rate limit (5
+# starts in 10 s) turns a transient crash loop -- an OOM under MemoryMax while
+# a Flatpak is loading, a model reload racing a session teardown -- into a
+# *permanent* failure: socket activation then refuses to start the unit for the
+# rest of the session, every utterance takes the espeak-ng fallback inside
+# kidnix-piper-say, and nothing says so out loud. That is exactly the "why does
+# it sound like 1998 now" report this file was rewritten for. Same reasoning,
+# and the same line, as kidnix-shell.service: a child cannot restart a unit.
+StartLimitIntervalSec=0
+
 [Service]
 Type=simple
 # Defaults live in the script; /etc/kidnix/tts.env is the one file a parent (or

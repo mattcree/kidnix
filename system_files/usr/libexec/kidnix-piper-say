@@ -65,8 +65,53 @@ LOCALE_UNSET = frozenset({"", "c", "posix", "none", "default", "-"})
 DEFAULT_LANGUAGE = "en-GB"
 
 
+#: The journal's native datagram socket. Writing to it directly is ten lines
+#: of stdlib and no dependency; `logger`, `systemd-cat` and python3-systemd all
+#: cost a process or an RPM for the same effect.
+JOURNAL_SOCKET = "/run/systemd/journal/socket"
+
+#: syslog priorities. WARNING is the level a greenboot check or the parent
+#: panel would grep for.
+PRIORITY_INFO = 6
+PRIORITY_WARNING = 4
+
+
 def log(message: str) -> None:
+    """The module log. Local, verbose, and easy to miss.
+
+    speech-dispatcher redirects this process's stderr into
+    ``$XDG_RUNTIME_DIR/speech-dispatcher/log/kidnix-piper.log``. That is the
+    right place for chatter, and it is *not* the journal -- a fact that hid a
+    real regression once (docs/spikes/tts.md §8), so anything a parent would
+    want to know goes through :func:`alert` as well.
+    """
     print(f"{PROGNAME}: {message}", file=sys.stderr, flush=True)
+
+
+def alert(message: str, priority: int = PRIORITY_WARNING) -> None:
+    """Say it in the module log *and* in the systemd journal.
+
+    Used for exactly one thing: "the good voice is not working". ADR-0008 says
+    a kid session is never mute, so a dead Piper degrades to espeak-ng and the
+    child keeps their computer -- which is right, and which is also why nobody
+    notices for weeks. This line is how a grown-up finds out.
+
+    Best-effort by construction: if journald is not there we have still written
+    to stderr, and read-aloud must never fail because logging did.
+    """
+    log(message)
+    fields = (
+        f"MESSAGE={message}\n"
+        f"PRIORITY={priority}\n"
+        f"SYSLOG_IDENTIFIER={PROGNAME}\n"
+    ).encode("utf-8", "replace")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(1.0)
+            sock.connect(JOURNAL_SOCKET)
+            sock.send(fields)
+    except OSError:
+        pass
 
 
 def socket_path() -> str:
@@ -95,9 +140,17 @@ def ask_piper(text: str, length_scale: float) -> bytes:
                     break
                 chunks.append(chunk)
     except (OSError, TimeoutError) as exc:
-        log(f"piper server unavailable ({exc}); falling back to espeak-ng")
+        alert(f"piper server unavailable ({exc}); falling back to espeak-ng")
         return b""
-    return b"".join(chunks)
+    wav = b"".join(chunks)
+    if not wav:
+        # The socket was there and the server closed it without a WAV: piper
+        # crashed, the model is gone, or the request was rejected. Same audible
+        # outcome as an unreachable server -- espeak-ng -- so it gets the same
+        # visibility. Silent degradation is the failure mode this whole helper
+        # exists to survive, and the one nobody notices.
+        alert("piper server answered with no audio; falling back to espeak-ng")
+    return wav
 
 
 def espeak(text: str, rate: int, language: str) -> bytes:
@@ -136,7 +189,7 @@ def espeak(text: str, rate: int, language: str) -> bytes:
                 return data
         return b""
     except (OSError, subprocess.SubprocessError) as exc:
-        log(f"espeak-ng failed too: {exc}")
+        alert(f"espeak-ng failed too: {exc}")
         return b""
     finally:
         try:
@@ -190,7 +243,7 @@ def play(wav: bytes) -> int:
     """
     player = next((p for p in PLAYERS if shutil.which(p)), None)
     if player is None:
-        log("no audio player found (pw-play/paplay/aplay)")
+        alert("no audio player found (pw-play/paplay/aplay)")
         return 1
 
     runtime = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
@@ -272,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
         # exit was observed to leave the server stuck on "already speaking",
         # which silences *every subsequent* utterance. A lost sentence is bad;
         # a permanently mute computer is much worse.
-        log(f"no voice could produce audio for language {language!r}")
+        alert(f"no voice could produce audio for language {language!r}")
         return 0
 
     wav = attenuate(wav, volume)
@@ -281,7 +334,18 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.buffer.write(wav)
         sys.stdout.buffer.flush()
         return 0
-    return play(wav)
+
+    # The player's exit status is NOT this program's. The rule above -- never
+    # exit non-zero, because sd_generic reads that as "the utterance failed"
+    # and speech-dispatcher then answers every later request with "Continuing
+    # because already speaking" -- applies just as much to a machine with no
+    # sound card as to a machine with no voice. `return play(wav)` was the last
+    # path in here that could still hand speech-dispatcher a failure and mute
+    # the session for good; it is now a logged warning and a zero.
+    status = play(wav)
+    if status != 0:
+        alert(f"the audio player exited {status}; the sentence was not heard")
+    return 0
 
 
 if __name__ == "__main__":

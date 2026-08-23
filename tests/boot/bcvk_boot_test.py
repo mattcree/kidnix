@@ -554,6 +554,48 @@ printf '4321\n' | timeout 30 runuser -u kid -- pkexec /usr/bin/kidnix-set-pin --
 pin_kid_reset_rc=$?
 pin_hash_after_reset=$(sed -n 's/^pin_hash *= *"\(.*\)"/\1/p' /etc/kidnix/parent.toml 2>/dev/null | head -1)
 
+# --- read-aloud: WHICH voice (docs/spikes/tts.md section 8) ------------------
+#
+# The question this answers is not "does the machine talk" -- it always talks,
+# ADR-0008 makes espeak-ng the guaranteed fallback -- but "does it talk in the
+# GOOD voice". Every failure in this area degrades to espeak-ng and keeps
+# working, which is right for the child and terrible for the developer: the
+# TTS spike shipped with speech-dispatcher's rate multiplied by 0.01 and
+# nobody noticed for a day, because the only symptom was that a five-year-old
+# was being read to at adult pace.
+#
+# So the measurement is a counter on the RESIDENT PIPER SERVER, not an exit
+# status. spd-say returns 0 whether Piper or espeak-ng spoke.
+kid_uid=$(id -u kid 2>/dev/null)
+askid() {
+    runuser -u kid -- env "XDG_RUNTIME_DIR=/run/user/${kid_uid}" \
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${kid_uid}/bus" "$@" 2>/dev/null
+}
+piperd_log() {
+    journalctl -b --no-pager -o cat "_SYSTEMD_USER_UNIT=kidnix-piper.service" 2>/dev/null
+}
+
+tts_modules=$(askid spd-say -O | tr '\n' ' ')
+tts_socket=$(uctl is-active kidnix-piper.socket)
+# The service is WantedBy=kidnix-shell.service, so the shell's own greeting at
+# session start should already have loaded the model.
+tts_service_before=$(uctl is-active kidnix-piper.service)
+tts_spoke_before=$(piperd_log | grep -c 'spoke ')
+
+# No -o: this must land on DefaultModule, which is the entire point. -r -20 is
+# what shell/kidnix_shell/speech.py asks for, and 1.100 is the length_scale it
+# is supposed to become.
+askid spd-say -w -r -20 -l en-GB 'the boot test is listening'
+tts_spd_rc=$?
+sleep 1
+tts_spoke_after=$(piperd_log | grep -c 'spoke ')
+tts_service_after=$(uctl is-active kidnix-piper.service)
+tts_length_scale=$(piperd_log | sed -n 's/.*length_scale=\([0-9.]*\).*/\1/p' | tail -1)
+# kidnix-piper-say sends this one to the journal precisely so a boot test can
+# see it; anything above zero means a child heard the robot.
+tts_fallbacks=$(journalctl -b --no-pager -o cat -t kidnix-piper-say 2>/dev/null \
+    | grep -c 'falling back to espeak-ng')
+
 # --- crash recovery ----------------------------------------------------------
 # kidnix-shell.service is Restart=always/RestartSec=1, which replaced the bash
 # supervisor. Kill the shell and time how long the child would stare at an
@@ -659,6 +701,15 @@ echo "pin_proved_rc=${pin_proved_rc}"
 echo "pin_hash_after_proved=${pin_hash_after_proved}"
 echo "pin_kid_reset_rc=${pin_kid_reset_rc}"
 echo "pin_hash_after_reset=${pin_hash_after_reset}"
+echo "tts_modules=${tts_modules}"
+echo "tts_socket=${tts_socket}"
+echo "tts_service_before=${tts_service_before}"
+echo "tts_service_after=${tts_service_after}"
+echo "tts_spoke_before=${tts_spoke_before}"
+echo "tts_spoke_after=${tts_spoke_after}"
+echo "tts_spd_rc=${tts_spd_rc}"
+echo "tts_length_scale=${tts_length_scale}"
+echo "tts_fallbacks=${tts_fallbacks}"
 echo "failed_units=$(systemctl list-units --state=failed --no-legend --plain \
     --no-pager 2>/dev/null | awk '{print $1}' | paste -sd, -)"
 echo "os_id=$(. /etc/os-release && echo "$ID")"
@@ -1122,6 +1173,89 @@ def assert_shell(probe: dict[str, str], checks: Checks) -> None:
     )
 
 
+#: What speech-dispatcher's rate -20 -- shell/kidnix_shell/speech.py's
+#: SPEECH_RATE -- must become by the time it reaches piper. Anything else means
+#: the chain from SSIP to length_scale is broken again; it was, silently, from
+#: the day Piper landed until 2026-08-23, because sd_generic reads
+#: Generic*Multiply as hundredths (docs/spikes/tts.md section 8).
+EXPECTED_LENGTH_SCALE = "1.100"
+
+
+def assert_read_aloud(probe: dict[str, str], checks: Checks) -> None:
+    """The child is read to in the GOOD voice, not the guaranteed one.
+
+    ADR-0008 makes espeak-ng the fallback so a session is never mute, which
+    means every fault in this subsystem is *inaudible to a test that only asks
+    whether something was said*. Each check below is therefore about identity
+    and pace, not about success.
+    """
+    modules = probe.get("tts_modules", "")
+    checks.check(
+        "kidnix-piper" in modules,
+        "speech-dispatcher offers the kidnix-piper module"
+        + (f" (got '{modules.strip()}')" if modules else ""),
+        "" if modules else "spd-say -O said nothing",
+    )
+
+    checks.check(
+        probe.get("tts_socket") == "active",
+        f"kidnix-piper.socket is listening in kid's session "
+        f"(got '{probe.get('tts_socket') or 'unknown'}')",
+    )
+
+    # The service is WantedBy=kidnix-shell.service, so the shell's greeting at
+    # session start should have loaded the model before anyone asked.
+    checks.check(
+        probe.get("tts_service_before") == "active",
+        "kidnix-piper.service is already running once the shell has spoken "
+        f"(got '{probe.get('tts_service_before') or 'unknown'}')",
+    )
+    checks.check(
+        probe.get("tts_service_after") == "active",
+        "kidnix-piper.service is still running after an utterance "
+        f"(got '{probe.get('tts_service_after') or 'unknown'}')",
+    )
+
+    # THE assertion. spd-say with no -o goes to DefaultModule; if that is
+    # really Piper, the resident server's own "spoke N chars" counter moves.
+    # If it is espeak-ng -- because speech-dispatcher quietly swapped in its
+    # built-in espeak-ng-fallback module, or because the helper could not
+    # reach the server -- the counter stands still and rc is 0 either way.
+    before = _as_int(probe.get("tts_spoke_before", ""))
+    after = _as_int(probe.get("tts_spoke_after", ""))
+    moved = before is not None and after is not None and after > before
+    checks.check(
+        moved,
+        "a default-module utterance was synthesised by Piper, not espeak-ng "
+        f"(kidnix-piperd spoke {before} -> {after})",
+        "" if moved else "the resident Piper server was not asked to say anything",
+    )
+
+    # kidnix-piper-say puts this in the journal on purpose (its stderr goes to
+    # the module log, which nobody reads). Any occurrence means a child heard
+    # the robot voice at some point during this boot.
+    fallbacks = _as_int(probe.get("tts_fallbacks", ""))
+    checks.check(
+        fallbacks == 0,
+        f"nothing fell back to espeak-ng during the boot (saw {fallbacks})",
+    )
+
+    # Pace. The one number a five-year-old actually feels, and the one that was
+    # silently pinned at 1.000 for the whole of the TTS spike.
+    scale = probe.get("tts_length_scale", "")
+    checks.check(
+        scale == EXPECTED_LENGTH_SCALE,
+        f"speechd rate -20 reaches piper as length_scale {EXPECTED_LENGTH_SCALE} "
+        f"(got '{scale or 'nothing'}')",
+        "" if scale else "kidnix-piperd never logged a spawn",
+    )
+
+    checks.check(
+        probe.get("tts_spd_rc") == "0",
+        f"spd-say returned 0 (got '{probe.get('tts_spd_rc') or 'nothing'}')",
+    )
+
+
 def assert_egress(probe: dict[str, str], checks: Checks) -> None:
     """AGENTS.md non-negotiable 5: the child session has no network egress.
 
@@ -1457,6 +1591,7 @@ def assert_probe(probe: dict[str, str], checks: Checks) -> None:
 
     assert_session(probe, checks)
     assert_shell(probe, checks)
+    assert_read_aloud(probe, checks)
     assert_egress(probe, checks)
     assert_pin(probe, checks)
 

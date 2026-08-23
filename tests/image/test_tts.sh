@@ -194,6 +194,21 @@ assert_grep '^GenericCmdDependency "/usr/libexec/kidnix-piper-say"$' "${MODULE_C
 assert_grep '^AddVoice "en-GB"' "${MODULE_CONF}" \
     "the module advertises an en-GB voice"
 
+# THE HUNDREDS. dotconf has no float type, so sd_generic reads Generic*Multiply
+# as hundredths -- `1` means 0.01, not 1.0 (Fedora's own dtk-generic.conf spells
+# this out). With `GenericRateMultiply 1` plus ForceInteger, a client asking for
+# rate -20 reached kidnix-piper-say as `--rate 0`, so every utterance this image
+# ever spoke came out at piper's default length_scale 1.000 -- adult pace -- and
+# the volume control was dead the same way. Caught in a booted qcow2 VM on
+# 2026-08-23 (docs/spikes/tts.md 8), invisible to every check above it, and one
+# tidy-minded edit away from coming back.
+for scale in Rate Volume Pitch; do
+    assert_grep "^Generic${scale}Multiply 100\$" "${MODULE_CONF}" \
+        "Generic${scale}Multiply is 100 (dotconf hundredths: 100 == x1.0, 1 == x0.01)"
+    assert_grep "^Generic${scale}Add 0\$" "${MODULE_CONF}" \
+        "Generic${scale}Add is 0 (the mapping lives in kidnix-piper-say)"
+done
+
 section "the resident server"
 
 assert_exec /usr/libexec/kidnix-piperd
@@ -232,9 +247,19 @@ assert_grep '^SocketMode=0600$' /usr/lib/systemd/user/kidnix-piper.socket \
 assert_grep '^EnvironmentFile=/etc/kidnix/tts.env$' \
     /usr/lib/systemd/user/kidnix-piper.service \
     "the voice is chosen by one file a parent can edit"
+# Without this, five crashes in ten seconds retire the unit for the rest of the
+# session: socket activation then refuses to start it, every utterance silently
+# takes the espeak-ng path inside kidnix-piper-say, and the child's computer
+# sounds like 1998 until the next reboot. A child cannot restart a unit.
+assert_grep '^StartLimitIntervalSec=0$' \
+    /usr/lib/systemd/user/kidnix-piper.service \
+    "systemd never permanently gives up on the voice"
 assert_grep '^KIDNIX_PIPER_MODEL=/usr/share/kidnix/voices/en_GB-cori-high.onnx$' \
     /etc/kidnix/tts.env \
     "the default voice is en_GB-cori-high"
+assert_grep '^KIDNIX_PIPER_SENTENCE_SILENCE=0\.25$' \
+    /etc/kidnix/tts.env \
+    "the pause between sentences is 0.25 s (the shell adds its own 400 ms on top)"
 
 assert_run "kidnix-piperd compiles" python3 -c "
 import sys
@@ -421,7 +446,7 @@ def seconds(path):
         return handle.getnframes() / handle.getframerate()
 slow, fast = seconds('${WORK}/slow.wav'), seconds('${WORK}/fast.wav')
 # Measured 2.335 s vs 1.662 s (ratio 1.40). The ratio is diluted by the fixed
-# 0.35 s sentence pause, so 1.25 is the bar: comfortably above an unchanged
+# 0.25 s sentence pause, so 1.25 is the bar: comfortably above an unchanged
 # rate (ratio 1.0) and comfortably below what a working rate produces.
 sys.exit(0 if slow > fast * 1.25 else 1)
 "
