@@ -28,7 +28,7 @@ honest and stable rather than many half-built toys.
 | **Clock & time** | play-with-the-clock toy + routine strip + "how long is a minute" (Matt's idea; Y1/Y2 time) | build | medium | v1 built (371 tests); tile install in progress |
 | **Numbers** | subitising & bonds to 5/10 built to the ELG (05 §3) | build | medium | v1 built (817 tests); tile install in progress |
 | **Photos** | webcam → Journal, caption/voice | build | thin | P1 |
-| **Letters to family** | picture + caption + voice to a parent-approved recipient; the reply comes back into the Journal | build | medium | v1 in progress (outbox/inbox contract) |
+| **Letters to family** | picture + caption + voice to a parent-approved recipient; the reply comes back into the Journal | build | medium | v1 built (206 tests); tile install + reply import in progress |
 | **Listen** | read-to-me: narrated decodable/picture books (shares Read it's engine), family-recorded stories; screen dim | build | medium | P1 |
 | **Music** | pentatonic xylophone/loops, save to Journal | build | thin | P2 |
 | **Make a game** | TurboWarp (offline Scratch) for 7+ | curate | thin | P2 |
