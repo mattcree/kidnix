@@ -10,7 +10,7 @@ name = "Draw"
 audio_label = "Draw"
 goal = "Making pictures -- no right answers. Autosaves; a child is never asked whether to save."
 order = 10
-icon = "tuxpaint"
+icon = "kidnix-act-tuxpaint"
 icon_kind = "icon-name"
 # No flags. Everything Tux Paint needs is in /etc/tuxpaint/tuxpaint.conf, which
 # build_files/50-activities.sh writes (it cannot live in system_files/: the

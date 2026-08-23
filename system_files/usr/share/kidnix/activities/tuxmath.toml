@@ -4,16 +4,23 @@ schema = 1
 id = "tuxmath"
 name = "Number game"
 audio_label = "Number game"
-goal = "Typed arithmetic practice. Needs number recognition and a keyboard, so it is the top of the age band."
+goal = "Timed arithmetic practice with a score and a game over. Seven and up: it can be lost, which nothing else here can."
 order = 60
-icon = "tuxmath"
+icon = "kidnix-act-tuxmath"
 icon_kind = "icon-name"
 exec = ["tuxmath"]
 
 category = "learn"
-# Needs number recognition and a keyboard, so it is the top of the band, not the
-# bottom. The shell should not show this to a four-year-old.
-age_min = 6
+# Seven, not six. The 2026-08-23 early-years-teacher review (MAJOR) put this
+# against principle E1 -- "no points, no scores, no levels" -- in as many words:
+# "tuxmath.toml ships timed arithmetic with a score and a game-over ... A
+# Reception child hitting GAME OVER on a machine whose premise is 'you cannot
+# fail here' is a tonal break that will produce the first week's tears." Her own
+# recommendation was to drop it outright; the decision taken was to move it
+# clear of the 4-6 default band instead, so it exists for an older sibling and
+# is simply NOT THERE for a five-year-old (kidnix_shell.activities.in_age_band
+# hides, it does not grey out). Revisit when a real seven-year-old has used it.
+age_min = 7
 age_max = 10
 oars_rating = "violence-cartoon=mild"
 network_required = false

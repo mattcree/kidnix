@@ -4,15 +4,20 @@ schema = 1
 id = "supertux"
 name = "Jump and run"
 audio_label = "Jump and run"
-goal = "Just for fun -- a jump-and-run game with a game-over state."
+goal = "Just for fun. It has lives and a GAME OVER screen, so it sits outside the 4-6 band -- seven and up."
 order = 90
-icon = "supertux2"
+icon = "kidnix-act-supertux"
 icon_kind = "icon-name"
 # Note the binary is supertux2, not supertux -- the package is 'supertux'.
 exec = ["supertux2"]
 
 category = "play"
-age_min = 5
+# Seven, not five, for the same reason as tuxmath and from the same review:
+# lives and a GAME OVER screen are exactly the soft failure that principle E1
+# rules out for the 4-6 band, and the manifest's own "open question" below had
+# been asking about it since v0.1. Overlap semantics mean age_min=7 takes this
+# off a 4-5 profile's Home entirely rather than showing it greyed.
+age_min = 7
 age_max = 12
 # OARS 1.1: cartoon violence, mild (jumping on snowballs). Nothing else.
 oars_rating = "violence-cartoon=mild"

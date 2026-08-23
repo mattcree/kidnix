@@ -1,0 +1,47 @@
+# Research instrumentation: OFF.
+#
+# kidnix exists partly to run protocols (the P-series in
+# docs/research/03-*.md), and the shell carries instrumentation for them:
+# hover-speech dwell logging (speech.py::_flush_hover_log) and grown-up-gate
+# PIN attempt logging (screens/grownup.py::_check).
+#
+# docs/design/reviews/2026-08-23-safety-privacy-expert.md is blunt about why
+# that cannot be the shipped default: "the research default and the shipped
+# default are the same file, the child is not told, and a future 'delete
+# everything' in the Journal will not touch it." Checklist #10 (no behavioural
+# user model) and #19 (no covert monitoring) exist to prevent exactly this.
+#
+# So the instrumentation is gated on this file, it ships false, and turning it
+# on is a deliberate act by a person who has read this comment.
+#
+# CONTRACT FOR THE SHELL (kidnix_shell): read this file at start-up; if it is
+# missing, unreadable or malformed, behave as if every key were false. Never
+# log an event this file does not enable. See docs/spikes/panel-wave-c.md §6b.
+#
+# This is a separate file from parent.toml on purpose. parent.toml is settings
+# a parent chooses for their child; this is a switch for a study, and mixing
+# the two would put "record my child" one mis-tap away from "25 minutes".
+
+schema = 1
+
+[research]
+# The master switch. False means no instrumentation of any kind, whatever the
+# individual keys below say.
+enabled = false
+
+# One INFO line per hover utterance: which tile, how long the pointer rested,
+# and whether the child went on to open it. Protocol P5.
+hover_instrumentation = false
+
+# Whether the hover line may record that the child then SELECTED the tile.
+# Separate from the line itself because dwell-without-outcome is a legibility
+# measurement; dwell-with-outcome is a behavioural model of one child.
+hover_record_selection = false
+
+# One line per grown-up-gate PIN attempt, with a timestamp. Useful for "is the
+# gate reachable?"; also a log of every time a child tried to get past a grown-up.
+pin_attempt_logging = false
+
+# Where a study's data may be written. Left empty on purpose: with `enabled =
+# false` nothing writes anywhere, and a path here would be a standing invitation.
+journal_path = ""

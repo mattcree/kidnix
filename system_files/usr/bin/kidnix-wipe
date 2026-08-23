@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+# Delete everything the child has made on this computer. Permanently.
+#
+#   kidnix-wipe          -> asks you to type DELETE first
+#   kidnix-wipe --yes    -> does not ask (for a scripted hand-over)
+#
+# Run kidnix-export FIRST if you want to keep any of it. The child's account
+# and the machine itself are left alone; only their saved work is removed.
+# The real work is in /usr/libexec/kidnix-parent-tools.
+set -euo pipefail
+
+readonly HELPER=/usr/libexec/kidnix-parent-tools
+
+if [[ "${EUID}" -eq 0 ]]; then
+    exec "${HELPER}" wipe "$@"
+fi
+
+command -v pkexec >/dev/null 2>&1 || {
+    echo "kidnix-wipe: pkexec is missing; run 'sudo ${HELPER} wipe' instead" >&2
+    exit 1
+}
+exec pkexec "${HELPER}" wipe "$@"

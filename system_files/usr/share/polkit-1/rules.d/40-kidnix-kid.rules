@@ -94,6 +94,15 @@
         // polkit itself, which is what `pkexec` asks for.
         "org.freedesktop.policykit.",
 
+        // kidnix's own privileged helpers. Today that is
+        // org.kidnix.parent-tools, the action behind kidnix-export and
+        // kidnix-wipe -- one of which copies every drawing the child has ever
+        // made out of a 0700 home, and the other of which deletes all of it.
+        // pkexec asks for the ANNOTATED action id, not
+        // org.freedesktop.policykit.exec, so the entry above does not cover
+        // it and this prefix is load-bearing rather than defensive.
+        "org.kidnix.",
+
         // Parental controls: the child must not be able to edit or extend its
         // own policy. The ".ReadOwn" carve-out below keeps the *advisory*
         // read path working so malcontent-aware apps behave.

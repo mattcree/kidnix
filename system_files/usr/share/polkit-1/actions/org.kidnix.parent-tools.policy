@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+
+<!--
+  kidnix: the one thing a grown-up may borrow root for.
+
+  /var/home/kid is 0700 kid:kid so that nothing on the machine can read a
+  child's work. That includes the parent's own account, which is why
+  kidnix-export exists at all (parent panel: "her drawings live in the child
+  account's home; I am a different user; no export, no printing, no
+  send-to-Granny").
+
+  allow_active=auth_admin_keep: a grown-up sitting at the machine, in the wheel
+  group, typing their own password: the stock Fedora admin experience, not a
+  new secret to remember. allow_inactive=no keeps it off ssh-without-a-session
+  and off the greeter. The `kid` account is refused this action outright by
+  /usr/share/polkit-1/rules.d/40-kidnix-kid.rules (the "org.kidnix." prefix),
+  so a child who somehow reaches a terminal still cannot run it.
+
+  pkexec matches an action to a program by the exec.path annotation below, so
+  there is exactly one action for both subcommands. `wipe` asks the human to
+  type DELETE for itself; that confirmation is in the helper, not here.
+-->
+<policyconfig>
+  <vendor>kidnix</vendor>
+  <vendor_url>https://github.com/mattcree/kidnix</vendor_url>
+
+  <action id="org.kidnix.parent-tools">
+    <description>Export or erase a child's saved work</description>
+    <description xml:lang="en_GB">Export or erase a child's saved work</description>
+    <message>Authentication is required to copy or delete the child's drawings and journal</message>
+    <message xml:lang="en_GB">Authentication is required to copy or delete the child's drawings and journal</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/kidnix-parent-tools</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

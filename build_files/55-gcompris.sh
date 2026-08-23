@@ -23,6 +23,15 @@
 # suddenly holding 198 activities. Every id is therefore checked against
 # `gcompris-qt --list-activities` here, at build time.
 #
+# SINCE 2026-08-23 THIS STAGE ALSO GENERATES (section 7). The shelf is now
+# wired to the tile: /usr/share/kidnix/activities/gcompris.toml is
+# `kind = "shelf"` with `children_dir = "gcompris"`, and section 7 writes that
+# directory as 18 ordinary activity manifests derived from curated.toml. Before
+# that, the tile's own `goal` admitted it opened the uncurated 198-activity menu
+# while the eighteen reviewed EYFS/KS1 mappings sat unreachable -- a BLOCKER in
+# the 2026-08-23 early-years-teacher review. The data contract the shell reads
+# is specified in docs/spikes/panel-wave-c.md section 2.
+#
 # See docs/spikes/gcompris-curation.md for the mechanism write-up and
 # system_files/usr/share/kidnix/gcompris/CURATION.md for the shelf itself.
 set -euo pipefail
@@ -77,7 +86,7 @@ echo "==> gcompris-qt reports ${available} activities"
 
 # tomllib is in base-main's python3, so this is free.
 python3 - <<'PY'
-import pathlib, sys, tomllib
+import pathlib, re, sys, tomllib
 
 shelf = tomllib.loads(
     pathlib.Path("/usr/share/kidnix/gcompris/curated.toml").read_text())
@@ -105,10 +114,25 @@ if len(ids) != len(set(ids)):
 
 for a in activities:
     where = a.get("id", "<no id>")
+    # age_band and goal were added at generation 2: every row on the shelf
+    # becomes a tile with its own age band and its own parent-facing goal
+    # line, so a row without them cannot be rendered honestly.
     for key in ("id", "group", "title", "audio_label", "difficulty",
-                "curriculum", "exec", "intro_voice_en_GB"):
+                "curriculum", "exec", "intro_voice_en_GB", "age_band", "goal"):
         if key not in a:
             bad(f"{where}: missing {key!r}")
+    band = str(a.get("age_band", ""))
+    if not re.fullmatch(r"\d{1,2}-\d{1,2}", band):
+        bad(f"{where}: age_band {band!r} must look like '4-6'")
+    elif int(band.split("-")[0]) > int(band.split("-")[1]):
+        bad(f"{where}: age_band {band!r} is backwards")
+    # The goal is what a grown-up reads. It is not the curriculum line: that
+    # one cites EYFS by name and is for CURATION.md, not for a parent at 7am.
+    goal = str(a.get("goal", ""))
+    if len(goal) < 40:
+        bad(f"{where}: goal is too short to say what the child does")
+    if "EYFS" in goal or "KS1" in goal:
+        bad(f"{where}: goal reads like the curriculum line; keep jargon in `curriculum`")
     # The whole point of this stage: --launch with an unknown id silently opens
     # the full 198-activity menu instead of failing.
     if a["id"] not in available:
@@ -295,3 +319,161 @@ voiced = sum(a["intro_voice_en_GB"] for a in shelf["activities"])
 print(f"en_GB voices verified; {voiced}/{len(shelf['activities'])} curated "
       f"activities have a spoken introduction")
 PY
+
+# --- 7. generate the shelf's child manifests ---------------------------------
+#
+# The shelf becomes tiles here. /usr/share/kidnix/activities/gcompris.toml is
+# `kind = "shelf"` with `children_dir = "gcompris"`, and this section writes
+# that directory: one ordinary activity manifest per curated activity, which the
+# shell loads with the same kidnix_shell.activities.load_directory() it uses for
+# Home. No new parser, no new schema -- the whole point of the shape.
+#
+# GENERATED, not hand-written, because curated.toml + CURATION.md are the
+# reviewed artefacts and 18 hand-copied manifests would drift from them within a
+# week. The generated files are asserted against curated.toml immediately below,
+# and again in tests/image/test_gcompris.sh against the built image.
+#
+# A SUBDIRECTORY on purpose: kidnix_shell.activities.load_directory globs
+# `*.toml` in ONE directory and does not recurse, so these 18 cannot leak onto
+# Home as 18 extra tiles. That is also why the shelf tile is the only thing in
+# the parent directory that mentions GCompris.
+#
+# The ids are `gcompris.<activity>` rather than bare `<activity>`: activity ids
+# are a single global namespace in the shell (load_activities resolves
+# collisions by id across directories), and `memory` or `colors` are names a
+# future top-level activity could plausibly want.
+
+CHILDREN_DIR=/usr/share/kidnix/activities/gcompris
+rm -rf "${CHILDREN_DIR}"
+install -d "${CHILDREN_DIR}"
+
+python3 - "${CHILDREN_DIR}" <<'PY'
+import json, pathlib, sys, tomllib
+
+children_dir = pathlib.Path(sys.argv[1])
+shelf = tomllib.loads(
+    pathlib.Path("/usr/share/kidnix/gcompris/curated.toml").read_text())
+parent_path = pathlib.Path("/usr/share/kidnix/activities/gcompris.toml")
+parent = tomllib.loads(parent_path.read_text())
+
+if parent.get("kind") != "shelf":
+    sys.exit(f"{parent_path}: kind is {parent.get('kind')!r}, expected 'shelf'")
+if parent.get("children_dir") != children_dir.name:
+    sys.exit(f"{parent_path}: children_dir is {parent.get('children_dir')!r}, "
+             f"expected {children_dir.name!r}")
+# The tile must never be able to open the 198-activity menu, not even as the
+# fallback for a shell that has not learned about shelves yet.
+if parent["exec"][:2] != ["gcompris-qt", "--launch"]:
+    sys.exit(f"{parent_path}: exec is {parent['exec']}, which would open the full menu")
+
+groups = {g["id"]: g for g in shelf["groups"]}
+
+def toml_str(value):
+    # TOML basic strings and JSON strings agree on every escape we can produce
+    # here (quotes and backslashes); nothing in curated.toml has a control char.
+    return json.dumps(value)
+
+written = []
+for index, activity in enumerate(shelf["activities"]):
+    for key in ("id", "group", "title", "audio_label", "age_band", "goal", "exec"):
+        if key not in activity:
+            sys.exit(f"curated.toml: {activity.get('id', '?')} has no {key!r}")
+    group = groups[activity["group"]]
+    child_id = f"gcompris.{activity['id']}"
+    path = children_dir / f"{child_id}.toml"
+    body = f'''# GENERATED AT BUILD TIME by build_files/55-gcompris.sh -- do not edit.
+#
+# Source of truth: /usr/share/kidnix/gcompris/curated.toml (the shelf) and
+# CURATION.md beside it (why this activity, and the EYFS/KS1 mapping).
+# Edit those and rebuild; anything changed here is lost on the next build.
+#
+# This is a CHILD of the `gcompris` shelf tile: it is in a subdirectory, so it
+# never appears on Home in its own right, only behind "Letters & numbers".
+schema = 1
+
+id = {toml_str(child_id)}
+name = {toml_str(activity["title"])}
+audio_label = {toml_str(activity["audio_label"])}
+goal = {toml_str(activity["goal"])}
+order = {(index + 1) * 10}
+icon = {toml_str(activity.get("icon", parent.get("icon", "")))}
+icon_kind = {toml_str(parent.get("icon_kind", "icon-name"))}
+
+# `--launch <id>` starts this one activity and never shows the menu.
+# `--hide-home-button` is the belt to that brace: a corrupted per-user config
+# cannot hand a child the way back into the other 180.
+exec = {json.dumps(activity["exec"])}
+
+# Inherited from the shelf tile: GCompris installs no SIGTERM handler, so the
+# signal ends it, and it keeps progress in its own config rather than documents.
+quit = {toml_str(parent.get("quit", "signal"))}
+
+category = {toml_str(parent.get("category", "learn"))}
+age_band = {toml_str(activity["age_band"])}
+oars_rating = "none"
+network_required = false
+
+source = "rpm"
+package = {toml_str(parent.get("package", "gcompris-qt"))}
+licence = {toml_str(parent.get("licence", ""))}
+journal_watch = []
+wayland_native = true
+
+# kidnix-specific, ignored by the shell's manifest parser: which shelf group
+# this belongs to, so the shelf can draw headings without re-reading curated.toml.
+shelf_group = {toml_str(group["id"])}
+shelf_group_name = {toml_str(group["name"])}
+shelf_group_audio_label = {toml_str(group.get("audio_label", group["name"]))}
+gcompris_difficulty = {activity["difficulty"]}
+gcompris_intro_voice_en_GB = {"true" if activity["intro_voice_en_GB"] else "false"}
+
+notes = """
+{activity["curriculum"]}
+"""
+'''
+    path.write_text(body)
+    written.append(path)
+
+# Read every one of them back through tomllib -- a generator that emits invalid
+# TOML would otherwise only be discovered by the shell, at a child's first tap.
+CATEGORIES = {"make", "learn", "play"}
+for path in written:
+    data = tomllib.loads(path.read_text())
+    if data["id"] != path.stem:
+        sys.exit(f"{path}: id {data['id']!r} does not match the filename")
+    for key, kind in (("schema", int), ("id", str), ("name", str),
+                      ("audio_label", str), ("goal", str), ("icon", str),
+                      ("exec", list), ("category", str), ("age_band", str),
+                      ("source", str), ("package", str), ("licence", str),
+                      ("journal_watch", list), ("wayland_native", bool)):
+        if not isinstance(data.get(key), kind):
+            sys.exit(f"{path}: {key!r} is {type(data.get(key)).__name__}, want {kind.__name__}")
+    if data["category"] not in CATEGORIES:
+        sys.exit(f"{path}: category {data['category']!r}")
+    if not data["name"].strip() or not data["audio_label"].strip():
+        sys.exit(f"{path}: empty name or audio_label")
+
+print(f"generated {len(written)} shelf child manifests in {children_dir}")
+PY
+
+# Every child must parse through the shell's OWN loader, not just tomllib --
+# 60-shell.sh has not run yet at this point in the build, so this is deferred
+# to 60-shell.sh's --validate-manifests pass over the same directory.
+# What we can prove here is the property that matters most:
+#
+# NOTHING IN THIS IMAGE STARTS GCOMPRIS WITHOUT --launch. That is the single
+# lockdown hole this whole stage exists to close, and it is one grep.
+if grep -rhoE '^exec = \[[^]]*\]' /usr/share/kidnix/activities/*.toml \
+        "${CHILDREN_DIR}"/*.toml \
+    | grep -F 'gcompris-qt' \
+    | grep -vF -- '--launch' \
+    | grep -q .; then
+    echo "an activity manifest starts gcompris-qt without --launch; that opens the 198-activity menu" >&2
+    grep -rlE '^exec = \["gcompris-qt"\]' /usr/share/kidnix/activities/ >&2 || true
+    exit 1
+fi
+
+child_count="$(find "${CHILDREN_DIR}" -name '*.toml' -type f | wc -l)"
+[[ "${child_count}" -eq 18 ]] \
+    || { echo "generated ${child_count} shelf children, expected 18" >&2; exit 1; }
+echo "==> gcompris shelf: 1 tile, ${child_count} children, 0 routes to the full menu"

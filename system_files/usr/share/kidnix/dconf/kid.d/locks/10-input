@@ -21,3 +21,10 @@
 /org/gnome/desktop/a11y/keyboard/stickykeys-two-key-off
 
 /org/gnome/desktop/wm/preferences/num-workspaces
+
+# The keyboard layout. A five-year-old copying a letter from a book must get
+# the character printed on the key; there is no reading-age-appropriate way to
+# discover that the layout has been changed, or to change it back.
+/org/gnome/desktop/input-sources/sources
+/org/gnome/desktop/input-sources/xkb-options
+/org/gnome/desktop/input-sources/per-window

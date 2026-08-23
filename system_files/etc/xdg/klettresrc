@@ -1,0 +1,35 @@
+# System-wide KLettres defaults for kidnix.
+#
+# KConfig reads $XDG_CONFIG_DIRS/klettresrc (default /etc/xdg) as the read-only
+# defaults layer beneath the user's own ~/.config/klettresrc, so this sets the
+# starting state for the child without stopping a grown-up changing it later.
+#
+# Three things it fixes:
+#
+#  1. LANGUAGE. /usr/share/config.kcfg/klettres.kcfg defaults Language to "en",
+#     which is the AMERICAN recording set. /usr/share/klettres/en_GB/ exists in
+#     the RPM (26 alphabet clips and 23 word clips, with its own sounds.xml),
+#     and nothing selects it unless we do. Marked immutable with KConfig's
+#     `[$i]` suffix: the language is the entire point of the tile, and a child
+#     who changes it by accident cannot read the menu that would change it back.
+#
+#  2. MODE. myMode defaults to `grownup`, which shows the full menubar --
+#     File/Level/Language/Look/Settings/Help, all in text, on a tile aimed at a
+#     child who cannot read. `kid` hides the menubar. NOT marked immutable: a
+#     parent sitting with the child may legitimately want the menus back
+#     (Ctrl+G), and the shell's own gate is the boundary that matters.
+#
+#  3. LEVEL. Level 1 is "letter shown AND played", which is the only one of the
+#     four levels that gives a pre-reader something to look at. Levels 3 and 4
+#     use the `syllab` set, which for en_GB is 23 whole WORDS (ARM, BALL, CAR,
+#     GEM, THE) rather than phonics blends -- see docs/spikes/panel-wave-c.md §3.
+#
+# What this file deliberately does NOT do is claim the recordings are phonemes.
+# They are letter names; the tile is named accordingly. Evidence in the spike.
+
+[General]
+Language[$i]=en_GB
+myMode=kid
+MenuBarBool=false
+myTheme=kid
+myLevel=1

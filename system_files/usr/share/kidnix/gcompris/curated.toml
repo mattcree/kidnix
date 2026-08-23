@@ -25,7 +25,7 @@ schema = 1
 
 # Bumped whenever the shelf or gcompris-qt.conf changes in a way that should
 # reach an already-installed machine. See GENERATION beside this file.
-generation = 1
+generation = 2
 
 # Groups, in shelf order. Names are what a grown-up reading over the child's
 # shoulder sees; the shell speaks `audio_label` for the pre-reader.
@@ -34,10 +34,16 @@ id = "point-and-click"
 name = "Point and click"
 audio_label = "Point and click"
 
+# "Letters", not "Letters and sounds". The 2026-08-23 early-years-teacher
+# review is explicit that the group name is where the claim gets made: "keep
+# click_on_letter, but do not put it in a group called 'Letters and sounds' ...
+# the group name is the claim, not the activity. Call it 'Letters'." GCompris
+# plays letter NAMES; the UK teaches phonemes first, and nothing on this shelf
+# follows a phonics phase progression.
 [[groups]]
 id = "letters"
-name = "Letters and sounds"
-audio_label = "Letters and sounds"
+name = "Letters"
+audio_label = "Letters"
 
 [[groups]]
 id = "counting"
@@ -54,10 +60,12 @@ id = "remember"
 name = "Look, listen and remember"
 audio_label = "Look, listen and remember"
 
+# Time came out of this group with clockgame (see the activity list below);
+# what is left really is shapes and patterns, so the name says that.
 [[groups]]
-id = "shapes-time-patterns"
-name = "Shapes, time and patterns"
-audio_label = "Shapes, time and patterns"
+id = "shapes-patterns"
+name = "Shapes and patterns"
+audio_label = "Shapes and patterns"
 
 # -----------------------------------------------------------------------------
 # 1. Point and click -- the skills every other activity assumes.
@@ -69,6 +77,8 @@ group = "point-and-click"
 title = "Move the mouse"
 audio_label = "Move the mouse to find the hidden picture"
 difficulty = 1
+age_band = "4-6"
+goal = "Rubbing a picture clear by moving the mouse. Practises pointer control with nothing to aim at yet. No reading needed."
 curriculum = "EYFS Physical Development (fine motor control): move a pointer with no target to hit yet."
 exec = ["gcompris-qt", "--launch", "erase", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -79,6 +89,8 @@ group = "point-and-click"
 title = "Click to rub out"
 audio_label = "Click to rub out the squares"
 difficulty = 1
+age_band = "4-6"
+goal = "Rubbing a picture clear one click at a time. Practises the first deliberate click. No reading needed."
 curriculum = "EYFS Physical Development (fine motor control): the first deliberate click, on a stationary target."
 exec = ["gcompris-qt", "--launch", "erase_clic", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -89,14 +101,18 @@ group = "point-and-click"
 title = "Catch the fish"
 audio_label = "Click on the fish before they swim away"
 difficulty = 1
+age_band = "4-6"
+goal = "Clicking fish before they swim off. Practises clicking something that moves -- the hardest pointer skill at this age. No reading needed."
 curriculum = "EYFS Physical Development (fine motor control): click a target that is moving -- the hardest pointer skill a five-year-old needs (01 §3)."
 exec = ["gcompris-qt", "--launch", "clickgame", "--hide-home-button"]
 intro_voice_en_GB = true
 
 # -----------------------------------------------------------------------------
-# 2. Letters and sounds. Read the phonics caveat in CURATION.md before adding
-#    anything to this group: GCompris teaches letter NAMES, the UK teaches
-#    phonemes first, and GCompris has no phase-controlled word list.
+# 2. Letters. Read the phonics caveat in CURATION.md before adding anything to
+#    this group: GCompris teaches letter NAMES, the UK teaches phonemes first,
+#    and GCompris has no phase-controlled word list. The group is called
+#    "Letters" for that reason and must not be renamed to anything that sounds
+#    like phonics.
 # -----------------------------------------------------------------------------
 
 [[activities]]
@@ -105,6 +121,8 @@ group = "letters"
 title = "Find the letter"
 audio_label = "Listen to the letter, then click on it"
 difficulty = 2
+age_band = "4-7"
+goal = "Hearing a letter and finding it. Practises matching a spoken letter NAME to its written shape. This is the alphabet, not phonics."
 curriculum = "EYFS Literacy, Word Reading ELG: recognise a lowercase grapheme from its spoken form. Letter NAMES, not phonemes -- see CURATION.md."
 exec = ["gcompris-qt", "--launch", "click_on_letter", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -115,6 +133,8 @@ group = "letters"
 title = "Big and small letters"
 audio_label = "Match the big letter to the small letter"
 difficulty = 2
+age_band = "4-7"
+goal = "Pairing a big letter with its small one. Practises the link between the capitals on the keyboard and the lowercase letters in books. No reading needed."
 curriculum = "EYFS Literacy, Word Reading ELG: uppercase/lowercase correspondence. Directly answers the keycaps-are-uppercase-but-phonics-is-lowercase tension (05 §2b)."
 exec = ["gcompris-qt", "--launch", "memory-case-association", "--hide-home-button"]
 intro_voice_en_GB = false
@@ -125,6 +145,8 @@ group = "letters"
 title = "Type the letter"
 audio_label = "Type the falling letters before they land"
 difficulty = 2
+age_band = "5-8"
+goal = "Typing letters before they land. Practises finding a key. It is timed, so it is the one game here that can be lost."
 curriculum = "KS1 Computing: use technology purposefully. Key LOCATION only -- no home row, no words per minute, no posture (05 §2b, §3 'Keyboard game')."
 exec = ["gcompris-qt", "--launch", "gletters", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -138,8 +160,10 @@ intro_voice_en_GB = true
 id = "learn_digits"
 group = "counting"
 title = "Digits and how many"
-audio_label = "Show how many the number means"
+audio_label = "Count the dots, then press the number that matches"
 difficulty = 1
+age_band = "4-7"
+goal = "Building the right number of things. Practises what a number means, not just what it looks like. No reading needed."
 curriculum = "EYFS Number ELG: 'deep understanding of numbers to 10, including the composition of each number' -- digit to quantity."
 exec = ["gcompris-qt", "--launch", "learn_digits", "--hide-home-button"]
 intro_voice_en_GB = false
@@ -148,8 +172,10 @@ intro_voice_en_GB = false
 id = "learn_quantities"
 group = "counting"
 title = "How many is that"
-audio_label = "Make the right number of oranges"
+audio_label = "Listen for the number, then drag out that many oranges"
 difficulty = 1
+age_band = "4-7"
+goal = "Putting out the number of oranges asked for. The same idea the other way round. No reading needed."
 curriculum = "EYFS Number ELG, the same objective run the other way: quantity to digit."
 exec = ["gcompris-qt", "--launch", "learn_quantities", "--hide-home-button"]
 intro_voice_en_GB = false
@@ -158,8 +184,10 @@ intro_voice_en_GB = false
 id = "smallnumbers"
 group = "counting"
 title = "Dice dots"
-audio_label = "How many dots on the dice"
+audio_label = "Count the dots on the dice, then press that number"
 difficulty = 2
+age_band = "4-7"
+goal = "Saying how many dots are on a dice. Practises seeing a small number without counting -- plain dice pips, not cartoons. No reading needed."
 curriculum = "EYFS Number ELG: 'subitise (recognise quantities without counting) up to 5' -- the 2021 addition almost no consumer app addresses. Plain dice pips, not cartoon cupcakes (05 §2c)."
 exec = ["gcompris-qt", "--launch", "smallnumbers", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -168,8 +196,10 @@ intro_voice_en_GB = true
 id = "enumerate"
 group = "counting"
 title = "Count them all"
-audio_label = "Move the things about, then count them"
+audio_label = "Tidy the things into groups, count them, then type how many"
 difficulty = 2
+age_band = "5-8"
+goal = "Tidying things into groups and counting them. Practises counting each thing exactly once, which needs organising first."
 curriculum = "EYFS Number ELG: counting small quantities with one-to-one correspondence; the child must organise before counting."
 exec = ["gcompris-qt", "--launch", "enumerate", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -182,8 +212,10 @@ intro_voice_en_GB = true
 id = "adjacent_numbers"
 group = "numbers"
 title = "What comes next"
-audio_label = "Find the missing numbers"
+audio_label = "Find the number that comes next and drag it into the gap"
 difficulty = 1
+age_band = "5-8"
+goal = "Filling in the number that comes next. Practises the order numbers come in. No reading needed."
 curriculum = "EYFS Numerical Patterns / KS1 Y1: count forwards and backwards; number-line neighbours. Linear number ordering is the cheapest well-evidenced mechanic in early maths (Siegler & Ramani, 05 §2c)."
 exec = ["gcompris-qt", "--launch", "adjacent_numbers", "--hide-home-button"]
 intro_voice_en_GB = false
@@ -192,11 +224,37 @@ intro_voice_en_GB = false
 id = "learn_additions"
 group = "numbers"
 title = "Adding up"
-audio_label = "Add the small numbers together"
+audio_label = "Count both groups together, then press the total"
 difficulty = 2
+age_band = "5-8"
+goal = "Putting two small piles together. Practises adding by combining things you can see, not by drilling symbols."
 curriculum = "EYFS Number ELG: 'automatically recall number bonds up to 5 and some number bonds to 10'. Adds by combining visible quantities, not by symbol drill."
 exec = ["gcompris-qt", "--launch", "learn_additions", "--hide-home-button"]
 intro_voice_en_GB = false
+
+# REPLACED clockgame, v0.1.6 / generation 2. The early-years-teacher review
+# (2026-08-23) asked for clockgame to go: "Time to the hour is Year 1
+# Measurement, in practice the summer term; most Reception children cannot yet
+# hold 'the long hand means minutes', and it needs a precise mouse drag on a
+# clock hand." Her replacement suggestion is this one, and it is a better fit
+# than the thing it replaces on every axis we care about: 1-2 stars, no reading,
+# counting order rather than measurement, and -- her point -- it MAKES A PICTURE,
+# so the reward is the child's own drawing rather than a tick.
+#
+# Telling the time does not leave kidnix; it stops being GCompris'. A clock a
+# four-year-old can drag, with hour-hand-only levels and targets at the 18 mm
+# floor, is on the list of activities kidnix will write itself.
+[[activities]]
+id = "number_sequence"
+group = "numbers"
+title = "Join the dots"
+audio_label = "Join the dots in number order to draw the picture"
+difficulty = 2
+age_band = "5-8"
+goal = "Joining numbered dots to draw a picture. Practises counting in order; the picture only appears if the order is right."
+curriculum = "EYFS Numerical Patterns / KS1 Y1: count forwards from any number; one-to-one correspondence between the spoken count and a written numeral. The picture only appears if the order is right, so the feedback is the drawing rather than a score."
+exec = ["gcompris-qt", "--launch", "number_sequence", "--hide-home-button"]
+intro_voice_en_GB = true
 
 # -----------------------------------------------------------------------------
 # 5. Look, listen and remember. No reading at all in this group.
@@ -208,6 +266,8 @@ group = "remember"
 title = "Colours"
 audio_label = "Listen for the colour, then click the duck"
 difficulty = 1
+age_band = "4-6"
+goal = "Listening for a colour and clicking that duck. Practises listening and colour words. Entirely spoken -- no reading at all."
 curriculum = "EYFS Communication and Language (listening and attention) plus colour vocabulary. Zero text; entirely carried by the en_GB voice bundle."
 exec = ["gcompris-qt", "--launch", "colors", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -218,6 +278,8 @@ group = "remember"
 title = "Matching pairs"
 audio_label = "Turn the cards over and find the pairs"
 difficulty = 1
+age_band = "4-8"
+goal = "Turning cards over to find pairs. Practises remembering and paying attention. No reading, and no way to lose."
 curriculum = "EYFS Characteristics of Effective Learning: sustained attention and visual working memory. No text, no losing."
 exec = ["gcompris-qt", "--launch", "memory", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -228,6 +290,8 @@ group = "remember"
 title = "Sound pairs"
 audio_label = "Turn the cards over and find the sounds that match"
 difficulty = 2
+age_band = "4-8"
+goal = "Turning cards over to find sounds that match. Practises hearing the difference between sounds, which comes before reading. No reading needed."
 curriculum = "EYFS Communication and Language: auditory discrimination, the precursor to the phonemic awareness the WWC rates Strong Evidence (05 §2a)."
 exec = ["gcompris-qt", "--launch", "memory-sound", "--hide-home-button"]
 intro_voice_en_GB = true
@@ -238,30 +302,24 @@ intro_voice_en_GB = true
 
 [[activities]]
 id = "baby_tangram"
-group = "shapes-time-patterns"
+group = "shapes-patterns"
 title = "Shape puzzle"
 audio_label = "Drag the shapes into the picture"
 difficulty = 1
+age_band = "4-7"
+goal = "Dragging shapes into an outline. Practises shape, rotation and drag-and-drop. No reading needed."
 curriculum = "EYFS Mathematics (wider framework, shape and space -- dropped from the ELGs in 2021 but retained in the EEF early maths guidance): match an object to its outline, with drag and rotate."
 exec = ["gcompris-qt", "--launch", "baby_tangram", "--hide-home-button"]
 intro_voice_en_GB = true
 
 [[activities]]
-id = "clockgame"
-group = "shapes-time-patterns"
-title = "Tell the time"
-audio_label = "Set the hands on the clock"
-difficulty = 2
-curriculum = "KS1 Y1 Measurement: 'tell the time to the hour and half past the hour and draw the hands on a clock face'. Levels 1-2 are whole hours only."
-exec = ["gcompris-qt", "--launch", "clockgame", "--hide-home-button"]
-intro_voice_en_GB = true
-
-[[activities]]
 id = "frieze"
-group = "shapes-time-patterns"
+group = "shapes-patterns"
 title = "Finish the pattern"
 audio_label = "Copy the pattern, then finish it"
 difficulty = 1
+age_band = "5-8"
+goal = "Copying a pattern and then finishing it. Practises spotting what repeats -- the first step towards an algorithm."
 curriculum = "EYFS Numerical Patterns and KS1 Computing: a repeating sequence is the first algorithm. GCompris' own stated goal for it is 'learn algorithms'."
 exec = ["gcompris-qt", "--launch", "frieze", "--hide-home-button"]
 intro_voice_en_GB = false

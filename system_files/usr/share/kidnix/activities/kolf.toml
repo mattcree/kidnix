@@ -6,7 +6,7 @@ name = "Mini golf"
 audio_label = "Mini golf"
 goal = "Pointer practice -- aim, drag, judge the strength. No timer and no way to fail permanently."
 order = 80
-icon = "kolf"
+icon = "kidnix-act-kolf"
 icon_kind = "icon-name"
 exec = ["kolf"]
 

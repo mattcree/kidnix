@@ -2,11 +2,11 @@
 schema = 1
 
 id = "klettres"
-name = "Letter sounds"
-audio_label = "Letter sounds"
-goal = "Letter sounds and names, with recorded human voices. Check it against your child's phonics scheme."
+name = "Letter names"
+audio_label = "Listen to the letter, then press it on the keyboard"
+goal = "Listening to letters. The voice says each letter's NAME -- ay, bee, see -- not its phonics sound, so this practises the alphabet, not reading."
 order = 50
-icon = "klettres"
+icon = "kidnix-act-klettres"
 icon_kind = "icon-name"
 exec = ["klettres"]
 
@@ -24,9 +24,28 @@ journal_watch = []
 wayland_native = true
 
 notes = """
-Alphabet and phonics with recorded human audio -- directly serves the 'pre-reader
-first' non-negotiable, and unlike most of the KDE education set it does not assume
-the child can already read. Only ~48 MiB marginal once KF6 is in the image for
-KTuberling. Language defaults to the system locale; en_GB needs checking against a
-real child (does it say the letter's name or its sound?).
+Alphabet practice with recorded human audio -- it does not assume the child can
+already read, which is why it is here at all. ~48 MiB marginal once KF6 is in the
+image for KTuberling.
+
+NAMES, NOT SOUNDS -- SETTLED, WITH EVIDENCE (docs/spikes/panel-wave-c.md s3).
+The 2026-08-23 early-years-teacher review made this a BLOCKER: the tile was
+called "Letter sounds", which is a phonics claim, while the manifest's own notes
+admitted nobody had checked. Measured on the shipped /usr/share/klettres/en_GB/
+recordings: after trimming silence at -40 dBFS every clip carries 0.33-0.71 s of
+continuous speech (t=0.36, p=0.39, k=0.39, b=0.56, d=0.44, w=0.71). An isolated
+plosive PHONEME is a burst of 0.1-0.2 s and physically cannot last 0.36 s; a
+letter NAME is a full syllable, and /w/ -- the shortest phoneme in the set but
+the longest name, "double-u" -- is the longest clip of the twenty-six. These are
+letter names. The tile says so.
+
+Two more structural facts that stop this being a phonics activity whatever the
+recordings say: sounds.xml presents the alphabet as UPPERCASE A-Z (UK phonics
+teaches lowercase graphemes first), and the en_GB "syllables" set for levels 3-4
+is 23 whole real words (ARM, BALL, CAR, GEM, THE), not phase-controlled blends.
+GEM alone contradicts the hard /g/ a Phase 2 child has just been taught.
+
+/etc/xdg/klettresrc selects en_GB (the kcfg default is "en", the AMERICAN
+recordings), turns on kid mode so the text menubar is hidden, and starts at
+level 1 -- the only level that shows the letter as well as playing it.
 """

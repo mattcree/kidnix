@@ -1,0 +1,23 @@
+# Where to look for kidnix's own image signatures.
+#
+# cosign/sigstore signatures are stored as an extra *attachment* in the
+# registry next to the image, not in a detached lookaside store. Nothing looks
+# for them unless this is turned on for the scope -- containers-registries.d(5):
+# "use-sigstore-attachments ... Note that this is not enabled by default."
+#
+# Without this file, the sigstoreSigned requirement in /etc/containers/policy.json
+# would have nothing to verify and every pull of ghcr.io/mattcree/kidnix would
+# fail with "no signatures found", which looks exactly like a bad signature and
+# is a much worse error message.
+#
+# Two constraints from the man page, both easy to break by accident:
+#   * a scope may appear in only ONE file across the whole directory, so this
+#     scope must not also be mentioned in /etc/containers/registries.d/default.yaml;
+#   * only the MOST PRECISE matching scope is consulted, so this entry replaces
+#     (does not merge with) any configuration for plain `ghcr.io`.
+#
+# ghcr.io/ublue-os (our base image) is configured by the base image's own
+# ublue-os.yaml in this directory; do not duplicate it here.
+docker:
+  ghcr.io/mattcree/kidnix:
+    use-sigstore-attachments: true

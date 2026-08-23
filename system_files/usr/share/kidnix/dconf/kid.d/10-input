@@ -83,3 +83,19 @@ focus-mode='click'
 auto-raise=false
 # One workspace. There is nowhere else to go.
 num-workspaces=1
+
+[org/gnome/desktop/input-sources]
+# UK keyboard, and only UK. The child's session overrides the system layout
+# (/etc/X11/xorg.conf.d/00-keyboard.conf) the moment GNOME starts, so setting
+# it there and not here would leave the child on the compiled-in `us` default:
+# the @ and " keys swapped from the ones printed on the keycaps, and no £ at
+# all. Locked (locks/10-input) because a one-entry list is also the only way
+# to guarantee there is no layout switcher to land on by accident -- GNOME
+# shows the input-source indicator and binds Super+Space only when there is
+# more than one source.
+sources=[('xkb', 'gb')]
+# No dead keys, no compose, no "swap Ctrl and Caps": every xkb option is a way
+# for a keyboard to stop behaving the way its keycaps say it does.
+xkb-options=@as []
+# One layout for the whole session, not one per window.
+per-window=false

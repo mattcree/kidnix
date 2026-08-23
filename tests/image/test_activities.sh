@@ -226,6 +226,103 @@ cats = {tomllib.loads(p.read_text())['category']
 sys.exit(0 if cats == {'make','learn','play'} else f'categories: {sorted(cats)}')
 "
 
+section "what the tiles claim (2026-08-23 panel)"
+# Every one of these is a shipped sentence a parent reads, and each was found
+# to be untrue by the expert panel. They are assertions and not prose because
+# "the tile names are the marketing, not the docs" (early-years teacher).
+
+# KLettres was called "Letter sounds", which is a phonics claim, while its own
+# notes admitted nobody had checked whether the en_GB recordings are letter
+# names or phonemes. They are NAMES: after trimming silence at -40 dBFS the
+# shipped clips carry 0.33-0.71 s of continuous speech (t=0.36, p=0.39,
+# b=0.56, w=0.71) and an isolated plosive phoneme is a 0.1-0.2 s burst.
+# Method and full numbers in docs/spikes/panel-wave-c.md §3.
+assert_grep '^name = "Letter names"$' "${ACTIVITY_DIR}/klettres.toml" \
+    "KLettres says what it actually does: letter NAMES"
+# The tile NAME and the SPOKEN LABEL are the whole claim a parent and a child
+# ever see -- "the tile names are the marketing, not the docs". Neither may
+# mention sounds or phonics. (The goal line may, and must, say what it is NOT.)
+assert_cmd "no tile name or spoken label claims sounds or phonics" \
+    python3 -c "
+import pathlib, sys, tomllib
+bad = []
+for p in sorted(pathlib.Path('${ACTIVITY_DIR}').glob('*.toml')):
+    d = tomllib.loads(p.read_text())
+    for field in ('name', 'audio_label'):
+        text = d.get(field, '').lower()
+        if 'phonic' in text or 'letter sound' in text:
+            bad.append(f'{p.name}: {field} = {d[field]!r}')
+if bad: sys.exit('; '.join(bad))
+print(f'{len(list(pathlib.Path(\"${ACTIVITY_DIR}\").glob(\"*.toml\")))} manifests')
+"
+assert_cmd "the KLettres goal says out loud that it is not phonics" \
+    python3 -c "
+import pathlib, sys, tomllib
+g = tomllib.loads(pathlib.Path('${ACTIVITY_DIR}/klettres.toml').read_text())['goal'].lower()
+if 'name' not in g: sys.exit('the goal does not say the voice gives letter NAMES')
+if 'not its phonics sound' not in g: sys.exit('the goal does not disclaim phonics')
+"
+
+# TuxMath and SuperTux both have scores and a game-over, which contradicts
+# principle E1 ("no points, no scores, no levels"). The teacher: "A Reception
+# child hitting GAME OVER on a machine whose premise is 'you cannot fail here'
+# is a tonal break that will produce the first week's tears." Overlap
+# semantics mean age_min=7 removes them from a 4-6 profile entirely.
+assert_cmd "the two activities that can be LOST are out of the 4-6 band" \
+    python3 -c "
+import pathlib, sys, tomllib
+bad = []
+for name in ('tuxmath', 'supertux'):
+    d = tomllib.loads(pathlib.Path('${ACTIVITY_DIR}/%s.toml' % name).read_text())
+    if d['age_min'] < 7: bad.append(f\"{name}: age_min={d['age_min']}\")
+    if 'game over' not in d['goal'].lower() and 'lost' not in d['goal'].lower():
+        bad.append(f'{name}: goal does not say it can be lost')
+if bad: sys.exit('; '.join(bad))
+print('tuxmath 7+, supertux 7+')
+"
+# ...and the corollary a four-year-old actually experiences: what IS left.
+assert_cmd "a 4-5 year old still has activities after the age gate" \
+    python3 -c "
+import pathlib, sys, tomllib
+def shown(d):
+    lo, hi = d.get('age_min'), d.get('age_max')
+    return not ((hi is not None and hi < 4) or (lo is not None and lo > 5))
+left = [tomllib.loads(p.read_text())['id']
+        for p in pathlib.Path('${ACTIVITY_DIR}').glob('*.toml')
+        if shown(tomllib.loads(p.read_text()))]
+if len(left) < 6: sys.exit(f'only {len(left)} tiles for a 4-5 year old: {left}')
+print(f'{len(left)} tiles: {\" \".join(sorted(left))}')
+"
+
+# The GCompris tile shipped `goal = \"About 190 small learning games. Not
+# curated yet -- some are pitched well above five.\"` while 18 reviewed EYFS/KS1
+# mappings sat unreachable. The goal must now describe the shelf that exists.
+assert_cmd "the GCompris tile's goal describes the 18, not the 198" \
+    python3 -c "
+import pathlib, sys, tomllib
+d = tomllib.loads(pathlib.Path('${ACTIVITY_DIR}/gcompris.toml').read_text())
+g = d['goal'].lower()
+if 'not curated' in g: sys.exit('still says it is not curated')
+if 'eighteen' not in g and '18' not in g: sys.exit(f'goal does not say how many: {d[\"goal\"]!r}')
+if 'hidden' not in g: sys.exit('goal does not say the rest are hidden')
+print(d['goal'])
+"
+
+section "Tux Paint: the targets a four-year-old has to hit"
+# The Put-away ritual ends at Tux Paint's OWN tick and cross, which the
+# early-years teacher measured at "around 20 px ... the smallest and most
+# consequential target we ship" against an 18 mm floor. --buttonsize is the
+# only lever the config file has; 96 is double the default and inside the
+# documented 24-192 range.
+assert_grep '^buttonsize=96$' /etc/tuxpaint/tuxpaint.conf \
+    "tuxpaint buttons are 96 px, double the 48 px default"
+assert_cmd "tuxpaint really does accept --buttonsize in that range" \
+    bash -c "tuxpaint --help 2>&1 | grep -q -- '--buttonsize=N (24-192; default=48)'"
+# NOT asserted, and owed: that this also scales the quit prompt's tick and
+# cross. tuxpaint(1) says --buttonsize adjusts "the size of the buttons in Tux
+# Paint's user interface" and the prompt's tick and cross are buttons in that
+# interface, but nobody has put a ruler on a screen. See panel-wave-c.md §5.
+
 section "first-boot Flatpaks (secondary path, for what Fedora does not package)"
 assert_file /usr/share/kidnix/flatpaks.txt
 assert_grep '^org\.turbowarp\.TurboWarp$' /usr/share/kidnix/flatpaks.txt "TurboWarp is on the first-boot list"

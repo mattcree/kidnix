@@ -13,7 +13,7 @@ order = 30
 # (docs/spikes/e2e-scenario.md s3.1). Flip to true once the icon and the
 # install path are both proven, so the child at least gets an outline.
 show_when_unavailable = false
-icon = "org.turbowarp.TurboWarp"
+icon = "kidnix-act-turbowarp"
 icon_kind = "icon-name"
 exec = ["flatpak", "run", "org.turbowarp.TurboWarp"]
 

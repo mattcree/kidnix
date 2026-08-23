@@ -63,6 +63,17 @@ assert_py() {
     fi
 }
 
+# assert_cmd <description> <command...>
+assert_cmd() {
+    local description="$1"; shift
+    local output
+    if output="$("$@" 2>&1)"; then
+        _report ok "${description}${output:+ (${output})}"
+    else
+        _report no "${description}" "${output}"
+    fi
+}
+
 section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 readonly GCOMPRIS_DIR=/usr/share/kidnix/gcompris
@@ -235,11 +246,14 @@ ids = {a['id'] for a in tomllib.loads(pathlib.Path('${SHELF}').read_text())['act
 hit = ids & banned
 if hit: sys.exit(f'present: {sorted(hit)}')
 "
-# Matt asked for clocks, and KS1 Y1 Measurement asks for them too.
-assert_py "the shelf covers pointer skills, letters, number and telling the time" "
+# The four strands the shelf exists to cover. `clockgame` used to be the fourth
+# -- Matt asked for clocks and KS1 Y1 Measurement asks for them too -- and came
+# off at generation 2 on the early-years teacher's advice; the number strand
+# gained `number_sequence` in its place. See the "generation 2" section below.
+assert_py "the shelf covers pointer skills, letters, counting and number order" "
 import pathlib, sys, tomllib
 ids = {a['id'] for a in tomllib.loads(pathlib.Path('${SHELF}').read_text())['activities']}
-for needed in ('erase', 'click_on_letter', 'learn_digits', 'clockgame'):
+for needed in ('erase', 'click_on_letter', 'learn_digits', 'number_sequence'):
     if needed not in ids: sys.exit(f'{needed} missing')
 "
 
@@ -303,6 +317,128 @@ if systemd-tmpfiles --cat-config >/dev/null 2>&1; then
 else
     _report no "systemd-tmpfiles parses the shipped fragments"
 fi
+
+section "the shelf is wired to the tile"
+# The 2026-08-23 early-years-teacher review's BLOCKER: "the tile a parent boots
+# opens the full 198-activity menu while 18 detailed EYFS/KS1 mappings sit
+# unreachable." These assertions are that sentence, inverted.
+readonly SHELF_TILE=/usr/share/kidnix/activities/gcompris.toml
+readonly CHILDREN=/usr/share/kidnix/activities/gcompris
+
+assert_file "${SHELF_TILE}"
+assert_cmd "the children directory exists" test -d "${CHILDREN}"
+assert_py "the tile declares itself a shelf pointing at the children directory" "
+import pathlib, sys, tomllib
+m = tomllib.loads(pathlib.Path('${SHELF_TILE}').read_text())
+if m.get('kind') != 'shelf': sys.exit(f\"kind is {m.get('kind')!r}\")
+if m.get('children_dir') != 'gcompris': sys.exit(f\"children_dir is {m.get('children_dir')!r}\")
+print('kind=shelf children_dir=gcompris')
+"
+assert_py "there is one child manifest per curated activity, and the ids line up" "
+import pathlib, sys, tomllib
+curated = {a['id'] for a in tomllib.loads(pathlib.Path('${SHELF}').read_text())['activities']}
+children = sorted(pathlib.Path('${CHILDREN}').glob('*.toml'))
+ids = {tomllib.loads(p.read_text())['id'] for p in children}
+want = {f'gcompris.{i}' for i in curated}
+if ids != want: sys.exit(f'only in files: {sorted(ids-want)}; only in curated.toml: {sorted(want-ids)}')
+print(f'{len(children)} children')
+"
+assert_py "every child manifest carries what a tile needs to be drawn and spoken" "
+import pathlib, sys, tomllib
+bad = []
+for p in sorted(pathlib.Path('${CHILDREN}').glob('*.toml')):
+    d = tomllib.loads(p.read_text())
+    if d['id'] != p.stem: bad.append(f'{p.name}: id != filename')
+    for key in ('name','audio_label','goal','icon','age_band','exec','category'):
+        if not d.get(key): bad.append(f'{p.name}: no {key}')
+    # The instruction a pre-reader hears has to be an instruction, not a label:
+    # 'Count the dots on the dice, then press that number', never 'Dice dots'.
+    if len(d.get('audio_label','')) < 12: bad.append(f'{p.name}: audio_label too short to instruct')
+    if len(d.get('goal','')) < 40: bad.append(f'{p.name}: goal too short to inform a parent')
+if bad: sys.exit('; '.join(bad))
+print('18 tiles have name, spoken instruction, goal, icon and band')
+"
+# The number strand is where a pre-reader most needs telling what to DO -- the
+# review's example was 'Count the ducks and press the number'. Every counting
+# and numbers tile must read like an instruction: a verb, first word.
+assert_py "every counting/numbers tile's spoken label starts with a verb" "
+import pathlib, sys, tomllib
+VERBS = {'count','listen','find','put','tidy','join','make','drag','press','type','show'}
+bad = []
+n = 0
+for p in sorted(pathlib.Path('${CHILDREN}').glob('*.toml')):
+    d = tomllib.loads(p.read_text())
+    if d.get('shelf_group') not in ('counting', 'numbers'): continue
+    n += 1
+    first = d['audio_label'].split()[0].lower().strip(',')
+    if first not in VERBS: bad.append(f\"{d['id']}: starts with {first!r}\")
+if n < 6: sys.exit(f'only {n} number-strand tiles, expected at least 6')
+if bad: sys.exit('; '.join(bad))
+print(f'{n} number-strand tiles')
+"
+# The load-bearing one, restated over the generated files: nothing in this
+# image can start gcompris-qt without --launch, so the 198-activity menu is
+# not reachable from any tile, including the shelf tile's own fallback.
+assert_py "no manifest anywhere starts gcompris-qt without --launch" "
+import pathlib, sys, tomllib
+bad = []
+for p in list(pathlib.Path('/usr/share/kidnix/activities').glob('*.toml')) + \
+         list(pathlib.Path('${CHILDREN}').glob('*.toml')):
+    d = tomllib.loads(p.read_text())
+    argv = d.get('exec', [])
+    if argv and argv[0] == 'gcompris-qt' and '--launch' not in argv:
+        bad.append(p.name)
+if bad: sys.exit(f'these open the full menu: {bad}')
+print('every gcompris exec is --launch')
+"
+assert_py "every child exec is --launch <its own id> --hide-home-button" "
+import pathlib, sys, tomllib
+bad = []
+for p in sorted(pathlib.Path('${CHILDREN}').glob('*.toml')):
+    d = tomllib.loads(p.read_text())
+    want = d['id'].split('.', 1)[1]
+    argv = d['exec']
+    if argv[:3] != ['gcompris-qt', '--launch', want]: bad.append(d['id'])
+    elif '--hide-home-button' not in argv: bad.append(d['id'] + ' (no --hide-home-button)')
+if bad: sys.exit(str(bad))
+"
+# The children are in a SUBdirectory precisely so they cannot become 18 extra
+# tiles on Home: the shell globs *.toml in one directory and does not recurse.
+assert_py "the children do not leak onto Home" "
+import pathlib, sys
+top = {p.stem for p in pathlib.Path('/usr/share/kidnix/activities').glob('*.toml')}
+leaked = sorted(t for t in top if t.startswith('gcompris.'))
+if leaked: sys.exit(f'{leaked} are in the Home directory')
+print(f'{len(top)} Home manifests, none of them shelf children')
+"
+# The shell's own loader, not tomllib: this is the parse that actually happens.
+assert_cmd "the shell's manifest loader accepts every child" \
+    /usr/bin/kidnix-shell-app --validate-manifests "${CHILDREN}"
+
+section "generation 2: the clock came off the shelf"
+# The early-years teacher: "Time to the hour is Year 1 Measurement, in practice
+# the summer term; most Reception children cannot yet hold 'the long hand means
+# minutes', and it needs a precise mouse drag on a clock hand." Telling the time
+# is not dropped from kidnix -- it stops being GCompris'.
+assert_py "clockgame is gone and number_sequence replaced it" "
+import pathlib, sys, tomllib
+ids = [a['id'] for a in tomllib.loads(pathlib.Path('${SHELF}').read_text())['activities']]
+if 'clockgame' in ids: sys.exit('clockgame is still on the shelf')
+if 'number_sequence' not in ids: sys.exit('number_sequence is not on the shelf')
+print(f'{len(ids)} activities')
+"
+assert_no_grep '^clockgame=' "${CONF}" "clockgame is not a favourite any more"
+assert_grep '^number_sequence=true$' "${CONF}" "number_sequence is"
+# The group name is where a phonics claim would be made, so it is asserted
+# here and not left to prose: "the group name is the claim, not the activity."
+assert_py "the letters group is called 'Letters', not 'Letters and sounds'" "
+import pathlib, sys, tomllib
+groups = {g['id']: g['name'] for g in tomllib.loads(pathlib.Path('${SHELF}').read_text())['groups']}
+if groups.get('letters') != 'Letters': sys.exit(f\"letters group is {groups.get('letters')!r}\")
+if any('sound' in n.lower() for n in groups.values()):
+    sys.exit(f'a group name still claims sounds: {groups}')
+print(', '.join(groups.values()))
+"
 
 section "bootc hygiene"
 # Everything here must live in /usr so bootc ships and can roll it back. A build

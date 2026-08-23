@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+# Copy everything the child has made into a file the parent can open.
+#
+#   kidnix-export                 -> writes into your own home directory
+#   kidnix-export /run/media/...  -> writes onto a USB stick
+#
+# The child's home is 0700 kid:kid, so this borrows root for the length of one
+# copy through polkit; you will be asked for YOUR password, not the child's PIN.
+# The real work is in /usr/libexec/kidnix-parent-tools.
+set -euo pipefail
+
+readonly HELPER=/usr/libexec/kidnix-parent-tools
+
+if [[ "${EUID}" -eq 0 ]]; then
+    exec "${HELPER}" export "$@"
+fi
+
+command -v pkexec >/dev/null 2>&1 || {
+    echo "kidnix-export: pkexec is missing; run 'sudo ${HELPER} export' instead" >&2
+    exit 1
+}
+exec pkexec "${HELPER}" export "$@"

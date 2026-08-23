@@ -1,0 +1,182 @@
+#!/usr/bin/bash
+# Get a child's work OUT of the machine, or get it off the machine for good.
+#
+# Two things the safety review found missing and two parents asked for in the
+# same words (docs/design/reviews/2026-08-23-parent-panel.md):
+#
+#   Tom:  "Her drawings live in the child account's home; I am a different
+#          user; no export, no printing, no send-to-Granny."
+#   Safety review, BLOCKER 1: "the child's data has no exit ... the PARENT
+#          cannot delete or export either: 'kept forever' became a property of
+#          the code rather than a decision anyone made."
+#
+# WHY A ROOT HELPER. /var/home/kid is mode 0700 kid:kid (tmpfiles.d/kidnix.conf)
+# -- deliberately, so nothing else on the machine can read a child's work. That
+# also means the parent account cannot. Rather than loosen the child's home,
+# the parent borrows root for the length of one copy, through polkit
+# (/usr/share/polkit-1/actions/org.kidnix.parent-tools.policy: allow_active =
+# auth_admin_keep, i.e. a wheel member typing their own password). The `kid`
+# account is refused the action outright by 40-kidnix-kid.rules.
+#
+# Invoked as `kidnix-export` / `kidnix-wipe`, which are thin pkexec wrappers in
+# /usr/bin. Do not add subcommands that write INTO the child's home: this
+# helper's whole contract is that it only ever reads, copies, or removes.
+set -euo pipefail
+
+readonly CHILD=kid
+readonly CHILD_HOME=/var/home/kid
+
+usage() {
+    cat >&2 <<'EOF'
+usage: kidnix-parent-tools export [DESTINATION-DIRECTORY]
+       kidnix-parent-tools wipe [--yes]
+
+Normally run as `kidnix-export` or `kidnix-wipe`, which ask polkit for the
+permission this needs.
+EOF
+    exit 64
+}
+
+die() { printf 'kidnix: %s\n' "$*" >&2; exit 1; }
+say() { printf '%s\n' "$*"; }
+
+[[ "${EUID}" -eq 0 ]] || die "this helper must run as root; use kidnix-export / kidnix-wipe"
+
+# pkexec tells us who asked. Falls back to `parent` so the helper still does
+# something sensible when a maintainer runs it under plain sudo.
+caller_uid="${PKEXEC_UID:-}"
+if [[ -n "${caller_uid}" ]]; then
+    caller_name="$(getent passwd "${caller_uid}" | cut -d: -f1)"
+else
+    caller_name="${SUDO_USER:-parent}"
+    caller_uid="$(getent passwd "${caller_name}" | cut -d: -f3 || true)"
+fi
+[[ -n "${caller_name}" ]] || die "cannot work out who asked for this"
+[[ "${caller_name}" != "${CHILD}" ]] || die "the child account may not export or erase its own machine's data"
+caller_home="$(getent passwd "${caller_name}" | cut -d: -f6)"
+caller_gid="$(getent passwd "${caller_name}" | cut -d: -f4)"
+
+# What counts as "the child's work". Everything here is either something the
+# child made or something the machine recorded about them; nothing else in the
+# home is included, because an export a parent cannot read is not an export.
+#
+# Paths are relative to CHILD_HOME. Missing ones are skipped, not an error --
+# a machine where nobody has opened Tux Paint yet still exports cleanly.
+CHILD_DATA=(
+    # The Journal: what the child did, in the shell's own format.
+    ".local/share/kidnix"
+    # Session state: today's usage, progressive-disclosure counters.
+    ".local/state/kidnix"
+    # Tux Paint's own saved pictures and its thumbnails. This is what a parent
+    # means by "her drawings" (tuxpaint(1) FILES).
+    ".tuxpaint/saved"
+    # The export directory Tux Paint's Open dialog writes to.
+    "Pictures"
+    # GCompris keeps a child's progress in its settings file, not in documents.
+    ".config/gcompris"
+)
+
+# -----------------------------------------------------------------------------
+
+cmd_export() {
+    local dest="${1:-}"
+    if [[ -z "${dest}" ]]; then
+        dest="${caller_home:-/var/home/parent}"
+    fi
+    [[ -d "${dest}" ]] || die "no such directory: ${dest} (pass a folder, or plug in a USB stick and pass its path)"
+    [[ -w "${dest}" ]] || die "cannot write to ${dest}"
+
+    local stamp archive
+    stamp="$(date +%Y-%m-%d-%H%M)"
+    archive="${dest%/}/kidnix-${CHILD}-${stamp}.tar.gz"
+    [[ ! -e "${archive}" ]] || die "${archive} already exists; nothing was changed"
+
+    local -a present=()
+    local rel
+    for rel in "${CHILD_DATA[@]}"; do
+        [[ -e "${CHILD_HOME}/${rel}" ]] && present+=("${rel}")
+    done
+    if (( ${#present[@]} == 0 )); then
+        die "there is nothing saved in ${CHILD_HOME} yet -- nothing to export"
+    fi
+
+    say "kidnix: copying ${#present[@]} folder(s) from ${CHILD_HOME}"
+    for rel in "${present[@]}"; do say "  ${rel}"; done
+
+    # --numeric-owner so the archive does not carry this machine's uid names;
+    # the point is a file a parent can open on any computer.
+    tar --create --gzip --numeric-owner \
+        --file "${archive}" \
+        --directory "${CHILD_HOME}" \
+        -- "${present[@]}"
+
+    # The archive belongs to the parent who asked, and to nobody else: it
+    # contains everything their child has ever made.
+    chown "${caller_uid}:${caller_gid}" "${archive}"
+    chmod 0600 "${archive}"
+
+    say ""
+    say "Saved to: ${archive}"
+    say "Size:     $(du -h "${archive}" | cut -f1)"
+    say ""
+    say "To look inside:      tar -tzf '${archive}'"
+    say "To unpack it:        tar -xzf '${archive}'"
+    say "The drawings are the .png files under .tuxpaint/saved/ and Pictures/."
+}
+
+cmd_wipe() {
+    local assume_yes=no
+    [[ "${1:-}" == "--yes" ]] && assume_yes=yes
+
+    say "This will permanently delete everything ${CHILD} has made on this computer:"
+    local rel
+    for rel in "${CHILD_DATA[@]}"; do
+        if [[ -e "${CHILD_HOME}/${rel}" ]]; then
+            say "  ${CHILD_HOME}/${rel}  ($(du -sh "${CHILD_HOME}/${rel}" 2>/dev/null | cut -f1))"
+        fi
+    done
+    say ""
+    say "It cannot be undone. If you have not exported first, stop now and run:"
+    say "    kidnix-export"
+    say ""
+
+    if [[ "${assume_yes}" != yes ]]; then
+        local answer=""
+        printf 'Type DELETE to go ahead, or anything else to stop: '
+        read -r answer || answer=""
+        [[ "${answer}" == "DELETE" ]] || { say "Nothing was deleted."; exit 0; }
+    fi
+
+    local removed=0
+    for rel in "${CHILD_DATA[@]}"; do
+        local target="${CHILD_HOME}/${rel}"
+        [[ -e "${target}" ]] || continue
+        # Belt and braces against a future edit putting `/` or `..` in the
+        # list: refuse anything that is not inside the child's home.
+        case "${target}" in
+            "${CHILD_HOME}"/*) ;;
+            *) die "refusing to delete ${target}: outside ${CHILD_HOME}" ;;
+        esac
+        rm -rf -- "${target}"
+        removed=$(( removed + 1 ))
+    done
+
+    # Put the empty shells back, owned by the child, so the next session starts
+    # cleanly rather than with the shell discovering its directories missing.
+    install -d -o "${CHILD}" -g "${CHILD}" -m 0700 \
+        "${CHILD_HOME}/.local/share/kidnix" \
+        "${CHILD_HOME}/.local/state/kidnix"
+
+    say ""
+    say "Deleted ${removed} folder(s). The child's account itself is untouched:"
+    say "the machine will start exactly as it did on the first day."
+    say ""
+    say "If you are giving this computer away, also change the grown-up PIN"
+    say "(/etc/kidnix/parent.toml) and the parent account's password."
+}
+
+case "${1:-}" in
+    export) shift; cmd_export "$@" ;;
+    wipe)   shift; cmd_wipe "$@" ;;
+    *)      usage ;;
+esac

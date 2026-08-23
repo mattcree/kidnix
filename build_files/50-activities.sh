@@ -132,25 +132,23 @@ for asset in "${GCOMPRIS_ASSETS[@]}"; do
     printf '%s  %s\n' "${md5}" "${filename}" >>"${target_dir}/Contents"
 done
 
-# A default settings file for the child. GCompris reads
-# $XDG_CONFIG_HOME/gcompris/gcompris-qt.conf (src/core/main.cpp), which is
-# per-user and therefore cannot be shipped read-only in /usr -- the shell or the
-# first-boot unit has to copy this into the kid's home. Parked here so the
-# values are reviewed and version-controlled rather than invented at seed time.
+# GCompris' per-user settings file used to be drafted here, in a heredoc, and
+# it was WRONG in a way that produced no error anywhere: it wrote a literal
+# [General] group, which QSettings reserves for top-level keys and therefore
+# ignores in full, and it put enableAutomaticDownloads under [Admin], where
+# GCompris never looks. Every line of it silently did nothing.
+#
+# The reviewed file now lives in the overlay at
+# system_files/usr/share/kidnix/gcompris/gcompris-qt.conf, is written in the
+# [%General] dialect QSettings actually reads, and is seeded into the child's
+# home by /usr/lib/tmpfiles.d/kidnix-gcompris.conf. build_files/55-gcompris.sh
+# validates it against curated.toml AND round-trips it through a real GCompris
+# run. The old path stays as a symlink to it (55-gcompris.sh section 2) so
+# nothing that knew the old name breaks.
+#
+# docs/spikes/gcompris-curation.md §6 asked for this heredoc to be deleted
+# outright and left the call to whoever owns this file. Deleted.
 install -d /usr/share/kidnix/activities
-cat >/usr/share/kidnix/activities/gcompris-qt.conf.default <<'EOF'
-; Seeded into ~/.config/gcompris/gcompris-qt.conf for the kid account.
-; Rationale in docs/spikes/activities-packaging.md.
-[General]
-locale=en_GB.UTF-8
-enableAudioVoices=true
-enableAudioEffects=true
-fullscreen=true
-; No network in the child session: never try, never show a download dialog.
-[Admin]
-enableAutomaticDownloads=false
-downloadServerUrl=https://cdn.kde.org/gcompris
-EOF
 
 # --- 3. Tux Paint, configured for a five-year-old ----------------------------
 #
@@ -168,6 +166,39 @@ cat >/etc/tuxpaint/tuxpaint.conf <<'EOF'
 # The shell owns the screen; Tux Paint should fill it at the panel's own
 # resolution rather than making the compositor rescale a guessed mode.
 fullscreen=native
+
+# British English. Tux Paint does not read LANG for its own UI strings the way
+# a gettext-only program does -- it has its own language table, and the token
+# it wants is a NAME, not a POSIX locale ("british" or "british-english"; run
+# `tuxpaint --lang help` to see the list). Without this the status bar reads
+# "Pick a COLOR and a brush shape to draw with." on a UK five-year-old's
+# machine, which is the exact screenshot the 2026-08-23 early-years-teacher
+# review used to open its locale BLOCKER.
+lang=british-english
+
+# The largest button Tux Paint will draw. --buttonsize takes 24-192 and
+# defaults to 48, "suitable for displays with 96 to 120dpi pixel density"
+# (tuxpaint(1)); 96 is double that and still inside the range on every panel
+# kidnix targets.
+#
+# WHY 96 AND NOT 192: buttonsize scales the tool columns, and Tux Paint lays
+# those out in a fixed grid down the left and right of the canvas. At 192 the
+# columns eat most of a 1366x768 laptop screen and there is nothing left to
+# draw on. 96 doubles every target without taking the canvas away.
+#
+# WHAT THIS IS FOR. The early-years-teacher review made Tux Paint's own quit
+# dialogue a BLOCKER: "a green tick and a pink cross around 20 px ... against
+# our own numbers (18 mm floor; a four-year-old hits 16 px 43% of the time) it
+# is the smallest and most consequential target we ship", and it is the target
+# the whole Put-away ritual depends on. tuxpaint(1) describes --buttonsize as
+# adjusting "the size of the buttons in Tux Paint's user interface", and the
+# quit prompt's tick and cross are buttons in that interface -- so this should
+# raise them. THAT IS AN INFERENCE FROM THE MAN PAGE, NOT A MEASUREMENT: it
+# needs one screenshot of the quit prompt at 1366x768 with a ruler on it.
+# tests/image/test_activities.sh asserts the option exists and the
+# value is set; the millimetre measurement at 1366x768 is still owed, and is
+# recorded as owed in docs/spikes/panel-wave-c.md §5.
+buttonsize=96
 
 # Sound is not decoration for a pre-reader -- it is half the feedback.
 sound=yes

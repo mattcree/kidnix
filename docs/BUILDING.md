@@ -7,6 +7,81 @@ workstation.
 
 Run `just` with no arguments to list every recipe.
 
+**If you are a parent rather than a builder, this is the wrong page.** Read
+[PARENTS.md](PARENTS.md) — one page, no commands, written for the person who
+will actually switch the machine on.
+
+---
+
+## ⚠ Before you install this on real hardware
+
+Four things, in this order. Three of the four are irreversible and none of them
+is recoverable from the sofa. They are here rather than buried in the install
+section because three of four parents on the 2026-08-23 review panel opened this
+file, found nothing addressed to them, and closed it.
+
+### 1. Installing kidnix **erases the whole disk**
+
+Not "installs alongside". Not "makes a partition". Everything already on that
+laptop — photos, documents, the other operating system — is gone. kidnix takes
+the entire machine, which is the point of it; there is no dual-boot story and
+there is not going to be one.
+
+Copy anything you want off the laptop first, and check you actually have it.
+
+### 2. **Never install without setting the parent password**
+
+`kid` is passwordless by design (GDM autologin straight into the child's
+screen). `parent` gets its password **from the installer, and from nowhere
+else** — `systemd-sysusers` cannot set one, and neither can the image.
+
+**An image installed with no password and no SSH key leaves `parent` LOCKED.**
+Combined with `PasswordAuthentication no` in
+`/etc/ssh/sshd_config.d/10-kidnix.conf` (see `docs/spikes/hardening.md` §3.4),
+that means:
+
+> there is no way into that machine, ever, except a rescue USB stick — and the
+> only copy of your child's drawings is on it.
+
+So, at install time, do **one** of these:
+
+- **`disk_config/config.toml`** (`just build-qcow2`): set a real password in the
+  `[[customizations.user]]` block. The one in the repo is a development
+  placeholder and must not reach a household machine.
+- **Anaconda / the ISO**: create the `parent` user with a password at the user
+  screen. Do not skip it.
+- **An SSH key**: put an `authorized_keys` into the `parent` user's
+  customisation. A key is fine on its own; a key *and* a password is better,
+  because a key on a laptop you have lost is not much use.
+
+**Then check it before you hand the machine over.** Boot it, get to a text
+console or the parent desktop, and actually log in as `parent`. Five seconds
+now, a rescue USB later.
+
+### 3. The disk is **not encrypted**
+
+There is no LUKS, no FDE, and no prompt at boot. Possession of the laptop is
+possession of everything on it: every drawing, and the journal of what the child
+did and when.
+
+That is a deliberate trade for a machine a four-year-old switches on alone (a
+passphrase at boot would defeat the entire premise), but it is a trade, and it
+has to be a decision somebody made rather than a thing nobody mentioned. If the
+machine will hold anything you would mind losing with the machine, do not put it
+on this one.
+
+### 4. Nothing is backed up
+
+The child's work lives in `/var/home/kid`, on that disk, and nothing copies it
+anywhere. If the laptop dies, it is gone.
+
+`kidnix-export` (run from the parent account; asks for the parent's password via
+polkit) tars everything into one file you can put on a USB stick. Tell whoever
+owns the machine that it exists, because they will not find it on their own.
+`kidnix-wipe` is the other half, for handing the machine on.
+
+---
+
 ## Prerequisites
 
 | Tool | Needed for | Notes |
@@ -421,23 +496,26 @@ creates `parent` **with a password** wins — which is how
 
 The trade-off: neither mechanism can set a password. `kid` is passwordless by
 design (autologin straight into the kiosk). `parent` gets its password from the
-installer. **An image installed with neither has a locked `parent` account** —
-fine for a kiosk appliance, awkward for a laptop, and something to solve
-properly before anyone installs kidnix on real hardware.
+installer. **An image installed with neither has a locked `parent` account**,
+and with `PasswordAuthentication no` in the sshd drop-in that machine has no
+recovery path but a rescue USB — see
+[Before you install this on real hardware](#-before-you-install-this-on-real-hardware)
+at the top of this file, which is where that now lives in full.
 
-### The kiosk session (placeholder)
+### The kiosk session
 
 `/usr/share/wayland-sessions/kidnix-shell.desktop` runs `/usr/bin/kidnix-shell`,
-which today is:
+which execs `gnome-session --session=kidnix` (see
+`docs/spikes/session-integration.md`). That session starts `gnome-kiosk` as the
+compositor and `kidnix-shell.service` as the payload — the **real** shell from
+`shell/` in this repo, installed into site-packages by
+`build_files/60-shell.sh` and run as `/usr/bin/kidnix-shell-app`.
 
-```sh
-exec gnome-kiosk --wayland --display-server -- "${KIDNIX_KIOSK_APP}"
-```
-
-`KIDNIX_KIOSK_APP` defaults to `gnome-text-editor` purely so the boot test has
-something visible to verify. Replacing that variable is the whole of "write the
-real shell"; nothing else in the chain — GDM, autologin, AccountsService, the
-session file, the compositor — needs to change.
+An older version of this page said the kiosk launched `gnome-text-editor` as a
+placeholder. It has not for some time; that text editor is deliberately not in
+the image at all (a five-year-old has no use for one, and it is one more window
+surface to reason about). Flagged by the parent panel, who read this page and
+concluded the docs were behind the code — they were.
 
 `gnome-kiosk` was chosen over `cage`: it shares mutter with the rest of the
 stack, ships systemd user units, and has a11y and on-screen-keyboard
@@ -451,12 +529,63 @@ keylessly, but **only on `main`** — pull requests build and test without ever
 touching the registry. Runs weekly so the image picks up Fedora security
 updates even when nobody touches the repo.
 
-Verify a published image:
+Verify a published image, **on a workstation**:
 
 ```sh
 cosign verify ghcr.io/mattcree/kidnix:latest \
   --certificate-identity-regexp='^https://github.com/mattcree/kidnix/' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+```
+
+### On the machine itself: the signature policy, and what is still missing
+
+`build_files/75-supply-chain.sh` merges one scope into the base image's
+`/etc/containers/policy.json`, and ships
+`/etc/containers/registries.d/kidnix.yaml` with `use-sigstore-attachments: true`
+so anything looks for a cosign signature at all:
+
+```json
+"ghcr.io/mattcree/kidnix": [
+  { "type": "sigstoreSigned",
+    "keyPath": "/etc/pki/containers/kidnix.pub",
+    "signedIdentity": { "type": "matchRepository" } }
+]
+```
+
+**That key file is not in this repository, so `ghcr.io/mattcree/kidnix` currently
+refuses to pull.** That is intended, not an oversight: the review panel's
+position was that an unauthenticated root-level update channel is worse than no
+updates, and the machine has no update mechanism today anyway. The build prints
+four `!!` lines saying so.
+
+**Why the `cosign verify` command above cannot be turned into a device policy.**
+containers/image's `sigstoreSigned` has a `fulcio` mode, but its `subjectEmail`
+is matched only against the certificate's SAN **rfc822Name** list, there is no
+regexp option, and a GitHub Actions keyless certificate puts the workflow
+identity in a SAN **URI**. There is no value that matches. (An invented
+`subjectEmailRegexp` is not ignored — it rejects the entire policy file, which
+rejects every pull on the machine including `bootc upgrade`.) Full working in
+`docs/spikes/panel-wave-c.md` §6a.
+
+**To close it**, which is the prerequisite for ever shipping an update button:
+
+```sh
+cosign generate-key-pair                      # produces cosign.key + cosign.pub
+# put cosign.key and its password in the repo's Actions secrets as
+# COSIGN_PRIVATE_KEY / COSIGN_PASSWORD, and add to build.yml, alongside the
+# existing keyless sign:
+#     cosign sign --key env://COSIGN_PRIVATE_KEY "$IMAGE@$DIGEST"
+cp cosign.pub system_files/etc/pki/containers/kidnix.pub
+```
+
+Never commit `cosign.key`. `75-supply-chain.sh` fails the build if the file at
+that path contains `PRIVATE KEY`.
+
+Install with the policy enforced (the mode is fixed at install/switch time and
+reused by every later `bootc upgrade`, so this is where it is won or lost):
+
+```sh
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/mattcree/kidnix:latest
 ```
 
 `.github/workflows/boot-test.yml` — two jobs:

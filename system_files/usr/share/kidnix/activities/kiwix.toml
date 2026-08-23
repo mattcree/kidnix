@@ -8,7 +8,7 @@ goal = "Looking things up in an offline encyclopedia a grown-up has added. Nothi
 order = 100
 # No icon ships with kiwix-tools (it is a server, not an app). Placeholder until
 # the shell has its own icon set.
-icon = "accessories-dictionary"
+icon = "kidnix-act-kiwix"
 icon_kind = "icon-name"
 # kiwix-serve is a daemon, not a window. The shell starts it against the parent's
 # ZIM library and renders the result in its own view; the viewer is TBD.

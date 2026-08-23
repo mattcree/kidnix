@@ -1,14 +1,55 @@
 # kidnix activity manifest -- schema documented in docs/spikes/activities-packaging.md.
+#
+# THIS ONE IS A SHELF, NOT A TILE. See docs/spikes/panel-wave-c.md §2 for the
+# contract the shell implements; the short version is below.
 schema = 1
 
 id = "gcompris"
 name = "Letters & numbers"
-audio_label = "Letters and numbers"
-goal = "About 190 small learning games. Not curated yet -- some are pitched well above five."
+audio_label = "Letters, counting and shapes. Choose a game."
+goal = "Eighteen small games a grown-up picked: pointing, letters, counting, adding, listening and patterns. The other 180 that come with GCompris are hidden."
 order = 40
-icon = "gcompris-qt"
+icon = "kidnix-act-gcompris"
 icon_kind = "icon-name"
-exec = ["gcompris-qt"]
+
+# --- the shelf ---------------------------------------------------------------
+#
+# `kind = "shelf"` means: tapping this tile does NOT launch `exec`, it opens a
+# second screen of tiles built from the manifests in `children_dir`. Every one
+# of those is an ordinary activity manifest -- the shell loads the directory
+# with the same kidnix_shell.activities.load_directory() it uses for Home, and
+# gets a list[Activity] back with no new parsing.
+#
+# `children_dir` is resolved relative to the directory this manifest is in, so
+# the system copy resolves to /usr/share/kidnix/activities/gcompris/ and a dev
+# override in $XDG_DATA_HOME/kidnix/activities/ resolves beside itself.
+#
+# The child manifests are GENERATED AT BUILD TIME by build_files/55-gcompris.sh
+# from /usr/share/kidnix/gcompris/curated.toml, which is the reviewed source of
+# truth (with CURATION.md beside it carrying the EYFS/KS1 reasoning). Do not
+# hand-edit the generated files: edit curated.toml and rebuild.
+kind = "shelf"
+children_dir = "gcompris"
+
+# WHY THIS TILE EXISTS IN THIS SHAPE. The 2026-08-23 early-years-teacher review
+# opened a BLOCKER on the file this replaces: it shipped
+#
+#   goal = "About 190 small learning games. Not curated yet -- some are pitched
+#           well above five."
+#   exec = ["gcompris-qt"]
+#
+# "so the tile a parent boots opens the full 198-activity menu while 18 detailed
+# EYFS/KS1 mappings sit unreachable." Both halves of that are now closed: the
+# mappings are reachable (they are the tiles behind this one) and the bare menu
+# is not reachable at all -- there is no argv anywhere in this image that starts
+# gcompris-qt without --launch.
+#
+# `exec` below is the FALLBACK for a shell that does not implement shelves yet.
+# It must never be the bare `gcompris-qt`: an unrecognised or absent --launch id
+# does not fail, it silently opens the 198-activity menu (55-gcompris.sh's whole
+# reason for existing). So the fallback is the first activity on the shelf --
+# the gentlest one, and one a four-year-old can do -- rather than the menu.
+exec = ["gcompris-qt", "--launch", "erase", "--hide-home-button"]
 
 # Spec 7c. "signal": SIGTERM ends it, and there is nothing to lose if it does.
 # Checked rather than assumed: upstream `src/core/main.cpp` installs no POSIX
@@ -21,8 +62,12 @@ exec = ["gcompris-qt"]
 quit = "signal"
 
 category = "learn"
-age_min = 3
-age_max = 10
+# The shelf as a whole spans its children's bands; each child carries its own
+# `age_min`/`age_max` from curated.toml, and the shell filters the children, not
+# the shelf. 4-8 here means "there is something on this shelf for any child in
+# the range" -- which is true, and is checked at build time.
+age_min = 4
+age_max = 8
 oars_rating = "none"
 # False *because* build_files/50-activities.sh bakes the voice, word and music
 # packs into /usr/share/gcompris-qt/rcc/data3/. Without that seeding this would
@@ -41,8 +86,9 @@ journal_watch = []
 wayland_native = true
 
 notes = """
-The anchor activity: ~190 sub-activities spanning the whole 4-8 band. Fedora ships
-26.1 as an RPM, so the Flatpak-into-an-immutable-image problem does not apply.
+The anchor activity: 198 sub-activities spanning the whole 2-10 band, of which
+kidnix shows 18. Fedora ships 26.1 as an RPM, so the Flatpak-into-an-immutable-
+image problem does not apply.
 
 Voices are the catch. The RPM contains no audio at all; DownloadManager fetches
 .rcc bundles from cdn.kde.org on first run, which a no-egress child session cannot
@@ -50,4 +96,11 @@ do. 50-activities.sh pre-seeds en_GB + en_US voices, the word images and the
 background music, each md5-verified, plus the 'Contents' index files GCompris
 needs in order to look at them. Verified from upstream source, NOT yet verified by
 running GCompris in a VM -- see the spike doc for the exact check to run.
+
+CURATION. The shelf is /usr/share/kidnix/gcompris/curated.toml (data) and
+CURATION.md (reasoning, per-activity EYFS/KS1 mapping, and what was rejected).
+Generation 2 dropped `clockgame` on the early-years teacher's advice and added
+`number_sequence`; telling the time is not dropped from kidnix, it stops being
+GCompris'. A parent who wants to know "what are these and why these?" can read
+CURATION.md off the machine.
 """

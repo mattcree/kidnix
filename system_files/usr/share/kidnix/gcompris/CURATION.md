@@ -34,9 +34,12 @@ move, then click, then click something moving.
 | `erase_clic` | 1 | ✓ | Same picture, but each square needs a click | EYFS PD, fine motor: the first deliberate click on a stationary target |
 | `clickgame` | 1 | ✓ | Clicks fish swimming across a tank before they leave | EYFS PD, fine motor: clicking a *moving* target — the hardest pointer skill a five-year-old needs (`01-cci-foundations.md` §3) |
 
-### 2. Letters and sounds
+### 2. Letters
 
 **Read the phonics caveat below before adding anything to this group.**
+The group is called "Letters" and not "Letters and sounds" deliberately: the
+2026-08-23 early-years-teacher review found that "the group name is the claim,
+not the activity", and GCompris plays letter *names*.
 
 | Activity | ★ | Voice | What the child does | EYFS / KS1 |
 |---|---|---|---|---|
@@ -65,6 +68,7 @@ additions built specifically for this band.
 |---|---|---|---|---|
 | `adjacent_numbers` | 1 | ✗ | Fills in a number's missing neighbours | EYFS Numerical Patterns / KS1 Y1 counting forwards and backwards. Linear number ordering is the cheapest well-evidenced early-maths mechanic there is (Siegler & Ramani, `05` §2c) |
 | `learn_additions` | 2 | ✗ | Adds two small quantities by combining them | Number ELG: number bonds to 5 and some to 10, by combining visible quantities rather than symbol drill |
+| `number_sequence` | 2 | ✓ | Joins numbered dots in order; the picture only appears if the order is right | EYFS Numerical Patterns / KS1 Y1: counting forwards, numeral recognition. **Replaced `clockgame` at generation 2** |
 
 ### 5. Look, listen and remember
 
@@ -77,12 +81,11 @@ the en_GB voice bundle — a child who cannot read a single word can play it.
 | `memory` | 1 | ✓ | Turns picture cards over to find pairs | EYFS Characteristics of Effective Learning: sustained attention, visual working memory. No losing |
 | `memory-sound` | 2 | ✓ | Turns cards over to find matching *sounds* | EYFS C&L, auditory discrimination — the precursor to the phonemic awareness the WWC rates Strong Evidence (`05` §2a) |
 
-### 6. Shapes, time and patterns
+### 6. Shapes and patterns
 
 | Activity | ★ | Voice | What the child does | EYFS / KS1 |
 |---|---|---|---|---|
 | `baby_tangram` | 1 | ✓ | Drags and rotates shapes into an outline | EYFS Mathematics, shape and space. Dropped from the ELGs in 2021 but retained in the EEF's early maths guidance |
-| `clockgame` | 2 | ✓ | Sets the hands on an analogue clock | KS1 Y1 Measurement: "tell the time to the hour and half past the hour and draw the hands on a clock face". Levels 1–2 are whole hours |
 | `frieze` | 1 | ✗ | Copies, then completes, a repeating pattern | EYFS Numerical Patterns and KS1 Computing. A repeating sequence is the first algorithm; GCompris' own stated goal for it is "learn algorithms" |
 
 ## The phonics caveat, in full
@@ -149,3 +152,33 @@ difference is absorbed inside each activity's own level ladder. Two things could
 change that — a parent-set band that swaps the list, or the shell hiding tiles
 the child has never opened — and neither is decided. See
 `docs/spikes/gcompris-curation.md` §6.
+
+
+## What changed at generation 2 (2026-08-23)
+
+The expert panel reviewed the shelf. Two changes, both from the early-years
+teacher's review, both recorded here rather than only in git:
+
+* **`clockgame` is out; `number_sequence` is in.** Her objection, verbatim:
+  "Time to the hour is Year 1 Measurement, in practice the summer term; most
+  Reception children cannot yet hold 'the long hand means minutes', and it needs
+  a precise mouse drag on a clock hand." Her own replacement suggestion was
+  join-the-dots — 1–2 stars, no reading, counting order, and it *makes a
+  picture*, so the reward is the child's drawing rather than a tick. This
+  reverses the reasoning in `docs/spikes/gcompris-curation.md` §4, which kept
+  `clockgame` partly because clocks were asked for. **Telling the time is not
+  dropped from kidnix — it stops being GCompris'.** A clock activity a
+  four-year-old can actually drag, with hour-hand-only levels and targets at the
+  18 mm floor, is on the list of things kidnix will write itself.
+* **"Letters and sounds" is now "Letters"** (section 2 above).
+
+The counting and numbers groups also had their `audio_label`s rewritten from
+descriptions into instructions ("Count the dots on the dice, then press that
+number" rather than "How many dots on the dice"), because that is the only text
+a pre-reader gets and a description does not tell them what to do.
+
+Still open, and named by the same review: three pointer activities out of
+eighteen is a lot for a child who is already five and a half (the per-age-band
+question in `docs/spikes/gcompris-curation.md` §7.1), and `gletters` is a timed
+falling-letter game for a child who cannot yet locate a key. Neither is changed
+here; both want a real child in front of them first.
