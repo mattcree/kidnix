@@ -40,7 +40,7 @@ installed as tiles; Sounds & Words weeks 1–3.
 
 ## Before child test #1 (revised)
 
-1. Rebuild + full e2e green on the image with all tiles. *(image: 15/15 suites, 69 boot checks on the consolidated build; e2e pending)*
+1. Rebuild + full e2e green on the image with all tiles. *(done: consolidated image 15/15 suites, 69 boot checks, e2e 30/30 in 9m41s)*
 2. Shelf icons and clock minute icons landed; screenshots refreshed. *(done)*
 3. `kidnix-config show` redaction *(done)*; all-done-day icon wired *(done)*; stale docs swept *(in progress)*.
 4. Phoneme recordings (Matt) — or the activity says the label honestly (it does).
