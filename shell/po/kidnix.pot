@@ -8,50 +8,148 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kidnix 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mattcree/kidnix/issues\n"
-"POT-Creation-Date: 2026-08-23 15:46+0100\n"
+"POT-Creation-Date: 2026-08-23 16:43+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: kidnix_shell/app.py:124
+#: ../activities/sounds_and_words/sounds_and_words/__init__.py:70
+msgid "Sounds & words"
+msgstr ""
+
+#. TRANSLATORS: two sentences to the grown-up, joined. `{invite}` asks
+#. them to sit down; `{prompt}` is the thing to ask the child.
+#: ../activities/sounds_and_words/sounds_and_words/activity.py:638
+#, python-brace-format
+msgid "{invite} {prompt}"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/phonemes.py:178
+#, python-brace-format
+msgid "yes, {sound}"
+msgstr ""
+
+#. TRANSLATORS: the caption of a session where nothing was blended. It
+#. must not sound like a failure -- the child did work, it just was not
+#. whole words.
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:104
+msgid "Some sounds today"
+msgstr ""
+
+#. TRANSLATORS: the Journal caption. `{words}` is the child's own word list,
+#. comma-separated and never counted. Keep the placeholder last if your
+#. language allows it; the words are the point of the sentence.
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:108
+#, python-brace-format
+msgid "Read today: {words}"
+msgstr ""
+
+#. TRANSLATORS: the small heading on the card the child keeps, set in
+#. lowercase because every child-facing letterform in this activity is.
+#. The words under it are the child's own and are never translated.
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:199
+msgid "read today"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/summary.py:200
+msgid "some sounds today"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:79
+msgid "Find the one that says…"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:81
+msgid "Say the sounds, then push them together."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:82
+msgid "Now say it out loud."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:83
+msgid "That's the lot for today."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:84
+msgid "Nothing to practise today. Go and find a book."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:85
+msgid "Have another go."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:86
+msgid "Read it to someone."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:109
+msgid "push"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:110
+msgid "Push the sounds together."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:111
+msgid "next"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:112
+msgid "Next one."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:115
+msgid "Your turn"
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:116
+msgid "Sit with him for this bit."
+msgstr ""
+
+#: ../activities/sounds_and_words/sounds_and_words/text.py:117
+msgid "Ask him to say the word out loud to you."
+msgstr ""
+
+#: kidnix_shell/app.py:131
 msgid "That one didn't want to open. Try another."
 msgstr ""
 
-#: kidnix_shell/app.py:125
+#: kidnix_shell/app.py:132
 msgid "That one didn't open. Let's try something else."
 msgstr ""
 
-#: kidnix_shell/app.py:126
+#: kidnix_shell/app.py:133
 msgid "That one isn't here any more."
 msgstr ""
 
-#: kidnix_shell/app.py:130
+#: kidnix_shell/app.py:137
 #, python-brace-format
 msgid "{name} is asking if you're done."
 msgstr ""
 
-#: kidnix_shell/app.py:133
+#: kidnix_shell/app.py:140
 msgid "It"
 msgstr ""
 
-#: kidnix_shell/app.py:134
+#: kidnix_shell/app.py:141
 msgid "You're home."
 msgstr ""
 
-#: kidnix_shell/app.py:135
+#: kidnix_shell/app.py:142
 msgid "Nothing to undo."
 msgstr ""
 
-#: kidnix_shell/app.py:136
+#: kidnix_shell/app.py:143
 msgid "I haven't said anything yet."
 msgstr ""
 
-#: kidnix_shell/app.py:137
+#: kidnix_shell/app.py:144
 msgid "Asking a grown-up is coming soon."
 msgstr ""
 
@@ -75,7 +173,7 @@ msgstr ""
 msgid "One last little thing"
 msgstr ""
 
-#: kidnix_shell/band.py:556 kidnix_shell/speech.py:561
+#: kidnix_shell/band.py:556 kidnix_shell/speech.py:585
 msgid "Say it again"
 msgstr ""
 
@@ -156,6 +254,24 @@ msgstr[1] ""
 
 #: kidnix_shell/feedback.py:91
 msgid "played"
+msgstr ""
+
+#: kidnix_shell/inbox.py:106
+msgid "Letters"
+msgstr ""
+
+#: kidnix_shell/inbox.py:144
+#, python-brace-format
+msgid "A letter from {name}"
+msgstr ""
+
+#: kidnix_shell/inbox.py:148
+#, python-brace-format
+msgid "There's a letter for you from {name}. It's in My Things."
+msgstr ""
+
+#: kidnix_shell/inbox.py:151
+msgid "someone"
 msgstr ""
 
 #: kidnix_shell/journal.py:56
@@ -284,53 +400,103 @@ msgstr ""
 msgid "Not sure yet. That's fine."
 msgstr ""
 
-#: kidnix_shell/resting.py:51 kidnix_shell/screens/sleeping.py:41
+#: kidnix_shell/resting.py:59 kidnix_shell/screens/sleeping.py:41
 msgid "Resting"
 msgstr ""
 
-#: kidnix_shell/resting.py:53 kidnix_shell/resting.py:66
-#: kidnix_shell/resting.py:80
+#: kidnix_shell/resting.py:61 kidnix_shell/resting.py:83
+#: kidnix_shell/resting.py:97
 msgid "Goodnight"
 msgstr ""
 
-#: kidnix_shell/resting.py:56
+#: kidnix_shell/resting.py:64
 msgid "kidnix is resting. Back after tea."
 msgstr ""
 
-#: kidnix_shell/resting.py:58
+#: kidnix_shell/resting.py:66
 msgid "kidnix is resting. Back tomorrow."
 msgstr ""
 
-#: kidnix_shell/resting.py:60
+#: kidnix_shell/resting.py:75
+#, python-brace-format
+msgid "kidnix is resting. Back {day}."
+msgstr ""
+
+#: kidnix_shell/resting.py:77
 msgid "kidnix is sleeping."
 msgstr ""
 
-#: kidnix_shell/resting.py:65 kidnix_shell/screens/home.py:114
+#: kidnix_shell/resting.py:82 kidnix_shell/screens/home.py:117
 msgid "All done"
 msgstr ""
 
-#: kidnix_shell/resting.py:79
+#: kidnix_shell/resting.py:96
 msgid "All done. Time to rest."
 msgstr ""
 
-#: kidnix_shell/resting.py:86
+#: kidnix_shell/resting.py:103
 msgid "That's all the computer time for today. Ready to go and play?"
 msgstr ""
 
-#: kidnix_shell/resting.py:88
+#: kidnix_shell/resting.py:105
 msgid "It's night time. kidnix is going to sleep."
 msgstr ""
 
-#: kidnix_shell/resting.py:93
+#: kidnix_shell/resting.py:117
+msgid "Not computer time just now. Back after tea."
+msgstr ""
+
+#: kidnix_shell/resting.py:118
+msgid "Not computer time just now. Back tomorrow."
+msgstr ""
+
+#: kidnix_shell/resting.py:120
+#, python-brace-format
+msgid "Not computer time just now. Back {day}."
+msgstr ""
+
+#: kidnix_shell/resting.py:123
+msgid "Not computer time just now."
+msgstr ""
+
+#: kidnix_shell/resting.py:128
 msgid "All done for today."
 msgstr ""
 
-#: kidnix_shell/resting.py:99
+#: kidnix_shell/resting.py:134
 msgid "after tea"
 msgstr ""
 
-#: kidnix_shell/resting.py:100
+#: kidnix_shell/resting.py:135
 msgid "tomorrow"
+msgstr ""
+
+#: kidnix_shell/resting.py:147
+msgid "on Monday"
+msgstr ""
+
+#: kidnix_shell/resting.py:148
+msgid "on Tuesday"
+msgstr ""
+
+#: kidnix_shell/resting.py:149
+msgid "on Wednesday"
+msgstr ""
+
+#: kidnix_shell/resting.py:150
+msgid "on Thursday"
+msgstr ""
+
+#: kidnix_shell/resting.py:151
+msgid "on Friday"
+msgstr ""
+
+#: kidnix_shell/resting.py:152
+msgid "on Saturday"
+msgstr ""
+
+#: kidnix_shell/resting.py:153
+msgid "on Sunday"
 msgstr ""
 
 #: kidnix_shell/ritual.py:104
@@ -742,27 +908,27 @@ msgid ""
 "you can open in Files."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:98 kidnix_shell/widgets.py:602
+#: kidnix_shell/screens/home.py:101 kidnix_shell/widgets.py:602
 msgid "Ask a grown-up for this one."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:99
+#: kidnix_shell/screens/home.py:102
 msgid "This one isn't ready yet. Ask a grown-up."
 msgstr ""
 
-#: kidnix_shell/screens/home.py:104
+#: kidnix_shell/screens/home.py:107
 msgid "Home. What shall we make?"
 msgstr ""
 
-#: kidnix_shell/screens/home.py:118
+#: kidnix_shell/screens/home.py:121
 msgid "All done for today?"
 msgstr ""
 
-#: kidnix_shell/screens/home.py:155
+#: kidnix_shell/screens/home.py:158
 msgid "Home"
 msgstr ""
 
-#: kidnix_shell/screens/home.py:167
+#: kidnix_shell/screens/home.py:170
 msgid "activities"
 msgstr ""
 
@@ -832,23 +998,23 @@ msgstr ""
 msgid "Who's here?"
 msgstr ""
 
-#: kidnix_shell/session.py:591
+#: kidnix_shell/session.py:819
 msgid "Lots of time left."
 msgstr ""
 
-#: kidnix_shell/session.py:594
+#: kidnix_shell/session.py:822
 msgid "About as long as one story."
 msgstr ""
 
-#: kidnix_shell/session.py:596
+#: kidnix_shell/session.py:824
 msgid "A little bit of time left."
 msgstr ""
 
-#: kidnix_shell/session.py:598
+#: kidnix_shell/session.py:826
 msgid "Nearly time to put things away."
 msgstr ""
 
-#: kidnix_shell/session.py:600
+#: kidnix_shell/session.py:828
 msgid "The sun has gone down for today."
 msgstr ""
 

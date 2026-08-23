@@ -85,7 +85,9 @@ po-extract:
     set -euo pipefail
     mkdir -p po
     # Sorted so the .pot does not churn on filesystem order.
-    mapfile -t sources < <(find kidnix_shell kidnix_activity -name '*.py' | sort)
+    # The shell, the SDK and every first-party activity package (not their tests).
+    mapfile -t sources < <( (find kidnix_shell kidnix_activity -name '*.py'; \
+        find ../activities -path '*/tests' -prune -o -name '*.py' -print) | sort)
     xgettext \
         --language=Python \
         --from-code=UTF-8 \
