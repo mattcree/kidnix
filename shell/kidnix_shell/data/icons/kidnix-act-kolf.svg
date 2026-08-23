@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Activity tile: Mini golf (kolf).
+       The OUTPUT, not the tool: the ball rolling into the hole. The putter was in
+       the brief and was cut - a club is equipment, and the goal is the picture. -->
+  <title>Mini golf</title>
+  <path d="M4 45 H60 V54 A4 4 0 0 1 56 58 H8 A4 4 0 0 1 4 54 Z" fill="#2e7d32"
+        stroke="#16181d" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M36 45 A8 8 0 0 0 52 45 Z" fill="#16181d"/>
+  <ellipse cx="44" cy="45" rx="8" ry="3" fill="#16181d"/>
+  <path d="M44 45 V10" stroke="#16181d" stroke-width="4" stroke-linecap="round"/>
+  <path d="M44 10 L59 16 L44 22 Z" fill="#f06292" stroke="#16181d" stroke-width="2.5"
+        stroke-linejoin="round"/>
+  <path d="M3 32 H9 M2 39 H7" stroke="#16181d" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="18" cy="38" r="7" fill="#fbf7ef" stroke="#16181d" stroke-width="3"/>
+</svg>

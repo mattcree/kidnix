@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Activity tile: Letters and numbers (gcompris).
+       Play-blocks, two-and-one. Letterforms are drawn as paths, never a text element: no
+       font is guaranteed on the image and a missing glyph would empty the tile. -->
+  <title>Letters and numbers</title>
+  <rect x="20" y="6" width="25" height="25" rx="5" fill="#0f8a8a" stroke="#16181d"
+        stroke-width="3.5"/>
+  <rect x="5" y="33" width="25" height="25" rx="5" fill="#f9a825" stroke="#16181d"
+        stroke-width="3.5"/>
+  <rect x="34" y="33" width="25" height="25" rx="5" fill="#fbf7ef" stroke="#16181d"
+        stroke-width="3.5"/>
+  <circle cx="15.5" cy="47.5" r="5.5" fill="none" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M21 42 V53" stroke="#16181d" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M41 40 Q49.5 36.8 49.5 42.8 Q49.5 46 46 46 Q49.5 46 49.5 49.6 Q49.5 55.5 41 52.5"
+        fill="none" stroke="#16181d" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

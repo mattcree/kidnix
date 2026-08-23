@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Home tile: All done - daytime variant.
+       kidnix-moon says 'night' on a tile a child presses at ten in the morning.
+       This says what pressing it does: the picture is put away and the day is tidy. -->
+  <title>All done</title>
+  <path d="M12 22 V29 M52 20 V27" stroke="#16181d" stroke-width="3" stroke-linecap="round"/>
+  <g transform="rotate(-13 33 27)">
+    <rect x="21" y="13" width="24" height="22" rx="2" fill="#fbf7ef" stroke="#16181d"
+          stroke-width="3"/>
+    <path d="M26 26 C29 19 36 30 40 22" fill="none" stroke="#f06292" stroke-width="3.5"
+          stroke-linecap="round"/>
+  </g>
+  <path d="M6 33 H58 L52 57 H12 Z" fill="#0f8a8a" stroke="#16181d" stroke-width="3.5"
+        stroke-linejoin="round"/>
+</svg>

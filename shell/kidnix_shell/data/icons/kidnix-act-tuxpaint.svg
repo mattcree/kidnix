@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Activity tile: Draw (tuxpaint).
+       The OUTPUT: a wet stroke already on the paper, and the brush that put it there. -->
+  <title>Draw</title>
+  <rect x="4" y="17" width="40" height="41" rx="3" fill="#fbf7ef" stroke="#16181d"
+        stroke-width="3.5"/>
+  <path d="M10 50 C13 36 24 33 27 44" fill="none" stroke="#f06292" stroke-width="6"
+        stroke-linecap="round"/>
+  <g transform="rotate(32 36 24)">
+    <rect x="30" y="2" width="12" height="25" rx="3" fill="#f9a825" stroke="#16181d"
+          stroke-width="3"/>
+    <path d="M29 27 H43 L38 46 H34 Z" fill="#0f8a8a" stroke="#16181d" stroke-width="3"
+          stroke-linejoin="round"/>
+  </g>
+</svg>

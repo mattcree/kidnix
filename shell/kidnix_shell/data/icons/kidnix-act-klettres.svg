@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Activity tile: Letter sounds (klettres).
+       A mouth making a sound, and the letter the sound belongs to. Sound, not shape,
+       is what separates this tile from Letters and numbers. -->
+  <title>Letter sounds</title>
+  <circle cx="17" cy="32" r="14" fill="#f6c9a8" stroke="#16181d" stroke-width="3.5"/>
+  <circle cx="20" cy="26" r="2.4" fill="#16181d"/>
+  <ellipse cx="26" cy="38" rx="4.5" ry="6.5" fill="#f06292" stroke="#16181d"
+           stroke-width="2.5"/>
+  <path d="M33 29 A12 12 0 0 1 33 47" fill="none" stroke="#0f8a8a" stroke-width="3.5"
+        stroke-linecap="round"/>
+  <path d="M39 25 A16 16 0 0 1 39 51" fill="none" stroke="#0f8a8a" stroke-width="3.5"
+        stroke-linecap="round"/>
+  <circle cx="54.5" cy="38.5" r="5.5" fill="none" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M60 33 V44" stroke="#16181d" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Activity tile: Number game (tuxmath).
+       Counting beads, two pushed one way and one the other. No arithmetic symbols:
+       a pre-reader cannot read '+' any more than a word. -->
+  <title>Number game</title>
+  <path d="M9 14 V50 M55 14 V50" stroke="#16181d" stroke-width="4" stroke-linecap="round"/>
+  <path d="M9 32 H55" stroke="#16181d" stroke-width="3"/>
+  <circle cx="18.5" cy="32" r="7.5" fill="#f9a825" stroke="#16181d" stroke-width="3"/>
+  <circle cx="33.5" cy="32" r="7.5" fill="#f9a825" stroke="#16181d" stroke-width="3"/>
+  <circle cx="47" cy="32" r="7.5" fill="#f06292" stroke="#16181d" stroke-width="3"/>
+</svg>
