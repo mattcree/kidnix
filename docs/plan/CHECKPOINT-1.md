@@ -73,3 +73,11 @@ Visible sun: help or hurt (P1). Hover dwell (P5). Journal comprehension and
 resume (P3). Pointer device on the real hardware (P4). Ending ritual as an
 anticipated object (P6). Whether a software-imposed limit improves wellbeing
 at all — no RCT says so; we keep saying so in the product.
+
+## Addendum 2026-08-23 — expert panel
+
+Nine-reviewer panel + forum → `docs/design/reviews/2026-08-23-SYNTHESIS.md`.
+Fix waves: A (shell session/ending rulings), B (accessibility), C (locale,
+GCompris shelf, KLettres, supply-chain policy, export/wipe, PARENTS.md — done),
+D (depictive icons — done), E (voice note, Undo routing, per-profile data, PIN
+flow, shelf rendering). ADR-0011 (20 mm floor). Suite plan: `docs/plan/SUITE.md`.
