@@ -87,41 +87,39 @@ colour, time budget and My Things — set up from a screen, not a file.
 
 ## B — Dan · dad of an autistic five-year-old
 
-**First impression.** I read "What's next after?" and said something out loud,
-because that is a first-then board — the thing his speech and language therapist
-has had us doing on the fridge for two years — and nobody has ever put it inside
-the computer. Then the goodbye screen shows the picture back and says "Ready to
-go outside?", which is the whole trick, and someone here knows it. Family Link
-gave me a bar chart and a lock; this gives him a plan.
+**First impression.** "What's next after?" is a first-then board — the thing his
+speech therapist has had us doing on the fridge for two years — and nobody has
+ever put it inside the computer. Then the goodbye screen shows the picture back
+and says "Ready to go outside?", which is the whole trick. Family Link gave me a
+bar chart and a lock; this gives him a plan.
 
-**What he'd love.** That the ending belongs to the machine and not to me, so I
-am not the person taking it away. The same screens in the same order every time.
-Nothing that scores him — no streaks, no badges, nothing that makes stopping
-feel like losing. Read-aloud, because he can't read yet and hates being asked
-to. That the ending is a ritual with three named steps, not a screen going
-black.
+**What he'd love.** That the ending belongs to the machine, so I am not the
+person taking it away. The same screens in the same order every time. Nothing
+that scores him — no streaks, no badges, nothing that makes stopping feel like
+losing. Read-aloud, because he can't read yet and hates being asked to. That the
+ending is a ritual with three named steps, not a screen going black.
 
 **What worries him.** Three things, and they are all the same thing.
 
-First, **Home grows.** Six tiles, then one more every two sessions. A new button
+**Home grows.** Six tiles, then one more every two sessions. A new button
 appearing without warning is not a delight, it is Tuesday ruined. There may be a
-way to stop it — something about `show_everything` and an allow-list — but
+way to freeze it — something about `show_everything` and an allow-list — but
 working that out means reading two config files that cite research papers at me,
-and I will get it wrong at 7am.
+and I'll get it wrong at 7am.
 
-Second, **the ending has a stranger in it.** In the picture strip, when the
-computer asks Tux Paint to finish, Tux Paint puts up *its own* box — different
-colours, a green tick and a pink cross — and waits for him to press it. So the
-calm predictable ending contains a surprise dialogue in another program's visual
-language, and the pink cross deletes the drawing. That is where we'd lose him.
+**The ending has a stranger in it.** When the computer asks Tux Paint to finish,
+Tux Paint puts up *its own* box — a green tick and a pink cross — and waits for
+him to press it. So the calm predictable ending contains a surprise dialogue in
+another program's visual language, and the pink cross deletes the drawing. That
+is where we'd lose him.
 
-Third, **sound**. Everything speaks, there are little sounds, one game has
-music, and there is no volume or quiet button anywhere I can see. Sound is his
-biggest sensory trigger. "Calm mode" is roadmap, not product.
+**Sound.** Everything speaks, there are little sounds, one game has music, and
+there is no volume or quiet button anywhere. Sound is his biggest trigger. "Calm
+mode" is roadmap, not product.
 
 **What he doesn't understand.** Why the screen grows at all. Whether the
-six-and-two-minute warnings can be lengthened. What the sun actually tells him:
-it shrinks and sinks, but does that say *how much is left*, or only that time
+six-and-two-minute warnings can be lengthened. What the sun tells him: it
+shrinks and sinks, but does that say *how much is left*, or only that time
 passes?
 
 **Three questions he'd ask.**
@@ -134,42 +132,42 @@ passes?
 he needs than anything he has been sold.
 
 **The one change that would move him.** One switch called "keep everything the
-same": fixed tiles in a fixed order, no new tiles ever, no activity's own
-dialogue reaching him, adjustable warning times — and no config file to get it.
+same": a frozen grid, no activity's own dialogue reaching him, adjustable
+warning times — and no config file to get it.
 
 ---
 
 ## C — Mags · grandmother and guardian, six-year-old grandson
 
 **First impression.** My first thought is that he'd be better off with a book,
-and I notice the computer agrees — "A book" is one of the choices for what he
-does next, which softened me more than anything else on the page. My second is
-that this is built by clever people for other clever people; the first thing
-under the picture is a list of commands. My third, the one that stays: what
-happens when it goes wrong and I'm the only adult in the house?
+and the computer agrees — "A book" is one of the choices for what he does next,
+which softened me more than anything else on the page. My second is that this is
+built by clever people for other clever people; the first thing under the
+picture is a list of commands. My third, the one that stays: what happens when
+it goes wrong and I'm the only adult in the house?
 
 **What she'd love.** That nobody can talk to him and he can't wander onto the
 internet. That it stops on its own after twenty-five minutes and won't start
 again after seven in the evening. No shop, no adverts, nothing collecting
-information about him — I've had enough of that. That what's kept is his
-drawings, not a report on how many hours he sat there. And that it looks quiet:
-cream and green, not fireworks.
+information about him. That what's kept is his drawings, not a report on how
+many hours he sat there. And that it looks quiet: cream and green, not
+fireworks.
 
 **What worries her.** The PIN. It comes set to **1234**, it is written down in
 the instructions, it is the same on every one of these, and as far as I can tell
-there is no way for me to change it without someone doing something technical.
-My grandson is six. He watches me type. 1234 is the first four buttons in a row.
-That is not a lock, that's a sticker on a door.
+I cannot change it without someone technical. My grandson is six. He watches me
+type. 1234 is the first four buttons in a row. That is not a lock, that's a
+sticker on a door.
 
 Under that, the bigger worry: getting it wrong. If it won't start on a school
 night, I have nobody to ring. Words like "rollback" and "immutable" make me feel
 I'd need permission to touch it.
 
 **What she doesn't understand.** Almost all of the building instructions —
-fine, they're not for me, but there is nothing that *is* for me. What "the
-Journal" is (I thought a diary; it's his drawings). Whether pulling the plug out
-is safe. Whether "no internet for the child" means the machine is off the
-internet or just him — and how I would ever check.
+fine, they're not for me, but nothing *is* for me. What "the Journal" is (I
+thought a diary; it's his drawings). Whether pulling the plug out is safe.
+Whether "no internet for the child" means the machine is off the internet or
+just him — and how I would ever check.
 
 **Three questions she'd ask.**
 1. What do I press when something goes wrong, and is there one page I can keep
@@ -192,20 +190,19 @@ mean, what to press, what to do if it won't start.
 **First impression.** This is the first thing in the category I've read that
 isn't a data-collection business with a cartoon on it — no telemetry, no
 accounts, network switched off by user id rather than by a filter that fails
-open, Apache-2.0, signed images, decisions written down. The manifests are
-startlingly honest: "UNVERIFIED", "inferred, not observed", "nobody has watched
-it produce a qcow2 yet". I trust that more than a polished claim. Then I hit the
-line saying the kiosk currently launches a text editor as a placeholder, and
-realised the docs are behind the shell — usual day-one stuff, but it wobbled me.
+open, signed images, decisions written down. The manifests are startlingly
+honest: "UNVERIFIED", "inferred, not observed", "nobody has watched it produce a
+qcow2 yet". I trust that more than a polished claim. Then I hit the line saying
+the kiosk launches a text editor as a placeholder, and realised the docs are
+behind the shell — usual day-one stuff, but it wobbled me.
 
 **What he'd love.** No egress for the child's account, enforced under the
-session rather than inside it. Zero telemetry. Everything configurable in plain
-TOML I can read, diff and back up. Open formats in the Journal — PNGs, not a
-database. Atomic updates with rollback, genuinely better than my own laptop
-does. And the refusal list: no browser, no store, no video, no chat, no points,
-no generative AI in the child session.
+session rather than inside it. Zero telemetry. Plain TOML I can read, diff and
+back up. Open formats in the Journal — PNGs, not a database. Atomic updates with
+rollback. And the refusal list: no browser, no store, no video, no chat, no
+points, no generative AI in the child session.
 
-**What worries him.** Four things, roughly in order.
+**What worries him.** Four things, in order.
 
 *Updates.* There is no update mechanism on the device — no unit, no timer, no
 button, no notification. "Parent-driven" today means me remembering to SSH in. A
@@ -215,13 +212,13 @@ machine in a playroom corner will sit unpatched for a year.
 leaves the `parent` account locked. That's my laptop and my child's drawings
 behind a door I can't open.
 
-*Adding things.* Activity manifests live in `/usr/share`, which the image owns
-and every upgrade replaces. So "can I add an app?" today means "fork and rebuild
-the image" — a hobby, not a feature.
+*Adding things.* Activity manifests live in `/usr/share`, which every upgrade
+replaces. So "can I add an app?" means "fork and rebuild the image" — a hobby,
+not a feature.
 
-*Getting her work out.* Her drawings sit in the child account's home directory
-and I'm a different user. No printing, no export, no "send to Granny" — all
-roadmap. That was going to be the thing that sold this to my mum.
+*Getting her work out.* Her drawings sit in the child account's home and I'm a
+different user. No printing, no export, no "send to Granny" — all roadmap. That
+was going to be the thing that sold this to my mum.
 
 Minor, but he'd say it: PIN 1234 with a fixed public salt in a public repo means
 the hash is decorative and identical everywhere.
@@ -300,9 +297,10 @@ Not once.
    here on their own, and it is the thing that makes the machine feel like it
    makes things rather than contains them.
 5. **An install-and-update story for a parent.** An ISO you can follow, an
-   account you can't get locked out of, updates that arrive on the device with a
-   button and a notification, and one printed page: what the screens mean, what
-   to press, what to do when it won't start.
+   account you can't get locked out of, and one printed page: what the screens
+   mean, what to press, what to do when it won't start. Updates need to arrive
+   on the device with a button and a notification — but the signing policy has
+   to land *before* the button, not after (see the addendum).
 
 ### Things the team is proud of that parents don't care about
 
@@ -326,3 +324,42 @@ Not once.
   except Tom, who wanted to verify it. Mags asked how she could check for
   herself, which is the useful version of this: a plainly-worded, verifiable
   claim, not an architecture.
+
+---
+
+## Addendum — what the expert forum confirmed
+
+Posted to `2026-08-23-forum.jsonl` as #4, #9, #13, #16; replies at #56–#59. The
+other reviewers found the code behind four of our parents' hunches, and one of
+them changed an ask.
+
+- **Mags's PIN worry is worse than she could see** (#44). The shell *has* a
+  warning row for an unconfigured gate, but it only fires when no `pin_hash` is
+  found — and `/etc/kidnix/parent.toml` ships *with* the 1234 hash. So on a
+  stock install the warning never appears: the one signal that the lock is open
+  is suppressed by the file that opens it. Her instinct that "nobody would ever
+  tell me" is exactly right.
+- **Dan's "Home grows" has a specific mechanism** (#40, #41). `All done` is kept
+  last in the tile list, so every reveal moves the end-my-own-session button one
+  cell along. The escape hatch is the thing that relocates. The band does the
+  same at the ending offer, swapping two buttons for two others in place (#55).
+- **Dan's sound worry is confirmed with numbers** (#39). There is no volume,
+  mute or quiet control anywhere in the shell — only an unbypassable 70%
+  hardware ceiling, which is a ceiling, not a control. The earcons attack in
+  0.4–4 ms against the project's own ≥150 ms fade-in requirement, and "calm
+  mode" is unimplemented.
+- **The tiles really are the same picture** (#37, #35, #50). The icon fallback
+  collapses every "make" activity to one bundled pencil and every "learn"
+  activity to one open book — visible in `demo-home-firstrun.png`, where five of
+  six tiles carry two pictures between them. That is the pre-reader-first claim
+  failing on the first screen.
+- **Priya's "+10 minutes" is a trap** (#14, #46, #59). A grant too short to be a
+  session starts a sitting already inside "put your things away", so the kindest
+  control a parent has can break the afternoon. Refuse the short grant in the
+  gate, and say no at "Who's here?" — before the child has committed to a plan.
+- **Tom's update ask was reordered by the review** (#48, #58). An update button
+  that pulls from ghcr with no signature policy on the device is a worse
+  position than being unpatched. Policy and pinned identity first, button
+  second. Same thread: with `PasswordAuthentication no` and a locked `parent`
+  account, an install done wrong has no recovery path but a rescue USB — and the
+  child's journal is not backed up by anything, anywhere.
