@@ -176,6 +176,24 @@ jobs:
           cosign sign --yes \
             "${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}"
 
+      # Key-based signature: the image's own /etc/containers/policy.json
+      # verifies THIS key (system_files/etc/pki/containers/kidnix.pub) before
+      # `bootc upgrade` replaces the OS. Keyless can't be expressed in
+      # policy.json for a GHA identity (see build_files/75-supply-chain.sh),
+      # so this is the signature the device actually checks.
+      - name: Sign image (device-verified key)
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+            "${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          cosign verify --key system_files/etc/pki/containers/kidnix.pub \
+            "${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}" >/dev/null
+
       # Every push adds a ~7 GB version; keep the registry from growing
       # without bound. Untagged versions are signature/attestation leftovers
       # and sha-only builds; tagged `latest`/date tags are kept by the count.
