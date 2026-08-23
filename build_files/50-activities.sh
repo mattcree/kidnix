@@ -47,10 +47,18 @@ ACTIVITY_PACKAGES=(
     # deps are in -- but see FLUIDSYNTH_SOUNDFONT_EXCLUDE below.
     tuxmath
 
-    # kiwix-serve, for the offline library. The ZIM content itself is NOT
-    # shipped here (Simple Wikipedia mini alone is 450 MB); the parent adds it.
-    # kiwix-desktop is deliberately skipped: it drags 438 MiB of Qt5, and the
-    # shell will render the library through its own view instead.
+    # kiwix-serve, for the offline library. 7 MiB, and it is a SERVER: there is
+    # no window and there is no viewer for it on this image, so as of
+    # 2026-08-23 there is NO Library manifest either. `kiwix.toml` used to ship
+    # and was deleted: a tile whose exec is a headless daemon is a button that
+    # takes a child somewhere nothing appears. The package stays because the
+    # viewer is the missing half and adding it back is then one manifest, not a
+    # rebuild -- but nothing on a child's screen points at it today.
+    #
+    # The ZIM content is not shipped here either (Simple Wikipedia mini alone is
+    # 450 MB); a parent drops one in /var/lib/kidnix/library. kiwix-desktop is
+    # deliberately skipped: it drags 438 MiB of Qt5 for a UI a child should not
+    # see.
     kiwix-tools
 
     # TTS baseline for pre-readers. Both are already in base-main today; listing

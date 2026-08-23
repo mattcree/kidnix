@@ -2,7 +2,7 @@
 <title>Letters</title>
 <!-- Depictive, not a glyph (ADR-0011): for a child with no English, low vision
      or a colour-vision deficiency the picture is the only persistent channel.
-     A plain postal envelope with a drawing sticking out of it -- a sun and a
+     A plain postal envelope with a drawing sticking out of it: a sun and a
      hill in a child's hand, the thing this activity actually sends. The
      drawing is *on top of* the envelope flap so the shape reads as "something
      going in", which is the verb; an envelope on its own reads as "post" in

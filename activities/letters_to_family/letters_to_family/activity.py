@@ -1,12 +1,22 @@
 """The window: four screens, forwards, and a shelf off to one side.
 
     Who for?  ->  Make it  ->  Post it        (+ Letters for you)
+       ^                                             |
+       +----------  "Write a letter"  ---------------+
 
 That is the whole navigation. There is no menu, no tab bar, no back button of
 our own (Back is the shell's, one screen up, in a fixed place -- SDK section
 3.4) and no way to reach a screen out of order. B1's flat, spatially stable
 layout for a pre-reader is the reason, and a five-year-old who has pressed
 Grandad's face should be looking at pictures, not at choices.
+
+The one arrow that goes backwards is the shelf's. "Letters for you" is off to
+one side rather than forwards, and until 2026-08-23 it was a **dead end**: a
+child who went to look at Nanna's letter and then wanted to write one had to
+leave the activity through the shell's Back and come in again.
+:meth:`LettersActivity.start_again` is the way out, and it resets ``posted``
+along with the half-made letter -- see its own docstring for why that line is
+the load-bearing one.
 
 Everything this module does that is worth proving is proved somewhere else:
 :mod:`letters_to_family.recipients` knows who may be written to,
@@ -26,8 +36,10 @@ the ring so there is always a way out (A6).
 
 **The voice note is the shell's own** (``kidnix_shell.voice.VoiceNote``): one
 press starts, a second stops, twenty seconds stops it anyway, a level meter
-while it runs, and **the button is simply not there when there is no
-microphone** -- a mic button that does nothing teaches a child that buttons lie.
+while it runs, **it plays itself back once as soon as it stops** (a note the
+child never hears is a note they have no reason to believe in), and **the
+button is simply not there when there is no microphone** -- a mic button that
+does nothing teaches a child that buttons lie.
 
 **Put-away keeps the work and posts nothing.** ``on_finish`` writes the Journal
 entry with :data:`~letters_to_family.letter.STATUS_UNPOSTED` and no outbox copy.
@@ -78,6 +90,33 @@ __all__ = ["LettersActivity", "ScribbleCanvas", "main"]
 #: Where this activity's own stylesheet lives. Loaded third, after the shell's
 #: and the SDK's, and it only adds (see the file's own header).
 ACTIVITY_CSS = Path(__file__).parent / "activity.css"
+
+#: This activity's own drawn icons.
+#:
+#: **Why they are here and not names.** ``kidnix_shell.widgets.icon_image``
+#: resolves an ``icon-name`` against the running icon theme and then against
+#: the *shell's* bundled set (``kidnix_shell/data/icons``). Four names this
+#: file used were in neither, so five controls quietly drew ``image-missing``:
+#: a pre-reader navigating by picture was handed the same broken glyph on
+#: "Draw one", "That's it", "Write it" and "Post it". Three of them are now
+#: drawn here and passed as ``icon_kind="path"``, which is what
+#: :mod:`sounds_and_words.activity` already does; the fourth wanted a picture
+#: the shell already had, and is asked for by that name.
+#:
+#: A path is safe *for an activity* in a way it is not for a manifest: this one
+#: is computed from ``__file__`` at run time, so it follows the package
+#: wherever site-packages puts it. See ``kidnix_shell/data/icons/README.md``
+#: for the drawing rules these three follow, and ``tests/test_icons.py`` for
+#: the check that every name this module reaches for resolves to a file.
+ICON_DIR = Path(__file__).parent / "icons"
+
+#: The shell's own "a box of pictures" icon, which is what the shelf is.
+SHELF_ICON = "kidnix-my-things"
+
+
+def icon(name: str) -> str:
+    """One of :data:`ICON_DIR`'s SVGs, as an absolute path."""
+    return str(ICON_DIR / f"{name}.svg")
 
 #: How many of the child's own recent pictures are offered. Four, plus "draw
 #: one" -- five controls, which is B2's ceiling for a choice screen.
@@ -410,7 +449,8 @@ class LettersActivity:
         row.append(
             BigButton(
                 _(words.DRAW_ONE),
-                icon="kidnix-draw",
+                icon=icon("draw"),
+                icon_kind="path",
                 speak_text=_(words.DRAW_ONE),
                 on_activate=self.start_drawing,
                 speech=self.app.speech,
@@ -475,7 +515,8 @@ class LettersActivity:
         controls.append(
             BigButton(
                 _(words.KEEP_LABEL),
-                icon="kidnix-keep",
+                icon=icon("keep"),
+                icon_kind="path",
                 speak_text=_(words.KEEP_SPEAK),
                 on_activate=self.finish_drawing,
                 speech=self.app.speech,
@@ -563,7 +604,8 @@ class LettersActivity:
         choices.append(
             BigButton(
                 _(words.WRITE_IT),
-                icon="kidnix-word",
+                icon=icon("word"),
+                icon_kind="path",
                 speak_text=_(words.WRITE_IT),
                 on_activate=self.show_caption,
                 speech=self.app.speech,
@@ -600,7 +642,8 @@ class LettersActivity:
 
         self.post_button = BigButton(
             _(words.POST_IT),
-            icon="kidnix-keep",
+            icon=icon("keep"),
+            icon_kind="path",
             speak_text=_(words.POST_IT),
             on_activate=self.post,
             speech=self.app.speech,
@@ -718,9 +761,26 @@ class LettersActivity:
             self.level_bar.set_value(max(0.0, min(1.0, level)))
 
     def _on_voice_saved(self, path: Path) -> None:
+        """Keep it, and **play it back once, immediately**.
+
+        The playback is not a nicety. ``kidnix_shell.voice``'s third rule is
+        "it plays back once, immediately, and then stops -- a note the child
+        never hears is a note they have no reason to believe in", and this
+        activity was the one place that recorded a voice note and then said
+        nothing at all: the level meter stopped moving and that was the entire
+        confirmation a five-year-old got that their voice was in the letter.
+
+        Same player as a reply on the shelf (:meth:`play_sound`), so it honours
+        the child's volume and mute, and it fails to silence rather than to an
+        error. There is no replay control and no "keep or discard?": pressing
+        the button again simply records over it, which is the rest of that same
+        rule.
+        """
         if self.letter is not None:
             self.letter.voice = path
         log.info("voice note kept (%s, up to %.0f seconds)", path.name, MAX_SECONDS)
+        if not self.play_sound(path):
+            log.info("nothing played %s back; the child got no confirmation", path.name)
 
     # -- posting ---------------------------------------------------------
 
@@ -786,7 +846,7 @@ class LettersActivity:
     def _shelf_button(self) -> BigButton:
         button = BigButton(
             _(words.SHELF_TITLE),
-            icon="kidnix-journal",
+            icon=SHELF_ICON,
             speak_text=words.shelf_button(len(self.replies)),
             on_activate=self.build_shelf,
             speech=self.app.speech,
@@ -826,7 +886,57 @@ class LettersActivity:
             self.tiles[str(reply.path)] = tile
             row.append(tile)
         box.append(row)
+        box.append(self._write_one_button())
         self._refresh_ring()
+
+    def _write_one_button(self) -> BigButton:
+        """The way off the shelf. **The shelf is not a dead end.**
+
+        Every other screen in this activity leads forwards and the shell's Back
+        goes one screen *up*, out of the activity -- so "Letters for you" was
+        somewhere a child could get to and not get out of without leaving
+        Letters altogether. This is the same idiom as :meth:`_shelf_button`
+        pointing the other way: one big control, centred, under the tiles.
+        """
+        button = BigButton(
+            _(words.WRITE_ONE),
+            icon=icon("word"),
+            icon_kind="path",
+            speak_text=_(words.WRITE_ONE_SPEAK),
+            on_activate=self.start_again,
+            speech=self.app.speech,
+            area=self.area,
+        )
+        button.set_halign(Gtk.Align.CENTER)
+        return button
+
+    def start_again(self) -> None:
+        """Back to "Who is your letter for?", with a clean sheet.
+
+        **Every bit of the half-made letter is dropped, on purpose.** A child
+        arrives here either from the shelf (having posted, or having read a
+        reply) or from the posted card; in both cases the next letter is a new
+        letter and must not inherit the last one's drawing, words or voice.
+
+        ``posted`` is reset with them, and that is the load-bearing line: it is
+        what :meth:`finish` consults to decide whether there is anything to
+        keep on the way out. Leaving it True after a second letter had been
+        started would throw that letter away at put-away time -- the one thing
+        this activity promises never to do.
+        """
+        self.letter = None
+        self.posted = False
+        self.scribble = Scribble()
+        self.canvas = None
+        self.post_button = None
+        self.voice_button = None
+        self.level_bar = None
+        if self.window is None:  # pragma: no cover - no window, nothing to draw
+            return
+        if self.people:
+            self.build_who(self.window)
+        else:
+            self.build_nobody(self.window)
 
     def open_reply(self, reply: Reply) -> None:
         """Show one reply big, and say who it is from. Read-only."""
@@ -861,7 +971,7 @@ class LettersActivity:
         buttons.append(
             BigButton(
                 _(words.SHELF_TITLE),
-                icon="kidnix-journal",
+                icon=SHELF_ICON,
                 speak_text=_(words.SHELF_TITLE),
                 on_activate=self.build_shelf,
                 speech=self.app.speech,
@@ -871,21 +981,26 @@ class LettersActivity:
         box.append(buttons)
         self._refresh_ring()
 
-    def play_reply(self, reply: Reply) -> bool:
-        """Play the voice in a reply, through the shell's own player.
+    def play_sound(self, path: Path | None) -> bool:
+        """Play one sound file through the shell's own player.
 
         Uses ``Earcons`` because it is the one audio path the SDK already gives
         an activity and it already honours the child's volume and mute. It
-        degrades to False and silence rather than raising: a reply that will not
-        play is a picture the child can still look at.
+        degrades to False and silence rather than raising: a sound that will
+        not play must never be the reason a screen stops working.
         """
-        if reply.voice is None:
+        if path is None:
             return False
         try:
-            return bool(self.app.earcons.player.play(reply.voice))
+            return bool(self.app.earcons.player.play(path))
         except Exception as exc:  # pragma: no cover - no audio on this machine
-            log.info("could not play %s (%s)", reply.voice, exc)
+            log.info("could not play %s (%s)", path, exc)
             return False
+
+    def play_reply(self, reply: Reply) -> bool:
+        """Play the voice in a reply. A picture the child can still look at is
+        what a reply that will not play degrades to."""
+        return self.play_sound(reply.voice)
 
     # -- the end ---------------------------------------------------------
 

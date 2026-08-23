@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from .. import catalogue, config_io, system
@@ -36,6 +37,8 @@ class PanelState:
         etc: Path = config_io.ETC,
         usr: Path = config_io.USR,
         synchronous: bool = False,
+        photo_dir: Path = system.PHOTO_DIR,
+        installed: Callable[[catalogue.Entry], bool] = catalogue.is_installed,
     ) -> None:
         #: Run privileged helpers inline rather than on a thread. True in the
         #: tests and under ``--screenshot``, where there is no main loop for a
@@ -43,6 +46,14 @@ class PanelState:
         self.synchronous = synchronous
         self.etc = etc
         self.usr = usr
+        #: Where family photographs are copied so the CHILD can read them. An
+        #: argument so a test never writes outside its tmp_path.
+        self.photo_dir = photo_dir
+        #: "Is the program this manifest names actually on the machine?" An
+        #: argument for the same reason ``runner`` is: the real answer forks
+        #: ``flatpak info`` and depends on what this laptop happens to have
+        #: installed, and a widget test must not.
+        self.installed = installed
         self.runner = runner
         self.panel = panel if panel is not None else config_io.load_model(etc, usr)
         self.activities = (
@@ -92,13 +103,26 @@ class PanelState:
         Everything goes together on purpose: a parent who changed the session
         length *and* added a child should type their password once and get one
         sentence back, not two prompts and an ambiguous half-saved machine.
+
+        **One thing happens before the payload is built**: every family
+        photograph is copied into ``/var/lib/kidnix/photos`` and the model is
+        rewritten to point at the copy. It happens here, unprivileged, as the
+        grown-up who chose the file -- not in the root helper, which must never
+        be asked to copy a path its caller named and could not read. See
+        :func:`kidnix_parent_panel.system.install_photo`.
         """
         problems = V.fatal(self.problems())
         if problems:
             return system.ApplyResult(False, (), problems[0].message)
+        self.panel.family, photo_notes = system.install_photos(self.panel.family, self.photo_dir)
         result = system.apply_settings(self.panel.to_payload(), self.runner)
         if result.ok:
             self.clear_dirty()
+            if photo_notes:
+                # A save that worked, with something the parent has to know:
+                # one of their photographs did not make it to where the child
+                # can see it, and silence there is what the whole bug was.
+                return replace(result, message=" ".join(photo_notes))
         return result
 
     def reload(self) -> None:

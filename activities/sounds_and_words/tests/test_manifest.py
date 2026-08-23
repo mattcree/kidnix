@@ -100,8 +100,19 @@ def test_there_is_a_picture_as_well_as_a_word(manifest):
 
 
 def test_the_goal_line_is_the_honest_one(manifest):
+    """Two sentences of what it is not, and one of what it is.
+
+    The middle sentence was added by the honesty audit. The activity has **no
+    phoneme recordings on the image** -- `phonemes.CLIP_DIR` is empty, because
+    the a-z clips in GCompris' voices-en_GB turned out to be the letters'
+    *names* -- so what a child actually hears is the ordinary synthetic voice
+    reading a spelled label ("sss", "shh"). That is a real difference to a
+    parent choosing a phonics activity, and the goal line is the one sentence
+    in the schema written for them.
+    """
     assert manifest["goal"] == (
         "Practises the letter sounds the school has already taught. "
+        "The sounds are spoken by the computer voice, not recorded by a person. "
         "Not a reading programme."
     )
 

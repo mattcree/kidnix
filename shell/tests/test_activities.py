@@ -315,7 +315,6 @@ SHIPPED_LABELS = {
     "blinken": ("Copy the lights", "Copy the lights"),
     "kolf": ("Mini golf", "Mini golf"),
     "supertux": ("Jump and run", "Jump and run"),
-    "kiwix": ("Library", "Library"),
     # The first kidnix-written activity to reach a tile (wave: first-party).
     "sounds-and-words": (
         "Sounds & words",
@@ -457,13 +456,6 @@ def test_show_when_unavailable_still_outlines_a_contentless_activity(tmp_path: P
     resolved = resolve_availability([activity], _check(present=()))[0]
     assert resolved.usable is False
     assert resolved.on_home is True  # drawn outline-only, and it says why
-
-
-def test_the_shipped_library_names_a_real_directory() -> None:
-    """The tile the audit found opening nothing now declares what it needs."""
-    kiwix = next(a for a in shipped_activities() if a.id == "kiwix")
-    assert kiwix.content_required == ("/var/lib/kidnix/library/*.zim",)
-    assert resolve_availability([kiwix], _check(present=()))[0].on_home is False
 
 
 # --- age bands (01 #35, SYNTHESIS B8) -------------------------------------

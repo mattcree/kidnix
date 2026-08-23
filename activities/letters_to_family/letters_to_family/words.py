@@ -54,6 +54,8 @@ __all__ = [
     "UNDO_SPEAK",
     "WHO_FOR",
     "WRITE_IT",
+    "WRITE_ONE",
+    "WRITE_ONE_SPEAK",
     "YOUR_LETTER_FOR",
     "all_lines",
     "posted_line",
@@ -132,6 +134,18 @@ POST_IT = N_("Post it")
 
 SHELF_TITLE = N_("Letters for you")
 SHELF_EMPTY = N_("No letters yet. There will be one day.")
+
+#: The way OFF the shelf, and back to the first screen. The shelf used to be a
+#: dead end: every other screen leads forwards, the shelf led nowhere, and the
+#: only way out of it was the shell's own Back, which leaves the activity
+#: altogether. A child who went to look at Nanna's letter and then wanted to
+#: write one had to leave Letters and come back into it.
+#:
+#: The label is what the button DOES rather than where it goes ("Write a
+#: letter", not "Back"): B1 says a pre-reader navigates by picture and by
+#: place, and "back" is a direction, not a thing.
+WRITE_ONE = N_("Write a letter")
+WRITE_ONE_SPEAK = N_("Write a letter to somebody.")
 #: Playing back a reply that came with a voice note.
 LISTEN_LABEL = N_("Listen")
 LISTEN_SPEAK = N_("Hear it.")
@@ -203,6 +217,8 @@ def all_lines() -> list[str]:
             SHELF_EMPTY,
             LISTEN_LABEL,
             LISTEN_SPEAK,
+            WRITE_ONE,
+            WRITE_ONE_SPEAK,
         )
     ] + [
         your_letter_for("Grandad"),

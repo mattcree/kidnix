@@ -5,11 +5,15 @@
 # runs the same validator, so a manifest that would be rejected on the machine
 # is rejected in CI first.
 #
-# NOT yet installed on the image. A later image wave copies the package beside
-# the shell and this file into /usr/share/kidnix/activities/ -- see
-# docs/design/sounds-and-words.md section 12 for that plan and what it has to
-# assert. Until then the tile does not exist, which is correct: a tile that
-# opens a half-built activity is worse than no tile.
+# INSTALLED ON THE IMAGE. `build_files/64-first-party-activities.sh` copies the
+# package beside the shell, installs /usr/bin/kidnix-sounds-and-words, and ships
+# the tile's manifest as
+# `system_files/usr/share/kidnix/activities/sounds-and-words.toml` -- which is a
+# separate file because `order` and the absolute `icon` path are facts about the
+# image, not about the activity. Stage 64 asserts the two agree field by field
+# for everything a child or a parent can perceive, so an edit to `name`,
+# `audio_label`, `goal`, `category`, the age band, `exec`, `quit` or `network`
+# here without the same edit there **fails the build**.
 schema = 1
 
 id = "sounds-and-words"
@@ -24,7 +28,7 @@ audio_label = "Sounds and words. Find the sound, then push the sounds together t
 # held to (research 10 section 4.6 #8, and docs/design/sounds-and-words.md 0).
 # It does not claim to teach reading, because no product in this space has that
 # evidence and two of the best-funded attempts produced -1 month and +0.08.
-goal = "Practises the letter sounds the school has already taught. Not a reading programme."
+goal = "Practises the letter sounds the school has already taught. The sounds are spoken by the computer voice, not recorded by a person. Not a reading programme."
 
 icon = "kidnix-learn"
 icon_kind = "icon-name"

@@ -188,10 +188,13 @@ class SoundPage(Adw.PreferencesPage):
 
         group.add(
             common.note_row(
-                "Not switched on yet. The pace is written down and the child's "
-                "screen still asks for its own; it will start following this with "
-                "an update. Calm mode above already slows the voice today.",
-                warning=True,
+                "In force. The child's screen reads this pace out of the settings "
+                "and sets the voice to it. Calm mode is a floor on it: with calm mode on, "
+                "the voice reads at whichever of the two is slower. Some of what "
+                "the machine says is pre-recorded at the normal pace -- change "
+                "the pace and it stops using those recordings and speaks "
+                "everything instead, which is a shade less pretty and does what "
+                "you asked."
             )
         )
         return group

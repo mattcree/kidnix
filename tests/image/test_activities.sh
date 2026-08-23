@@ -190,7 +190,7 @@ assert_rpm tuxpaint-stamps
 
 section "activity manifests"
 assert_cmd "manifest directory exists" test -d "${ACTIVITY_DIR}"
-for id in tuxpaint gcompris ktuberling blinken klettres kolf supertux tuxmath kiwix turbowarp; do
+for id in tuxpaint gcompris ktuberling blinken klettres kolf supertux tuxmath turbowarp; do
     assert_file "${ACTIVITY_DIR}/${id}.toml"
 done
 assert_cmd "every manifest parses as TOML and carries the full schema" \

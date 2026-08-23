@@ -912,6 +912,30 @@ def test_never_narration_offers_nothing_and_says_nothing(activity):
     assert win.speech.captions.lines == []
 
 
+def test_a_sentence_nothing_said_gets_no_running_highlight(activity):
+    """`window.speak()` returns False when nothing was said -- the voice is
+    off, muted, or there is no backend at all. The highlight is an *estimate*
+    of where a reader is up to, timed off the speech rate, so running it over
+    silence lights words in time with nobody. A child following the wrong cue
+    is worse off than a child following no cue, and this is a reading
+    activity: the lit word is a claim about what is being read aloud."""
+    win, screen = reader(activity, "read_silent")
+    screen.cancel_highlight()
+    win.speak = lambda _text: False
+    screen.read_aloud()
+    assert screen._sources == []
+
+
+def test_a_sentence_that_was_said_does_get_one(activity):
+    """The other half, so the guard above cannot pass by doing nothing."""
+    win, screen = reader(activity, "read_spoken")
+    screen.cancel_highlight()
+    win.speak = lambda _text: True
+    screen.read_aloud()
+    assert screen._sources != []
+    screen.cancel_highlight()
+
+
 def test_the_lit_word_is_marked_in_the_line_and_only_that_word(activity):
     _win, screen = reader(activity, "read_highlight")
     screen.highlight(1)

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Letters: "Write it".
+       A pencil putting a line of writing on a page. The writing is drawn as a
+       running squiggle and three ruled lines rather than as letterforms: no
+       font is guaranteed on the image, a text element would empty the icon,
+       and a pre reader recognises "grown up writing" by its shape anyway.
+       Told apart from the crayon in draw.svg by the tool (a slim grey pencil,
+       not a fat teal crayon) and by the ruled lines under it. -->
+  <title>Write it</title>
+  <rect x="6" y="12" width="38" height="42" rx="3" fill="#fbf7ef" stroke="#16181d"
+        stroke-width="3.5"/>
+  <path d="M13 26 C17 20 20 32 24 26 C28 20 31 32 36 26" fill="none" stroke="#16181d"
+        stroke-width="3" stroke-linecap="round"/>
+  <path d="M13 36 H36 M13 44 H30" stroke="#8a93b5" stroke-width="3" stroke-linecap="round"/>
+  <g transform="rotate(40 47 30)">
+    <rect x="42" y="8" width="10" height="26" rx="2" fill="#8a93b5" stroke="#16181d"
+          stroke-width="3"/>
+    <path d="M42 34 H52 L47 44 Z" fill="#f6c9a8" stroke="#16181d" stroke-width="3"
+          stroke-linejoin="round"/>
+    <path d="M45.5 40 H48.5 L47 44 Z" fill="#16181d"/>
+  </g>
+</svg>

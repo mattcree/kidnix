@@ -89,9 +89,9 @@ def test_the_machine_allow_list_is_written_at_the_top():
 def test_the_shared_list_note_appears_only_when_lists_differ():
     panel = household()
     panel.set_allowed("rosie", ("blinken",))
-    assert "union of them" in config_io.render_parent_toml(panel)
+    assert "the union here is the machine-wide default" in config_io.render_parent_toml(panel)
     panel.set_allowed("rosie", ("tuxpaint", "kolf"))
-    assert "union of them" not in config_io.render_parent_toml(panel)
+    assert "the union here is the machine-wide default" not in config_io.render_parent_toml(panel)
 
 
 def test_per_child_lists_are_written_inside_each_profile():
@@ -121,11 +121,17 @@ def test_next_after_blocks_survive_a_round_trip():
     assert data["next_after"][0]["id"] == "trampoline"
 
 
-def test_session_toml_carries_the_windows_and_says_they_are_not_read_yet():
+def test_session_toml_carries_the_windows_and_says_they_are_enforced():
+    """The comment used to say the shell did not read `[[windows]]`. It does --
+    `session.parse_windows` plus `StartRefusal.OUT_OF_HOURS` -- and a file that
+    tells a parent their schedule is inert is how a child gets locked out by
+    somebody who thought they were writing a note to the future."""
     text = config_io.render_session_toml(household())
     data = tomllib.loads(text)
     assert data["windows"][0]["days"] == list(M.WEEKEND)
-    assert "DOES NOT READ THIS YET" in text
+    assert "THESE ARE ENFORCED" in text
+    assert "NO windows at all means NO restriction" in text
+    assert "DOES NOT READ THIS YET" not in text
 
 
 def test_session_toml_omits_the_windows_section_when_there_are_none():
@@ -216,3 +222,52 @@ def test_a_full_file_round_trip_is_stable(tmp_path):
     again = config_io.load_model(tmp_path, tmp_path)
     assert config_io.render_parent_toml(again) == first_parent
     assert config_io.render_session_toml(again) == first_session
+
+
+# --- a per-child language, which only a hand-edit can set today -------------
+
+
+def test_a_hand_set_language_survives_apply(tmp_path):
+    """The panel offers no UI for ``[[profiles]] language`` and the shell reads
+    it (ADR-0012). Until the audit, re-rendering ``parent.toml`` -- which is
+    what pressing Apply does, over the whole file -- silently dropped the key,
+    so a bilingual household's Welsh profile turned back into an English one
+    the first time a parent changed the bedtime."""
+    panel = household()
+    (tmp_path / "parent.toml").write_text(
+        config_io.render_parent_toml(panel).replace(
+            'name = "Rosie"', 'name = "Rosie"\nlanguage = "cy_GB"', 1
+        )
+    )
+    (tmp_path / "session.toml").write_text(config_io.render_session_toml(panel))
+
+    again = config_io.load_model(tmp_path, tmp_path)
+    assert again.child("rosie").language == "cy_GB"
+    assert again.child("sam").language == ""
+
+    # ... and it is still there after the panel has written the file back.
+    data = tomllib.loads(config_io.render_parent_toml(again))
+    by_id = {p["id"]: p for p in data["profiles"]}
+    assert by_id["rosie"]["language"] == "cy_GB"
+    assert "language" not in by_id["sam"], 'an empty language is left out, not written as ""'
+
+
+def test_a_language_survives_the_payload_as_well(tmp_path):
+    """Apply does not hand the model to the renderer: it goes model -> payload
+    -> pkexec -> model -> TOML, and a field missing from either half of the
+    payload is a field that dies crossing the boundary."""
+    panel = household()
+    panel.update_child("rosie", language="pl_PL")
+    again = M.PanelModel.from_payload(panel.to_payload())
+    assert again.child("rosie").language == "pl_PL"
+    assert 'language = "pl_PL"' in config_io.render_parent_toml(again)
+
+
+def test_a_retired_child_keeps_their_language_too(tmp_path):
+    """Retiring is a move between two tables, not a deletion, and the whole
+    point is that putting the face back puts everything back."""
+    panel = household()
+    panel.update_child("sam", language="cy_GB")
+    panel.retire_child("sam")
+    data = tomllib.loads(config_io.render_parent_toml(panel))
+    assert data["retired_profiles"][0]["language"] == "cy_GB"

@@ -139,10 +139,22 @@ class ParentPanelWindow(Adw.ApplicationWindow):
         def finished(result: object) -> None:
             busy.finish()
             self._on_state_changed()
+            # Saving is the one thing that CHANGES the model rather than only
+            # writing it out: it copies every family photograph into
+            # /var/lib/kidnix/photos and rewrites the paths to point there. So
+            # the Family tab is redrawn either way -- after a refusal too, when
+            # the copy has happened and the write has not.
+            self.pages["family"].refresh()
             if isinstance(result, Exception):
                 self.say(f"The settings could not be saved: {result}")
             elif getattr(result, "ok", False):
-                self.say(APPLIED_NOTE)
+                # A successful save carries a message only when something a
+                # parent has to know happened alongside it -- today, a family
+                # photograph that could not be copied where the child can see
+                # it. Saying APPLIED_NOTE over that would be the silence the
+                # photograph bug was made of.
+                note = getattr(result, "message", "")
+                self.say(f"{APPLIED_NOTE} {note}" if note else APPLIED_NOTE)
             else:
                 self.say(getattr(result, "message", "") or "Nothing was saved.")
 

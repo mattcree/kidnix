@@ -817,7 +817,9 @@ has to do, in one commit:
    Python file.
 5. **A tile**, "Sounds & words", `category = "learn"`, `age_band = "4-6"`, with
    the goal line from the manifest verbatim: *"Practises the letter sounds the
-   school has already taught. Not a reading programme."*
+   school has already taught. The sounds are spoken by the computer voice, not
+   recorded by a person. Not a reading programme."* (the middle sentence added
+   2026-08-23, honest until Matt's recordings land — §14)
 6. **An icon.** The manifest names `kidnix-learn`, which is the shell's own
    bundled category icon. A drawing of its own belongs in `docs/design/
    icons-brief.md` with the rest.

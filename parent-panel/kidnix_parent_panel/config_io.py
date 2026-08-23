@@ -141,10 +141,11 @@ def render_parent_toml(panel: M.PanelModel) -> str:
         out += [
             "#",
             "# NOTE: this machine has more than one child and they were given different",
-            "# lists. The shell reads ONE list, so the line above is the union of them;",
-            "# each child's own list is written in their [[profiles]] block below and",
-            "# will be honoured when the shell learns to read it. Age bands are already",
-            "# per child, so the youngest still does not see the six-plus activities.",
+            "# lists. Each child's own list is in their [[profiles]] block below and IS",
+            "# what the shell uses: ParentConfig.allows() reads the profile's list first",
+            "# and only falls back to the line above when that child's list is empty. So",
+            "# the union here is the machine-wide default, not the rule any of these",
+            "# children is actually held to. Age bands apply on top, per child.",
         ]
 
     out += [
@@ -154,10 +155,14 @@ def render_parent_toml(panel: M.PanelModel) -> str:
         f"calm = {_bool(panel.sound.calm)}",
         f"sound_volume = {round(panel.sound.sound_volume, 3)}",
         f"mute = {_bool(panel.sound.mute)}",
-        "# Read-aloud pace, as a speech-dispatcher rate (-100..100). The shell asks",
-        f"# for {M.DEFAULT_SPEECH_RATE} today; kidnix-piperd turns this into piper's length_scale",
-        f"# (1.0 - rate/200 = {panel.sound.length_scale:.2f}). NOT READ BY THE SHELL YET --",
-        "# docs/design/parent-panel.md section 7.3.",
+        "# Read-aloud pace, as a speech-dispatcher rate (-100..100). Read by the shell",
+        f"# (kidnix_shell.access.load_access; the built-in default is {M.DEFAULT_SPEECH_RATE}) and applied",
+        "# to the voice at start-up and on every profile switch. Calm mode caps it, so",
+        "# the rate the child hears is effective_speech_rate, not always this number.",
+        f"# kidnix-piperd turns it into piper's length_scale (1.0 - rate/200 = {panel.sound.length_scale:.2f}).",
+        "# A rate other than the one the pre-rendered clips were made at switches that",
+        "# catalogue off and Piper speaks everything, because a recording has one tempo",
+        "# and the accessibility setting wins -- docs/design/parent-panel.md section 7.3.",
         f"speech_rate = {panel.sound.speech_rate}",
         "",
         "# How fast Home grows. show_everything = true is 'keep the grid the same':",
@@ -190,8 +195,14 @@ def render_parent_toml(panel: M.PanelModel) -> str:
     for recipient in panel.family:
         out += [
             "",
-            "# Someone a drawing or a letter could be sent to. DATA ONLY: nothing on",
-            "# this machine sends anything anywhere yet.",
+            "# Someone a letter goes to. Read by the Letters activity, which shows",
+            "# these people (in this order) as the faces on 'Who is your letter for?'.",
+            "# There is no address here and there is no sending: a posted letter is",
+            "# written into /var/lib/kidnix/outbox/<profile>/ and waits for a grown-up",
+            "# to send it by their own means. Replies go the other way, into",
+            "# /var/lib/kidnix/inbox/<profile>/. `photo` must be readable by the CHILD's",
+            "# account -- the panel copies whatever a parent picks into",
+            "# /var/lib/kidnix/photos/ for exactly that reason.",
             "[[family]]",
             f"id = {toml_str(recipient.id)}",
             f"name = {toml_str(recipient.name)}",
@@ -209,7 +220,19 @@ def render_parent_toml(panel: M.PanelModel) -> str:
 
 
 def _profile_lines(child: M.Child) -> list[str]:
-    return [
+    """One ``[[profiles]]`` table.
+
+    ``language`` is written **only when this child has one**, and it is written
+    at all so that a hand-set value survives an Apply. The panel offers no way
+    to choose a language per child (ADR-0012's UI is still to come); until it
+    does, editing ``parent.toml`` is the only route, and a re-render that
+    dropped the key would quietly move a Welsh-speaking child back into English
+    the next time a parent touched an unrelated setting. The empty string is
+    left out rather than written, because ``language = ""`` and no key at all
+    mean the same thing to the shell and the shorter one is what the shipped
+    file looks like.
+    """
+    lines = [
         f"id = {toml_str(child.id)}",
         f"name = {toml_str(child.name)}",
         f"colour_primary = {toml_str(child.colour_primary)}",
@@ -218,10 +241,19 @@ def _profile_lines(child: M.Child) -> list[str]:
         f"badge = {toml_str(child.badge)}",
         f"age_band = {toml_str(child.age_band)}",
         f"skip_next_choice = {_bool(child.skip_next_choice)}",
-        "# This child's own allow-list. Empty means everything their age band leaves.",
-        "# Not read by the shell yet -- see allowed_activity_ids at the top.",
+        "# This child's own allow-list, and the one the shell actually applies to them:",
+        "# ParentConfig.allows() consults this first and only falls back to the",
+        "# machine-wide allowed_activity_ids at the top when this list is empty. Empty",
+        "# therefore means everything their age band leaves, never nothing.",
         f"allowed_activity_ids = {toml_list(child.allowed_activity_ids)}",
     ]
+    if child.language:
+        lines += [
+            "# This child's own language (ADR-0012). Set by hand; carried across every",
+            "# re-render so the panel cannot undo it. Empty or absent = the machine's.",
+            f"language = {toml_str(child.language)}",
+        ]
+    return lines
 
 
 def render_session_toml(panel: M.PanelModel) -> str:
@@ -259,13 +291,13 @@ def render_session_toml(panel: M.PanelModel) -> str:
             "# three letters, lower case; times are 24-hour; a window whose end is at or",
             "# before its start runs past midnight into the next morning.",
             "#",
-            "# **THE SHELL DOES NOT READ THIS YET.** It is valid TOML and load_policy()",
-            "# ignores unknown keys, so writing it costs nothing today and means a",
-            "# household that has already told the machine 'weekends after lunch' gets",
-            "# it honoured by an upgrade rather than by setting everything up again.",
-            "# The follow-up is specified in docs/design/parent-panel.md section 7.1:",
-            "# Session.may_start gains a StartRefusal.OUT_OF_HOURS and the Resting",
-            "# screen's 'when' reads the next window's start.",
+            "# **THESE ARE ENFORCED.** kidnix_shell.session.load_policy() parses them",
+            "# (parse_windows) and Session.may_start refuses with",
+            "# StartRefusal.OUT_OF_HOURS outside every one of them -- the child gets the",
+            "# Resting screen, which reads the next window's start and says when the",
+            "# computer is awake again. A malformed window is skipped with a warning,",
+            "# and NO windows at all means NO restriction (never 'nothing is allowed'),",
+            "# which is the same empty-means-all rule as allowed_activity_ids.",
             "#",
             "# Bedtime still applies on top of these, and the stricter of the two wins.",
         ]

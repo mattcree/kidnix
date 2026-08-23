@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Letters: "That's it" and "Post it".
+       One drawing going into an open box. It has to read as both, because it
+       is on both buttons: keeping a picture and posting a letter are the same
+       gesture to a five year old, and a postbox IS a box you put paper into.
+       The box is the same yellow box as the shell's My Things icon, on purpose:
+       that is where the picture ends up. -->
+  <title>Put it in</title>
+  <path d="M16 12 H44 L48 26 H12 Z" fill="#fbf7ef" stroke="#16181d" stroke-width="3"
+        stroke-linejoin="round"/>
+  <path d="M22 20 H38 M22 15 H38" stroke="#8a93b5" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M8 30 H56 V54 H8 Z" fill="#ffd23f" stroke="#16181d" stroke-width="3.5"
+        stroke-linejoin="round"/>
+  <path d="M8 30 H56" stroke="#16181d" stroke-width="3.5"/>
+  <path d="M22 38 L29 45 L43 33" fill="none" stroke="#16181d" stroke-width="4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

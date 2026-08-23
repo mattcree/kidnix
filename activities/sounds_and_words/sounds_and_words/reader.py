@@ -441,7 +441,13 @@ class ReadIt:
         """
         if self.narration is Narration.NEVER:
             return
-        self.owner.window.speak(self.page.sentence)
+        if not self.owner.window.speak(self.page.sentence):
+            # Nothing was said -- the voice is off, muted, or there is no
+            # speech backend on this machine. The highlight is an estimate of
+            # where a *reader* is up to, so running it over a silent page
+            # would light words in time with nobody, which is worse than not
+            # lighting them at all: a child would follow the wrong cue.
+            return
         self.start_highlight()
 
     def start_highlight(self) -> None:

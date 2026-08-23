@@ -67,6 +67,18 @@ age_max = 10
 exec = ["tuxpaint"]
 """
 
+FLATPAK = """\
+schema = 1
+id = "turbowarp"
+name = "Make a game"
+goal = "Blocks that make something move."
+order = 30
+category = "make"
+age_min = 6
+age_max = 10
+exec = ["flatpak", "run", "org.turbowarp.TurboWarp"]
+"""
+
 OLDER = """\
 schema = 1
 id = "tuxmath"
@@ -100,6 +112,13 @@ def state(tmp_path):
         # Inline: pytest has no GTK main loop, so a thread's answer would never
         # come back and every assertion after a button press would race it.
         synchronous=True,
+        photo_dir=tmp_path / "photos",
+        # This laptop has neither Tux Paint nor TuxMath, and the Activities tab
+        # now draws a note instead of a switch for a program that is not there.
+        # Which is right on a real machine and useless in a widget test, so the
+        # fixture answers the question itself. `installed_check` below is where
+        # the other half is asserted.
+        installed=lambda entry: True,
     )
 
 
@@ -150,10 +169,24 @@ def test_time_page_shows_the_budget_arithmetic(state):
     assert "2 full 25-minute sittings" in text
 
 
-def test_time_page_says_the_windows_are_not_read_yet(state):
+def test_time_page_says_what_a_schedule_window_actually_does(state):
+    """It used to say "Not switched on yet ... setting one changes nothing
+    today". The shell has read `[[windows]]` for some time, and that sentence
+    is the dangerous kind of stale: a parent who believes it sets one
+    carelessly and locks their child out of the machine."""
     page = time_tab.TimePage(state)
     text = " ".join(w.get_label() for w in rows(page) if isinstance(w, Gtk.Label) and w.get_label())
-    assert "Not switched on yet" in text
+    assert "Not switched on yet" not in text
+    assert "no windows set" in text.lower()
+
+    state.panel.time = replace(
+        state.panel.time,
+        windows=(M.ScheduleWindow(days=M.WEEKEND, start="09:30", end="12:00"),),
+    )
+    page.refresh()
+    text = " ".join(w.get_label() for w in rows(page) if isinstance(w, Gtk.Label) and w.get_label())
+    assert "These are in force" in text
+    assert "will not start a session at all" in text
 
 
 def test_activities_page_shows_the_goal_line(state):
@@ -220,10 +253,16 @@ def test_things_page_offers_copy_print_and_delete(state):
     assert "Delete everything they have made" in found
 
 
-def test_family_page_says_nothing_sends_anything_yet(state):
+def test_family_page_names_the_outbox_and_the_inbox(state):
+    """It used to say "'send to family' is not built". Letters ships, this list
+    is what it reads, and the sneakernet -- a folder a grown-up posts from and
+    a folder they drop replies into -- was documented nowhere a parent looks."""
     page = family_tab.FamilyPage(state)
     text = " ".join(w.get_label() for w in rows(page) if isinstance(w, Gtk.Label) and w.get_label())
-    assert "Nothing sends anything yet" in text
+    assert "not built" not in text
+    assert "/var/lib/kidnix/outbox/" in text
+    assert "/var/lib/kidnix/inbox/" in text
+    assert "YOU ARE THE POSTMAN" in text
 
 
 def test_updates_page_carries_the_whole_honest_page(state):
@@ -252,6 +291,79 @@ def test_the_update_button_is_enabled_when_a_signature_would_be_checked(state, m
     )
     page = updates_tab.UpdatesPage(state)
     assert page._update_button.get_sensitive()
+
+
+def test_roll_back_is_dead_until_there_is_something_to_roll_back_to(state, monkeypatch):
+    """The page already worked out `can_roll_back` and drew a live-looking
+    button beside it either way. On a machine that has never been updated
+    bootc names no rollback, so the press failed with bootc's own words at the
+    exact moment a parent is pressing it because something is wrong."""
+    monkeypatch.setattr(system, "bootc_status", lambda *a, **k: system.BootcStatus(raw_ok=True))
+    page = updates_tab.UpdatesPage(state)
+    assert page._rollback_button is not None
+    assert not page._rollback_button.get_sensitive()
+    assert "nothing to go back to" in page._rollback_row.get_subtitle()
+
+
+def test_roll_back_wakes_up_when_the_previous_version_is_on_the_disk(state, monkeypatch):
+    monkeypatch.setattr(
+        system,
+        "bootc_status",
+        lambda *a, **k: system.BootcStatus(
+            booted_image="ghcr.io/mattcree/kidnix:latest",
+            rollback_image="ghcr.io/mattcree/kidnix:latest",
+            rollback_version="0.1.0",
+            raw_ok=True,
+        ),
+    )
+    page = updates_tab.UpdatesPage(state)
+    assert page._rollback_button.get_sensitive()
+    assert "0.1.0" in page._rollback_row.get_subtitle()
+
+
+def test_an_activity_that_is_not_installed_is_a_note_and_not_a_switch(tmp_path):
+    """TurboWarp is a Flatpak that installs on first boot, so between the image
+    being written and that finishing there is a manifest for a program that is
+    not there. A switch over it says "this is yours to decide" when there is
+    nothing yet to decide."""
+    (tmp_path / "tuxpaint.toml").write_text(MANIFEST)
+    (tmp_path / "turbowarp.toml").write_text(FLATPAK)
+    panel = M.PanelModel()
+    panel.add_child("Rosie", age_band="4-5")
+    missing = PanelState(
+        panel=panel,
+        activities=catalogue.load(tmp_path),
+        runner=stub_runner,
+        etc=tmp_path,
+        usr=tmp_path,
+        synchronous=True,
+        installed=lambda entry: entry.id != "turbowarp",
+    )
+    page = activities_tab.ActivitiesPage(missing)
+    assert _row_titled(page, "Draw") is not None
+    assert _row_titled(page, "Make a game") is None
+    text = " ".join(w.get_label() for w in rows(page) if isinstance(w, Gtk.Label) and w.get_label())
+    assert "Make a game is not on this machine" in text
+    assert "installs itself the first time" in text
+
+
+def test_the_installed_check_is_the_real_one_by_default(tmp_path):
+    """The seam above must not be the only implementation: `catalogue` really
+    does answer the question, and it is the same two questions the shell asks
+    (`exec[0]` on PATH, plus `flatpak info` for a flatpak)."""
+    entry = catalogue.parse_manifest(
+        {"id": "x", "name": "X", "exec": ["flatpak", "run", "org.example.App"]}, tmp_path / "x.toml"
+    )
+    assert entry.flatpak_ref == "org.example.App"
+    assert catalogue.is_installed(entry, which=lambda _p: None, flatpak=lambda _r: True) is False
+    assert (
+        catalogue.is_installed(entry, which=lambda _p: "/usr/bin/flatpak", flatpak=lambda _r: False)
+        is False
+    )
+    assert (
+        catalogue.is_installed(entry, which=lambda _p: "/usr/bin/flatpak", flatpak=lambda _r: True)
+        is True
+    )
 
 
 # --- the window ------------------------------------------------------------

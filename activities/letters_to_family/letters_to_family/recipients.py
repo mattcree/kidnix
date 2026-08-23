@@ -39,6 +39,7 @@ been failed twice.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import tomllib
 from collections.abc import Mapping, Sequence
@@ -108,20 +109,49 @@ class Recipient:
 
     @property
     def photo_path(self) -> Path | None:
-        """The photo, if a grown-up gave one **and it is really there**.
+        """The photo, if a grown-up gave one **and this account can read it**.
 
-        ``None`` covers all three of the ways this normally goes wrong: no
-        ``photo`` key at all, a path typed with a typo in it, and a photo on a
-        USB stick that is no longer plugged in. All three draw a placeholder,
-        and none of them is an error the child is told about.
+        ``None`` covers the ways this normally goes wrong: no ``photo`` key at
+        all, a path typed with a typo in it, a photo on a USB stick that is no
+        longer plugged in, and a file the *child's* account is not allowed to
+        open. Every one of them draws a placeholder and none of them is an
+        error the child is told about.
+
+        **But it is an error the LOG is told about.** ``Path.is_file()`` eats
+        ``PermissionError`` and answers False, which is how the commonest case
+        of all became invisible: the parent panel used to store the path the
+        file chooser gave it, which is nearly always under ``/var/home/parent``
+        -- 0700, so ``kid`` cannot even stat it. Four chosen photographs became
+        four identical drawn faces with nothing anywhere saying why. The panel
+        now copies into ``/var/lib/kidnix/photos``; this branch is what makes
+        the remaining cases (a hand-edited ``parent.toml``, a file whose mode
+        was changed) findable in one ``journalctl`` instead of never.
         """
         if not self.photo.strip():
             return None
         candidate = Path(self.photo.strip()).expanduser()
         try:
-            return candidate if candidate.is_file() else None
-        except OSError:  # pragma: no cover - a mount that went away mid-read
+            if not candidate.is_file():
+                log.warning(
+                    "the photo for %s is not a file this session can see (%s); "
+                    "drawing a face instead",
+                    self.name,
+                    candidate,
+                )
+                return None
+        except OSError as exc:  # pragma: no cover - a mount that went away mid-read
+            log.warning("could not look at the photo for %s (%s): %s", self.name, candidate, exc)
             return None
+        if not os.access(candidate, os.R_OK):
+            log.warning(
+                "the photo for %s exists but this account may not read it (%s); "
+                "a photo for a child has to live somewhere the child can open, "
+                "such as /var/lib/kidnix/photos",
+                self.name,
+                candidate,
+            )
+            return None
+        return candidate
 
     @property
     def has_photo(self) -> bool:

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 from collections.abc import Callable, Sequence
@@ -160,6 +161,131 @@ def _apply_result(result: Completed) -> ApplyResult:
     if result.returncode == EXIT_INVALID:
         return ApplyResult(False, (), result.message or "Those settings were refused.")
     return ApplyResult(False, (), result.message or f"kidnix-config exited {result.returncode}.")
+
+
+# --- family photographs ---------------------------------------------------
+
+#: Where a face the CHILD can see has to live. ``/var/home/parent`` is 0700, so
+#: the path a file chooser hands back is one the child's account cannot stat --
+#: the Letters activity then draws its placeholder face and says nothing. This
+#: directory is 0755 ``parent:parent``
+#: (``system_files/usr/lib/tmpfiles.d/kidnix-photos.conf``): the panel, which
+#: runs as the grown-up, writes it; ``kid`` reads it and no more.
+PHOTO_DIR = Path("/var/lib/kidnix/photos")
+
+#: What may be copied in. The same two types the Family tab's file chooser
+#: offers, plus the two other things a phone produces. An extension is not a
+#: content check and is not pretending to be one; it is what decides the
+#: copy's own name, and a name the child's screen cannot decode is worse than
+#: a refusal a grown-up can read.
+PHOTO_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+
+
+@dataclass(frozen=True)
+class PhotoResult:
+    """One photograph, after the copy. ``path`` is what to write down."""
+
+    path: str
+    #: One sentence for the parent, empty when there is nothing to say.
+    message: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return not self.message
+
+
+def install_photo(
+    source: str,
+    recipient_id: str,
+    photo_dir: Path = PHOTO_DIR,
+    copy: Callable[[str, str], Any] = shutil.copyfile,
+) -> PhotoResult:
+    """Copy one chosen photograph somewhere the child's account can read it.
+
+    Four answers, and each of them is a fact the parent can act on:
+
+    * **no photograph** -- nothing to do, and not a problem. Most recipients
+      have no photograph and the activity draws a face for them.
+    * **already in the store** -- left exactly as it is. Applying twice must
+      not copy a file onto itself and must not rename it.
+    * **the store is not on this machine** -- a developer's laptop. The path is
+      kept as it was, because losing it would be worse than storing one that
+      does not resolve, and the message says so.
+    * **the source is gone, unreadable, or is not a picture** -- the path is
+      **cleared**. This is the honest answer: a stored path that resolves to
+      nothing is exactly the state that produced four identical drawn faces and
+      no explanation, and a parent who is told "that file is not there any
+      more" can choose another one.
+    """
+    chosen = source.strip()
+    if not chosen:
+        return PhotoResult("")
+
+    candidate = Path(chosen).expanduser()
+    try:
+        already_there = candidate.parent == photo_dir and candidate.is_file()
+    except OSError:  # pragma: no cover - a mount that went away mid-read
+        already_there = False
+    if already_there:
+        return PhotoResult(str(candidate))
+
+    suffix = candidate.suffix.lower()
+    if suffix not in PHOTO_SUFFIXES:
+        return PhotoResult(
+            "",
+            f"{candidate.name} is not a kind of picture this machine can show "
+            f"({', '.join(PHOTO_SUFFIXES)}). Nothing was stored for this person.",
+        )
+    if not candidate.is_file() or not os.access(candidate, os.R_OK):
+        return PhotoResult(
+            "",
+            f"{candidate} could not be read, so there is no photograph for this "
+            "person any more. Choose another one.",
+        )
+    if not photo_dir.is_dir():
+        return PhotoResult(
+            chosen,
+            f"{photo_dir} is not on this machine, so the photograph was left "
+            "where it is. Your child's screen will not be able to open it.",
+        )
+
+    target = photo_dir / f"{recipient_id}{suffix}"
+    try:
+        # A recipient who had a .png and now has a .jpg would otherwise leave
+        # the old file behind and nothing would ever remove it.
+        for stale in photo_dir.glob(f"{recipient_id}.*"):
+            if stale != target:
+                stale.unlink(missing_ok=True)
+        copy(str(candidate), str(target))
+        os.chmod(target, 0o644)
+    except OSError as exc:
+        return PhotoResult(
+            "",
+            f"{candidate.name} could not be copied to {photo_dir} ({exc.strerror}). "
+            "Your child would not have been able to see it there.",
+        )
+    return PhotoResult(str(target))
+
+
+def install_photos(
+    family: Sequence[Any],
+    photo_dir: Path = PHOTO_DIR,
+    copy: Callable[[str, str], Any] = shutil.copyfile,
+) -> tuple[list[Any], list[str]]:
+    """Every ``[[family]]`` photograph, copied. Returns the new list and the
+    sentences a parent should be told, in the order they happened."""
+    from dataclasses import replace as _replace
+
+    out: list[Any] = []
+    messages: list[str] = []
+    for recipient in family:
+        result = install_photo(recipient.photo, recipient.id, photo_dir, copy)
+        if result.message:
+            messages.append(f"{recipient.name}: {result.message}")
+        out.append(
+            recipient if result.path == recipient.photo else _replace(recipient, photo=result.path)
+        )
+    return out, messages
 
 
 # --- their things ---------------------------------------------------------
@@ -514,6 +640,8 @@ __all__ = [
     "CONFIG_HELPER",
     "EXPORT_HELPER",
     "IMAGE_REPO",
+    "PHOTO_DIR",
+    "PHOTO_SUFFIXES",
     "POLICY_JSON",
     "REFUSED_PIN",
     "SET_PIN_HELPER",
@@ -522,6 +650,7 @@ __all__ = [
     "ApplyResult",
     "BootcStatus",
     "Completed",
+    "PhotoResult",
     "Runner",
     "UpdateCheck",
     "VerifyResult",
@@ -530,6 +659,8 @@ __all__ = [
     "check_for_updates",
     "export_to",
     "have",
+    "install_photo",
+    "install_photos",
     "open_with_desktop",
     "parse_bootc_status",
     "parse_signature_policy",

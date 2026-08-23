@@ -11,8 +11,14 @@ Four groups, in the order a parent thinks about them:
   divided by "25 minutes" is two sittings and a refusal, and a parent should be
   able to see that before their child does.
 * **Bedtime** -- one wrap-around window, exactly as the shell reads it.
-* **When it may be used at all** -- ``[[windows]]``. New, and honestly labelled:
-  the panel writes it and the shell does not read it yet.
+* **When it may be used at all** -- ``[[windows]]``. In force: the panel writes
+  them, ``kidnix_shell.session.load_policy`` reads them
+  (``session.parse_windows``) and ``Session.may_start`` refuses with
+  ``StartRefusal.OUT_OF_HOURS`` outside every one of them, which is the
+  Resting screen with "Not computer time just now" on it. Because a window is a
+  *fence* rather than a preference, the group says out loud what happens when
+  none of them covers now -- a parent who sets one at the wrong end of the day
+  has locked their child out of the machine until it opens.
 
 The ending ritual's two windows are here too, under an expander, because
 Dan asked to lengthen them ("can I make the ending longer?") and because they
@@ -171,15 +177,27 @@ class TimePage(Adw.PreferencesPage):
         add.connect("clicked", self._on_add_window)
         group.set_header_suffix(add)
 
-        group.add(
-            common.note_row(
-                "Not switched on yet. The panel writes these down and the child's "
-                "screen does not read them yet, so setting one changes nothing "
-                "today -- it will start working with an update, without you "
-                "having to set it up again. Bedtime above is in force now.",
-                warning=True,
+        if self.state.panel.time.windows:
+            group.add(
+                common.note_row(
+                    "These are in force. Outside every window below, your child's "
+                    "screen will not start a session at all: it shows the resting "
+                    "picture and says when the computer is next awake. Check that "
+                    "the days and the times between them cover when your child "
+                    "actually uses this machine -- remove them all to go back to "
+                    "'any time before bedtime'.",
+                    warning=True,
+                )
             )
-        )
+        else:
+            group.add(
+                common.note_row(
+                    "No windows set, which means no restriction: the computer may "
+                    "be used at any time bedtime above allows. Add one and the "
+                    "opposite becomes true -- outside the windows you set, your "
+                    "child's screen will not start a session at all."
+                )
+            )
         for index, window in enumerate(self.state.panel.time.windows):
             group.add(self._window_row(index, window))
         return group

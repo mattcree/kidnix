@@ -10,20 +10,25 @@ representations, each one checkable on its own.
 wherever a key already exists, because the shell is the reader and a panel that
 invented its own spelling would be a panel that silently did nothing.
 
-Three keys here do **not** exist in the shell yet, and each one is written as
-valid TOML the shell ignores today rather than being held back until it does:
+Three keys here were written ahead of the shell and are now **read by it**. The
+panel used to label them "not switched on yet"; that label was left standing
+after the shell caught up, which is the worst of both worlds -- a parent told a
+control does nothing either stops using it or, with schedule windows, sets one
+carelessly and locks their child out. What is true today:
 
-* ``[[windows]]`` in ``session.toml`` -- weekday/weekend schedule windows
-  (FLOWS B5 records that "schedule windows are unbuilt"). Written now, honoured
-  by the shell later; ``docs/design/parent-panel.md`` §7 has the exact
-  follow-up.
-* ``allowed_activity_ids`` **inside a profile** -- a per-child allow-list. The
-  shell reads one machine-wide list, so the panel writes both: the per-child
-  lists for later, and the machine-wide list as their union for today. The
-  Activities tab says so in words when there is more than one child.
-* ``[access] speech_rate`` -- how fast read-aloud goes. ``tts.env`` deliberately
-  refuses to carry ``length_scale`` (the shell would keep overriding it), so
-  the rate belongs next to the other ``[access]`` keys.
+* ``[[windows]]`` in ``session.toml`` -- weekday/weekend schedule windows.
+  ``kidnix_shell.session.parse_windows`` reads them and ``Session.may_start``
+  refuses with ``StartRefusal.OUT_OF_HOURS`` outside every one of them. No
+  windows means no restriction.
+* ``allowed_activity_ids`` **inside a profile** -- a per-child allow-list, and
+  the one ``ParentConfig.allows()`` consults first. The machine-wide list at
+  the top of the file is the fallback for a child who has no list of their own,
+  and the panel writes it as the union of theirs.
+* ``[access] speech_rate`` -- how fast read-aloud goes, read by
+  ``kidnix_shell.access`` and applied to the voice (calm mode is a floor on
+  it). ``tts.env`` deliberately refuses to carry ``length_scale`` (the shell
+  would keep overriding it), so the rate belongs next to the other ``[access]``
+  keys.
 
 And one thing that is **not** a new key at all: removing a child moves their
 ``[[profiles]]`` table to ``[[retired_profiles]]``. The shell only ever reads
@@ -193,6 +198,14 @@ class Child:
     badge: str = PROFILE_BADGES[0]
     age_band: str = "4-5"
     skip_next_choice: bool = False
+    #: **This child's language** (ADR-0012), ``kidnix_shell.settings.Profile
+    #: .language``. ``""`` means "the machine's". The panel has no UI for it
+    #: yet and sets it nowhere -- it is here so that a value written by hand,
+    #: which is the only way to set one today, SURVIVES an Apply. Re-rendering
+    #: ``parent.toml`` without this field silently dropped it, which turned a
+    #: bilingual household's Welsh profile back into an English one the first
+    #: time a parent changed the bedtime.
+    language: str = ""
     #: Per-child allow-list. ``()`` means "everything this child's age band
     #: leaves", matching the shell's empty-means-all reading -- unticking the
     #: last box must never hand a five-year-old an empty Home.
@@ -212,12 +225,14 @@ class Child:
 class ScheduleWindow:
     """``[[windows]]`` in ``session.toml``: when the computer may be used.
 
-    **Not built in the shell yet.** The panel writes it, the shell ignores it
-    today, and ``docs/design/parent-panel.md`` §7.1 is the follow-up that makes
-    ``Session.may_start`` and the Resting screen's "when" read it. Writing it
-    early is deliberate: the data is the hard part to agree on, and a household
-    that has already told the machine "weekends after lunch" gets it honoured
-    by an upgrade rather than by a second setting-up session.
+    **Enforced.** ``kidnix_shell.session.parse_windows`` reads them,
+    ``SessionPolicy.in_window`` answers "is now inside one?" and
+    ``Session.may_start`` refuses with ``StartRefusal.OUT_OF_HOURS`` when it is
+    not -- the Resting screen, which reads the next window's start to say when
+    the computer is awake again. **No windows at all means no restriction**, the
+    same empty-means-all rule as ``allowed_activity_ids``: a parent who removes
+    their last window gets "any time bedtime allows" back, not a machine that
+    never opens.
     """
 
     days: tuple[str, ...]
@@ -322,13 +337,17 @@ class HomeSettings:
 
 @dataclass(frozen=True)
 class Recipient:
-    """``[[family]]``: someone a letter or a drawing could be sent to.
+    """``[[family]]``: someone a letter goes to.
 
-    **Data only, and the panel says so on the tab.** SYNTHESIS F3 names
-    "send to family" as a Journal card action; nothing sends anything yet, and
-    a list of grandparents with no send button is honest in a way that a
-    disabled send button is not. Recording the names now means the feature,
-    when it lands, does not begin with a form.
+    **Read by the Letters activity**, which shows these people as the faces on
+    its "Who is your letter for?" screen (``letters_to_family.recipients``).
+    There is deliberately no address of any kind on this object: the child
+    session has no egress, so a posted letter lands in
+    ``/var/lib/kidnix/outbox/<profile>/`` and a grown-up carries it. ``photo``
+    is a path the *child's* account has to be able to read -- the Family tab
+    copies whatever a parent picks into ``/var/lib/kidnix/photos/`` and stores
+    that path, because a file under ``/var/home/parent`` (0700) resolves to a
+    permission error and a drawn placeholder.
     """
 
     id: str
@@ -433,14 +452,20 @@ class PanelModel:
 
     @property
     def machine_allow_list(self) -> tuple[str, ...]:
-        """What the shell actually reads today: **one** list for the machine.
+        """The machine-wide **fallback** list: ``allowed_activity_ids`` at the
+        top of ``parent.toml``.
 
-        The union of every active child's list, because the shell has one
-        ``allowed_activity_ids`` and denying a child something their sibling is
-        allowed would need a per-profile reader it does not have yet. Age bands
-        still apply per child, which is what stops a four-year-old meeting
-        TuxMath. If *any* active child is on "everything", the machine is on
-        everything -- an empty list means all, and a union with "all" is "all".
+        Not the rule any child with a list of their own is held to.
+        ``ParentConfig.allows()`` reads the signed-in profile's
+        ``allowed_activity_ids`` first and only consults this when that list is
+        empty -- so this is what a child with no list of their own gets, and
+        what the shell falls back to when it cannot tell whose session it is.
+        The union is the right value for that: it is the widest thing any of
+        them may open, and narrowing it would deny a child something their own
+        list allows. Age bands still apply per child, which is what stops a
+        four-year-old meeting TuxMath. If *any* active child is on "everything",
+        this is everything -- an empty list means all, and a union with "all" is
+        "all".
         """
         active = self.active_children
         if not active:
@@ -454,8 +479,9 @@ class PanelModel:
 
     @property
     def allow_list_is_shared(self) -> bool:
-        """True when the union above is doing something a parent should be told
-        about: more than one child, and their lists differ."""
+        """True when there is more than one child and their lists differ, which
+        is worth a sentence on the tab: what each of them may open is their own
+        list, and the union above is only the machine's fallback."""
         active = self.active_children
         if len(active) < 2:
             return False
@@ -640,6 +666,7 @@ def _child_payload(child: Child) -> dict[str, Any]:
         "badge": child.badge,
         "age_band": child.age_band,
         "skip_next_choice": child.skip_next_choice,
+        "language": child.language,
         "allowed_activity_ids": list(child.allowed_activity_ids),
     }
 
@@ -656,6 +683,7 @@ def _child_from(raw: dict[str, Any], retired: bool) -> Child:
         badge=str(raw.get("badge", PROFILE_BADGES[0])),
         age_band=str(raw.get("age_band", "4-5")),
         skip_next_choice=_bool(raw.get("skip_next_choice"), False),
+        language=str(raw.get("language", "")).strip(),
         allowed_activity_ids=tuple(_rows_of_str(raw.get("allowed_activity_ids"))),
         retired=retired,
     )

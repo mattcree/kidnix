@@ -636,6 +636,30 @@ assert_grep '^d /var/lib/kidnix/inbox +0750 +parent +kid' "${LETTERS_TMPFILES}" 
 assert_run "systemd-tmpfiles can parse the fragment" \
     systemd-tmpfiles --cat-config
 
+# The THIRD directory Letters depends on, and the one whose absence was silent.
+#
+# The Family tab used to store the path the file chooser handed it, which is
+# nearly always under /var/home/parent -- 0700 parent:parent, so `kid` cannot
+# stat it. `Recipient.photo_path` caught the PermissionError, answered None,
+# and every face on "Who is your letter for?" fell back to the drawn
+# placeholder. Four chosen photographs, four identical drawn faces, nothing
+# logged. The panel now copies into this directory and writes that path.
+#
+# `parent`, not root: the copy is made by the panel, unprivileged, as the
+# person who chose the file. A root helper that copied a caller-named path
+# into a world-readable directory would copy anything the caller could name
+# and could not read.
+PHOTOS_TMPFILES=/usr/lib/tmpfiles.d/kidnix-photos.conf
+assert_file "${PHOTOS_TMPFILES}"
+assert_grep '^d /var/lib/kidnix/photos +0755 +parent +parent' "${PHOTOS_TMPFILES}" \
+    "the photo store is the grown-up's to fill and the child's to read"
+assert_run "the panel and Letters agree on where a face lives" \
+    python3 -c '
+import sys
+from kidnix_parent_panel.system import PHOTO_DIR
+if PHOTO_DIR.as_posix() != "/var/lib/kidnix/photos":
+    sys.exit(f"the panel copies photographs to {PHOTO_DIR}")'
+
 # Letters landed in the same wave as its directories, so the tile and the
 # program have to be here -- and they are checked by the loop above like every
 # other one. What is asserted here is the pairing: a tile that opens nothing is

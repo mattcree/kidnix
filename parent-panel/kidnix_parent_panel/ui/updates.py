@@ -97,6 +97,8 @@ class UpdatesPage(Adw.PreferencesPage):
         self._status_row: Adw.ActionRow | None = None
         self._check_row: Adw.ActionRow | None = None
         self._update_button: Gtk.Button | None = None
+        self._rollback_row: Adw.ActionRow | None = None
+        self._rollback_button: Gtk.Button | None = None
         self.verify = system.signature_policy()
         self.status = system.BootcStatus()
         self.refresh()
@@ -252,17 +254,26 @@ class UpdatesPage(Adw.PreferencesPage):
         install.add_suffix(self._update_button)
         group.add(install)
 
-        back = Adw.ActionRow(
+        # The button is gated on there BEING a previous version. bootc reports
+        # one only after an update has actually replaced something, so on a
+        # freshly installed machine "Roll back" would fail with a message from
+        # bootc rather than being honestly greyed out -- and a parent pressing
+        # it in a hurry, because something is wrong, is the worst moment to
+        # answer with an error. `_show_status` turns it on when the machine
+        # says there is somewhere to go back to.
+        self._rollback_row = Adw.ActionRow(
             title="Go back to the previous version",
             subtitle=(
                 "If an update made something worse. A start-up that fails its "
                 "own health checks already does this by itself, unattended."
             ),
         )
-        rollback = common.button("Roll back")
-        rollback.connect("clicked", lambda _b: self._rollback())
-        back.add_suffix(rollback)
-        group.add(back)
+        self._rollback_button = common.button("Roll back")
+        self._rollback_button.set_sensitive(False)
+        self._rollback_button.set_tooltip_text("Asking the machine what it could go back to…")
+        self._rollback_button.connect("clicked", lambda _b: self._rollback())
+        self._rollback_row.add_suffix(self._rollback_button)
+        group.add(self._rollback_row)
 
         self._refresh_status()
         return group
@@ -289,6 +300,10 @@ class UpdatesPage(Adw.PreferencesPage):
                 "This machine could not say. That is not the same as 'up to "
                 "date' -- try again, or ask whoever set it up."
             )
+            self._show_rollback(
+                False,
+                "The machine could not say what it would go back to.",
+            )
             return
         parts = [self.status.booted_image or "an image with no name"]
         if self.status.short_digest:
@@ -296,6 +311,26 @@ class UpdatesPage(Adw.PreferencesPage):
         if self.status.can_roll_back:
             parts.append("— the previous version is still on the disk")
         self._status_row.set_subtitle(" ".join(parts))
+        self._show_rollback(
+            self.status.can_roll_back,
+            "There is nothing to go back to: this machine has not been updated "
+            "yet, so the version it is running is the only one on the disk.",
+        )
+
+    def _show_rollback(self, possible: bool, why_not: str) -> None:
+        """Turn "Roll back" on only when bootc named something to go back to."""
+        if self._rollback_button is None or self._rollback_row is None:
+            return
+        self._rollback_button.set_sensitive(possible)
+        self._rollback_button.set_tooltip_text("" if possible else why_not)
+        if possible:
+            self._rollback_row.set_subtitle(
+                f"Back to {self.status.rollback_version or self.status.rollback_image}. "
+                "It is already on the disk; the laptop starts on it next time. "
+                "Nothing your child has made is touched."
+            )
+        else:
+            self._rollback_row.set_subtitle(why_not)
 
     def _check(self) -> None:
         if self._check_row is not None:
@@ -362,6 +397,11 @@ class UpdatesPage(Adw.PreferencesPage):
         dialog.present(self)
 
     def _rollback(self) -> None:
+        if not self.status.can_roll_back:
+            # Belt to the greyed-out button's braces: `_show_status` may not
+            # have come back yet, or may have come back with nothing.
+            self._say("There is no previous version on this machine to go back to.")
+            return
         dialog = Adw.AlertDialog(
             heading="Go back to the previous version?",
             body=(

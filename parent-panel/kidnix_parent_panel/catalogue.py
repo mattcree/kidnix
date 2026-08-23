@@ -22,7 +22,10 @@ and eighteen decisions underneath it, and a parent who wants to remove
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib.util import find_spec
 from pathlib import Path
@@ -65,7 +68,26 @@ class Entry:
     #: True when a grown-up has to add content before the tile exists at all
     #: (Kiwix and its ZIM files). Shown as a note, never as a broken tile.
     content_required: bool = False
+    #: The manifest's ``exec``. Kept because "is this program actually on the
+    #: machine?" is a question the tab has to answer before it draws a switch:
+    #: TurboWarp is a Flatpak that installs on first boot, so between the image
+    #: being written and that finishing there is a manifest for a program that
+    #: is not there. A live-looking switch over it is a lie a parent acts on.
+    exec_argv: tuple[str, ...] = ()
     path: Path | None = None
+
+    @property
+    def flatpak_ref(self) -> str:
+        """The ref behind a ``flatpak run <ref>`` exec, or ``""``.
+
+        Same rule as ``kidnix_shell.activities.Activity.flatpak_ref``: for a
+        Flatpak, ``flatpak`` being on ``PATH`` says nothing about whether the
+        *app* is installed, so the ref has to be asked about separately.
+        """
+        argv = self.exec_argv
+        if len(argv) < 3 or Path(argv[0]).name != "flatpak" or argv[1] != "run":
+            return ""
+        return argv[2]
 
     @property
     def is_shelf(self) -> bool:
@@ -151,6 +173,7 @@ def parse_manifest(data: dict, path: Path, parent_id: str = "") -> Entry | None:
         parent_id=parent_id,
         group_name=str(data.get("shelf_group_name", "")).strip(),
         content_required=bool(data.get("content_required", False)),
+        exec_argv=_argv(data.get("exec")),
         path=path,
     )
 
@@ -222,6 +245,67 @@ def _read_raw(path: Path, catalogue: Catalogue | None = None) -> dict | None:
         if catalogue is not None:
             catalogue.broken.append((path, str(exc)))
         return None
+
+
+# --- is the program actually here? ---------------------------------------
+
+
+def _flatpak_installed(ref: str) -> bool:
+    """``flatpak info <ref>``: cheap, offline, non-zero when it is absent."""
+    if shutil.which("flatpak") is None:
+        return False
+    try:
+        return (
+            subprocess.run(
+                ["flatpak", "info", ref],
+                capture_output=True,
+                timeout=10,
+                check=False,
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.warning("could not ask flatpak about %s (%s); treating it as missing", ref, exc)
+        return False
+
+
+def is_installed(
+    entry: Entry,
+    which: Callable[[str], str | None] | None = None,
+    flatpak: Callable[[str], bool] | None = None,
+) -> bool:
+    """Is the program this manifest names on the machine right now?
+
+    The same two questions ``kidnix_shell.activities.Availability`` asks, so
+    the panel and Home agree about which tiles exist: ``exec[0]`` on ``PATH``,
+    and for a ``flatpak run <ref>`` exec, ``flatpak info <ref>`` as well.
+
+    A manifest with no ``exec`` at all -- a shelf -- is "installed": there is no
+    program behind it to be missing, and a shelf's children answer for
+    themselves.
+    """
+    argv = entry.exec_argv
+    if not argv:
+        return True
+    resolve = which or shutil.which
+    program = argv[0]
+    if Path(program).is_absolute():
+        if not Path(program).exists():
+            return False
+    elif resolve(program) is None:
+        return False
+    ref = entry.flatpak_ref
+    if not ref:
+        return True
+    return (flatpak or _flatpak_installed)(ref)
+
+
+def _argv(value: object) -> tuple[str, ...]:
+    """A manifest's ``exec``, defensively. Anything odd is no argv at all,
+    which :func:`is_installed` reads as "nothing here can be missing"."""
+    if not isinstance(value, list):
+        return ()
+    return tuple(str(part) for part in value if isinstance(part, str | int | float))
 
 
 def _int(value: object, fallback: int) -> int:

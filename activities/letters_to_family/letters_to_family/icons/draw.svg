@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
+  <!-- SPDX-License-Identifier: Apache-2.0
+       Copyright kidnix contributors. Letters: "Draw one".
+       The OUTPUT and the tool that made it. A sheet of paper with a fresh
+       crayon stroke on it, and the crayon still in the picture, because a
+       four-year-old recognises a crayon long before they recognise a pencil. -->
+  <title>Draw one</title>
+  <rect x="6" y="12" width="36" height="44" rx="3" fill="#fbf7ef" stroke="#16181d"
+        stroke-width="3.5"/>
+  <path d="M13 44 C17 30 25 30 29 40 C32 47 37 45 37 38" fill="none" stroke="#f06292"
+        stroke-width="6" stroke-linecap="round"/>
+  <g transform="rotate(38 46 26)">
+    <rect x="40" y="6" width="13" height="22" rx="3" fill="#0f8a8a" stroke="#16181d"
+          stroke-width="3"/>
+    <path d="M40 28 H53 L46.5 44 Z" fill="#ffd23f" stroke="#16181d" stroke-width="3"
+          stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -8,6 +8,7 @@ an argument in the first place.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 from kidnix_parent_panel import catalogue, system
 
@@ -432,3 +433,191 @@ def test_run_async_on_a_thread_eventually_answers():
     tasks.run_async(lambda: 41 + 1, done)
     loop.run()
     assert seen == [42]
+
+
+# --- family photographs the CHILD can open ---------------------------------
+#
+# The bug: the Family tab stored the path the file chooser returned, which is
+# nearly always under /var/home/parent -- 0700 parent:parent, so `kid` cannot
+# even stat it. `Recipient.photo_path` caught the PermissionError, answered
+# None, and the Letters activity drew its placeholder face. A grown-up who had
+# chosen four photographs saw four identical drawn faces and nothing anywhere
+# said why.
+
+
+def a_picture(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+    return path
+
+
+def test_a_chosen_photograph_is_copied_where_the_child_can_read_it(tmp_path):
+    store = tmp_path / "photos"
+    store.mkdir()
+    source = a_picture(tmp_path / "parent-home" / "granny.png")
+
+    result = system.install_photo(str(source), "granny", store)
+
+    assert result.ok
+    assert result.path == str(store / "granny.png")
+    assert (store / "granny.png").read_bytes() == source.read_bytes()
+    assert (store / "granny.png").stat().st_mode & 0o777 == 0o644
+    # The original is not moved, renamed or touched.
+    assert source.is_file()
+
+
+def test_applying_twice_leaves_the_copy_exactly_where_it_is(tmp_path):
+    store = tmp_path / "photos"
+    store.mkdir()
+    a_picture(store / "granny.png")
+    result = system.install_photo(str(store / "granny.png"), "granny", store)
+    assert result.ok
+    assert result.path == str(store / "granny.png")
+
+
+def test_changing_the_kind_of_picture_does_not_leave_the_old_one_behind(tmp_path):
+    store = tmp_path / "photos"
+    store.mkdir()
+    a_picture(store / "granny.png")
+    source = a_picture(tmp_path / "elsewhere" / "new.jpg")
+
+    result = system.install_photo(str(source), "granny", store)
+
+    assert result.path == str(store / "granny.jpg")
+    assert not (store / "granny.png").exists()
+
+
+def test_a_photograph_that_is_gone_clears_the_path_and_says_so(tmp_path):
+    """The honest answer. A stored path that resolves to nothing is exactly
+    the state that produced four identical drawn faces and no explanation."""
+    store = tmp_path / "photos"
+    store.mkdir()
+    result = system.install_photo(str(tmp_path / "never-existed.png"), "granny", store)
+    assert result.path == ""
+    assert not result.ok
+    assert "could not be read" in result.message
+
+
+def test_a_file_that_is_not_a_picture_is_refused_by_name(tmp_path):
+    store = tmp_path / "photos"
+    store.mkdir()
+    source = tmp_path / "granny.pdf"
+    source.write_bytes(b"%PDF")
+    result = system.install_photo(str(source), "granny", store)
+    assert result.path == ""
+    assert "not a kind of picture" in result.message
+
+
+def test_no_photograph_at_all_is_not_a_problem(tmp_path):
+    result = system.install_photo("", "granny", tmp_path / "photos")
+    assert result.ok
+    assert result.path == ""
+
+
+def test_without_the_store_the_path_is_kept_and_the_parent_is_warned(tmp_path):
+    """A developer's laptop has no /var/lib/kidnix. Losing the path a parent
+    chose would be worse than keeping one that does not resolve there."""
+    source = a_picture(tmp_path / "granny.png")
+    result = system.install_photo(str(source), "granny", tmp_path / "nowhere")
+    assert result.path == str(source)
+    assert "is not on this machine" in result.message
+
+
+def test_install_photos_rewrites_the_list_and_collects_the_sentences(tmp_path):
+    from kidnix_parent_panel import model as M
+
+    store = tmp_path / "photos"
+    store.mkdir()
+    here = a_picture(tmp_path / "src" / "granny.png")
+    family = [
+        M.Recipient(id="granny", name="Granny", photo=str(here)),
+        M.Recipient(id="grandad", name="Grandad", photo=str(tmp_path / "gone.png")),
+        M.Recipient(id="auntie", name="Auntie Jo"),
+    ]
+
+    out, messages = system.install_photos(family, store)
+
+    assert out[0].photo == str(store / "granny.png")
+    assert out[1].photo == ""
+    assert out[2].photo == ""
+    assert len(messages) == 1
+    assert messages[0].startswith("Grandad: ")
+
+
+def test_a_copy_that_fails_is_reported_and_not_stored(tmp_path):
+    store = tmp_path / "photos"
+    store.mkdir()
+    source = a_picture(tmp_path / "granny.png")
+
+    def refuse(_src, _dst):
+        raise OSError(13, "Permission denied")
+
+    result = system.install_photo(str(source), "granny", store, copy=refuse)
+    assert result.path == ""
+    assert "could not be copied" in result.message
+
+
+def test_apply_copies_the_photographs_before_it_writes_anything(tmp_path):
+    """End to end through `PanelState.save`, which is where it has to happen:
+    the *panel* copies, as the grown-up who chose the file. A root helper asked
+    to copy a caller-named path into a world-readable directory would copy
+    anything the caller could name and could not read."""
+    from kidnix_parent_panel import model as M
+    from kidnix_parent_panel.ui.state import PanelState
+
+    store = tmp_path / "photos"
+    store.mkdir()
+    source = a_picture(tmp_path / "parent-home" / "granny.png")
+
+    panel = M.PanelModel()
+    panel.add_child("Rosie")
+    granny = panel.add_recipient("Granny")
+    panel.family[0] = replace(granny, photo=str(source))
+
+    seen = {}
+
+    def runner(argv, stdin=None, timeout=0):
+        seen["stdin"] = stdin
+        return system.Completed(0, "wrote /etc/kidnix/parent.toml\n")
+
+    state = PanelState(
+        panel=panel,
+        activities=catalogue.Catalogue(),
+        runner=runner,
+        etc=tmp_path,
+        usr=tmp_path,
+        synchronous=True,
+        photo_dir=store,
+    )
+    result = state.save()
+
+    assert result.ok
+    assert (store / "granny.png").is_file()
+    assert str(store / "granny.png") in seen["stdin"]
+    assert str(source) not in seen["stdin"]
+    assert state.panel.family[0].photo == str(store / "granny.png")
+
+
+def test_a_photograph_that_could_not_be_copied_is_said_out_loud_after_a_save(tmp_path):
+    from kidnix_parent_panel import model as M
+    from kidnix_parent_panel.ui.state import PanelState
+
+    store = tmp_path / "photos"
+    store.mkdir()
+    panel = M.PanelModel()
+    panel.add_child("Rosie")
+    granny = panel.add_recipient("Granny")
+    panel.family[0] = replace(granny, photo=str(tmp_path / "gone.png"))
+
+    state = PanelState(
+        panel=panel,
+        activities=catalogue.Catalogue(),
+        runner=lambda *a, **k: system.Completed(0, "wrote /etc/kidnix/parent.toml\n"),
+        etc=tmp_path,
+        usr=tmp_path,
+        synchronous=True,
+        photo_dir=store,
+    )
+    result = state.save()
+    assert result.ok
+    assert "Granny:" in result.message

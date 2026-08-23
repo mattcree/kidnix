@@ -24,9 +24,12 @@ audio_label = "Numbers"
 
 # One honest line for a parent, and the sentence the whole activity is held to.
 # It names the two things the EYFS Number ELG actually asks for -- subitising
-# to five, and the composition of five and ten -- and it says what this is not.
-# kidnix does not teach number; a school does. This is practice.
-goal = "Seeing how many without counting (up to 5), and which two numbers make 5 and 10. Practice, not a test."
+# to five, and the composition of five and ten -- and then it says what this
+# machine actually does with them: five is the range a child gets by default,
+# and ten is a line a grown-up writes in a root-owned file (numbers_activity
+# section "the range"). Saying "5 and 10" flat would promise a child work they
+# will not be given. kidnix does not teach number; a school does.
+goal = "Seeing how many without counting (up to 5), and which two numbers make 5. Goes up to 10 only when a grown-up raises the range. Practice, not a test."
 
 # A drawing, not a glyph: five dots in the canonical dice pattern, sitting in a
 # five-frame. It is a picture of the thing the activity is about, which for a

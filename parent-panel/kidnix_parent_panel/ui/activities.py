@@ -45,12 +45,24 @@ class ActivitiesPage(Adw.PreferencesPage):
         self._groups: list[Adw.PreferencesGroup] = []
         #: Which child's list is being edited. Empty means the first one.
         self.child_id = ""
+        #: "is this program on the machine?" per entry id, asked once per build
+        #: rather than once per row: the flatpak answer forks a process.
+        self._installed: dict[str, bool] = {}
         self.refresh()
+
+    def installed(self, entry: catalogue.Entry) -> bool:
+        if entry.id not in self._installed:
+            self._installed[entry.id] = self.state.installed(entry)
+        return self._installed[entry.id]
 
     def refresh(self) -> None:
         for group in self._groups:
             self.remove(group)
         self._groups = []
+        # A rebuild is where "has TurboWarp finished installing yet?" gets
+        # asked again; keeping the answer across one would freeze the tab in
+        # whatever state the machine was in when the panel opened.
+        self._installed = {}
         self.state.loading = True
         try:
             self._build()
@@ -154,11 +166,9 @@ class ActivitiesPage(Adw.PreferencesPage):
             group.add(
                 common.note_row(
                     "This machine has more than one child and they have been given "
-                    "different lists. Until the child's screen learns to read a "
-                    "list per child, it allows anything either of them is allowed. "
-                    "Ages still apply separately, so the youngest does not see the "
-                    "six-and-over activities.",
-                    warning=True,
+                    "different lists. Each child gets their own: the screen reads "
+                    "the list of whoever is signed in. Ages apply on top, so the "
+                    "youngest does not see the six-and-over activities either way."
                 )
             )
         return group
@@ -217,6 +227,31 @@ class ActivitiesPage(Adw.PreferencesPage):
             subtitle = f"For ages {entry.age_band_label}, so it does not appear for {child.name}. {subtitle}"
         if entry.content_required:
             subtitle = f"{subtitle} There is nothing in it until a grown-up puts something in."
+
+        if not self.installed(entry):
+            # The same treatment content_required gets, for the same reason: a
+            # switch says "this is yours to decide" and there is nothing to
+            # decide yet. TurboWarp is the live case -- it is a Flatpak that
+            # installs the first time the machine is switched on, so a panel
+            # opened before that finished would otherwise show a tick-box over
+            # a program that is not there, and unticking it would look like it
+            # had done something.
+            if entry.flatpak_ref:
+                why = (
+                    "It installs itself the first time the laptop is switched "
+                    "on with the internet, and appears here -- and on your "
+                    "child's screen -- once it has."
+                )
+            else:
+                why = (
+                    f"The machine has a manifest for it but not the program "
+                    f"({entry.exec_argv[0] if entry.exec_argv else 'no exec'}). "
+                    "Your child does not see a tile for it either."
+                )
+            return common.note_row(
+                f"{entry.name} is not on this machine, so there is nothing to "
+                f"allow or refuse. {why} {subtitle}"
+            )
 
         children_of = self.state.activities.children_of(entry.id)
         row: Adw.PreferencesRow

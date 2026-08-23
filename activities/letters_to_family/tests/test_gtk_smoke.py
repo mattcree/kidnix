@@ -44,7 +44,23 @@ def _listening() -> bool:
 
 @pytest.fixture(scope="session")
 def broadway():
-    """One daemon for the whole run, torn down after it."""
+    """One daemon for the whole run, torn down after it.
+
+    **Probe before spawning.** ``just test-gtk`` starts its own
+    ``gtk4-broadwayd`` on this display and then runs pytest, so on that path
+    one is already up. Starting a second on the same display does not simply
+    fail: it takes ``/run/user/$UID/broadway<N>.socket`` out from under the
+    first, and every test in this file then dies at ``Gtk couldn't be
+    initialized`` -- which is what ``just test-gtk`` did, on a clean checkout,
+    while the identical run with the daemon left to this fixture passed. So a
+    daemon that is already listening is used as it is and left alone; only the
+    bare ``pytest`` path starts (and stops) one.
+    """
+    if _listening():
+        os.environ["GDK_BACKEND"] = "broadway"
+        os.environ["BROADWAY_DISPLAY"] = f":{DISPLAY}"
+        yield f":{DISPLAY}"
+        return
     binary = shutil.which("gtk4-broadwayd")
     if binary is None:
         pytest.skip("gtk4-broadwayd is not installed")
@@ -491,6 +507,51 @@ def test_the_voice_note_is_the_shell_s_own_twenty_second_one(built):
     assert built.letter.voice.is_file()
 
 
+def test_the_voice_note_plays_itself_back_the_moment_it_stops(built):
+    """``kidnix_shell.voice``: "it plays back once, immediately". This activity
+    used to record and then say nothing at all -- the level meter stopped and
+    that was the whole confirmation a five-year-old got that their voice was in
+    the letter."""
+    played: list[Path] = []
+    built.app.earcons.player = _RecordingPlayer(played)
+
+    built.choose_recipient(built.people[0])
+    built.tiles["aaa"].fire()
+    built.toggle_voice()
+    built.toggle_voice()
+
+    assert played == [built.letter.voice]
+
+
+def test_nothing_is_played_back_when_there_was_no_recording(built):
+    """The degradation, which is silence and not an exception: a machine with
+    no recorder never reaches `on_saved` at all, and a player that refuses is
+    logged rather than raised."""
+    built.app.earcons.player = _RefusingPlayer()
+    built.choose_recipient(built.people[0])
+    built.tiles["aaa"].fire()
+    built.toggle_voice()
+    built.toggle_voice()
+    # It still kept the note; only the confirmation was missing.
+    assert built.letter.voice is not None
+
+
+class _RecordingPlayer:
+    """Stands in for ``Earcons.player``. **Makes no sound** (AGENTS.md §5)."""
+
+    def __init__(self, into: list) -> None:
+        self.into = into
+
+    def play(self, path, volume: float = 1.0) -> bool:
+        self.into.append(path)
+        return True
+
+
+class _RefusingPlayer:
+    def play(self, path, volume: float = 1.0) -> bool:
+        return False
+
+
 # --- posting ----------------------------------------------------------------
 
 
@@ -626,6 +687,55 @@ def test_opening_a_reply_shows_it_and_writes_nothing_back(gtk, built, tmp_path):
     built.replies = replies
     built.open_reply(replies[0])
     assert sorted(p.name for p in folder.iterdir()) == before
+
+
+def test_the_shelf_is_not_a_dead_end(gtk, built, tmp_path):
+    """It used to be. Every other screen leads forwards and Back is the
+    shell's, one screen *up* and out of the activity -- so a child who went to
+    look at Nanna's letter and then wanted to write one had to leave Letters
+    and come back into it."""
+    import cairo
+    from kidnix_shell.widgets import ChildButton
+
+    from letters_to_family.letter import Step
+    from letters_to_family.mailbox import inbox_replies
+
+    folder = tmp_path / "inbox" / "sam" / "nanna"
+    folder.mkdir(parents=True)
+    cairo.ImageSurface(cairo.FORMAT_ARGB32, 20, 20).write_to_png(str(folder / "photo.png"))
+    built.replies = inbox_replies("sam", tmp_path / "inbox")
+
+    built.build_shelf()
+    ways_out = [
+        child
+        for child in _children(built.window.content)
+        if isinstance(child, ChildButton) and child.speak_text == "Write a letter to somebody."
+    ]
+    assert len(ways_out) == 1
+
+    ways_out[0].fire()
+    assert built.step is Step.WHO
+    assert set(built.tiles) == {"grandad", "nanna"}
+
+
+def test_going_back_for_a_second_letter_starts_a_clean_one(built):
+    """And -- the load-bearing half -- it clears ``posted``, so put-away still
+    keeps the second letter. Leaving it True would make ``finish`` decide there
+    was nothing to keep and throw a child's work away."""
+    built.choose_recipient(built.people[0])
+    built.tiles["aaa"].fire()
+    built.post()
+    assert built.posted is True
+
+    built.start_again()
+    assert built.posted is False
+    assert built.letter is None
+    assert built.scribble.strokes == []
+
+    built.choose_recipient(built.people[1])
+    built.tiles["aaa"].fire()
+    built.finish()
+    assert len(letters_in(built.paths["journal"])) == 2
 
 
 # --- it fits ----------------------------------------------------------------

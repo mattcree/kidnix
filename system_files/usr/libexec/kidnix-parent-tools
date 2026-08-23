@@ -25,6 +25,13 @@ set -euo pipefail
 
 readonly CHILD=kid
 readonly CHILD_HOME=/var/home/kid
+# The second place a child's own things live. /var/lib/kidnix is machine-local
+# and outside the child's home on purpose (a letter has to outlive a home
+# directory, and a grown-up has to be able to reach it from their own account),
+# which meant this helper used to walk straight past it: "export everything" and
+# "delete everything" both stopped at the edge of $CHILD_HOME while the letters
+# a five-year-old had posted sat in a folder nobody copied and nobody erased.
+readonly KIDNIX_VAR=/var/lib/kidnix
 
 usage() {
     cat >&2 <<'EOF'
@@ -60,8 +67,12 @@ caller_gid="$(getent passwd "${caller_name}" | cut -d: -f4)"
 # child made or something the machine recorded about them; nothing else in the
 # home is included, because an export a parent cannot read is not an export.
 #
-# Paths are relative to CHILD_HOME. Missing ones are skipped, not an error --
-# a machine where nobody has opened Tux Paint yet still exports cleanly.
+# It is TWO lists, because a child's things live in two places: this one, under
+# CHILD_HOME, and CHILD_VAR_DATA below, under KIDNIX_VAR. Both are explicit
+# lists of relative paths and both are guarded against escaping their root, so
+# "delete everything" can never become `rm -rf` of something it was not shown.
+# Missing entries are skipped, not an error -- a machine where nobody has opened
+# Tux Paint yet still exports cleanly.
 CHILD_DATA=(
     # The Journal: what the child did, in the shell's own format.
     ".local/share/kidnix"
@@ -74,6 +85,36 @@ CHILD_DATA=(
     "Pictures"
     # GCompris keeps a child's progress in its settings file, not in documents.
     ".config/gcompris"
+)
+
+# The same thing, under KIDNIX_VAR. Relative, missing ones skipped, and the
+# wipe guard below refuses anything that does not sit inside KIDNIX_VAR.
+#
+# WHAT IS HERE. The two halves of Letters: what the child posted and is waiting
+# for a grown-up to send, and what a grown-up dropped in for them. Both are the
+# child's -- the first is theirs by authorship and the second is addressed to
+# them -- and both are what "everything they have made" and "give this computer
+# away" have to mean, or a box of letters survives the erase.
+#
+# WHAT IS DELIBERATELY NOT HERE, and why, because the next person to read this
+# will want to add them:
+#
+#   photos/   the faces a PARENT chose on the Family tab. A grown-up's address
+#             book, not a child's work: exporting it would put a grandparent's
+#             photograph in a child's archive, and wiping it would delete the
+#             other children's recipients too.
+#   library/  ZIM files a grown-up put there, often hundreds of megabytes and
+#             not made on this machine at all.
+#
+# Neither has anything of the child's in it. If that ever stops being true,
+# this comment is the thing to change first.
+CHILD_VAR_DATA=(
+    # Letters posted and waiting for a grown-up to send them, one folder per
+    # profile, one folder per letter.
+    "outbox"
+    # Replies a grown-up carried back, which the child meets on the
+    # "Letters for you" shelf.
+    "inbox"
 )
 
 # -----------------------------------------------------------------------------
@@ -91,24 +132,36 @@ cmd_export() {
     archive="${dest%/}/kidnix-${CHILD}-${stamp}.tar.gz"
     [[ ! -e "${archive}" ]] || die "${archive} already exists; nothing was changed"
 
-    local -a present=()
+    # One array of tar operands, each preceded by the -C it belongs to, so the
+    # two roots go into one archive without either of them appearing in the
+    # paths inside it. `.local/share/kidnix` and `outbox` both land at the top
+    # level, which is what a parent unpacking this expects to see.
+    local -a members=() listing=()
     local rel
     for rel in "${CHILD_DATA[@]}"; do
-        [[ -e "${CHILD_HOME}/${rel}" ]] && present+=("${rel}")
+        if [[ -e "${CHILD_HOME}/${rel}" ]]; then
+            members+=(-C "${CHILD_HOME}" "${rel}")
+            listing+=("${CHILD_HOME}/${rel}")
+        fi
     done
-    if (( ${#present[@]} == 0 )); then
-        die "there is nothing saved in ${CHILD_HOME} yet -- nothing to export"
+    for rel in "${CHILD_VAR_DATA[@]}"; do
+        if [[ -e "${KIDNIX_VAR}/${rel}" ]]; then
+            members+=(-C "${KIDNIX_VAR}" "${rel}")
+            listing+=("${KIDNIX_VAR}/${rel}")
+        fi
+    done
+    if (( ${#listing[@]} == 0 )); then
+        die "there is nothing saved on this machine yet -- nothing to export"
     fi
 
-    say "kidnix: copying ${#present[@]} folder(s) from ${CHILD_HOME}"
-    for rel in "${present[@]}"; do say "  ${rel}"; done
+    say "kidnix: copying ${#listing[@]} folder(s)"
+    for rel in "${listing[@]}"; do say "  ${rel}"; done
 
     # --numeric-owner so the archive does not carry this machine's uid names;
     # the point is a file a parent can open on any computer.
     tar --create --gzip --numeric-owner \
         --file "${archive}" \
-        --directory "${CHILD_HOME}" \
-        -- "${present[@]}"
+        "${members[@]}"
 
     # The archive belongs to the parent who asked, and to nobody else: it
     # contains everything their child has ever made.
@@ -122,18 +175,27 @@ cmd_export() {
     say "To look inside:      tar -tzf '${archive}'"
     say "To unpack it:        tar -xzf '${archive}'"
     say "The drawings are the .png files under .tuxpaint/saved/ and Pictures/."
+    say "The letters are under outbox/ -- one folder per letter, each with the"
+    say "whole letter as letter.png. outbox/ is also the folder they are waiting"
+    say "in to be sent; copying them out here does not send or remove them."
 }
 
 cmd_wipe() {
     local assume_yes=no
     [[ "${1:-}" == "--yes" ]] && assume_yes=yes
 
-    say "This will permanently delete everything ${CHILD} has made on this computer:"
-    local rel
+    say "This will permanently delete everything ${CHILD} has made on this computer,"
+    say "and every letter anybody sent them:"
+    local rel target
     for rel in "${CHILD_DATA[@]}"; do
-        if [[ -e "${CHILD_HOME}/${rel}" ]]; then
-            say "  ${CHILD_HOME}/${rel}  ($(du -sh "${CHILD_HOME}/${rel}" 2>/dev/null | cut -f1))"
-        fi
+        target="${CHILD_HOME}/${rel}"
+        [[ -e "${target}" ]] || continue
+        say "  ${target}  ($(du -sh "${target}" 2>/dev/null | cut -f1))"
+    done
+    for rel in "${CHILD_VAR_DATA[@]}"; do
+        target="${KIDNIX_VAR}/${rel}"
+        [[ -e "${target}" ]] || continue
+        say "  ${target}  ($(du -sh "${target}" 2>/dev/null | cut -f1))"
     done
     say ""
     say "It cannot be undone. If you have not exported first, stop now and run:"
@@ -149,7 +211,7 @@ cmd_wipe() {
 
     local removed=0
     for rel in "${CHILD_DATA[@]}"; do
-        local target="${CHILD_HOME}/${rel}"
+        target="${CHILD_HOME}/${rel}"
         [[ -e "${target}" ]] || continue
         # Belt and braces against a future edit putting `/` or `..` in the
         # list: refuse anything that is not inside the child's home.
@@ -160,16 +222,49 @@ cmd_wipe() {
         rm -rf -- "${target}"
         removed=$(( removed + 1 ))
     done
+    for rel in "${CHILD_VAR_DATA[@]}"; do
+        target="${KIDNIX_VAR}/${rel}"
+        [[ -e "${target}" ]] || continue
+        # The same guard, against the same future edit. KIDNIX_VAR holds a
+        # grown-up's ZIM library and the family photographs as well, so "delete
+        # everything under /var/lib/kidnix" is exactly what must not happen
+        # here: only the named two go.
+        case "${target}" in
+            "${KIDNIX_VAR}"/*) ;;
+            *) die "refusing to delete ${target}: outside ${KIDNIX_VAR}" ;;
+        esac
+        rm -rf -- "${target}"
+        removed=$(( removed + 1 ))
+    done
 
     # Put the empty shells back, owned by the child, so the next session starts
     # cleanly rather than with the shell discovering its directories missing.
     install -d -o "${CHILD}" -g "${CHILD}" -m 0700 \
         "${CHILD_HOME}/.local/share/kidnix" \
         "${CHILD_HOME}/.local/state/kidnix"
+    # And the two mailboxes, with the ownership and modes
+    # /usr/lib/tmpfiles.d/kidnix-letters.conf gives them -- the outbox is the
+    # child's to write, the inbox is the grown-up's, and the child can only
+    # read it. systemd-tmpfiles would put them back at the next boot anyway;
+    # doing it here means Letters works again without one.
+    # The parent directory first and explicitly: `install -d` would otherwise
+    # create /var/lib/kidnix itself with the mailbox's 0750 kid:kid, which is
+    # not what tmpfiles.d says it is and would hide the grown-up's own library
+    # from the grown-up. It always exists on a booted machine; this is for the
+    # one that has been through an unusual /var.
+    install -d -o root -g root -m 0755 "${KIDNIX_VAR}"
+    install -d -o "${CHILD}" -g "${CHILD}" -m 0750 "${KIDNIX_VAR}/outbox"
+    if getent passwd parent >/dev/null; then
+        install -d -o parent -g "${CHILD}" -m 0750 "${KIDNIX_VAR}/inbox"
+    else
+        install -d -m 0750 "${KIDNIX_VAR}/inbox"
+    fi
 
     say ""
     say "Deleted ${removed} folder(s). The child's account itself is untouched:"
     say "the machine will start exactly as it did on the first day."
+    say "The family names and photographs on the Family tab are a grown-up's"
+    say "list and are still here; so is anything in ${KIDNIX_VAR}/library."
     say ""
     say "If you are giving this computer away, also change the grown-up PIN"
     say "(/etc/kidnix/parent.toml) and the parent account's password."
