@@ -1,0 +1,17 @@
+# Spike-only image for evaluating Kokoro-82M. NOT the kidnix image, and
+# nothing built here is installed into it.
+#
+# Fedora 44 ships Python 3.14 and kokoro-onnx 0.6.1's metadata caps itself at
+# <3.14 (a stale cap: onnxruntime has published cp314 wheels since 1.29). To
+# keep the evaluation about Kokoro rather than about that cap, this container
+# uses Fedora's python3.13 compat interpreter and installs the wheel
+# unmodified. See docs/spikes/tts-kokoro.md §5 for what the packaging would
+# actually look like on the image.
+FROM registry.fedoraproject.org/fedora:44
+
+RUN dnf -y install --setopt=install_weak_deps=False \
+        python3.13 espeak-ng \
+ && dnf clean all
+
+RUN python3.13 -m venv /venv \
+ && /venv/bin/pip install --no-cache-dir kokoro-onnx==0.6.1

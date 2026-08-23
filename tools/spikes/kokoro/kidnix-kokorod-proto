@@ -1,0 +1,264 @@
+#!/usr/bin/python3
+"""PROTOTYPE resident Kokoro synthesiser, shaped like /usr/libexec/kidnix-piperd.
+
+This is a spike artefact under tools/spikes/. Nothing here is installed into
+the image; it exists to prove three things the docs could otherwise only
+assert:
+
+1. **Kokoro needs neither `kokoro-onnx` nor `phonemizer` at runtime.** Both are
+   convenient, and both drag a licence problem: `phonemizer` (and the
+   `phonemizer-fork` that `misaki[en]` uses) is GPL-3.0-or-later, and
+   `espeakng-loader` ships a *prebuilt* `libespeak-ng.so` plus 18 MB of
+   `espeak-ng-data` with no licence metadata at all — the same
+   redistribute-someone-else's-GPL-binary trap that
+   `docs/spikes/tts.md` §1.2 already made `build_files/65-tts.sh` delete out of
+   the Piper tarball. Everything Kokoro actually requires is: the token
+   vocabulary (which the v1.0 ONNX carries in its own metadata under
+   `kokoro_config`), a 256-float style vector per phoneme count (`voices-v1.0.bin`
+   is a plain `.npz`), onnxruntime, and IPA. So this server shells out to
+   **Fedora's** `espeak-ng(1)` exactly as ADR-0008's fallback voice already
+   does, and the whole read-aloud stack stays free of redistributed GPL blobs.
+
+2. **The socket protocol does not change.** One line of JSON in, one WAV out,
+   the same shape `kidnix-piper-say` already speaks, so a switch of engine is
+   a switch of server and not a rewrite of the speech-dispatcher wiring.
+
+3. **What it costs.** Run it and read the `spoke N chars in M ms` lines.
+
+Differences from the real `kidnix-piperd` that a shipping version would need:
+socket activation, the idle-exit timer, the systemd sandbox, and a decision
+about the ~510-phoneme window (speech-dispatcher chunks by sentence already,
+but a long label would still need splitting).
+"""
+
+from __future__ import annotations
+
+import argparse
+import io
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+import time
+import wave
+
+import numpy as np
+import onnxruntime as rt
+
+SAMPLE_RATE = 24000
+MAX_PHONEMES = 510
+CONFIG_KEY = "kokoro_config"
+
+#: espeak-ng drops punctuation in --ipa mode, and Kokoro's vocabulary contains
+#: ".,!?;:" and uses them for prosody and pausing. phonemizer solves this by
+#: phonemising between the marks and putting them back; so does this.
+_SPLIT = re.compile(r"([.,!?;:]+)")
+
+
+def log(message: str) -> None:
+    print(f"kidnix-kokorod: {message}", file=sys.stderr, flush=True)
+
+
+def rss_mb() -> float:
+    with open("/proc/self/status") as handle:
+        for line in handle:
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1]) / 1024
+    return 0.0
+
+
+class Espeak:
+    """IPA out of Fedora's espeak-ng, punctuation preserved."""
+
+    def __init__(self, binary: str = "espeak-ng", voice: str = "en-gb") -> None:
+        self.binary = binary
+        self.voice = voice
+
+    def _run(self, text: str) -> str:
+        if not text.strip():
+            return ""
+        result = subprocess.run(  # noqa: S603 -- fixed argv, no shell
+            # --ipa, not --ipa=1: the =1 form inserts "_" between phonemes,
+            # which is not in Kokoro's vocabulary and would be dropped anyway.
+            [self.binary, "-q", "--ipa", "-v", self.voice, "--", text],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            log(f"espeak-ng failed: {result.stderr.decode()[:200]}")
+            return ""
+        return " ".join(result.stdout.decode("utf-8", "replace").split())
+
+    def phonemize(self, text: str) -> str:
+        out: list[str] = []
+        for piece in _SPLIT.split(text.strip()):
+            if not piece:
+                continue
+            if _SPLIT.fullmatch(piece):
+                out.append(piece)
+            else:
+                phonemes = self._run(piece)
+                if phonemes:
+                    out.append(("" if out and out[-1][-1] in ".,!?;:" else "") + phonemes)
+        return " ".join(out).replace(" ,", ",").replace(" .", ".").replace(" ?", "?")
+
+
+class Kokoro:
+    def __init__(
+        self,
+        model: str,
+        voices: str,
+        threads: int,
+        voice: str,
+        vocab_path: str | None = None,
+    ) -> None:
+        opts = rt.SessionOptions()
+        opts.log_severity_level = 3
+        opts.intra_op_num_threads = threads
+        opts.inter_op_num_threads = 1
+        opts.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
+        # onnxruntime's CPU arena never gives memory back, so a resident
+        # server keeps the peak of the longest utterance it ever spoke.
+        # Turning it off costs 2-4% latency and ~300 MB of steady-state RSS.
+        opts.enable_cpu_mem_arena = os.environ.get("KIDNIX_KOKORO_ARENA") == "1"
+        started = time.perf_counter()
+        self.sess = rt.InferenceSession(
+            model, opts, providers=["CPUExecutionProvider"]
+        )
+        # The kokoro-onnx release export carries the vocabulary in its own
+        # ONNX metadata; the onnx-community export (the one with an explicit
+        # Apache-2.0 licence on its HF repo) does not, so the vocabulary comes
+        # from hexgrad/Kokoro-82M's own 2.3 KB config.json instead.
+        if vocab_path:
+            with open(vocab_path, encoding="utf-8") as handle:
+                self.vocab: dict[str, int] = json.load(handle)["vocab"]
+        else:
+            self.vocab = json.loads(
+                self.sess.get_modelmeta().custom_metadata_map[CONFIG_KEY]
+            )["vocab"]
+        # voices-v1.0.bin is a 28 MB npz of all 54 voices; a per-voice .bin
+        # from the onnx-community repo is 522 240 raw float32 bytes and is
+        # byte-for-byte the same array.
+        if voices.endswith(".bin") and os.path.getsize(voices) == 510 * 256 * 4:
+            self.style = np.fromfile(voices, dtype=np.float32).reshape(510, 1, 256)
+        else:
+            self.style = np.load(voices)[voice]
+        self.espeak = Espeak()
+        log(
+            f"loaded {os.path.basename(model)} + {voice} in "
+            f"{(time.perf_counter() - started) * 1000:.0f} ms, RSS {rss_mb():.0f} MB"
+        )
+
+    def synth(self, text: str, speed: float) -> bytes:
+        phonemes = self.espeak.phonemize(text)
+        tokens = [self.vocab[p] for p in phonemes if p in self.vocab][:MAX_PHONEMES]
+        if not tokens:
+            return b""
+        style = self.style[min(len(tokens), len(self.style)) - 1]
+        outputs = self.sess.run(
+            None,
+            {
+                "input_ids": np.array([[0, *tokens, 0]], dtype=np.int64),
+                "style": np.asarray(style, dtype=np.float32),
+                "speed": np.array([speed], dtype=np.float32),
+            },
+        )
+        audio = np.asarray(outputs[0]).ravel()
+        pcm = (np.clip(audio, -1.0, 1.0) * 32767.0).astype("<i2")
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(SAMPLE_RATE)
+            handle.writeframes(pcm.tobytes())
+        return buffer.getvalue()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", required=True)
+    parser.add_argument("--voices", required=True)
+    parser.add_argument("--voice", default="bf_emma")
+    parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--socket", default=None)
+    parser.add_argument("--say", nargs="*", help="synthesise and exit, no socket")
+    parser.add_argument("--speed", type=float, default=0.91)
+    parser.add_argument("--outdir", default=".")
+    parser.add_argument("--vocab", default=None, help="config.json with a vocab")
+    args = parser.parse_args()
+
+    kokoro = Kokoro(
+        args.model, args.voices, args.threads, args.voice, vocab_path=args.vocab
+    )
+
+    if args.say:
+        for index, text in enumerate(args.say, 1):
+            started = time.perf_counter()
+            wav = kokoro.synth(text, args.speed)
+            elapsed = (time.perf_counter() - started) * 1000
+            path = os.path.join(args.outdir, f"say-{index:02d}.wav")
+            with open(path, "wb") as handle:
+                handle.write(wav)
+            audio_s = (len(wav) - 44) / 2 / SAMPLE_RATE
+            log(
+                f"spoke {len(text)} chars in {elapsed:.0f} ms "
+                f"({audio_s:.2f}s audio, RTF {elapsed / 1000 / audio_s:.3f}, "
+                f"RSS {rss_mb():.0f} MB) -> {path}"
+            )
+        return 0
+
+    path = args.socket or os.path.join(
+        os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "kidnix", "kokoro.sock"
+    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.exists(path):
+        os.unlink(path)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(path)
+    os.chmod(path, 0o600)
+    sock.listen(8)
+    log(f"listening on {path}")
+
+    while True:
+        conn, _ = sock.accept()
+        with conn:
+            conn.settimeout(10.0)
+            buffer = b""
+            while b"\n" not in buffer and len(buffer) < 1 << 20:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    break
+                buffer += chunk
+            line = buffer.split(b"\n", 1)[0]
+            if not line:
+                continue
+            try:
+                request = json.loads(line.decode("utf-8", "replace"))
+            except ValueError as exc:
+                log(f"bad request: {exc}")
+                continue
+            text = " ".join(str(request.get("text", "")).split())
+            # kidnix-piper-say speaks Piper's length_scale, where bigger is
+            # slower; Kokoro's speed is its reciprocal.
+            length_scale = float(request.get("length_scale", 1.0))
+            speed = max(0.5, min(2.0, 1.0 / length_scale))
+            started = time.perf_counter()
+            try:
+                wav = kokoro.synth(text, speed)
+            except Exception as exc:  # noqa: BLE001 -- one bad line must not end the voice
+                log(f"synthesis failed: {exc}")
+                continue
+            log(
+                f"spoke {len(text)} chars in "
+                f"{(time.perf_counter() - started) * 1000:.0f} ms"
+            )
+            try:
+                conn.sendall(wav)
+            except OSError:
+                pass
+
+
+if __name__ == "__main__":
+    sys.exit(main())
