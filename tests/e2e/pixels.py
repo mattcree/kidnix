@@ -294,7 +294,12 @@ def _edge_rows(image: Image, top: int, bottom: int, coverage: float, min_run: in
 
 
 def horizontal_bands(
-    image: Image, top: int, bottom: int, coverage: float = 0.40, min_run: int = 120
+    image: Image,
+    top: int,
+    bottom: int,
+    coverage: float = 0.40,
+    min_run: int = 120,
+    lenient: bool = False,
 ) -> list:
     """(top, bottom) of every row of controls between ``top`` and ``bottom``.
 
@@ -313,6 +318,19 @@ def horizontal_bands(
     opened = None
     for start, end in _edge_rows(image, top, bottom, coverage, min_run):
         depth = end - start + 1
+        if lenient:
+            # v0.1.6 paints a thick three-layer focus ring around the focused
+            # control, which breaks the thin-top/thick-bottom asymmetry for
+            # that one box (a single Journal card, say). Any edge run opens a
+            # box; the next one closes it if the height is plausible.
+            if opened is None:
+                opened = start
+            elif 40 <= end - opened <= 420:
+                bands.append((opened, end))
+                opened = None
+            else:
+                opened = start
+            continue
         if depth <= 4 and opened is None:
             opened = start
         elif depth >= 6 and opened is not None:
@@ -394,14 +412,17 @@ def find_grid(image: Image, top: int = 0) -> list:
     Home grid out in, so ``grid[row][column]`` is the tile at that cell.
     """
     start = top or content_top(image)
-    for coverage in COVERAGE_LADDER:
-        rows = []
-        for band in horizontal_bands(image, start, image.height, coverage=coverage):
-            boxes = boxes_in_band(image, band)
-            if boxes:
-                rows.append([(left, band[0], right, band[1]) for left, right in boxes])
-        if rows:
-            return rows
+    for lenient in (False, True):
+        for coverage in COVERAGE_LADDER:
+            rows = []
+            for band in horizontal_bands(
+                image, start, image.height, coverage=coverage, lenient=lenient
+            ):
+                boxes = boxes_in_band(image, band)
+                if boxes:
+                    rows.append([(left, band[0], right, band[1]) for left, right in boxes])
+            if rows:
+                return rows
     return []
 
 
@@ -418,6 +439,14 @@ def band_buttons(image: Image, band_height: int) -> list:
     signal and the surround is solid colour.
     """
     top, bottom = 6, max(10, band_height - 7)
+    # v0.1.6: the band *window* also holds the paper-coloured caption strip
+    # under the control row. Stop at the first row that is paper almost all
+    # the way across, or every column looks like a button interior at once.
+    for y in range(top + 10, bottom):
+        paper = sum(1 for x in range(0, image.width, 4) if _is_interior(image.pixel(x, y)))
+        if paper > 0.9 * (image.width // 4):
+            bottom = max(10, y - 4)
+            break
     height = bottom - top
     columns = []
     for x in range(image.width):

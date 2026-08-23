@@ -18,6 +18,7 @@ the QEMU command line, and ``contact-sheet.png``.
 
 from __future__ import annotations
 
+import re
 import time
 
 import pytest
@@ -145,7 +146,11 @@ def test_01_boots_to_whos_here(scenario):
     # measured-fit backstop relays out two or three times in the first second
     # and the band gets shorter each time, which is exactly why the config is
     # written once, at the end, rather than on every pass.
-    laid_out = [row for row in scenario.journal().splitlines() if " px (button " in row]
+    # v0.1.6 prints "band N px (row R, captions C, button B mm)"; older builds
+    # printed "band N px (button B mm)" -- match the band figure, not the text.
+    laid_out = [
+        row for row in scenario.journal().splitlines() if re.search(r"\bband \d+ px \(", row)
+    ]
     assert laid_out, "the shell never logged its metrics"
     assert band_height_from(laid_out[-1]) == band, f"{laid_out[-1]!r} disagrees with {line!r}"
     assert (geometry["bw"], geometry["bh"]) == (1280, band), line
@@ -332,7 +337,7 @@ def test_04_draw_launches_tuxpaint_and_keeps_the_drawing(scenario):
     scenario.expect_log("the band asked the activity to finish", timeout=20)
     time.sleep(3)
     asking = scenario.shot("tuxpaint-asking", "S3 Tux Paint's own 'really quit?'")
-    tick = colour_centroid(asking, (0, band, 1280, 800), is_tuxpaint_green)
+    tick = colour_centroid(asking, (150, band + 20, 1130, 630), is_tuxpaint_green)
     assert tick is not None, (
         "Tux Paint did not put its quit prompt up. With quit=yes it answers "
         "SIGTERM with a tick and a cross; with noquit=yes it does nothing at "
@@ -409,7 +414,11 @@ def test_06_the_session_ends_on_its_own(scenario):
     """
     vm = scenario.vm
     band = scenario.band_height
-    vm.write_session_policy(session_policy(length=3, ending_offer=1.5, put_away=0.75))
+    # v0.1.6 (panel wave A): the windows are proportional with caps --
+    # offer = clamp(20%, 2-4 min), put-away = clamp(10%, 1-2 min) -- and a
+    # session floor (3 min minimum). 3.5 minutes therefore gives: offer at
+    # T-2 (90 s in), put-away at T-1 (150 s in), goodbye at 210 s.
+    vm.write_session_policy(session_policy(length=3.5, ending_offer=4, put_away=2, min_session=3))
     cursor = vm.restart_shell()
 
     blob = scenario.wait_until(
@@ -497,7 +506,7 @@ def test_06_the_session_ends_on_its_own(scenario):
     assert "-> put_away" not in scenario.journal(cursor), (
         "the shell raised 'Let's keep that' over a drawing that was not saved yet"
     )
-    tick = colour_centroid(asking, (0, band, 1280, 800), is_tuxpaint_green)
+    tick = colour_centroid(asking, (150, band + 20, 1130, 630), is_tuxpaint_green)
     assert tick is not None, (
         "Tux Paint's quit prompt is not on screen. Either the shell covered it "
         "(the v0.1.5 data-loss bug) or it was killed on the signal grace."

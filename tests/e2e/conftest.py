@@ -35,6 +35,7 @@ def session_policy(
     ending_offer: float = 6,
     put_away: float = 2,
     budget: float = 600,
+    min_session: float = 5,
 ) -> str:
     """A ``session.toml`` with the bedtime window moved out of the way.
 
@@ -49,6 +50,7 @@ def session_policy(
         f"daily_budget_minutes = {budget}\n"
         f"ending_offer_minutes = {ending_offer}\n"
         f"put_away_minutes = {put_away}\n"
+        f"min_session_minutes = {min_session}\n"
         f'bedtime_start = "{far:%H:%M}"\n'
         f'bedtime_end = "{(far + datetime.timedelta(minutes=1)):%H:%M}"\n'
     )
