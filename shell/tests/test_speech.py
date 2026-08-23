@@ -598,28 +598,28 @@ def test_the_ear_label_is_never_what_the_ear_repeats() -> None:
 def test_a_hovered_control_is_not_spoken_again_within_the_cooldown() -> None:
     from kidnix_shell.speech import HOVER_REPEAT_COOLDOWN_S
 
-    speech, backend, h = make()
+    h = Pointer()
     h.enter("tile:draw", "Draw")
     h.advance(600)
-    assert backend.spoken == ["Draw"]
+    assert h.backend.spoken == ["Draw"]
     # GTK re-delivers enter/leave when the band re-lays out: must stay quiet.
     for _ in range(5):
-        speech.hover_leave("tile:draw")
+        h.speech.hover_leave("tile:draw")
         h.enter("tile:draw", "Draw")
         h.advance(600)
-    assert backend.spoken == ["Draw"]
+    assert h.backend.spoken == ["Draw"]
     h.advance(int(HOVER_REPEAT_COOLDOWN_S * 1000) + 100)
-    speech.hover_leave("tile:draw")
+    h.speech.hover_leave("tile:draw")
     h.enter("tile:draw", "Draw")
     h.advance(600)
-    assert backend.spoken == ["Draw", "Draw"]
+    assert h.backend.spoken == ["Draw", "Draw"]
 
 
 def test_hovering_the_ear_says_nothing() -> None:
-    speech, backend, h = make()
+    h = Pointer()
     h.enter("band:ear", "Say it again")
     h.advance(2000)
-    assert backend.spoken == []
+    assert h.backend.spoken == []
 
 
 def test_kidnix_speech_off_forces_the_null_backend(monkeypatch) -> None:
