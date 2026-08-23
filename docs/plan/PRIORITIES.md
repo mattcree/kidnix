@@ -46,7 +46,9 @@ afterwards; the loop is the hard part.
 12. Parent panel app: Children · Time (session length, daily budget, bedtime,
     schedule windows) · Activities (allow-list per child) · Requests · Their
     things (browse/print/export/restore/delete) · Family recipients · Calm mode
-    · Updates (bootc upgrade/rollback).
+    · Updates (bootc upgrade/rollback). **v0 built 2026-08-23** (parent-panel/;
+    Requests tab pending the Ask flow; shell follow-ups: [[windows]], per-child
+    allow-list, speech_rate).
 12b. **Clock & time** activity (play-with-the-clock toy + curated GCompris clock + visible timers) — see ACTIVITY-IDEAS.md
 13. Keyboard/typing activity (designed, not Tux Typing as-is — see 05):
     lowercase-first, real keyboard, short bursts, no scores.
