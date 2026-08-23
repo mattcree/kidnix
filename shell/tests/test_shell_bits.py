@@ -223,6 +223,54 @@ def test_no_child_facing_string_in_the_shell_promises_a_return() -> None:
                 assert phrase not in node.value.lower(), f"{path.name} still says {phrase!r}"
 
 
+# --- night words live in one file, and are reached through one pair of
+#     functions (forum #17) ------------------------------------------------
+
+
+def test_the_word_goodnight_exists_in_exactly_one_module() -> None:
+    """The mirror of the test above, for the *other* thing a four-o'clock
+    session used to say.
+
+    "Goodnight" is true between 19:00 and 07:00 and is a sleep-onset cue at any
+    other hour, so it belongs to :mod:`kidnix_shell.resting`'s bedtime
+    vocabulary and is reached only through ``goodnight_label`` /
+    ``goodnight_speech``. It escaped once already: the Goodbye button's printed
+    label was switched on ``is_bedtime`` and its ``speak_text`` -- the
+    accessible name, the read-aloud *and* the caption, one string for all three
+    -- was the literal "Goodnight", so the cue kept arriving through the two
+    channels a pre-reader actually has. A literal anywhere else is that bug
+    again, whether or not anyone notices which channel it took.
+    """
+    import ast
+
+    import kidnix_shell
+
+    root = Path(kidnix_shell.__file__).parent
+    #: Where the bedtime vocabulary is defined, and may say its own name.
+    home = "resting.py"
+    #: `State.GOODNIGHT` / `Event.GOODNIGHT` -- internal tokens in the state
+    #: machine's own alphabet. Never rendered, never spoken, never captioned.
+    tokens = {"goodnight"}
+    for path in root.rglob("*.py"):
+        if path.name == home:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        docstrings = {
+            id(ast.get_docstring(node, clean=False))
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            if id(node.value) in docstrings or node.value in tokens:
+                continue
+            assert "goodnight" not in node.value.lower(), (
+                f"{path.name} has a literal 'Goodnight'; take it from "
+                f"kidnix_shell.{home[:-3]} so it only appears at bedtime"
+            )
+
+
 # --- "Show a grown-up" is not on a two-minute clock any more --------------
 
 

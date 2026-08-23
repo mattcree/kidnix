@@ -99,6 +99,32 @@ def dark_fraction(image: Image, box: tuple | None = None, threshold: int = 110) 
     return dark / count if count else 0.0
 
 
+#: How dark a pixel has to be to count as "nothing has been painted here".
+#: The dimmest surface the shell ever draws is the bedtime Sleeping screen, and
+#: that is a colour, not this: an unpainted framebuffer is 0,0,0 everywhere.
+UNPAINTED_LEVEL = 16
+#: How much of the frame has to be that dark before it is not a screenshot.
+UNPAINTED_FRACTION = 0.995
+
+
+def near_uniform_black(
+    image: Image,
+    *,
+    level: int = UNPAINTED_LEVEL,
+    fraction: float = UNPAINTED_FRACTION,
+) -> bool:
+    """Is this frame the framebuffer *before* anything drew into it?
+
+    QEMU's ``screendump`` answers as soon as the request is queued and will
+    happily hand back a frame the guest has not painted yet -- which is how the
+    first screenshot of a run came back fully black while every assertion after
+    it passed. That is a harness artefact, not a shell state, and telling the
+    two apart is possible because nothing kidnix draws is *uniformly* black:
+    even the bedtime screen is a colour, and every screen carries a band.
+    """
+    return dark_fraction(image, threshold=level) >= fraction
+
+
 def dark_centroid(image: Image, box: tuple | None = None, threshold: int = 110) -> tuple | None:
     """Centroid and bounding box of the dark pixels in ``box``.
 

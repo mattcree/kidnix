@@ -12,6 +12,7 @@ from kidnix_shell.resting import (
     ALL_DONE_HEADLINE,
     BEDTIME_REFUSAL,
     BUDGET_SPENT_REFUSAL,
+    DAYTIME_GOODNIGHT_SPEECH,
     RESTING_LATER_TODAY,
     RESTING_TOMORROW,
     SILENCE_AFTER_TAPS,
@@ -20,6 +21,7 @@ from kidnix_shell.resting import (
     TapSpeechLimiter,
     back_when_words,
     goodnight_label,
+    goodnight_speech,
     refusal_line,
     rest_line,
     rest_title,
@@ -66,6 +68,28 @@ def test_the_titles_and_the_goodnight_button_switch_on_bedtime() -> None:
     assert rest_title(bedtime=True) == "Goodnight"
     assert goodnight_label(bedtime=False) == "All done"
     assert goodnight_label(bedtime=True) == "Goodnight"
+
+
+def test_the_button_says_daytime_words_out_loud_too() -> None:
+    """The label switched on the clock and the *voice* did not, so a 4pm
+    session ended with a button reading "All done" that spoke, captioned and
+    announced "Goodnight" -- the sleep-onset cue simply changing channel."""
+    spoken = goodnight_speech(bedtime=False)
+    assert spoken == DAYTIME_GOODNIGHT_SPEECH == "All done. Time to rest."
+    assert "night" not in spoken.lower()
+    assert "sleep" not in spoken.lower()
+    assert goodnight_speech(bedtime=True) == "Goodnight"
+    # And it starts with the words on the button, so what a child hears and
+    # what they see are the same thing said twice, not two things.
+    assert spoken.startswith(goodnight_label(bedtime=False))
+
+
+def test_nothing_on_the_daytime_ending_instructs_the_child() -> None:
+    """ "Time to rest" is the *machine* resting -- the name of the screen the
+    button leads to. Nothing in the ritual tells a child what to do."""
+    spoken = goodnight_speech(bedtime=False)
+    for demand in ("you must", "you have to", "go to bed", "ask a grown-up"):
+        assert demand not in spoken.lower()
 
 
 # --- and it says *when* (forum #31) --------------------------------------

@@ -35,8 +35,11 @@ Three smaller rulings live here too:
 * **No return promises anywhere.** "See you next time" is gone; the headline
   with no destination chosen is :data:`~kidnix_shell.resting.ALL_DONE_HEADLINE`.
   suggestions.py's own docstring has forbidden that phrasing all along (D6).
-* **"Goodnight" is only called Goodnight at bedtime**
-  (:func:`kidnix_shell.resting.goodnight_label`).
+* **"Goodnight" is only called Goodnight at bedtime** -- on the button, in its
+  accessible name, in what it says out loud and in the caption under the band,
+  all four from :func:`kidnix_shell.resting.goodnight_label` and
+  :func:`~kidnix_shell.resting.goodnight_speech`. Only the printed label used
+  to move, which meant the sleep-onset cue simply changed channel.
 
 It asks. It never instructs. Coco's found children who took the machine's
 statements as inviolable rules ("Coco will make you do it"), so nothing here is
@@ -66,7 +69,13 @@ from ..metrics import (  # noqa: E402
     GOODBYE_THUMBNAIL_ASPECT,
     GOODBYE_THUMBNAILS,
 )
-from ..resting import ALL_DONE_HEADLINE, goodnight_label  # noqa: E402
+from ..resting import (  # noqa: E402
+    ALL_DONE_HEADLINE,
+    BEDTIME_GOODNIGHT_LABEL,
+    DAYTIME_GOODNIGHT_LABEL,
+    goodnight_label,
+    goodnight_speech,
+)
 from ..suggestions import offline_suggestion  # noqa: E402
 from ..theme import points_for  # noqa: E402
 from ..widgets import ChildButton, big_label, icon_image, page_label_fit  # noqa: E402
@@ -125,8 +134,10 @@ class GoodbyeScreen(Screen):
         base = points_for(metrics, ".big-line")
         # One size across the pair: two buttons side by side at two different
         # sizes read as one of them mattering more.
+        # Both vocabularies are measured, not just today's: the type size must
+        # not change under a child because the clock crossed 19:00.
         points, _ = page_label_fit(
-            ("Show a grown-up", "Goodnight"),
+            ("Show a grown-up", BEDTIME_GOODNIGHT_LABEL, DAYTIME_GOODNIGHT_LABEL),
             inner,
             base_pt=base,
             floor_pt=metrics.label_floor_pt,
@@ -147,15 +158,17 @@ class GoodbyeScreen(Screen):
         self.show_button.set_child(self._button_label("Show a grown-up"))
         buttons.append(self.show_button)
 
+        # Daytime words until `on_enter` asks the clock. The wrong default is
+        # the one that carries a sleep-onset cue into an afternoon.
         self.goodnight_button = ChildButton(
-            speak_text="Goodnight",
+            speak_text=goodnight_speech(bedtime=False),
             on_activate=self.ctx.host.goodnight,
             speech_ui=self.ctx.speech_ui,
             css_classes=("ritual",),
             width=metrics.target_mm(GOODBYE_BUTTON_WIDTH_MM),
             height=metrics.goodbye_button,
         )
-        self._goodnight_label = self._button_label("Goodnight")
+        self._goodnight_label = self._button_label(goodnight_label(bedtime=False))
         self.goodnight_button.set_child(self._goodnight_label)
         buttons.append(self.goodnight_button)
         self.append(buttons)
@@ -209,9 +222,16 @@ class GoodbyeScreen(Screen):
         # made today it is an invitation to look at earlier days together, and
         # co-use is the strongest protective moderator in the corpus.
         self.show_button.set_visible(True)
-        self._goodnight_label.set_label(
-            goodnight_label(bedtime=self.ctx.session.policy.is_bedtime(now))
-        )
+        # **All four channels move together** (forum #17, and the last two
+        # frames of the e2e contact sheet). The printed label was switched on
+        # the clock and the button's `speak_text` was not, so an afternoon
+        # session ended with a button reading "All done" that spoke -- and
+        # captioned, and told a screen reader -- "Goodnight". `speak_text` is
+        # the one source of truth for the accessible name, the read-aloud and
+        # the caption strip, so setting it here moves all three.
+        bedtime = self.ctx.session.policy.is_bedtime(now)
+        self._goodnight_label.set_label(goodnight_label(bedtime=bedtime))
+        self.goodnight_button.set_speak_text(goodnight_speech(bedtime=bedtime))
 
         # Spoken in the order the screen is read, and the destination **last**,
         # as its own sentence, after a beat (panel ruling; forum #24).

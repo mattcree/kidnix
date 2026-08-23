@@ -38,10 +38,11 @@ from pixels import (
     shell_geometry,
 )
 
-#: The activity the scenario opens. Row 1, column 2 of a 4x3 Home grid --
-#: activities sort by (category, name), so "make" follows "learn" and
-#: "Tux Paint" follows "TurboWarp". Asserted, not assumed: the shell's launcher
-#: log says which activity actually started.
+#: The activity the scenario opens: the **first cell of the first row**. Home
+#: lays the tiles out in the manifests' own ``order``, and Draw ships with
+#: ``order = 10`` -- the lowest of the ten. Asserted, not assumed: the shell's
+#: launcher log says which activity actually started, so a re-ordered manifest
+#: fails the step rather than silently drawing in something else.
 DRAW_ROW, DRAW_COLUMN = 0, 0
 
 #: The band's buttons, left to right: Back, Undo, My Things, then the Ear on
@@ -214,13 +215,17 @@ def test_02_choosing_me_asks_whats_next_then_goes_home(scenario):
     image = scenario.shot("home", "S2 Home, after choosing what's next")
 
     grid = find_grid(image)
-    # Progressive disclosure (spec 7b): a fresh machine shows `initial_tiles`
-    # = 6 **counting "All done"**, so Home is 4 + 2, not the 4/4/2 of the whole
-    # allow-list. `find_grid` reads the densest row it can find, and a two-tile
-    # row covers too little of the width to register at the top of its coverage
-    # ladder -- so assert what this harness actually needs (a full first row,
-    # with Draw at 0,0) rather than a row count that is really a statement
-    # about how many sessions the machine has had.
+    # **Progressive disclosure is off by default** since 2026-08-23
+    # (`home.show_everything = true`, forum #9/#26/#40): a fresh machine shows
+    # the whole allow-list, paginated, rather than growing by a tile every
+    # fortnight. So this is a full 4x2 page of the ten shipped activities with
+    # "All done" pinned at index 7 -- the last cell of the second row, where it
+    # stays on every grid and every session -- and the rest continue on page 2.
+    #
+    # The assertion is still about the *first row*, because that is all this
+    # harness needs (Draw at 0,0) and because `find_grid` reads the densest row
+    # it can find: which of the lower rows register depends on the coverage
+    # ladder and on the lavender "All done" fill, not on the shell.
     assert grid, "no tiles on Home at all"
     assert len(grid[0]) == 4, [len(row) for row in grid]
     scenario.grid = grid

@@ -11,7 +11,7 @@ import logging
 import os
 import re
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -1183,6 +1183,56 @@ def test_goodbye_asks_rather_than_instructs(ctx: ShellContext) -> None:
         line = screen.headline.get_label()
         assert line.endswith("?")
         assert "must" not in line.lower() and "now it's time" not in line.lower()
+
+
+def _pin_bedtime(ctx: ShellContext, *, bedtime: bool) -> None:
+    """Put the bedtime window around, or well away from, the wall clock.
+
+    Computed rather than hard-coded: the words switch on `is_bedtime(now)`, and
+    a test that assumed the suite never runs at ten to midnight would be a test
+    that fails once a year for the wrong reason.
+    """
+    from kidnix_shell.session import SessionPolicy
+
+    now = datetime.now()
+    start = now - timedelta(hours=1) if bedtime else now + timedelta(hours=2)
+    end = now + timedelta(hours=1) if bedtime else now + timedelta(hours=3)
+    ctx.session.policy = replace(
+        SessionPolicy.demo(),
+        bedtime_start=start.time().replace(second=0, microsecond=0),
+        bedtime_end=end.time().replace(second=0, microsecond=0),
+    )
+    assert ctx.session.policy.is_bedtime(now) is bedtime
+
+
+def test_the_ending_button_is_daytime_words_on_every_channel(ctx: ShellContext) -> None:
+    """forum #17, one channel later. The printed label already switched on the
+    clock; the *voice* did not, so a four-o'clock session ended with a button
+    reading "All done" that spoke -- and captioned, and announced to a screen
+    reader -- "Goodnight". ``speak_text`` is the single source of truth for all
+    three, which is exactly why it had to move too."""
+    from kidnix_shell.resting import goodnight_label, goodnight_speech
+
+    _pin_bedtime(ctx, bedtime=False)
+    screen = GoodbyeScreen(ctx)
+    screen.on_enter()
+
+    assert screen._goodnight_label.get_label() == goodnight_label(bedtime=False) == "All done"
+    spoken = screen.goodnight_button.speak_text
+    assert spoken == goodnight_speech(bedtime=False) == "All done. Time to rest."
+    # The accessible name is the same string, by construction (ChildButton).
+    assert "night" not in spoken.lower()
+
+
+def test_the_ending_button_keeps_its_night_words_at_bedtime(ctx: ShellContext) -> None:
+    """The one place they are true. Take these away and the moon, the yawn and
+    the word stop agreeing with each other."""
+    _pin_bedtime(ctx, bedtime=True)
+    screen = GoodbyeScreen(ctx)
+    screen.on_enter()
+
+    assert screen._goodnight_label.get_label() == "Goodnight"
+    assert screen.goodnight_button.speak_text == "Goodnight"
 
 
 # --- progressive disclosure (spec 7b, SYNTHESIS B2) ----------------------
@@ -2721,6 +2771,145 @@ def test_a_configured_machine_opens_on_the_ordinary_pad(ctx: ShellContext) -> No
     for digit in "2468":
         sheet._push(digit)
     assert sheet._stack.get_visible_child_name() == "actions"
+
+
+# --- changing a PIN costs the current one (wave F) ----------------------
+
+
+def test_changing_the_pin_asks_for_the_current_one_first(ctx: ShellContext) -> None:
+    """``docs/spikes/pin-flow.md`` section 2, rule 2. It is not a formality:
+    the current PIN is stdin line 2 of the helper's contract, so without it the
+    change is refused (exit 4) and the new numbers last until the next restart.
+    It is also what stops a child who watched a grown-up at the gate from
+    choosing the PIN that fences them in."""
+    from kidnix_shell.screens.grownup import CHANGE_PIN_SUBTITLE, GrownupSheet
+
+    ctx.config.set_pin("2468")
+    sheet = GrownupSheet(ctx)
+    for digit in "2468":  # through the gate
+        sheet._push(digit)
+    sheet._begin_setting_pin()
+
+    assert sheet._pin_title.get_label() == "Type the current grown-up PIN"
+    assert sheet._pin_help.get_label() == CHANGE_PIN_SUBTITLE
+    assert sheet._pin_help.get_visible()
+
+    for digit in "1111":  # not the current one
+        sheet._push(digit)
+    assert sheet._pin_title.get_label() == "Type the current grown-up PIN"
+    assert sheet._current_pin is None
+    assert "current PIN" in sheet._error.get_label()
+
+    for digit in "2468":
+        sheet._push(digit)
+    assert sheet._pin_title.get_label() == "Choose a new grown-up PIN"
+    assert sheet._current_pin == "2468"
+
+
+def _pretend_the_helper_is_installed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`/usr/bin/kidnix-set-pin` and pkexec, without either being present."""
+    from kidnix_shell.screens import grownup
+
+    helper = tmp_path / "kidnix-set-pin"
+    helper.write_text("#!/usr/bin/bash\nexit 0\n", encoding="utf-8")
+    monkeypatch.setattr(grownup, "SET_PIN_HELPER", str(helper))
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/bin/pkexec")
+
+
+def test_a_changed_pin_reaches_the_helper_with_both_lines(
+    ctx: ShellContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The whole of the wave, end to end through the pad: new PIN first,
+    current PIN second, and the sheet does not keep either afterwards."""
+    from kidnix_shell.screens import grownup
+
+    sent: list[tuple[str, str | None]] = []
+
+    def fake_call(pin: str, current: str | None = None, **_kw: object) -> grownup.HelperOutcome:
+        sent.append((pin, current))
+        return grownup.HelperOutcome(True, "New PIN saved to /etc/kidnix/parent.toml.", False)
+
+    monkeypatch.setattr(grownup, "call_set_pin", fake_call)
+    _pretend_the_helper_is_installed(monkeypatch, tmp_path)
+    # `config.path` is None here, i.e. a root-owned parent.toml this process
+    # cannot write: the helper is the only way the numbers reach the disk.
+    ctx.config.set_pin("2468")
+
+    sheet = grownup.GrownupSheet(ctx)
+    for digit in "2468":
+        sheet._push(digit)
+    sheet._begin_setting_pin()
+    for digit in "2468":  # the current one
+        sheet._push(digit)
+    for digit in "8471":  # the new one, twice
+        sheet._push(digit)
+    for digit in "8471":
+        sheet._push(digit)
+
+    assert sent == [("8471", "2468")]
+    assert ctx.config.check_pin("8471")
+    assert sheet._current_pin is None
+    assert sheet._pin == ""
+    assert sheet._new_pin is None
+
+
+def test_a_first_set_still_sends_no_current_pin(
+    ctx: ShellContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The open path stays open: an unconfigured machine has no secret to
+    prove, and asking for one would leave the gate open forever."""
+    from kidnix_shell.screens import grownup
+
+    sent: list[tuple[str, str | None]] = []
+
+    def fake_call(pin: str, current: str | None = None, **_kw: object) -> grownup.HelperOutcome:
+        sent.append((pin, current))
+        return grownup.HelperOutcome(True, "New PIN saved.", False)
+
+    monkeypatch.setattr(grownup, "call_set_pin", fake_call)
+    _pretend_the_helper_is_installed(monkeypatch, tmp_path)
+    ctx.config = ParentConfig()
+
+    sheet = grownup.GrownupSheet(ctx)
+    for digit in "8471":
+        sheet._push(digit)
+    for digit in "8471":
+        sheet._push(digit)
+
+    assert sent == [("8471", None)]
+    assert not ctx.config.must_set_pin
+
+
+def test_a_refused_change_says_so_and_keeps_the_new_pin_for_the_session(
+    ctx: ShellContext, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Never pretend, never refuse either: the row carries the helper's answer
+    and the chosen PIN is in force until the machine restarts."""
+    from kidnix_shell.screens import grownup
+
+    monkeypatch.setattr(
+        grownup,
+        "call_set_pin",
+        lambda *_a, **_k: grownup.HelperOutcome(False, grownup.TOO_MANY_TRIES_MESSAGE, True),
+    )
+    _pretend_the_helper_is_installed(monkeypatch, tmp_path)
+    ctx.config.set_pin("2468")
+
+    sheet = grownup.GrownupSheet(ctx)
+    for digit in "2468":
+        sheet._push(digit)
+    sheet._begin_setting_pin()
+    for digit in "2468":
+        sheet._push(digit)
+    for digit in "8471":
+        sheet._push(digit)
+    for digit in "8471":
+        sheet._push(digit)
+
+    assert sheet._stack.get_visible_child_name() == "actions"
+    assert sheet._pin_message.get_visible()
+    assert sheet._pin_message.get_title().startswith(grownup.TOO_MANY_TRIES)
+    assert ctx.config.check_pin("8471")
 
 
 # --- the burst-click detector, on the real windows ----------------------

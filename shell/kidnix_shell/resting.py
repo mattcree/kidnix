@@ -63,6 +63,20 @@ SLEEPING_LINE = "kidnix is sleeping."
 DAYTIME_GOODNIGHT_LABEL = "All done"
 BEDTIME_GOODNIGHT_LABEL = "Goodnight"
 
+#: **What that button says out loud, and what the caption under the band
+#: carries.** The label was switched on ``is_bedtime`` and the *voice* was not,
+#: so an ordinary four-o'clock session ended with a button reading "All done"
+#: speaking, and captioning, "Goodnight" -- the exact sleep-onset cue forum #17
+#: took out of the picture and the screen title, arriving instead through the
+#: two channels a pre-reader and a screen-reader user actually get it from.
+#: (The last two frames of ``docs/design/screenshots/e2e-contact-sheet.png``.)
+#:
+#: "Time to rest" is the *machine* resting -- it is the name of the screen this
+#: button leads to (:data:`RESTING_TITLE`) and the line that screen speaks. It
+#: is not an instruction to the child to go and rest; nothing here instructs.
+DAYTIME_GOODNIGHT_SPEECH = "All done. Time to rest."
+BEDTIME_GOODNIGHT_SPEECH = "Goodnight"
+
 #: Who's here, when the day's computer time is gone. Warm, non-explanatory,
 #: and it points at something to do rather than at the machine's own return
 #: (D6: the system has no interest in whether the child comes back). No
@@ -105,6 +119,16 @@ def rest_line(now: datetime, next_open: datetime, *, bedtime: bool) -> str:
 
 def goodnight_label(*, bedtime: bool) -> str:
     return BEDTIME_GOODNIGHT_LABEL if bedtime else DAYTIME_GOODNIGHT_LABEL
+
+
+def goodnight_speech(*, bedtime: bool) -> str:
+    """What the same button says out loud, and is captioned as.
+
+    Separate from :func:`goodnight_label` because the button is 20 mm of text
+    and the utterance can afford a second clause -- not because the two may
+    disagree about what time of day it is.
+    """
+    return BEDTIME_GOODNIGHT_SPEECH if bedtime else DAYTIME_GOODNIGHT_SPEECH
 
 
 def refusal_line(*, bedtime: bool) -> str:

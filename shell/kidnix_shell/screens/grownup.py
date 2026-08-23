@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -55,22 +56,146 @@ STARTER_PIN_SUBTITLE = (
 #: Never a pretend save.
 SET_PIN_COMMAND = "sudo kidnix-set-pin"
 SET_PIN_READ_ONLY = (
-    "Kept for this session. This pad cannot write /etc/kidnix/parent.toml -- the shell "
-    "runs as the child, and that is what keeps the PIN out of their hands. The gate is "
-    "closed with your PIN until the machine restarts. To keep it, run:\n\n"
+    "Kept for this session. /etc/kidnix/parent.toml is root-owned -- that is what keeps "
+    "the PIN out of the child's hands -- and kidnix-set-pin could not be reached from "
+    "here. The gate is closed with your PIN until the machine restarts. To keep it, "
+    "run:\n\n"
     f"    {SET_PIN_COMMAND}\n\n"
     "from a terminal on this machine, or from the parent account, and it will ask you "
     "for the PIN again."
 )
 
 #: The root helper the shell tries first, before falling back to a PIN that
-#: holds for one boot. It exists, it works from the *parent's* account, and it
-#: is refused from the child's session by design -- see the note in
-#: :meth:`GrownupSheet._write_pin`.
+#: holds for one boot. Since the wave-F polkit carve-out
+#: (``docs/spikes/pin-flow.md``) the ``kid`` account may run this one action,
+#: so on a real machine this is the path the PIN actually takes.
 SET_PIN_HELPER = "/usr/bin/kidnix-set-pin"
 #: How long to wait for it. A polkit prompt the kid session cannot answer must
 #: not become a shell that has stopped responding to a five-year-old.
 SET_PIN_TIMEOUT_SECONDS = 20
+
+# --- the helper's contract (docs/spikes/pin-flow.md sections 2 and 5) --------
+#
+# `kidnix-set-pin --stdin` reads **line 1 = the new PIN** and, once a PIN has
+# been set, **line 2 = the current one**; the exit code is the answer and is
+# part of the contract, which is why the numbers are named here rather than
+# spelled inline. Sending line 2 is the whole of this wave: without it a
+# *change* from the sheet came back 4 and fell through to a PIN that lasted
+# until the next restart.
+
+#: Written.
+EXIT_OK = 0
+#: Refused, or something went wrong. Not a PIN verdict.
+EXIT_REFUSED = 1
+#: The current PIN did not match, **or** too many wrong ones in the last
+#: minute. The two are told apart by the helper's own stderr, because the
+#: waiting one is the only one where trying again immediately is pointless.
+EXIT_BAD_PIN = 3
+#: A PIN is already set and none was proved -- i.e. we sent one line where two
+#: were needed. A bug in this file, phrased for the grown-up in front of it.
+EXIT_ALREADY_SET = 4
+
+#: What the helper says on stderr when the wait, not the digits, is the answer.
+LOCKED_OUT_MARKER = "too many wrong pins"
+
+#: The tail every unwritten outcome carries: the PIN is in force *now* either
+#: way (``ParentConfig.set_pin`` is what closes the gate), and the sheet has
+#: never been allowed to claim a save it did not make.
+KEPT_FOR_THIS_SESSION = (
+    "The PIN you chose is in force until the machine restarts. To keep it, run "
+    f"{SET_PIN_COMMAND} from a terminal or from the grown-up's own account."
+)
+
+#: The two sentences this wave exists to be able to say. Adult typography,
+#: adult surface: written, never spoken, and never with a digit in them.
+WRONG_CURRENT_PIN = "That wasn't the current PIN"
+TOO_MANY_TRIES = "Too many tries -- wait a minute"
+
+WRONG_CURRENT_PIN_MESSAGE = f"{WRONG_CURRENT_PIN}, so nothing was written. {KEPT_FOR_THIS_SESSION}"
+TOO_MANY_TRIES_MESSAGE = (
+    f"{TOO_MANY_TRIES}, then try again. Nothing was written. {KEPT_FOR_THIS_SESSION}"
+)
+ALREADY_SET_MESSAGE = (
+    "This machine already has a PIN, and the current one was not sent with the new "
+    f"one. Nothing was written. {KEPT_FOR_THIS_SESSION}"
+)
+
+
+@dataclass(frozen=True)
+class HelperOutcome:
+    """What ``kidnix-set-pin`` did, in words the sheet can put on a row."""
+
+    written: bool
+    message: str
+    warn: bool
+
+
+def helper_outcome(returncode: int, stdout: str, stderr: str) -> HelperOutcome:
+    """Map the helper's exit code to what a grown-up is told. Pure.
+
+    Every branch that is not ``0`` leaves the chosen PIN in force for this
+    session and says so, because the alternative -- a sheet that reports a
+    failure and quietly keeps the old gate -- is the one outcome nobody can act
+    on. Nothing here interpolates a PIN, a length or a first digit: a message a
+    child can read over a shoulder is the same failure as an echoed one.
+    """
+    if returncode == EXIT_OK:
+        path = stdout.strip() or str(SYSTEM_CONFIG_DIR / "parent.toml")
+        return HelperOutcome(True, f"New PIN saved to {path}.", False)
+    if returncode == EXIT_BAD_PIN:
+        if LOCKED_OUT_MARKER in stderr.lower():
+            return HelperOutcome(False, TOO_MANY_TRIES_MESSAGE, True)
+        return HelperOutcome(False, WRONG_CURRENT_PIN_MESSAGE, True)
+    if returncode == EXIT_ALREADY_SET:
+        return HelperOutcome(False, ALREADY_SET_MESSAGE, True)
+    return HelperOutcome(False, SET_PIN_READ_ONLY, True)
+
+
+def call_set_pin(
+    pin: str,
+    current: str | None = None,
+    *,
+    argv: list[str] | None = None,
+    timeout: float = SET_PIN_TIMEOUT_SECONDS,
+) -> HelperOutcome:
+    """Run ``pkexec kidnix-set-pin --stdin`` and read its verdict.
+
+    Both PINs travel on **stdin**, never in ``argv``: an argument is visible in
+    ``ps`` to every process on the machine for as long as the helper runs. Line
+    1 is the new PIN, line 2 the current one -- omitted entirely on a machine
+    that has none, which is the first-set path and is left exactly as it was.
+
+    ``argv`` is a seam for the tests, which run a fake helper. Nothing else
+    should pass it: the real command line is fixed and has no shell in it.
+    """
+    command = argv if argv is not None else ["pkexec", SET_PIN_HELPER, "--stdin"]
+    lines = f"{pin}\n" if current is None else f"{pin}\n{current}\n"
+    try:
+        completed = subprocess.run(  # fixed argv, no shell
+            command,
+            input=lines.encode(),
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        # `exc` names the command, never the input.
+        log.info("kidnix-set-pin did not run (%s); keeping the PIN for this boot", exc)
+        return HelperOutcome(False, SET_PIN_READ_ONLY, True)
+    stderr = completed.stderr.decode("utf-8", "replace")
+    outcome = helper_outcome(
+        completed.returncode, completed.stdout.decode("utf-8", "replace"), stderr
+    )
+    if not outcome.written:
+        # The code and the helper's own sentence -- which carries no digits,
+        # no length and no first character, by the same rule this file follows.
+        log.info(
+            "kidnix-set-pin exit %d; keeping the PIN for this boot. %s",
+            completed.returncode,
+            stderr.strip()[:200],
+        )
+    return outcome
+
 
 #: The first thing a grown-up sees on a machine nobody has set up. Not the
 #: pad, not the actions: the gate is unset and the only thing to do is set it
@@ -79,6 +204,15 @@ NO_PIN_TITLE = "This machine has no grown-up PIN yet"
 NO_PIN_SUBTITLE = (
     "Nothing else in here opens until you have chosen four numbers. "
     "Pick them somewhere they are not looking."
+)
+
+#: A *change* asks for the current PIN before the new one. The reason is worth
+#: a sentence on the screen: it is not a formality, it is the only thing that
+#: makes the numbers stick (helper stdin line 2), and it is what stops a child
+#: who watched a grown-up at the gate from choosing their own.
+CHANGE_PIN_SUBTITLE = (
+    "The current one first -- that is what lets the new one be saved for good, "
+    "rather than only until the machine restarts."
 )
 
 
@@ -145,6 +279,14 @@ class GrownupSheet(Adw.Dialog):
         #: True when the machine has no PIN at all, so the flow may not be
         #: escaped into the actions page (spec 7d #11).
         self._pin_mandatory = False
+        #: **A change costs the current PIN** (``docs/spikes/pin-flow.md``
+        #: section 2, rule 2). ``None`` on the first-set path, which is open by
+        #: design; otherwise the pad asks for the current PIN *first* and this
+        #: holds it until it can be sent to the helper as stdin line 2.
+        self._current_pin: str | None = None
+        #: True while the pad is asking for the current PIN rather than for the
+        #: new one.
+        self._asking_current = False
 
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
@@ -281,24 +423,42 @@ class GrownupSheet(Adw.Dialog):
         :meth:`_finish_setting_pin`.
 
         ``mandatory`` is the unconfigured machine: the sheet **opens** here and
-        there is nothing else to reach until it is done.
+        there is nothing else to reach until it is done. That is the *first-set*
+        path and it is open by design (``docs/spikes/pin-flow.md`` section 3):
+        four numbers a grown-up chose beat no numbers.
+
+        On a machine that already has a PIN the pad asks for the **current** one
+        first. Not theatre: it is stdin line 2 of the helper's contract, and
+        without it a change is refused with exit 4 and the new PIN lasts until
+        the next restart. It is also the rule that stops a child who watched a
+        parent type at the gate from *changing* the numbers that fence them in.
         """
         self._setting_pin = True
         self._pin_mandatory = mandatory
         self._new_pin = None
+        self._current_pin = None
         self._reset_pin()
         self._error.set_label("")
-        self._pin_title.set_label(
-            NO_PIN_TITLE if mandatory else "Choose a new grown-up PIN",
-        )
-        self._pin_help.set_label(NO_PIN_SUBTITLE if mandatory else "")
-        self._pin_help.set_visible(mandatory)
+        # The gate has already been opened with the current PIN by the time the
+        # "Set PIN" row is reachable -- but the sheet does not keep it, and a
+        # PIN held in a widget for the length of a session is a PIN stored.
+        self._asking_current = not mandatory and self.ctx.config.pin_configured
+        if self._asking_current:
+            self._pin_title.set_label("Type the current grown-up PIN")
+            self._pin_help.set_label(CHANGE_PIN_SUBTITLE)
+            self._pin_help.set_visible(True)
+        else:
+            self._pin_title.set_label(NO_PIN_TITLE if mandatory else "Choose a new grown-up PIN")
+            self._pin_help.set_label(NO_PIN_SUBTITLE if mandatory else "")
+            self._pin_help.set_visible(mandatory)
         self._stack.set_visible_child_name("pin")
 
     def _end_setting_pin(self) -> None:
         self._setting_pin = False
         self._pin_mandatory = False
         self._new_pin = None
+        self._current_pin = None
+        self._asking_current = False
         self._reset_pin()
         self._pin_help.set_visible(False)
         self._pin_title.set_label("Enter the grown-up PIN")
@@ -306,6 +466,19 @@ class GrownupSheet(Adw.Dialog):
     def _check_setting(self) -> None:
         entered, self._pin = self._pin, ""
         self._reset_pin()
+        if self._asking_current:
+            # Checked here as well as by the helper, so a mistyped current PIN
+            # costs a sentence rather than a round trip through pkexec and two
+            # seconds of the helper's rate limit.
+            if not self.ctx.config.check_pin(entered):
+                self._error.set_label(f"{WRONG_CURRENT_PIN}. Try again.")
+                return
+            self._current_pin = entered
+            self._asking_current = False
+            self._pin_title.set_label("Choose a new grown-up PIN")
+            self._pin_help.set_visible(False)
+            self._error.set_label("")
+            return
         if self._new_pin is None:
             self._new_pin = entered
             self._pin_title.set_label("Type it again")
@@ -322,15 +495,17 @@ class GrownupSheet(Adw.Dialog):
         """Take the PIN, write it where we can, and say exactly what happened.
 
         **Never pretend, and never refuse either.** Three outcomes, in this
-        order, and the third is the one a real kid session gets:
+        order, and since the wave-F carve-out the *second* is the one a real kid
+        session gets:
 
         1. the config file is writable here (a developer's ``--config``, or a
            parent running the shell in their own account) -- write it;
-        2. the root helper answers (``kidnix-set-pin``, through pkexec) --
-           write it that way;
-        3. neither -- **the PIN still takes effect for this session**, and the
-           sheet says so in as many words along with the command that makes it
-           permanent.
+        2. the root helper answers (``kidnix-set-pin --stdin``, through pkexec,
+           with the current PIN on line 2 when there is one) -- write it that
+           way;
+        3. neither, or the helper refused -- **the PIN still takes effect for
+           this session**, and the sheet says which of the helper's four answers
+           it got along with the command that makes it permanent.
 
         Outcome 3 is not a fudge. The alternative is a machine whose gate stays
         unset because the only person who can close it is holding a screen that
@@ -341,70 +516,39 @@ class GrownupSheet(Adw.Dialog):
         one says so louder, because it is the lock.
         """
         config = self.ctx.config
-        written, message, warn = self._write_pin(pin)
+        current, self._current_pin = self._current_pin, None
+        outcome = self._write_pin(pin, current)
         # The PIN is in force either way: `set_pin` is what closes the gate and
         # clears `must_set_pin`, and it is the same PIN in both cases.
         config.set_pin(pin)
-        log.info("the grown-up PIN was set from the sheet (%s)", "saved" if written else "one boot")
+        log.info(
+            "the grown-up PIN was %s from the sheet (%s)",
+            "changed" if current is not None else "set",
+            "saved" if outcome.written else "one boot",
+        )
         self._end_setting_pin()
-        self._pin_error_row(message, warn=warn)
+        self._pin_error_row(outcome.message, warn=outcome.warn)
         self._refresh_pin_rows()
         self._refresh_actions()
         self._stack.set_visible_child_name("actions")
 
-    def _write_pin(self, pin: str) -> tuple[bool, str, bool]:
-        """Try to persist ``pin``. Returns ``(written, what to say, warn?)``."""
+    def _write_pin(self, pin: str, current: str | None = None) -> HelperOutcome:
+        """Try to persist ``pin``, proving ``current`` where one is needed."""
         target = self.ctx.config.writable_path
         if target is not None:
+            # The current PIN was already proved against this very config in
+            # :meth:`_check_setting`; there is no second authority to ask.
             try:
                 rewrite_pin(target, pin)
             except OSError as exc:
                 log.warning("could not write the new PIN to %s: %s", target, exc)
-                return False, f"Could not write {target}: {exc}\n\nRun {SET_PIN_COMMAND}.", True
-            return True, f"New PIN saved to {target}.", False
-        path = self._helper_wrote(pin)
-        if path:
-            return True, f"New PIN saved to {path}.", False
-        return False, SET_PIN_READ_ONLY, True
-
-    def _helper_wrote(self, pin: str) -> str:
-        """Ask the root helper to write it. Returns the path, or ``""``.
-
-        **This is expected to fail in the child's own session, and that is the
-        image working**: ``40-kidnix-kid.rules`` refuses the ``kid`` account
-        every ``org.kidnix.*`` polkit action (and ``org.freedesktop.policykit.``
-        besides), which is exactly the rule that stops a child authorising
-        ``kidnix-wipe``. So this path is for the parent's account and for a
-        machine whose rules a later wave relaxes; in the kiosk it returns ""
-        after one refused prompt and the caller falls through to the honest
-        "for this session" answer.
-
-        The PIN goes over **stdin**, never argv: an argument is visible in
-        ``ps`` to every process on the machine for as long as the helper runs.
-        """
+                return HelperOutcome(
+                    False, f"Could not write {target}: {exc}\n\nRun {SET_PIN_COMMAND}.", True
+                )
+            return HelperOutcome(True, f"New PIN saved to {target}.", False)
         if not Path(SET_PIN_HELPER).is_file() or shutil.which("pkexec") is None:
-            return ""
-        try:
-            completed = subprocess.run(  # fixed argv, no shell
-                ["pkexec", SET_PIN_HELPER, "--stdin"],
-                input=f"{pin}\n".encode(),
-                capture_output=True,
-                timeout=SET_PIN_TIMEOUT_SECONDS,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            log.info("kidnix-set-pin did not run (%s); keeping the PIN for this boot", exc)
-            return ""
-        if completed.returncode != 0:
-            log.info(
-                "kidnix-set-pin was refused (exit %d); keeping the PIN for this boot. %s",
-                completed.returncode,
-                completed.stderr.decode("utf-8", "replace").strip()[:200],
-            )
-            return ""
-        return completed.stdout.decode("utf-8", "replace").strip() or str(
-            SYSTEM_CONFIG_DIR / "parent.toml"
-        )
+            return HelperOutcome(False, SET_PIN_READ_ONLY, True)
+        return call_set_pin(pin, current)
 
     def _pin_error_row(self, text: str, *, warn: bool = True) -> None:
         self._pin_message.set_title(text)
@@ -586,7 +730,10 @@ class GrownupSheet(Adw.Dialog):
         set_pin = no_cut(
             Adw.ActionRow(
                 title="Set the grown-up PIN",
-                subtitle="Type a new four-digit PIN twice. Somewhere they are not looking.",
+                subtitle=(
+                    "The current PIN, then a new four-digit one twice. "
+                    "Somewhere they are not looking."
+                ),
             )
         )
         set_pin_button = wrapping_button("Set PIN")

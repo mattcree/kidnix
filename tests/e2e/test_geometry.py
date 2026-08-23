@@ -11,6 +11,8 @@ disk image to boot.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pixels import (
     Image,
@@ -174,3 +176,91 @@ def test_the_gap_between_two_buttons_is_not_a_button():
     grid = find_grid(canvas.image())
     assert len(grid) == 1, grid
     assert [centre(box)[0] for box in grid[0]] == [337, 883], grid[0]
+
+
+# --- the unpainted first frame ------------------------------------------
+#
+# `screendump` answers as soon as the request is queued, so a dump taken just
+# after a state change can catch the framebuffer before the guest has painted
+# into it. The first screenshot of a run came back fully black exactly this
+# way, and it is the contact sheet -- the artefact the harness exists to
+# produce -- that carried the hole.
+
+
+def _ppm(path, width, height, colour):
+    """Write a solid-colour P6, the way QEMU would."""
+    body = bytes(colour) * (width * height)
+    path.write_bytes(b"P6\n%d %d\n255\n" % (width, height) + body)
+    return path
+
+
+def test_an_unpainted_frame_is_told_apart_from_a_dim_screen():
+    """The bedtime screen is the dimmest thing kidnix draws, and it is a
+    colour. Only a framebuffer nobody has written to is uniformly 0,0,0."""
+    from pixels import near_uniform_black
+
+    assert near_uniform_black(Canvas(64, 48, (0, 0, 0)).image())
+
+    sleeping = Canvas(64, 48, (26, 28, 44))  # theme.css `.sleeping`
+    assert not near_uniform_black(sleeping.image())
+
+    # A black screen with the band still on it is not "unpainted" either.
+    banded = Canvas(64, 48, (0, 0, 0))
+    banded.rect(0, 0, 63, 5, BAND)
+    assert not near_uniform_black(banded.image())
+
+
+def test_shot_asks_again_while_the_frame_is_black(tmp_path, monkeypatch, capsys):
+    """Two black frames, then a painted one: the shot returned is the painted
+    one, and the log says how many attempts it cost."""
+    import conftest
+
+    monkeypatch.setattr(conftest, "BLACK_FRAME_DELAY", 0.0)
+    frames = [(0, 0, 0), (0, 0, 0), PAPER]
+
+    class FakeQMP:
+        def screendump(self, path):
+            return _ppm(Path(path), 8, 8, frames[min(len(calls) - 1, len(frames) - 1)])
+
+    calls = []
+
+    class FakeVM:
+        qmp = FakeQMP()
+
+        def screenshot(self, name):
+            calls.append(name)
+            return tmp_path / name
+
+    story = conftest.Scenario(FakeVM(), tmp_path)
+    image = story.shot("boots", "the first frame")
+
+    assert len(calls) == 3  # one attempt plus two retries
+    assert image.pixel(0, 0) == PAPER
+    assert "2 retries" in capsys.readouterr().out
+
+
+def test_shot_gives_up_after_the_agreed_number_of_tries(tmp_path, monkeypatch, capsys):
+    """A screen that really is black must still produce a shot -- and say so,
+    so it reads as a finding rather than as a mystery."""
+    import conftest
+
+    monkeypatch.setattr(conftest, "BLACK_FRAME_DELAY", 0.0)
+    calls = []
+
+    class FakeQMP:
+        def screendump(self, path):
+            return _ppm(Path(path), 8, 8, (0, 0, 0))
+
+    class FakeVM:
+        qmp = FakeQMP()
+
+        def screenshot(self, name):
+            calls.append(name)
+            return tmp_path / name
+
+    story = conftest.Scenario(FakeVM(), tmp_path)
+    image = story.shot("dark")
+
+    assert len(calls) == conftest.BLACK_FRAME_RETRIES + 1
+    assert image.pixel(0, 0) == (0, 0, 0)
+    assert "still black" in capsys.readouterr().out

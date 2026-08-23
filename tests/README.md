@@ -213,7 +213,7 @@ Seven steps, in order, on one VM:
 | | what it does | what it asserts |
 |---|---|---|
 | 1 | boots | `KIDNIX_BOOT_OK`, `kidnix-shell.service` active, 1280×800, a paper surface with one big dark shape (the avatar) on it |
-| 2 | clicks the avatar | `state choosing -> home`, a session started, a 4×4×3 grid of tiles |
+| 2 | clicks the avatar, then a "what's next after?" picture | `state choosing -> next_choice -> home`, a session started, a full first row of Home tiles |
 | 3 | rests on the Draw tile | ≥ 20% of that tile repaints (the speaking highlight), speech-dispatcher ran |
 | 4 | clicks Draw, draws, quits | `launched tuxpaint`, a white canvas, ink on it, `state in_activity -> home`, an `entry.json` in the Journal |
 | 5 | clicks My Things | `state home -> journal`, a card on screen |
@@ -223,6 +223,12 @@ Seven steps, in order, on one VM:
 Artefacts land in `output/e2e/`: `NN-name.png` per step, `contact-sheet.png`
 (also copied to `docs/design/screenshots/`), the serial console, the QEMU
 command line and the setup script injected into the guest.
+
+`screendump` returns as soon as the request is queued, so `scenario.shot()`
+retries up to 5 times, 500 ms apart, while the frame comes back uniformly black
+(the guest has not painted yet — this is how the first screenshot of a run once
+landed on the contact sheet as a black tile), and prints how many retries it
+took.
 
 ### How it gets in
 

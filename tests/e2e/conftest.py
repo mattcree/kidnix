@@ -22,12 +22,18 @@ if str(HERE) not in sys.path:
 
 REPO = HERE.parent.parent
 
-from pixels import Image, read_ppm  # noqa: E402
+from pixels import Image, near_uniform_black, read_ppm  # noqa: E402
 from vm import GuestVM, require_tools  # noqa: E402
 
 OUTPUT = REPO / "output" / "e2e"
 CONTACT_SHEET = OUTPUT / "contact-sheet.png"
 DOCS_COPY = REPO / "docs" / "design" / "screenshots" / "e2e-contact-sheet.png"
+
+#: How many times :meth:`Scenario.shot` will ask again for a frame that came
+#: back unpainted, and how long it waits between asks. Two and a half seconds
+#: in the worst case, spent only on a frame that is already black.
+BLACK_FRAME_RETRIES = 5
+BLACK_FRAME_DELAY = 0.5
 
 
 def session_policy(
@@ -74,14 +80,34 @@ class Scenario:
 
         Two dumps, not one: the PNG is the artefact a human looks at and the
         PPM is what the assertions read, because a P6 needs no image library.
+
+        **Retried while the frame comes back black.** ``screendump`` returns as
+        soon as the request is queued, so a dump taken moments after a state
+        change can catch the framebuffer before the guest has painted into it:
+        the first screenshot of a run was once fully black, and the contact
+        sheet -- the artefact this whole harness exists to produce -- opened on
+        a blank tile that no assertion could see. Asking again is the fix,
+        because the condition clears in milliseconds; the retry count is
+        printed so a *real* black screen shows up as five wasted attempts in
+        the log rather than as a mystery.
         """
         self._step += 1
         stem = f"{self._step:02d}-{name}"
-        png = self.vm.screenshot(f"{stem}.png")
-        ppm = self.vm.qmp.screendump(self.output_dir / f"{stem}.ppm")
+        retries = 0
+        while True:
+            png = self.vm.screenshot(f"{stem}.png")
+            image = read_ppm(self.vm.qmp.screendump(self.output_dir / f"{stem}.ppm"))
+            if not near_uniform_black(image) or retries >= BLACK_FRAME_RETRIES:
+                break
+            retries += 1
+            time.sleep(BLACK_FRAME_DELAY)
         self.shots.append((png, caption or name))
-        print(f"  shot {png.name}: {caption or name}")
-        return read_ppm(ppm)
+        note = ""
+        if retries:
+            painted = "still black" if near_uniform_black(image) else "painted"
+            note = f" [unpainted frame: {retries} retr{'y' if retries == 1 else 'ies'}, {painted}]"
+        print(f"  shot {png.name}: {caption or name}{note}")
+        return image
 
     def wait_until(self, predicate, timeout: float = 30.0, what: str = "the screen"):
         """Poll the framebuffer until ``predicate(image)`` is true.

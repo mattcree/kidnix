@@ -2707,3 +2707,166 @@ against the wave-A/B image still reports `shell geometry ok`. Screenshots at
    an ordinary focusable control, which is correct, but a switch user cannot
    press-and-check-the-meter the way a pointer user can.
 6. Everything still open in §§18.9, 19.5, 20.6, 21.10 and 22.7.
+
+---
+
+## 24. v0.1.10 — a PIN a grown-up can change, daytime words on the last button, and a harness that waits for the frame (2026-08-23)
+
+Three follow-ups, each one the shell's half of something a previous wave left
+half-done. Nothing new is designed here.
+
+### 24.1 A change costs the current PIN, and the sheet says which answer it got
+
+`screens/grownup.py` (`call_set_pin`, `helper_outcome`, `HelperOutcome`, and
+the pad's new first step), against
+`system_files/usr/bin/kidnix-set-pin` unchanged.
+
+`docs/spikes/pin-flow.md` §5 named the gap in one sentence: **the shell still
+sends one line.** The helper's `--stdin` protocol is line 1 = the new PIN and,
+once a PIN exists, line 2 = the current one; the sheet sent only line 1, so a
+*first* set from the gate persisted and a later **change** came back exit 4 and
+fell through to a PIN that lasted until the next restart. The machine asked for
+a PIN every boot and forgot it every boot — which is the same outcome wave F
+was written to end, one screen further along.
+
+So the pad has a step in front of it now. On a machine that already has a PIN,
+"Set PIN" asks for the **current** one first, checks it against
+`ParentConfig.check_pin` immediately (a mistyped PIN costs a sentence, not a
+round trip through pkexec and two seconds of the helper's rate limiter), and
+holds it only until it can go down stdin as line 2. The first-set path — the
+one an unconfigured machine opens on, and the one that is deliberately open to
+whoever reaches the gate first — is untouched: no current PIN is asked for and
+none is sent, because there is no secret to prove.
+
+**The exit codes are the contract, so they are named and mapped, not read
+inline.** `0` written, `3` wrong current PIN *or* locked out, `4` a PIN is set
+and none was proved, everything else refused. `3` carries two different
+answers and only the helper's own stderr separates them, which matters more
+than it looks: "wait a minute" is actionable and "that was wrong" is not, and a
+parent told the wrong one keeps typing into a rate limiter that is counting
+every attempt. So:
+
+* exit 3, plain — **"That wasn't the current PIN"**;
+* exit 3 with `too many wrong PINs` on stderr — **"Too many tries -- wait a
+  minute"**;
+* exit 4 — the sheet naming its own bug in words a grown-up can act on;
+* anything else — the honest "kept for this session" paragraph, unchanged.
+
+Every branch that is not `0` ends with the same tail: the chosen PIN **is** in
+force until the machine restarts, and here is the command that makes it
+permanent. That is not softening a failure. A sheet that reports a refusal and
+quietly keeps the old gate is the one outcome nobody can act on, and it is what
+this file has refused to do since §23.4.
+
+**No digit reaches a message, an argument or a log line.** Both PINs travel on
+stdin (argv is world-readable in `/proc`); the messages interpolate a path and
+an exit code and nothing else; the log line carries the code and the helper's
+own sentence, which by the helper's rule has no length, no first character and
+no digits in it. A PIN a grown-up can read off the sheet afterwards, or find in
+the journal, is a PIN stored in plaintext by another route.
+
+`call_set_pin` takes an `argv` seam so the whole path is testable without
+pkexec, root, a display or the image. The one thing that cannot be faked —
+polkitd actually saying yes to `kid` — is still `tests/boot/bcvk_boot_test.py`.
+
+### 24.2 "Goodnight" was still being spoken at four in the afternoon
+
+`resting.py` (`goodnight_speech`, `DAYTIME_GOODNIGHT_SPEECH`) and
+`screens/goodbye.py`.
+
+§21.6 split the ending vocabulary in two and switched it on
+`SessionPolicy.is_bedtime`. It switched the **printed label**. The Goodbye
+button's `ChildButton(speak_text="Goodnight")` was a literal, and `speak_text`
+is the single source of truth for the accessible name, the read-aloud *and* the
+caption strip — so an ordinary four-o'clock session ended with a button that
+read "All done" and said, captioned and announced, "Goodnight". The cue forum
+#17 took out of the picture and the screen title had simply changed channel,
+into the two channels a pre-reader and a screen-reader user actually have. The
+last two frames of `docs/design/screenshots/e2e-contact-sheet.png` are the
+photograph of it.
+
+All four move together now, from `goodnight_label` and `goodnight_speech`.
+Daytime says **"All done. Time to rest."** — the label plus a second clause the
+button has no room for; "rest" is the *machine* resting, the name of the screen
+this button leads to and the line that screen speaks, not an instruction to the
+child. Bedtime keeps "Goodnight" exactly. Both labels are measured by
+`page_label_fit` so the type size does not change under a child because the
+clock crossed 19:00.
+
+The guard is an AST test in the mould of the "See you next time" one
+(§21.5): **a string literal containing "goodnight" may exist in `resting.py`
+and nowhere else** in `kidnix_shell`, docstrings excepted, plus the state
+machine's own lowercase `goodnight` token, which is never rendered. A literal
+anywhere else is this bug again, whichever channel it takes next time.
+
+### 24.3 The e2e's first frame, and the black tile on the contact sheet
+
+`tests/e2e/pixels.py` (`near_uniform_black`) and `tests/e2e/conftest.py`
+(`Scenario.shot`).
+
+QEMU's `screendump` answers as soon as the request is queued. `qmp.screendump`
+already waits for the *file* to stop growing, which is a different question
+from whether the *guest* has painted, so a dump taken moments after a state
+change can come back as the framebuffer before anything drew into it. It did:
+the first screenshot of a run was once fully black, and the hole landed on the
+contact sheet — the artefact this whole harness exists to produce.
+
+`shot()` now asks again, up to five times, 500 ms apart, while the frame is
+(near-)uniformly black, and prints how many retries it cost. Uniformly black is
+distinguishable from anything kidnix draws: the dimmest surface in the product
+is the bedtime screen and that is a colour, and every screen carries the band.
+A screen that really is black still produces a shot — it reads as five wasted
+attempts in the log rather than as a mystery.
+
+Two offline tests hold it (a fake VM that hands out two black frames and then a
+painted one, and one that never paints), so the fix is proved by
+`just test-e2e-offline` and the `harness` CI job, neither of which needs a disk
+image.
+
+`tests/e2e/test_scenario.py`'s step-2 comment was corrected in the same pass:
+it still described the pre-2026-08-23 Home (`initial_tiles = 6`, "4 + 2"), and
+progressive disclosure has been **off by default** since §21.7 —
+`show_everything = true` ships, the ten activities paginate, and "All done" is
+pinned at index 7. The assertion itself was already the right one (a full first
+row, Draw at 0,0); only the reasoning under it was out of date. The `DRAW_ROW`
+comment claimed a sort by `(category, name)` on a 4x3 grid, which is neither
+the ordering (manifest `order`) nor the panel (4x2); `tests/README.md`'s step-2
+row said `choosing -> home`, three waves after S1b was added between them.
+
+### 24.4 Tests
+
+New: `shell/tests/test_set_pin.py` (18) — the stdin protocol both ways, the
+four exit codes, the lockout told apart from a wrong PIN, a helper that is
+absent and one that hangs, and a parameterised sweep proving no outcome and no
+log line carries a digit. Extended: `test_resting.py` with the spoken
+vocabulary, `test_shell_bits.py` with the "Goodnight" AST guard,
+`test_gtk_smoke.py` with the change flow on a real pad (current PIN first, a
+wrong one refused without leaving the step, both lines reaching the helper in
+order, the first-set path still sending one) and the Goodbye button's four
+channels at both times of day, `tests/e2e/test_geometry.py` with the
+black-frame retry.
+
+`just lint` and `just test-headless` are green (956 headless, 1 skipped; 174 more
+with a display). `just test-e2e -k test_01` against the wave-F image reports
+`shell geometry ok` and took its shot on the first ask.
+
+**One pre-existing lint failure is not ours and was left alone:**
+`uvx ruff format --check tests/` wants to rewrap an assertion message in
+`tests/boot/bcvk_boot_test.py` (line ~1415). That file is unmodified on HEAD
+and belongs to the boot harness, not to this wave.
+
+### 24.5 Still open after this pass
+
+1. **A stale lockout can meet an honest parent.** The helper's counter is
+   machine-local and survives a reboot by design, and the sheet can now say
+   "wait a minute" — but it cannot say *how long is left*, because the helper
+   does not tell it. A second line on stderr would fix it; the shell cannot.
+2. **The current PIN is proved twice**, once against the shell's in-memory hash
+   and once against the file. They can disagree — a PIN set for this boot only,
+   then changed — and the second check is the one that decides. The sheet says
+   what happened, which is the honest outcome, but it is a case a parent should
+   never be in and the way out of it is still `sudo kidnix-set-pin`.
+3. **Nothing rate-limits the pad's own current-PIN step.** Deliberate, and the
+   same ruling as §G2's free gate: the helper is the wall, and a five-year-old
+   poking at a keypad is expected behaviour rather than an intrusion.
+4. Everything still open in §§18.9, 19.5, 20.6, 21.10, 22.7 and 23.9.

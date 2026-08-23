@@ -1412,8 +1412,7 @@ def assert_pin(probe: dict[str, str], checks: Checks) -> None:
     checks.check(
         probe.get("pin_kid_reset_rc") not in ("0", None)
         and probe.get("pin_hash_after_reset", "") == proved,
-        "kid may not --reset past the current PIN"
-        f" (exit {probe.get('pin_kid_reset_rc')})",
+        f"kid may not --reset past the current PIN (exit {probe.get('pin_kid_reset_rc')})",
     )
 
 
