@@ -478,8 +478,25 @@ for check in /usr/lib/greenboot/check/required.d/10-kidnix-accounts.sh \
     assert_exec "${check}"
     assert_cmd "$(basename "${check}") is valid bash" bash -n "${check}"
 done
+
+# The red.d hook that makes automatic rollback real on a btrfs /boot
+# (docs/spikes/rollback.md): without it a bad update reboot-loops for ever.
+assert_exec /usr/lib/greenboot/red.d/10-kidnix-boot-counter.sh \
+    "greenboot red.d decrements boot_counter from Linux (btrfs /boot)"
 assert_exec /usr/libexec/greenboot/greenboot
 assert_file /usr/lib/systemd/system/greenboot-healthcheck.service
+
+# The self-test hook (Containerfile: --build-arg KIDNIX_SELFTEST_BREAK_HEALTH=1)
+# installs an always-failing REQUIRED check so `just test-rollback` can prove a
+# bad update rolls itself back. A shipped image carrying it would red-boot on
+# every single boot and roll itself back to nothing, so its absence is asserted
+# here rather than trusted to the build argument's default.
+if [[ -e /usr/lib/greenboot/check/required.d/99-kidnix-selftest-broken.sh ]]; then
+    _report no "the rollback self-test's broken check is ABSENT" \
+        "this image would fail every boot; it was built with KIDNIX_SELFTEST_BREAK_HEALTH=1"
+else
+    _report ok "the rollback self-test's broken check is ABSENT (test-only, see docs/spikes/rollback.md)"
+fi
 if [[ -L /etc/systemd/system/multi-user.target.wants/greenboot-healthcheck.service \
    || -L /etc/systemd/system/boot-complete.target.requires/greenboot-healthcheck.service ]]; then
     _report ok "greenboot-healthcheck.service enabled"

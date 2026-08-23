@@ -513,7 +513,8 @@ systemctl enable kidnix-audio-cap.service
 # greenboot-default-health-checks puts its own scripts, and the greenboot-rs
 # README documents it as "a read-only directory in ostree systems".
 for check in /usr/lib/greenboot/check/required.d/*-kidnix-*.sh \
-             /usr/lib/greenboot/check/wanted.d/*-kidnix-*.sh; do
+             /usr/lib/greenboot/check/wanted.d/*-kidnix-*.sh \
+             /usr/lib/greenboot/red.d/*-kidnix-*.sh; do
     test -f "${check}" || die "expected greenboot check ${check} is missing"
     chmod 0755 "${check}"
     bash -n "${check}" || die "${check} is not valid bash"

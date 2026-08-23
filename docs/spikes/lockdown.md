@@ -603,3 +603,13 @@ Generated at build time into the image (not in git):
 **New test**
 
 - `tests/image/test_lockdown.sh`
+
+
+### 1.5b Correction (2026-08-23, rollback spike)
+
+greenboot-rs 0.16.3 *does* call `bootc rollback` when `boot_counter` reaches 0
+(the earlier paragraph was wrong). What broke rollback was GRUB being unable
+to `save_env` on a btrfs `/boot`, so the counter never decremented and a bad
+update reboot-looped every ~8 s for ever. `red.d/10-kidnix-boot-counter.sh`
+decrements it from Linux; `just test-rollback` proves switch → red → 3→2→1 →
+`bootc rollback` → original deployment with the shell active.

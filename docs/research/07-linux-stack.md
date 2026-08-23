@@ -1215,3 +1215,9 @@ for Fedora 44 — it is (`python3-onnxruntime` 1.22.2), but pulling it costs
 256 MiB–1 GiB of dependencies. kidnix vendors the archived MIT `rhasspy/piper`
 2023.11.14-2 binary (22 MiB, relinked against Fedora's espeak-ng) with
 `en_GB-cori-{high,medium}` (public domain); see `docs/spikes/tts.md`.
+
+**Erratum 2 (2026-08-23, rollback spike):** §4 item 4 doubted that greenboot-rs
+calls `bootc rollback`; it does (0.16.3). What actually broke automatic rollback
+in kidnix was GRUB being unable to write `grubenv` on a btrfs `/boot`, so
+`boot_counter` never decremented — fixed by an image-owned `red.d` script that
+decrements it from Linux; see `docs/spikes/rollback.md` and `just test-rollback`.

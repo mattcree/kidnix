@@ -16,6 +16,13 @@ output_dir := justfile_directory() / "output"
 disk_config := output_dir / "config.toml"
 qcow2 := output_dir / "qcow2/disk.qcow2"
 e2e_dir := output_dir / "e2e"
+rollback_dir := output_dir / "rollback"
+
+# The deliberately unhealthy image `just test-rollback` switches TO. Never
+# pushed anywhere, never shipped: `just test-image` asserts the failing check
+# it carries is absent from every normal build.
+selftest_broken_tag := "selftest-broken"
+selftest_broken_ref := registry / image + ":" + selftest_broken_tag
 
 # Local registry used by the push-local / vm-upgrade fast loop.
 local_registry_port := "5000"
@@ -349,9 +356,12 @@ test-boot *ARGS: _require-bcvk _require-image
 # Costs nothing; run it on every PR so a typo in either script fails fast.
 # Validate both boot harnesses without booting anything.
 test-boot-dry:
-    python3 -m py_compile tests/boot/bcvk_boot_test.py tests/boot/boot_test.py
+    python3 -m py_compile tests/boot/bcvk_boot_test.py tests/boot/boot_test.py tests/boot/rollback_test.py
     python3 tests/boot/bcvk_boot_test.py --dry-run --image "{{ image_ref }}"
     python3 tests/boot/boot_test.py --dry-run --qcow2 /nonexistent
+    @mkdir -p "{{ rollback_dir }}"
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/boot/rollback_test.py --dry-run \
+        --qcow2 /nonexistent --output-dir "{{ rollback_dir }}"
 
 # Exercises the bootloader, composefs root and first-boot units that
 # `test-boot` cannot see. Needs a disk image first (`just build-qcow2-rootless`).
@@ -364,6 +374,61 @@ test-boot-qcow2 *ARGS: _require-qcow2
         --ssh-port {{ vm_ssh_port }} \
         --memory {{ vm_ram }} --cpus {{ vm_cpus }} \
         {{ ARGS }}
+
+# --- rollback test (slow; nightly) -------------------------------------------
+#
+# "Immutable, so it cannot be broken" (AGENTS.md #8) is the biggest claim in the
+# product and until this recipe existed nothing tested it. It switches a real
+# booted machine onto an image whose REQUIRED greenboot check fails on purpose
+# and waits for the machine to put itself back. See docs/spikes/rollback.md.
+
+# Build the deliberately unhealthy image (one always-failing required check).
+#
+# The build arg is declared late in the Containerfile, so every expensive layer
+# is shared with `just build`: the variant costs a few hundred bytes and a VM
+# that is already running kidnix pulls one small layer instead of the whole OS.
+build-selftest-broken:
+    @echo "==> building {{ selftest_broken_ref }}  (DELIBERATELY UNHEALTHY, test only)"
+    podman build \
+        --build-arg BASE_IMAGE="{{ base_image }}" \
+        --build-arg BASE_TAG="{{ base_tag }}" \
+        --build-arg KIDNIX_VERSION="{{ version }}" \
+        --build-arg KIDNIX_PRETTY_VERSION="{{ version }}-{{ date_tag }}" \
+        --build-arg KIDNIX_SELFTEST_BREAK_HEALTH=1 \
+        --tag "{{ selftest_broken_ref }}" \
+        -f Containerfile .
+    @podman run --rm --entrypoint /bin/bash "{{ selftest_broken_ref }}" \
+        -c 'test -x /usr/lib/greenboot/check/required.d/99-kidnix-selftest-broken.sh' \
+        || { echo "error: the self-test check is not in the image" >&2; exit 1; }
+    @echo "==> {{ selftest_broken_ref }} is unhealthy on purpose. Do not boot it as a daily driver."
+
+# Serve the broken image to the VM (the guest reaches the host at 10.0.2.2).
+push-selftest-broken: registry build-selftest-broken
+    podman push --tls-verify=false \
+        "{{ selftest_broken_ref }}" \
+        "{{ local_registry }}/{{ image }}:{{ selftest_broken_tag }}"
+    @echo "==> pushed {{ local_registry }}/{{ image }}:{{ selftest_broken_tag }}"
+
+# Measured ~4 min end to end (13 boots of a VM, most of them 8 seconds long).
+# It exits 1 on today's image, and that is the correct answer: the machine
+# reboot-loops instead of rolling back. docs/spikes/rollback.md has the root
+# cause and a verified fix; `--with-proposed-fix` demonstrates it.
+# THE rollback test: break a required health check and prove the machine
+# recovers on its own (~4 min, needs KVM and a qcow2; nightly, not per-PR).
+test-rollback *ARGS: _require-qcow2 push-selftest-broken
+    @mkdir -p "{{ rollback_dir }}"
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/boot/rollback_test.py \
+        --qcow2 "{{ qcow2 }}" \
+        --output-dir "{{ rollback_dir }}" \
+        --image "10.0.2.2:{{ local_registry_port }}/{{ image }}:{{ selftest_broken_tag }}" \
+        --registry "10.0.2.2:{{ local_registry_port }}" \
+        --memory {{ vm_ram }} --cpus {{ vm_cpus }} \
+        {{ ARGS }}
+
+# Stop the registry, drop the unhealthy image, throw the working disk away.
+rollback-clean: registry-stop
+    -podman rmi -f "{{ selftest_broken_ref }}"
+    rm -rf "{{ rollback_dir }}"
 
 # --- end-to-end scenario -----------------------------------------------------
 
