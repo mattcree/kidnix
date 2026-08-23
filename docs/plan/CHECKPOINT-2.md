@@ -40,9 +40,9 @@ installed as tiles; Sounds & Words weeks 1–3.
 
 ## Before child test #1 (revised)
 
-1. Rebuild + full e2e green on the image with all tiles.
-2. Shelf icons and clock minute icons landed; screenshots refreshed.
-3. `kidnix-config show` redaction; all-done-day icon wired; stale docs swept.
+1. Rebuild + full e2e green on the image with all tiles. *(image: 15/15 suites, 69 boot checks on the consolidated build; e2e pending)*
+2. Shelf icons and clock minute icons landed; screenshots refreshed. *(done)*
+3. `kidnix-config show` redaction *(done)*; all-done-day icon wired *(done)*; stale docs swept *(in progress)*.
 4. Phoneme recordings (Matt) — or the activity says the label honestly (it does).
 5. Icon-naming probe on paper (CCI reviewer) — needs the hardware/printer.
 6. The protocol's stopping rules agreed with Matt in writing.
