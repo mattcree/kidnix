@@ -146,14 +146,23 @@ def test_hover_speaks_once_per_enter() -> None:
     assert backend.spoken == ["Draw"]
 
 
-def test_leaving_and_returning_speaks_again() -> None:
-    speech, backend, scheduler = make()
-    speech.hover_enter("tile", "Draw")
-    scheduler.advance(HOVER_DWELL_MS + 10)
-    speech.hover_leave("tile")
-    speech.hover_enter("tile", "Draw")
-    scheduler.advance(HOVER_DWELL_MS + 10)
-    assert backend.spoken == ["Draw", "Draw"]
+def test_leaving_and_returning_speaks_again_after_the_cooldown() -> None:
+    from kidnix_shell.speech import HOVER_REPEAT_COOLDOWN_S
+
+    h = Pointer()
+    h.enter("tile", "Draw")
+    h.advance(HOVER_DWELL_MS + 10)
+    h.speech.hover_leave("tile")
+    # Straight back: within the cooldown, silent (2026-08-23 incident).
+    h.enter("tile", "Draw")
+    h.advance(HOVER_DWELL_MS + 10)
+    assert h.backend.spoken == ["Draw"]
+    # Later: a genuine return is spoken again.
+    h.advance(int(HOVER_REPEAT_COOLDOWN_S * 1000) + 50)
+    h.speech.hover_leave("tile")
+    h.enter("tile", "Draw")
+    h.advance(HOVER_DWELL_MS + 10)
+    assert h.backend.spoken == ["Draw", "Draw"]
 
 
 def test_moving_between_tiles_only_speaks_the_last_one() -> None:
@@ -622,7 +631,7 @@ def test_hovering_the_ear_says_nothing() -> None:
     assert h.backend.spoken == []
 
 
-def test_kidnix_speech_off_forces_the_null_backend(monkeypatch) -> None:
+def test_kidnix_speech_off_forces_the_null_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     from kidnix_shell.speech import NullBackend, select_backend
 
     monkeypatch.setenv("KIDNIX_SPEECH", "off")
