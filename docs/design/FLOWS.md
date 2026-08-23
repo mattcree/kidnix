@@ -530,3 +530,10 @@ key; **C7** is a documented limitation we intend to change.
 > test's set-pin checks. Next: A25's keyboard escape from an activity, the
 > parent flows (B*), and the machine flows (C*), most of which need the parent
 > panel or real hardware.
+
+> **A25 update (2026-08-23):** the lockdown now re-enables exactly one
+> window-switch binding (`<Super>Tab`, locked) so a keyboard/switch user can
+> return from an activity to the shell and press Escape (Back); proven in the
+> boot test with an in-guest uinput keyboard (docs/spikes/keyboard-escape.md).
+> The shell raises the band before spawning an activity so the switch lands on
+> the band, not over the drawing (shell follow-up in the i18n wave).
