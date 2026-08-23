@@ -70,7 +70,7 @@ def tile_fit(name: str, metrics: Metrics) -> LabelFit:
 
 #: How many tiles the image ships. A guard, not a target: if it moves, the
 #: measurements below were taken against a different set and want re-taking.
-SHIPPED_ACTIVITY_COUNT = 11
+SHIPPED_ACTIVITY_COUNT = 13
 
 
 def test_the_image_still_ships_the_measured_set() -> None:

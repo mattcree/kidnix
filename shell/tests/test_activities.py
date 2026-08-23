@@ -321,6 +321,8 @@ SHIPPED_LABELS = {
         "Sounds & words",
         "Sounds and words. Find the sound, then push the sounds together to make a word.",
     ),
+    "numbers": ("Numbers", "Numbers"),
+    "clock-time": ("Clock", "Play with the clock. Move the hands and find out what happens when."),
 }
 
 
