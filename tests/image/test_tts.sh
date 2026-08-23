@@ -4,8 +4,9 @@
 #   podman run --rm -v "$PWD/tests/image:/tests:ro,z" \
 #       --entrypoint /bin/bash localhost/kidnix:latest /tests/test_tts.sh
 #
-# What it can prove: the Piper runtime and both voice models are on disk with
-# the exact bytes we reviewed the licences for, the vendored binary links
+# What it can prove: the Piper runtime and all three voice models are on disk
+# with the exact bytes we reviewed the licences for, the CC-BY-4.0 credit alba
+# obliges us to carry ships with them, the vendored binary links
 # against Fedora's espeak-ng and actually synthesises, the speech-dispatcher
 # module is registered and is the default, the resident server is enabled for
 # the child session, and the espeak-ng fallback still works.
@@ -125,8 +126,12 @@ else
     _report no "directory /usr/share/espeak-ng-data" "missing"
 fi
 
-section "the voice models (public domain -- docs/LICENSES.md 6)"
+section "the voice models (alba CC-BY-4.0, cori public domain -- docs/LICENSES.md 6)"
 
+# The default since 2026-08-23. A human listened to cori and did not like it;
+# docs/spikes/tts.md 8.8 is the record.
+assert_file "${VOICES}/en_GB-alba-medium.onnx"
+assert_file "${VOICES}/en_GB-alba-medium.onnx.json"
 assert_file "${VOICES}/en_GB-cori-high.onnx"
 assert_file "${VOICES}/en_GB-cori-high.onnx.json"
 assert_file "${VOICES}/en_GB-cori-medium.onnx"
@@ -134,6 +139,12 @@ assert_file "${VOICES}/en_GB-cori-medium.onnx.json"
 
 # The exact bytes whose MODEL_CARD was read and whose licence is recorded. A
 # CDN rotation must fail here, not ship an unreviewed model to a child.
+assert_sha256 "${VOICES}/en_GB-alba-medium.onnx" \
+    401369c4a81d09fdd86c32c5c864440811dbdcc66466cde2d64f7133a66ad03b \
+    "en_GB-alba-medium.onnx is the reviewed model (sha256)"
+assert_sha256 "${VOICES}/en_GB-alba-medium.onnx.json" \
+    aa965a2f02ecced632c2694e1fc72bbff6d65f265fab567ca945918c73dd89f4 \
+    "en_GB-alba-medium.onnx.json is the reviewed config (sha256)"
 assert_sha256 "${VOICES}/en_GB-cori-high.onnx" \
     470b4dd634c98f8a4850d7626ffc3dfc90774628eeef6605a6dd8f88f30a5903 \
     "en_GB-cori-high.onnx is the reviewed model (sha256)"
@@ -145,21 +156,33 @@ assert_sha256 "${VOICES}/en_GB-cori-medium.onnx" \
     "en_GB-cori-medium.onnx is the reviewed model (sha256)"
 
 # The card is the licence evidence and must travel with the model.
+assert_file "${VOICES}/en_GB-alba-medium.MODEL_CARD"
 assert_file "${VOICES}/en_GB-cori-high.MODEL_CARD"
+assert_sha256 "${VOICES}/en_GB-alba-medium.MODEL_CARD" \
+    fa166b1779404c470b0b6b4ba0238bc4a35bf89d2cd130c6788f697188b737d6 \
+    "en_GB-alba-medium.MODEL_CARD is the card whose licence was read (sha256)"
+assert_grep 'License: https://creativecommons.org/licenses/by/4.0/' \
+    "${VOICES}/en_GB-alba-medium.MODEL_CARD" \
+    "alba's own model card says CC-BY-4.0 (the reason we owe attribution)"
 assert_grep 'License: public domain' "${VOICES}/en_GB-cori-high.MODEL_CARD" \
-    "the high voice's own model card says public domain"
+    "the cori high voice's own model card says public domain"
 assert_grep 'License: public domain' "${VOICES}/en_GB-cori-medium.MODEL_CARD" \
-    "the medium voice's own model card says public domain"
+    "the cori medium voice's own model card says public domain"
 
 # 22,050 Hz for medium/high is what docs/research/07 2.4 predicted; assert it
-# rather than trust it, because the player is told nothing about format.
-assert_run "the high voice is a 22050 Hz single-speaker model" python3 -c "
+# rather than trust it, because the player is told nothing about format. alba
+# matters most here: it is the default, and everything downstream --
+# kidnix-piper-say, the module config, the served-WAV check below -- assumes
+# 22050/mono/16-bit without ever being told.
+for _voice in en_GB-alba-medium en_GB-cori-high; do
+    assert_run "${_voice} is a 22050 Hz single-speaker en_GB model" python3 -c "
 import json
-config = json.load(open('${VOICES}/en_GB-cori-high.onnx.json'))
+config = json.load(open('${VOICES}/${_voice}.onnx.json'))
 assert config['audio']['sample_rate'] == 22050, config['audio']
 assert config['num_speakers'] == 1, config['num_speakers']
 assert config['language']['code'] == 'en_GB', config['language']
 "
+done
 
 section "licence texts carried with the vendored binaries (AGENTS.md 5)"
 
@@ -171,6 +194,42 @@ assert_grep 'MIT License' /usr/share/licenses/kidnix-piper/LICENSE.piper.md \
     "piper is still MIT"
 assert_grep 'MIT License' /usr/share/licenses/kidnix-piper/LICENSE.onnxruntime \
     "onnxruntime is still MIT"
+
+# alba is CC-BY-4.0, so shipping it is conditional on the credit shipping with
+# it. This is the only obligation the read-aloud stack actually owes, and it is
+# discharged by a text file that a tidy-up could delete without breaking a
+# single thing that makes noise -- which is exactly why it is asserted here.
+ATTRIB=/usr/share/licenses/kidnix-voices/ATTRIBUTION
+assert_file "${ATTRIB}"
+assert_grep 'Valentini-Botinhao' "${ATTRIB}" \
+    "the attribution names the corpus depositors (CC-BY-4.0 3(a)(1)(A))"
+assert_grep 'Yamagishi' "${ATTRIB}" \
+    "...both of them"
+assert_grep 'Alba speech' "${ATTRIB}" \
+    "the attribution names the work (CC-BY-4.0 3(a)(1)(B))"
+assert_grep 'creativecommons\.org/licenses/by/4\.0' "${ATTRIB}" \
+    "the attribution carries the licence URI (CC-BY-4.0 3(a)(1)(D))"
+assert_grep '10\.7488/ds/2506' "${ATTRIB}" \
+    "the attribution carries the dataset's persistent identifier"
+assert_grep 'MODIFIED' "${ATTRIB}" \
+    "the attribution states the work was modified (CC-BY-4.0 3(a)(1)(B))"
+# Not part of CC-BY: the depositors attached it themselves, so editing it out
+# would be rewriting somebody's licence notice.
+assert_grep 'moral rights' "${ATTRIB}" \
+    "the corpus's own moral-rights condition travels with it"
+
+# The manifest is what test_licenses.sh reads; a voice with no row is an
+# unrecorded redistribution. Checked here too so a `just test-image tts` run
+# catches it without waiting for the licence gate.
+TSV=/usr/share/kidnix/THIRD-PARTY.tsv
+assert_grep "^${VOICES}/en_GB-alba-medium\.onnx	CC-BY-4\.0	" "${TSV}" \
+    "the alba model has a CC-BY-4.0 row in THIRD-PARTY.tsv"
+assert_grep "^${VOICES}/en_GB-alba-medium\.onnx\.json	CC-BY-4\.0	" "${TSV}" \
+    "the alba config has a CC-BY-4.0 row in THIRD-PARTY.tsv"
+assert_grep "^${VOICES}/en_GB-alba-medium\.MODEL_CARD	CC-BY-4\.0	" "${TSV}" \
+    "the alba model card has a CC-BY-4.0 row in THIRD-PARTY.tsv"
+assert_grep "^${VOICES}/en_GB-cori-high\.onnx	public-domain	" "${TSV}" \
+    "cori is still recorded as public domain in THIRD-PARTY.tsv"
 
 section "speech-dispatcher wiring"
 
@@ -254,9 +313,21 @@ assert_grep '^EnvironmentFile=/etc/kidnix/tts.env$' \
 assert_grep '^StartLimitIntervalSec=0$' \
     /usr/lib/systemd/user/kidnix-piper.service \
     "systemd never permanently gives up on the voice"
-assert_grep '^KIDNIX_PIPER_MODEL=/usr/share/kidnix/voices/en_GB-cori-high.onnx$' \
+assert_grep '^KIDNIX_PIPER_MODEL=/usr/share/kidnix/voices/en_GB-alba-medium.onnx$' \
     /etc/kidnix/tts.env \
-    "the default voice is en_GB-cori-high"
+    "the default voice is en_GB-alba-medium"
+# ...and it must point at a model that is actually in the image. A default
+# naming an absent file does not fail loudly: kidnix-piperd logs "voice model
+# missing", exits, and every utterance quietly takes the espeak-ng path.
+assert_run "the default voice in tts.env exists on disk" bash -c '
+model=$(sed -n "s/^KIDNIX_PIPER_MODEL=//p" /etc/kidnix/tts.env)
+[[ -f "${model}" ]] || { echo "${model} is not in the image"; exit 1; }
+'
+# cori is kept as the switchable alternative, and switching must not need a
+# rebuild -- so it stays on disk and stays documented even though nothing
+# loads it today.
+assert_grep 'en_GB-cori-high.onnx' /etc/kidnix/tts.env \
+    "tts.env still documents cori as the alternative a parent can switch back to"
 assert_grep '^KIDNIX_PIPER_SENTENCE_SILENCE=0\.25$' \
     /etc/kidnix/tts.env \
     "the pause between sentences is 0.25 s (the shell adds its own 400 ms on top)"
@@ -278,18 +349,20 @@ section "it actually synthesises"
 # Deterministic settings, so this is a real regression test on the phoneme
 # tables and not a coin toss: if a future Fedora espeak-ng changes what
 # /usr/share/espeak-ng-data means, the audio length changes and this notices.
+# The default voice first, because it is the one a child hears. Deterministic
+# settings, so this is a real regression test on the phoneme tables.
 if printf 'Shall we make a picture together?\n' \
-    | "${PIPER}" --model "${VOICES}/en_GB-cori-high.onnx" \
+    | "${PIPER}" --model "${VOICES}/en_GB-alba-medium.onnx" \
         --espeak_data /usr/share/espeak-ng-data \
         --noise_scale 0 --noise_w 0 \
         --output_file "${WORK}/piper.wav" --quiet >/dev/null 2>"${WORK}/piper.err"
 then
-    _report ok "piper synthesises with the high voice"
+    _report ok "piper synthesises with the default (alba) voice"
 else
-    _report no "piper synthesises with the high voice" "$(tail -1 "${WORK}/piper.err")"
+    _report no "piper synthesises with the default (alba) voice" "$(tail -1 "${WORK}/piper.err")"
 fi
 
-assert_run "the high voice produced a plausible WAV" python3 -c "
+assert_run "the default voice produced a plausible WAV" python3 -c "
 import wave
 with wave.open('${WORK}/piper.wav') as handle:
     assert handle.getframerate() == 22050, handle.getframerate()
@@ -299,15 +372,20 @@ with wave.open('${WORK}/piper.wav') as handle:
     assert 1.0 < seconds < 5.0, seconds
 "
 
-if printf 'Shall we make a picture together?\n' \
-    | "${PIPER}" --model "${VOICES}/en_GB-cori-medium.onnx" \
-        --espeak_data /usr/share/espeak-ng-data \
-        --output_file "${WORK}/medium.wav" --quiet >/dev/null 2>&1
-then
-    _report ok "piper synthesises with the medium (low-CPU) voice"
-else
-    _report no "piper synthesises with the medium (low-CPU) voice" "see build_files/65-tts.sh"
-fi
+# ...and the alternative a parent can switch to. Both cori tiers are still in
+# the image; if either stopped loading, the escape hatch would be a dead line
+# in a config file and nobody would find out until they needed it.
+for _alt in en_GB-cori-high en_GB-cori-medium; do
+    if printf 'Shall we make a picture together?\n' \
+        | "${PIPER}" --model "${VOICES}/${_alt}.onnx" \
+            --espeak_data /usr/share/espeak-ng-data \
+            --output_file "${WORK}/${_alt}.wav" --quiet >/dev/null 2>&1
+    then
+        _report ok "piper synthesises with ${_alt} (the switchable alternative)"
+    else
+        _report no "piper synthesises with ${_alt}" "see build_files/65-tts.sh"
+    fi
+done
 
 # The fallback that makes ADR-0008's "never mute" true.
 if espeak-ng -v en-gb --stdout "fallback" >"${WORK}/espeak.wav" 2>/dev/null \
@@ -380,6 +458,17 @@ else
     _report no "kidnix-piper-say gets a WAV from the resident server" \
         "$(tail -1 "${WORK}/say.err" 2>/dev/null)"
 fi
+
+# WHICH voice that server just used. The server was started from tts.env, so
+# its own log is the evidence that the default in that file is the model
+# actually loaded -- not merely a string a grep found in a config file. This is
+# the container-side half of the boot test's "is it really Piper" question
+# (docs/spikes/tts.md 8), asked about identity rather than about success.
+#
+# It has to come AFTER an utterance: kidnix-piperd spawns piper lazily on the
+# first request, so before that line above the log says nothing about a model.
+assert_grep 'piper spawned: model=en_GB-alba-medium\.onnx' "${WORK}/piperd.log" \
+    "the resident server loaded alba, the voice tts.env names"
 
 # The regression test for the bug that made the first VM run mute: `spd-say`
 # with no -l sends `SET SELF LANGUAGE C`, sd_generic passes that through as

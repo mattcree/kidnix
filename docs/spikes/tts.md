@@ -610,3 +610,88 @@ carrying: the pitch standard deviation over the Goodnight line is 53.5 Hz for
 `northern_english_male-medium`, which is the flattest of the ten. §6 item 2
 still stands: **no one has listened**, and that is still the only test that
 matters.
+
+### 8.8 2026-08-23: a human listened, and the default voice changed
+
+§8.7 ended on the only honest sentence available at the time: *"no one has
+listened, and that is still the only test that matters."* Matt then listened to
+`output/tts-samples/` and called `cori` awful.
+
+That settles it. Every argument for cori was a licensing argument — it is the
+one en_GB Piper voice whose `MODEL_CARD` says **public domain**, so it was the
+only one that cost no attribution — and not one of them was an argument about
+how it sounds, because nobody in the loop could hear. A measured `sd` of 53.5 Hz
+over the Goodnight line told us cori had more melodic range than seven of the
+other nine. It did not tell us anyone would want to be read to by it.
+
+**The default is now `en_GB-alba-medium`.** cori stays in the image.
+
+#### What it cost
+
+| | |
+|---|---|
+| Licence | CC-BY-4.0, up from public domain |
+| Obligation | one credit, at `/usr/share/licenses/kidnix-voices/ATTRIBUTION` |
+| Image delta | **+63.2 MB** (`en_GB-alba-medium.onnx` 63,201,294 B, config 4,888 B, card 324 B) |
+| Resident memory | **−54 MB** (~114 MB for a medium model against ~168 MB for `cori-high`) |
+| Latency | **~4× faster** — a medium model is ~25–50 ms per short utterance against cori-high's ~110–300 ms |
+
+The image grows and the running session gets *cheaper*, because the old default
+was the `high` tier and the new one is `medium`. Nothing about the pace changed:
+`length_scale` 1.10 for the child and `sentence_silence` 0.25 are exactly as
+§8.6 left them, and both are still where §8.6 says they are — the pace knob is
+speechd's rate, not this file.
+
+#### Why not just swap cori out
+
+Because the reason the default moved is that a claim about how something sounds
+survived for a day without anyone testing it, and the fix for that is not a
+different untested claim. All three models ship (178 MB of cori, 63 MB of alba)
+and `/etc/kidnix/tts.env` chooses between them, so if alba also grates, the
+answer is one line in one file — no rebuild, no network, no image pull. That
+escape hatch is the mechanism this change was itself delivered through, which
+is the best evidence available that it is worth its 178 MB.
+
+#### On taking the attribution
+
+`AGENTS.md` §5 asks for bundled voices to be **redistributable** and for their
+licences to be **recorded**. It does not ask for zero-obligation. CC-BY-4.0 is
+redistributable inside a commercial product; the price is a credit. The credit
+is written out by `build_files/65-tts.sh` and names the depositors, the work,
+the DOI, the licence URI and the fact that the model is a *modification* of the
+corpus — CC-BY-4.0 §3(a)(1)(A–D), clause by clause — plus the moral-rights
+sentence the Alba corpus attaches on its own account, quoted verbatim because
+editing somebody's licence notice is not tidying.
+
+What is still refused has not moved: `semaine` is CC-BY-NC-SA-4.0 and
+non-commercial licences are disqualified outright; `alan` and `jenny_dioco` say
+"See URL", and unresolved is unshippable.
+
+#### What is checked now
+
+`tests/image/test_tts.sh` gained: alba's three files present and pinned by
+sha256; alba's card stating CC-BY-4.0; the six attribution clauses asserted
+*separately*, because the file that discharges the obligation is inert text that
+a tidy-up could delete without breaking a single thing that makes a noise; the
+CC-BY-4.0 rows in `THIRD-PARTY.tsv`; the default in `tts.env` being alba **and
+naming a file that exists**; and — the one that would have caught a bad swap —
+`piper spawned: model=en_GB-alba-medium.onnx` in the resident server's own log.
+
+That last one matters for the same reason §8.5 exists. A default pointing at an
+absent model does not fail loudly: `kidnix-piperd` logs "voice model missing",
+exits, and every utterance quietly takes the espeak-ng path. `spd-say` returns
+0. The child is read to in the robot voice and nothing goes red. Grepping the
+config file proves the string; only the server's log proves the model.
+
+`build_files/65-tts.sh` fails the build if the attribution stops naming the
+depositors, if `tts.env` names anything but alba, or if alba does not
+synthesise. The cori determinism probe (`--noise_scale 0 --noise_w 0` against
+Fedora's `espeak-ng-data`) is unchanged and still on cori, because that is the
+model its hash was measured against.
+
+#### Still true
+
+Nobody has heard alba *on the machine* — the samples were rendered by the
+image's own piper at the session's own settings, which is as close as an
+offline render gets, but §6 item 2 stands. `output/tts-samples/default-alba/`
+has three lines for exactly this purpose.

@@ -16,16 +16,30 @@
 #   source    where it came from (the URL a reviewer would check)
 #   origin    vendored = downloaded at build time by build_files/
 #             first-party = ours, Apache-2.0, lives in system_files/ or shell/
+#             repository = somebody else's content, committed into the kidnix
+#                          repository rather than downloaded (the Letters and
+#                          Sounds corpus, generated once from a Crown-copyright
+#                          PDF by activities/sounds_and_words/tools/gen.py)
 #
 # TO ADD A FILE: add the row here AND the row in docs/LICENSES.md, in the same
 # commit as the download. tests/image/test_licenses.sh fails a build where a
 # vendored file has no row, a row has no file, or a row is missing from the
 # ledger.
 #
+# A row records provenance; it does not discharge an obligation. The one asset
+# here that owes anything beyond being recorded is the default voice model,
+# en_GB-alba-medium, which is CC-BY-4.0: its credit is written out in full at
+# /usr/share/licenses/kidnix-voices/ATTRIBUTION and asserted line by line in
+# tests/image/test_tts.sh. Everything else vendored is MIT, public domain, or
+# carries its attribution inside the bundle (the GCompris .rcc files).
+#
 # path	licence	source	origin
 /usr/lib/kidnix/piper/piper	MIT	https://github.com/rhasspy/piper/releases/tag/2023.11.14-2	vendored
 /usr/lib/kidnix/piper/libpiper_phonemize.so.1.2.0	MIT	https://github.com/rhasspy/piper-phonemize	vendored
 /usr/lib/kidnix/piper/libonnxruntime.so.1.14.1	MIT	https://github.com/microsoft/onnxruntime/tree/v1.14.1	vendored
+/usr/share/kidnix/voices/en_GB-alba-medium.onnx	CC-BY-4.0	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium	vendored
+/usr/share/kidnix/voices/en_GB-alba-medium.onnx.json	CC-BY-4.0	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium	vendored
+/usr/share/kidnix/voices/en_GB-alba-medium.MODEL_CARD	CC-BY-4.0	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium	vendored
 /usr/share/kidnix/voices/en_GB-cori-high.onnx	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high	vendored
 /usr/share/kidnix/voices/en_GB-cori-high.onnx.json	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high	vendored
 /usr/share/kidnix/voices/en_GB-cori-high.MODEL_CARD	public-domain	https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high	vendored
@@ -38,3 +52,50 @@
 /usr/share/gcompris-qt/rcc/data3/backgroundMusic/backgroundMusic-ogg-2024-03-19-11-10-30.rcc	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/backgroundMusic/	vendored
 /usr/share/backgrounds/kidnix/default.png	Apache-2.0	https://github.com/mattcree/kidnix	first-party
 /usr/share/backgrounds/kidnix/default.svg	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+# --- first-party activities (build_files/64-first-party-activities.sh) ---
+#
+# The 26 clips below were unpacked out of the GCompris en_GB voice bundle two
+# rows up, by build_files/lib/rcc.py, and are the same CC-BY-SA-4.0 recordings
+# under a name a person can read. They are the letters' NAMES, not their
+# sounds -- /usr/share/kidnix/phonemes/en_GB/phonemes.toml says so, with a
+# checksum per clip, and nothing in kidnix plays them.
+/usr/share/kidnix/phonemes/en_GB/letter-names/a.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/b.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/c.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/d.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/e.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/f.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/g.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/h.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/i.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/j.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/k.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/l.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/m.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/n.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/o.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/p.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/q.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/r.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/s.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/t.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/u.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/v.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/w.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/x.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/y.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+/usr/share/kidnix/phonemes/en_GB/letter-names/z.ogg	CC-BY-SA-4.0	https://cdn.kde.org/gcompris/data3/voices-ogg/	vendored
+# The Letters and Sounds corpus Sounds & Words reads. UK government content,
+# not ours: Crown copyright 2007, redistributed under the Open Government
+# Licence v3.0, whose attribution line is at the top of every one of these
+# files and in full in .../sounds_and_words/LICENSES.md. The path carries a
+# Python version because site-packages does; a Fedora Python bump has to
+# update these rows, and test_licenses.sh is what will say so.
+/usr/lib/python3.14/site-packages/sounds_and_words/data/graphemes.toml	OGL-UK-3.0	https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/	repository
+/usr/lib/python3.14/site-packages/sounds_and_words/data/lexicon.toml	OGL-UK-3.0	https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/	repository
+/usr/lib/python3.14/site-packages/sounds_and_words/data/sentences.toml	OGL-UK-3.0	https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/	repository
+/usr/lib/python3.14/site-packages/sounds_and_words/data/tricky_words.toml	OGL-UK-3.0	https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/	repository
+/usr/lib/python3.14/site-packages/sounds_and_words/data/words.toml	OGL-UK-3.0	https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/	repository
+/usr/share/kidnix/phonemes/en_GB/letter-names/ATTRIBUTION	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+/usr/share/kidnix/phonemes/en_GB/phonemes.toml	Apache-2.0	https://github.com/mattcree/kidnix	first-party
+/usr/share/kidnix/icons/sounds-and-words.svg	Apache-2.0	https://github.com/mattcree/kidnix	first-party

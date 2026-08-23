@@ -100,7 +100,24 @@ complete.
 | KTuberling, Blinken, KLettres, Kolf | KDE 26.04 | GPL-2.0-or-later | Fedora | `/usr/share/` | yes |
 | TuxMath | 2.0.3 | GPL-3.0-or-later | Fedora | `/usr/share/tuxmath/` | yes |
 | kiwix-tools | 3.8 | GPL-3.0-or-later | Fedora | `/usr/bin/kiwix-serve` | yes |
+| **Sounds & Words** — kidnix's own activity (code, drawings, `icon.svg`) | 0.1.0 | Apache-2.0 | ours, <https://github.com/mattcree/kidnix> | `/usr/lib/python3.14/site-packages/sounds_and_words/`, `/usr/bin/kidnix-sounds-and-words`, `/usr/share/kidnix/icons/sounds-and-words.svg` | yes — ours |
+| Letters and Sounds (2007) corpus — the graphemes, words, tricky words and sentences Sounds & Words reads | DFES-00281-2007, © Crown copyright 2007 | Open Government Licence v3.0 | <https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/> | `/usr/lib/python3.14/site-packages/sounds_and_words/data/` (`graphemes`, `words`, `tricky_words`, `sentences`, `lexicon`) | **yes, with notice** — every generated file carries the OGL attribution line, and `…/sounds_and_words/LICENSES.md` ships beside it |
+| GCompris en_GB **letter-name** clips, unpacked from the `.rcc` at build time by `build_files/lib/rcc.py` | same bundle as the row above | CC-BY-SA-4.0 | <https://cdn.kde.org/gcompris/data3/voices-ogg/> | `/usr/share/kidnix/phonemes/en_GB/letter-names/` | **yes, with notice** — unmodified, and the attribution the bundle used to carry is written out beside them in `ATTRIBUTION` |
+| Phoneme provenance ledger (generated) | 0.1.0 | Apache-2.0 | ours | `/usr/share/kidnix/phonemes/en_GB/phonemes.toml` | yes — ours |
 | TurboWarp (Flatpak, first boot) | — | GPL-3.0 (Scratch derivative, BSD-3-Clause upstream) | Flathub | `/var/lib/flatpak` at first boot | yes — installed on the device, not redistributed by us |
+
+> **A note on the phoneme audio, because it is the kind of thing a ledger hides.**
+> Sounds & Words needs recordings of letter *sounds* — /s/, /a/, /t/. The only
+> English speech kidnix already redistributes is GCompris' `voices-en_GB`, and
+> its `alphabet/` set turned out to be the letters' **names** — the alphabet
+> song, not phonics (`docs/spikes/first-party-install.md` has the measurements).
+> Those 26 clips are therefore shipped as `letter-names/`, licensed and
+> attributed as above, and **no code plays them**. There are no phoneme
+> recordings in the image, none are synthesised, and
+> `/usr/share/kidnix/phonemes/en_GB/phonemes.toml` says so for every one of the
+> 114 grapheme–phoneme correspondences in the corpus. Recording them — about
+> twenty clips, one adult, one morning — makes them kidnix's own CC-BY-SA-4.0
+> asset and gets its own row here on the day it happens.
 
 ## 5. Parental controls and desktop
 
@@ -125,19 +142,55 @@ rotation fails the build rather than shipping an unreviewed voice to a child.
 | **piper** (CLI) | `rhasspy/piper` 2023.11.14-2 (archived Oct 2025) | **MIT** | <https://github.com/rhasspy/piper/releases/tag/2023.11.14-2> · tarball sha256 `a50cb45f355b7af1f6d758c1b360717877ba0a398cc8cbe6d2a7a3a26e225992` (x86_64), `fea0fd2d87c54dbc7078d0f878289f404bd4d6eea6e7444a77835d1537ab88eb` (aarch64) | `/usr/lib/kidnix/piper/piper` | yes, with notice — licence text at `/usr/share/licenses/kidnix-piper/LICENSE.piper.md` |
 | **libpiper_phonemize.so.1.2.0** | bundled in the same tarball | **MIT** | <https://github.com/rhasspy/piper-phonemize> | `/usr/lib/kidnix/piper/` | yes, with notice |
 | **libonnxruntime.so.1.14.1** | 1.14.1, bundled in the same tarball | **MIT** | <https://github.com/microsoft/onnxruntime/tree/v1.14.1> | `/usr/lib/kidnix/piper/` | yes, with notice |
+| **Voice: `en_GB-alba-medium`** — **the default voice** | piper-voices, retrieved 2026-08-23 | **CC-BY-4.0** — stated by the voice's own `MODEL_CARD`, which points at the Alba speech corpus | <https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium> · corpus <https://datashare.ed.ac.uk/handle/10283/3270> (<https://doi.org/10.7488/ds/2506>) | `/usr/share/kidnix/voices/en_GB-alba-medium.onnx` (63,201,294 B, sha256 `401369c4a81d09fdd86c32c5c864440811dbdcc66466cde2d64f7133a66ad03b`); config sha256 `aa965a2f02ecced632c2694e1fc72bbff6d65f265fab567ca945918c73dd89f4`; card sha256 `fa166b1779404c470b0b6b4ba0238bc4a35bf89d2cd130c6788f697188b737d6` | **yes, with notice** — attribution carried at `/usr/share/licenses/kidnix-voices/ATTRIBUTION` |
 | **Voice: `en_GB-cori-high`** | piper-voices, retrieved 2026-08-22 | **public domain** (training data: LibriVox, ~24 h) — stated by the voice's own `MODEL_CARD` | <https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high> · trained by <https://brycebeattie.com/files/tts/> | `/usr/share/kidnix/voices/en_GB-cori-high.onnx` (114,219,352 B, sha256 `470b4dd634c98f8a4850d7626ffc3dfc90774628eeef6605a6dd8f88f30a5903`); config sha256 `9e7fb5b5671612c22f3c81cbe46c1ae87b031a4632bcb509e499dad6f1e2adec` | yes — public domain, no attribution obligation |
 | **Voice: `en_GB-cori-medium`** | same | **public domain**, same dataset and card | <https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/medium> | `/usr/share/kidnix/voices/en_GB-cori-medium.onnx` (63,531,379 B, sha256 `1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d`); config sha256 `e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36` | yes |
 
-**Why `cori` and nothing else.** *docs/research/07 §2.4* lists eleven en_GB
-Piper voices. Their `MODEL_CARD` licences were re-read on 2026-08-22: `alba`,
-`aru` and `vctk` are CC-BY-4.0 (attribution we would have to carry into the
-image and the docs); `northern_english_male` and `southern_english_female` are
-CC-BY-SA-4.0; `jenny_dioco` requires attribution; **`semaine` is
-CC-BY-NC-SA-4.0 — non-commercial, and therefore disqualified outright by
-AGENTS.md §5**; `alan`'s card says only "See URL", which is not a licence.
-`cori` is the only en_GB voice whose card states **public domain**, and it
-happens to be the only one available at the `high` tier. Both tiers of it ship;
-`/etc/kidnix/tts.env` picks which one loads.
+**Which voices, and why the default moved.** *docs/research/07 §2.4* lists
+eleven en_GB Piper voices. Their `MODEL_CARD` licences were re-read on
+2026-08-22: `alba`, `aru` and `vctk` are CC-BY-4.0 (attribution to carry);
+`northern_english_male` and `southern_english_female` are CC-BY-SA-4.0;
+`jenny_dioco` requires attribution; **`semaine` is CC-BY-NC-SA-4.0 —
+non-commercial, and therefore disqualified outright by AGENTS.md §5**; `alan`'s
+card says only "See URL", which is not a licence. `cori` is the only en_GB
+voice whose card states **public domain**, and the only one available at the
+`high` tier.
+
+That is why `cori` was the original default — and it was chosen *entirely* on
+that basis, at a point where nobody in the loop had heard a single one of the
+candidates (`docs/spikes/tts.md` §8.7 says so plainly: "no one has listened,
+and that is still the only test that matters"). On **2026-08-23 someone
+listened**, and cori was judged bad. So the default is now `alba`, and kidnix
+takes on the one obligation it was previously avoiding.
+
+**This is a deliberate trade, not a drift.** AGENTS.md §5 asks for content that
+is *redistributable and recorded* — it does not ask for content that costs
+nothing. CC-BY-4.0 is redistributable inside a commercial product; the price is
+a credit, which is cheap, and the benefit is a voice a child will actually
+listen to, which is the entire point of the subsystem. What remains refused is
+unchanged: non-commercial (`semaine`) and unresolved (`alan`, `jenny_dioco`).
+
+**The attribution is carried at
+`/usr/share/licenses/kidnix-voices/ATTRIBUTION`**, written by
+`build_files/65-tts.sh`. It names the depositors, the work, the DOI, the
+licence URI, and the fact that the work was modified — CC-BY-4.0 §3(a)(1)(A–D)
+item by item — plus the moral-rights sentence the corpus attaches on its own
+account:
+
+> Valentini-Botinhao, Cassia; Yamagishi, Junichi. (2019). Alba speech corpus,
+> [dataset]. University of Edinburgh. <https://doi.org/10.7488/ds/2506>.
+> Licensed under CC BY 4.0, <https://creativecommons.org/licenses/by/4.0/>.
+> Modified: kidnix redistributes a neural model finetuned from those
+> recordings, not the recordings themselves.
+
+`tests/image/test_tts.sh` asserts each of those clauses separately, because the
+file that discharges the obligation is a text file nothing else depends on, and
+a tidy-up could delete it without breaking anything that makes a sound.
+
+**All three models ship**; `/etc/kidnix/tts.env` picks which one loads, with no
+rebuild and no network. `cori` stays precisely so that "the voice is wrong" is
+a one-line fix for a parent rather than a rebuild — the same escape hatch that
+was just used to get here.
 
 **Two things we deliberately do *not* redistribute.**
 
@@ -164,7 +217,7 @@ below treats codecs.
 | Item | Version | Licence | Source | Where in the image | Redistribution OK? |
 |---|---|---|---|---|---|
 | Offline reference content (Kiwix ZIM files: Wikipedia for Schools, Wiktionary) | — | CC-BY-SA-3.0/4.0 for Wikimedia content | <https://library.kiwix.org/> | `/usr/share/kidnix/zim/` | **planned** — CC-BY-SA requires carrying attribution and licence; ZIMs embed it, but the image must not strip it |
-| First-party activity art and sounds | — | Apache-2.0 or CC-BY-SA-4.0 (decide by ADR) | ours | `/usr/share/kidnix/activities/` | **planned** |
+| First-party activity **sounds** (phoneme recordings for Sounds & Words) | — | CC-BY-SA-4.0 (decided: matches GCompris', so a clip can be swapped either way) | ours, to be recorded | `/usr/share/kidnix/phonemes/en_GB/` | **planned** — nothing recorded yet; §4 has what stands in for it |
 | Icon set for the child shell | — | **TBD** | candidates: Adwaita (already present), Papirus (GPL-3.0) | `/usr/share/icons/` | **planned** |
 | Sound effects for the shell (ending ritual, success chimes) | — | **TBD** | candidates: freesound.org (per-clip CC), GNOME sound theme (CC-BY-SA) | `/usr/share/sounds/kidnix/` | **planned** — per-clip licences, so a manifest is required |
 
@@ -180,7 +233,9 @@ below treats codecs.
 2. **Firefox.** In the image, unused by kidnix, unreachable by the child.
    Remove, or keep for the parent? A decision, not an accident.
 3. ~~**Voices are the hard one.**~~ **Resolved for en_GB** — see §6. The
-   shipped voice is public domain and pinned by SHA-256. Still open for other
+   default voice is CC-BY-4.0 with its attribution carried in the image and
+   asserted by a test; a public-domain alternative ships alongside it and is
+   one line away. Every model is pinned by SHA-256. Still open for other
    languages: the Welsh TTS that *docs/research/06 §7.5 #31* asks for has no
    public-domain Piper voice, so it is espeak-ng only for now.
 4. ~~**Automation.**~~ **Partly resolved.** `just licenses` cross-checks

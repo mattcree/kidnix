@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# Neural read-aloud: Piper + the public-domain en_GB "cori" voice.
+# Neural read-aloud: Piper + the en_GB "alba" and "cori" voices.
 #
 # ADR-0008 makes speech-dispatcher the one voice API and espeak-ng the
 # guaranteed fallback. This stage adds the *good* voice on top: Piper, behind
@@ -88,31 +88,47 @@ install -m 0644 "${workdir}/piper/libpiper_phonemize.so.1.2.0" "${PIPER_PREFIX}/
 ln -sfn libonnxruntime.so.1.14.1 "${PIPER_PREFIX}/libonnxruntime.so"
 ln -sfn libpiper_phonemize.so.1.2.0 "${PIPER_PREFIX}/libpiper_phonemize.so.1"
 
-# --- 2. the voice ------------------------------------------------------------
+# --- 2. the voices -----------------------------------------------------------
 #
-# LICENCE, verified 2026-08-22 against the voice's own MODEL_CARD in
-# huggingface.co/rhasspy/piper-voices: dataset is LibriVox, **public domain**.
-# That is the whole reason cori was chosen over the prettier-sounding
-# alternatives -- alba/aru/vctk are CC-BY-4.0 (attribution we would have to
-# carry), northern_english_male and southern_english_female are CC-BY-SA-4.0,
-# semaine is CC-BY-NC-SA-4.0 (non-commercial, disqualified by AGENTS.md §5),
-# and alan's card just says "See URL", which is not a licence. Recorded in
-# docs/LICENSES.md with these exact checksums.
+# Two speakers ship. /etc/kidnix/tts.env picks which one loads, with one line.
 #
-# Both tiers ship. They are the same voice and the same licence; `high` is the
-# default and `medium` is the low-CPU escape hatch (~4x faster, 54 MB less
-# resident) that /etc/kidnix/tts.env switches to with one line. Measurements in
-# docs/spikes/tts.md.
-VOICE_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/cori"
+#   alba  (medium, 63 MB)  CC-BY-4.0.  THE DEFAULT since 2026-08-23.
+#   cori  (high 114 MB / medium 63 MB)  public domain.  The alternative.
+#
+# WHY THE DEFAULT MOVED. cori was picked on 2026-08-22 purely because its card
+# says public domain -- it was the only en_GB voice with no attribution to
+# carry, and at that point nobody in the loop could hear any of them
+# (docs/spikes/tts.md 8.7 says so in as many words). A human has now listened,
+# and cori was judged bad. That is the only test that ever mattered, so it
+# wins over the convenience of owing no attribution.
+#
+# The cost of alba is exactly one obligation: CC-BY-4.0 attribution, written
+# out below into /usr/share/licenses/kidnix-voices/ATTRIBUTION and recorded in
+# docs/LICENSES.md 6. AGENTS.md 5 allows this -- it asks for redistributable
+# and recorded, not for zero-obligation. What is still refused is unchanged:
+# semaine is CC-BY-NC-SA-4.0 (non-commercial, disqualified outright), and
+# alan/jenny_dioco state "See URL", which is not a licence.
+#
+# cori stays in the image rather than being deleted. It is public domain, it
+# costs 178 MB, and it is the escape hatch if alba turns out to be wrong too --
+# a parent switches back by editing one line, with no rebuild and no network.
+VOICE_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB"
 VOICE_DIR="/usr/share/kidnix/voices"
 
 # relative-url|filename|sha256
+#
+# Pinned on 2026-08-22 (cori) and 2026-08-23 (alba). Re-checked against a fresh
+# fetch from the HF mirror at pin time, and again in tests/image/test_tts.sh: a
+# CDN rotation must fail the build, not ship an unreviewed model to a child.
 VOICE_FILES=(
-    "high/en_GB-cori-high.onnx|en_GB-cori-high.onnx|470b4dd634c98f8a4850d7626ffc3dfc90774628eeef6605a6dd8f88f30a5903"
-    "high/en_GB-cori-high.onnx.json|en_GB-cori-high.onnx.json|9e7fb5b5671612c22f3c81cbe46c1ae87b031a4632bcb509e499dad6f1e2adec"
-    "high/MODEL_CARD|en_GB-cori-high.MODEL_CARD|136e7bd168b6c35b4a5df01a0253297e5773b5775ceae0af5160f264aa58208f"
-    "medium/en_GB-cori-medium.onnx|en_GB-cori-medium.onnx|1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d"
-    "medium/en_GB-cori-medium.onnx.json|en_GB-cori-medium.onnx.json|e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36"
+    "alba/medium/en_GB-alba-medium.onnx|en_GB-alba-medium.onnx|401369c4a81d09fdd86c32c5c864440811dbdcc66466cde2d64f7133a66ad03b"
+    "alba/medium/en_GB-alba-medium.onnx.json|en_GB-alba-medium.onnx.json|aa965a2f02ecced632c2694e1fc72bbff6d65f265fab567ca945918c73dd89f4"
+    "alba/medium/MODEL_CARD|en_GB-alba-medium.MODEL_CARD|fa166b1779404c470b0b6b4ba0238bc4a35bf89d2cd130c6788f697188b737d6"
+    "cori/high/en_GB-cori-high.onnx|en_GB-cori-high.onnx|470b4dd634c98f8a4850d7626ffc3dfc90774628eeef6605a6dd8f88f30a5903"
+    "cori/high/en_GB-cori-high.onnx.json|en_GB-cori-high.onnx.json|9e7fb5b5671612c22f3c81cbe46c1ae87b031a4632bcb509e499dad6f1e2adec"
+    "cori/high/MODEL_CARD|en_GB-cori-high.MODEL_CARD|136e7bd168b6c35b4a5df01a0253297e5773b5775ceae0af5160f264aa58208f"
+    "cori/medium/en_GB-cori-medium.onnx|en_GB-cori-medium.onnx|1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d"
+    "cori/medium/en_GB-cori-medium.onnx.json|en_GB-cori-medium.onnx.json|e262c16d7f192f69d4edd6b4ef8a5915379e67495fcc402f1ab15eeb33da3d36"
 )
 
 install -d -m 0755 "${VOICE_DIR}"
@@ -151,6 +167,88 @@ with about 24 hours of recordings. All recordings came from LibriVox.org.
 EOF
 chmod 0644 "${VOICE_DIR}/en_GB-cori-medium.MODEL_CARD"
 
+# --- 2a. the CC-BY-4.0 attribution alba obliges us to carry -------------------
+#
+# alba's MODEL_CARD names its dataset and its licence URL, and nothing else in
+# the image says who to credit. CC-BY-4.0 3(a)(1) wants the creator identified,
+# the title, a licence URI, and an indication that the work was modified -- so
+# all four are written here rather than left implicit in a DOI.
+#
+# The wording is the dataset's OWN citation string, copied verbatim from
+# datashare.ed.ac.uk/handle/10283/3270, not a paraphrase. The moral-rights
+# sentence is likewise verbatim from the corpus's license_text.txt: it is not
+# part of CC-BY, the depositors added it, and dropping it would be editing
+# someone's licence notice.
+#
+# "Modified" is the honest word: the shipped .onnx is not the corpus. Piper
+# finetuned a U.S. English lessac model on it, and we then resample nothing but
+# feed it a different length_scale. The card states the finetune; we state it
+# here too so a reader never has to open the card to learn it.
+LIC_VOICES="/usr/share/licenses/kidnix-voices"
+install -d -m 0755 "${LIC_VOICES}"
+cat >"${LIC_VOICES}/ATTRIBUTION" <<'EOF'
+Attribution for the voice models in /usr/share/kidnix/voices.
+
+Written by build_files/65-tts.sh. The ledger a human reads is docs/LICENSES.md
+section 6 in the kidnix source; the machine-readable one is
+/usr/share/kidnix/THIRD-PARTY.tsv.
+
+
+en_GB-alba-medium  --  CC BY 4.0, ATTRIBUTION REQUIRED
+-----------------------------------------------------
+
+This is the voice kidnix speaks in by default.
+
+The model was trained by the Piper project by finetuning the U.S. English
+"lessac" medium voice on the Alba speech corpus. Model:
+
+    https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium
+
+The corpus, which is where the CC BY 4.0 obligation comes from, is credited
+with its depositors' own citation:
+
+    Valentini-Botinhao, Cassia; Yamagishi, Junichi. (2019). Alba speech
+    corpus, [dataset]. University of Edinburgh.
+    https://doi.org/10.7488/ds/2506.
+
+    https://datashare.ed.ac.uk/handle/10283/3270
+
+Licensed under the Creative Commons Attribution 4.0 International Licence:
+
+    https://creativecommons.org/licenses/by/4.0/
+
+The work has been MODIFIED: kidnix redistributes a neural model finetuned from
+those recordings, not the recordings themselves, and synthesises speech with it
+at a slower pace than the model's default.
+
+The corpus licence adds a condition that is not part of CC BY, quoted here in
+full because it travels with the recordings:
+
+    "The Creative Commons licence does not affect the moral rights of the voice
+    talent with respect to the recordings. Any use derogatory to the voice
+    talent is prohibited."
+
+
+en_GB-cori-high, en_GB-cori-medium  --  public domain, no attribution owed
+-------------------------------------------------------------------------
+
+Trained by https://brycebeattie.com/files/tts/ on LibriVox recordings; the
+voice's own MODEL_CARD states the dataset licence is public domain. Kept in the
+image as the switchable alternative to alba. Credited here as a courtesy, not
+as an obligation.
+
+    https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori
+EOF
+chmod 0644 "${LIC_VOICES}/ATTRIBUTION"
+
+# The obligation is only discharged if the credit actually names the people.
+# A future edit that tidies this into "University of Edinburgh" fails here.
+for _needle in "Valentini-Botinhao" "Yamagishi" \
+    "creativecommons.org/licenses/by/4.0" "10.7488/ds/2506" "MODIFIED"; do
+    grep -qF "${_needle}" "${LIC_VOICES}/ATTRIBUTION" \
+        || die "the alba attribution no longer names ${_needle}; CC-BY-4.0 3(a)(1) is not satisfied"
+done
+
 # --- 3. licence texts --------------------------------------------------------
 #
 # The vendored binaries arrive as a tarball, not an RPM, so nothing else puts
@@ -178,10 +276,17 @@ Vendored by build_files/65-tts.sh, not by RPM.
   libpiper_phonemize.so.1      MIT  rhasspy/piper-phonemize
   libonnxruntime.so.1.14.1     MIT  microsoft/onnxruntime v1.14.1
 
-The voice models in /usr/share/kidnix/voices are a separate matter: the
-en_GB "cori" models are trained on LibriVox recordings and their MODEL_CARD
-states the dataset licence is **public domain**. The cards ship alongside
-the models. See docs/LICENSES.md in the kidnix source for the ledger.
+The voice models in /usr/share/kidnix/voices are a separate matter, and
+they are NOT all on the same footing:
+
+  en_GB-alba-medium    CC BY 4.0   the default voice; ATTRIBUTION REQUIRED
+  en_GB-cori-high      public domain
+  en_GB-cori-medium    public domain
+
+Each model's own MODEL_CARD ships next to it as the licence evidence. The
+credit alba obliges us to carry is at
+/usr/share/licenses/kidnix-voices/ATTRIBUTION. See docs/LICENSES.md in the
+kidnix source for the ledger.
 
 espeak-ng is NOT vendored here. Piper's phonemiser links against Fedora's
 espeak-ng (GPL-3.0-or-later, /usr/share/licenses/espeak-ng/) and reads
@@ -292,6 +397,28 @@ printf 'The quick brown fox jumps over the lazy dog.\n' \
 probe_size="$(stat -c %s "${probe_wav}")"
 (( probe_size > 40000 )) || die "piper produced only ${probe_size} bytes of audio"
 head -c 4 "${probe_wav}" | grep -q RIFF || die "piper output is not a WAV"
+
+# ...and the same for the voice the child will actually hear. The probe above
+# is the espeak-ng-data tripwire and stays on cori because that is the model
+# its hash was measured against; this one is the far duller question of whether
+# the DEFAULT model in tts.env loads at all. A build that ships an alba the
+# runtime cannot open would boot into espeak-ng and sound fine to every check
+# that only asks whether something was said.
+alba_wav="${workdir}/alba.wav"
+printf 'The quick brown fox jumps over the lazy dog.\n' \
+    | "${PIPER_PREFIX}/piper" \
+        --model "${VOICE_DIR}/en_GB-alba-medium.onnx" \
+        --espeak_data /usr/share/espeak-ng-data \
+        --output_file "${alba_wav}" --quiet \
+    || die "vendored piper could not synthesise with the default (alba) voice"
+(( "$(stat -c %s "${alba_wav}")" > 40000 )) || die "alba produced no audio"
+
+# The one line that decides what a child hears, checked against the file that
+# has to exist for it to mean anything.
+_default_model="$(sed -n 's/^KIDNIX_PIPER_MODEL=//p' /etc/kidnix/tts.env)"
+[[ "${_default_model}" == "${VOICE_DIR}/en_GB-alba-medium.onnx" ]] \
+    || die "tts.env's default voice is '${_default_model}', not alba"
+[[ -f "${_default_model}" ]] || die "tts.env points at ${_default_model}, which is not in the image"
 
 # espeak-ng must still be able to speak on its own -- it is the fallback both
 # inside kidnix-piper-say and as a separate speech-dispatcher module.
