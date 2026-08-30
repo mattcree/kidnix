@@ -36,8 +36,12 @@ permissions:
   contents: read
   packages: read
 
+# Keyed by event as well as ref: a push's own (self-check only) run must not
+# cancel a scheduled or hand-dispatched VM run of the same branch mid-install
+# -- which is how a fix for the nightly failure lost its first test run on
+# 2026-08-30. Pushes still supersede pushes.
 concurrency:
-  group: e2e-${{ github.ref }}
+  group: e2e-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -183,12 +187,18 @@ jobs:
         run: |
           set -euo pipefail
           sudo sysctl -w fs.file-max=16777216 fs.nr_open=16777216 || true
+          # The runner's HARD nofile limit is 65536 (the first instrumented
+          # run printed nofile=65536/65536), and virtiofsd keeps one host fd
+          # per inode it has served -- bootc's tree walk over a ~600k-file
+          # image needs far more. Only root can raise a running shell's hard
+          # limit; bcvk, podman and virtiofsd all inherit it from here.
+          sudo prlimit --pid "$$" --nofile=1048576:1048576 || true
           ulimit -n "$(ulimit -Hn)" || true
           echo "limits: file-max=$(cat /proc/sys/fs/file-max) nr_open=$(cat /proc/sys/fs/nr_open) nofile=$(ulimit -Sn)/$(ulimit -Hn)"
           podman info --format '{{.Store.GraphDriverName}} podman {{.Version.Version}}' || true
           # A sampler on virtiofsd's fd table while the installer walks the tree.
-          ( while sleep 10; do for p in $(pgrep -x virtiofsd); do \
-                echo "virtiofsd pid=$p fds=$(ls /proc/$p/fd 2>/dev/null | wc -l)"; done; \
+          ( set +e; while sleep 10; do for p in $(pgrep -f virtiofsd); do \
+                echo "virtiofsd pid=$p fds=$(ls /proc/$p/fd 2>/dev/null | wc -l) nofile=$(grep -i 'max open files' /proc/$p/limits 2>/dev/null | awk '{print $4"/"$5}')"; done; \
             done ) > output/virtiofsd-fds.log 2>/dev/null &
           sampler=$!
           rc=0
