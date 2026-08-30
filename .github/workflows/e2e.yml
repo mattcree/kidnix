@@ -170,11 +170,36 @@ jobs:
           podman pull "${{ inputs.image_ref }}"
           podman tag "${{ inputs.image_ref }}" "localhost/${IMAGE_NAME}:latest"
 
+      # Since 2026-08-24 the nightly run has died here with "readdir: Too many
+      # open files in system" from `bootc install` inside bcvk's installer VM,
+      # on a commit that passed the day before -- the republished base image
+      # carried a newer bootc that walks the whole tree over virtiofs. The
+      # same command succeeds on a developer machine with generous limits, so:
+      # raise every file limit the runner lets us, keep the installer's own
+      # log, and print what the limits were, so the next failure explains
+      # itself instead of saying the same five words for a week.
       - name: Install the image to a disk
         if: steps.kvm.outputs.available == 'true'
         run: |
           set -euo pipefail
-          just build-qcow2-rootless
+          sudo sysctl -w fs.file-max=16777216 fs.nr_open=16777216 || true
+          ulimit -n "$(ulimit -Hn)" || true
+          echo "limits: file-max=$(cat /proc/sys/fs/file-max) nr_open=$(cat /proc/sys/fs/nr_open) nofile=$(ulimit -Sn)/$(ulimit -Hn)"
+          podman info --format '{{.Store.GraphDriverName}} podman {{.Version.Version}}' || true
+          # A sampler on virtiofsd's fd table while the installer walks the tree.
+          ( while sleep 10; do for p in $(pgrep -x virtiofsd); do \
+                echo "virtiofsd pid=$p fds=$(ls /proc/$p/fd 2>/dev/null | wc -l)"; done; \
+            done ) > output/virtiofsd-fds.log 2>/dev/null &
+          sampler=$!
+          rc=0
+          just build-qcow2-rootless --install-log output/bootc-install.log || rc=$?
+          kill "$sampler" 2>/dev/null || true
+          if [[ "$rc" -ne 0 ]]; then
+            echo "--- bootc install log (tail) ---"; tail -80 output/bootc-install.log 2>/dev/null || true
+            echo "--- virtiofsd fds ---"; tail -20 output/virtiofsd-fds.log 2>/dev/null || true
+            exit "$rc"
+          fi
+          sort -t= -k3 -n output/virtiofsd-fds.log 2>/dev/null | tail -1 | sed 's/^/peak /' || true
           ls -lh output/qcow2/
           # The image layers are 6 GB we no longer need, and the scenario VM
           # wants room for its -snapshot overlay in /tmp.

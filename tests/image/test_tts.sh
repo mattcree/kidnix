@@ -525,16 +525,31 @@ with wave.open('${WORK}/served.wav') as handle:
 
 # Rate really moves: -60 must be audibly longer than +60. This is the only
 # check that the speechd rate the shell sends survives the whole chain.
-if printf 'Shall we make a picture together?\n' | /usr/libexec/kidnix-piper-say \
-        --rate -60 --stdout >"${WORK}/slow.wav" 2>/dev/null \
-    && printf 'Shall we make a picture together?\n' | /usr/libexec/kidnix-piper-say \
-        --rate 60 --stdout >"${WORK}/fast.wav" 2>/dev/null \
+#
+# Every step keeps its stderr and the verdict prints the numbers, because the
+# one time this failed in CI (the weekly rebuild of 2026-08-24, on a runner
+# where it had passed the day before) all the log said was "the two renderings
+# are the same length" -- which is also what it would say if kidnix-piper-say
+# had fallen back to espeak-ng on one of the runs, or crashed on both.
+# A helper that survives a dead server *silently* is exactly what this test
+# must not be allowed to be.
+_rate_render() {  # <rate> <name>: render the sentence; stderr to $WORK/<name>.err
+    printf 'Shall we make a picture together?\n' | /usr/libexec/kidnix-piper-say \
+        --rate "$1" --stdout >"${WORK}/$2.wav" 2>"${WORK}/$2.err"
+}
+# The first synthesis after the server starts is the slow one (the model is
+# lazily warmed by its first inference); the shell pays that on its first
+# utterance too. Pay it here, un-timed, so the two measured runs are alike.
+_rate_render 0 warm >/dev/null 2>&1 || true
+if _rate_render -60 slow && _rate_render 60 fast \
+    && ! grep -q 'falling back' "${WORK}/slow.err" "${WORK}/fast.err" \
     && python3 -c "
 import sys, wave
 def seconds(path):
     with wave.open(path) as handle:
         return handle.getnframes() / handle.getframerate()
 slow, fast = seconds('${WORK}/slow.wav'), seconds('${WORK}/fast.wav')
+print(f'    rate -60: {slow:.3f} s, rate +60: {fast:.3f} s, ratio {slow / fast:.2f}')
 # Measured 2.335 s vs 1.662 s (ratio 1.40). The ratio is diluted by the fixed
 # 0.25 s sentence pause, so 1.25 is the bar: comfortably above an unchanged
 # rate (ratio 1.0) and comfortably below what a working rate produces.
@@ -543,7 +558,8 @@ sys.exit(0 if slow > fast * 1.25 else 1)
 then
     _report ok "speechd rate reaches Piper (rate -60 is much slower than +60)"
 else
-    _report no "speechd rate reaches Piper" "the two renderings are the same length"
+    _report no "speechd rate reaches Piper" \
+        "slow: $(tail -1 "${WORK}/slow.err" 2>/dev/null || echo '(no stderr)'); fast: $(tail -1 "${WORK}/fast.err" 2>/dev/null || echo '(no stderr)'); sizes: $(stat -c %s "${WORK}/slow.wav" "${WORK}/fast.wav" 2>/dev/null | tr '\n' ' ')"
 fi
 
 kill "${piperd_pid}" 2>/dev/null
