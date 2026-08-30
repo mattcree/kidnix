@@ -472,7 +472,12 @@ grep -Eq '^pin_salt = "[0-9a-f]{32}"$' "${PIN_PROBE}" \
     || die "kidnix-set-pin did not write a pin_salt"
 grep -q 'hover_dwell_ms' "${PIN_PROBE}" \
     || die "kidnix-set-pin ate the rest of the file; the rewrite is not comment-preserving"
-if grep -q '2468' "${PIN_PROBE}"; then die "kidnix-set-pin stored the PIN itself"; fi
+# Bounded by non-hex on both sides: the file now holds a fresh random 64-hex
+# hash and a 32-hex salt, and a bare `grep 2468` over those matches by chance
+# about once in 800 builds (it did, on 2026-08-30). A stored PIN would sit as
+# a value -- `pin = "2468"` -- with quotes or whitespace around it, never
+# inside a run of hex.
+if grep -Eq '(^|[^0-9a-f])2468([^0-9a-f]|$)' "${PIN_PROBE}"; then die "kidnix-set-pin stored the PIN itself"; fi
 
 # 2. A CHANGE COSTS THE CURRENT PIN. Exit 4 = "already set, none proved",
 #    exit 3 = "that is not the current PIN". Both cost the caller two seconds.
