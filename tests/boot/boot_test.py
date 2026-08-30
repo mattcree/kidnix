@@ -40,12 +40,58 @@ PANIC_PATTERNS = (
     re.compile(rb"Failed to start Switch Root"),
 )
 
-OVMF_CANDIDATES = (
-    "/usr/share/OVMF/OVMF_CODE.fd",
-    "/usr/share/edk2/ovmf/OVMF_CODE.fd",
-    "/usr/share/qemu/ovmf-x86_64-code.bin",
-    "/usr/share/OVMF/OVMF_CODE_4M.fd",
+#: UEFI firmware, as (code, vars) pairs. **pflash, not -bios**: since the
+#: ovmf package on Ubuntu 24.04 stopped shipping the 2 MiB ``OVMF_CODE.fd``
+#: (2026-08), only the 4 MiB family is there, and its code-only image is
+#: 3,653,632 bytes -- not a multiple of 64 KiB, which is what qemu's ``-bios``
+#: insists on ("could not load PC BIOS"). Loading code and a private copy of
+#: the vars store as two pflash drives is how UEFI is meant to be booted and
+#: works for both families, so every harness here does that.
+OVMF_PAIRS = (
+    ("/usr/share/OVMF/OVMF_CODE.fd", "/usr/share/OVMF/OVMF_VARS.fd"),
+    ("/usr/share/edk2/ovmf/OVMF_CODE.fd", "/usr/share/edk2/ovmf/OVMF_VARS.fd"),
+    ("/usr/share/OVMF/OVMF_CODE_4M.fd", "/usr/share/OVMF/OVMF_VARS_4M.fd"),
+    ("/usr/share/qemu/ovmf-x86_64-code.bin", "/usr/share/qemu/ovmf-x86_64-vars.bin"),
 )
+
+
+def find_ovmf() -> str:
+    """The firmware *code* image, for reports. :func:`firmware_args` boots it."""
+    for code, _vars in OVMF_PAIRS:
+        if os.path.exists(code):
+            return code
+    raise BootTestError(
+        "no OVMF/UEFI firmware found; install edk2-ovmf. Looked in:\n  "
+        + "\n  ".join(code for code, _ in OVMF_PAIRS)
+    )
+
+
+def firmware_args(scratch_dir) -> list:
+    """qemu arguments that boot UEFI: two pflash drives, or ``-bios`` if that is all there is.
+
+    The vars store is copied into ``scratch_dir`` because qemu writes to it
+    (boot order, the ESP it found); the packaged one is root-owned and shared.
+    """
+    import shutil as _shutil
+    from pathlib import Path as _Path
+
+    for code, vars_ in OVMF_PAIRS:
+        if not os.path.exists(code):
+            continue
+        if os.path.exists(vars_):
+            scratch = _Path(scratch_dir)
+            scratch.mkdir(parents=True, exist_ok=True)
+            private = scratch / ("uefi-vars-" + os.path.basename(vars_))
+            _shutil.copyfile(vars_, private)
+            return [
+                "-drive",
+                f"if=pflash,format=raw,readonly=on,file={code}",
+                "-drive",
+                f"if=pflash,format=raw,file={private}",
+            ]
+        if os.path.getsize(code) % 65536 == 0:
+            return ["-bios", code]
+    return ["-bios", find_ovmf()]
 
 
 class BootTestError(RuntimeError):
@@ -122,16 +168,6 @@ class QMPClient:
 # --------------------------------------------------------------------------- #
 
 
-def find_ovmf() -> str:
-    for candidate in OVMF_CANDIDATES:
-        if os.path.exists(candidate):
-            return candidate
-    raise BootTestError(
-        "no OVMF/UEFI firmware found; install edk2-ovmf. Looked in:\n  "
-        + "\n  ".join(OVMF_CANDIDATES)
-    )
-
-
 def kvm_available() -> bool:
     return os.path.exists("/dev/kvm") and os.access("/dev/kvm", os.R_OK | os.W_OK)
 
@@ -167,7 +203,7 @@ def build_qemu_command(args: argparse.Namespace, qmp_socket: str) -> list[str]:
         "-m", str(args.memory),
         # Never mutate the disk image the developer built.
         "-snapshot",
-        "-bios", find_ovmf(),
+        *firmware_args(args.output_dir),
         "-drive", f"file={args.qcow2},if=virtio,format=qcow2",
         "-netdev", f"user,id=net0,hostfwd=tcp::{args.ssh_port}-:22",
         "-device", "virtio-net-pci,netdev=net0",

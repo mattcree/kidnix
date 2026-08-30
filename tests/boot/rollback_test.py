@@ -59,6 +59,7 @@ from boot_test import (
     QMPClient,
     convert_screenshot,
     find_ovmf,
+    firmware_args,
     kvm_available,
 )
 
@@ -353,7 +354,7 @@ class RollbackVM:
             # NO -snapshot and NO -no-reboot. Both would defeat this test: the
             # staged deployment and boot_counter must survive, and the guest
             # must be able to reboot itself as many times as greenboot wants.
-            "-bios", find_ovmf(),
+            *firmware_args(os.path.dirname(os.path.abspath(self.qcow2))),
             "-drive", f"file={self.qcow2},if=virtio,format=qcow2",
             "-netdev", f"user,id=net0,hostfwd=tcp::{self.ssh_port}-:22",
             "-device", "virtio-net-pci,netdev=net0",
