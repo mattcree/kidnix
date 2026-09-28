@@ -22,9 +22,6 @@ on:
   push:
     branches: [main, 'ci/**']
   pull_request:
-  schedule:
-    # 03:20 UTC. Nothing waits on this; it is a slow soak, not a gate.
-    - cron: '20 3 * * *'
   workflow_dispatch:
     inputs:
       image_ref:

@@ -6,11 +6,6 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  schedule:
-    # Weekly rebuild so the image picks up Fedora security updates even when
-    # nobody has touched the repo. Mondays, 06:17 UTC (off the hour on purpose:
-    # GitHub's scheduler is heavily contended at :00).
-    - cron: "17 6 * * 1"
   workflow_dispatch:
 
 env:
